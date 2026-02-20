@@ -1,48 +1,48 @@
 {
   "expo": {
-    "name": "청원고 수능대박 타이머",
-    "slug": "suneung-timer-native",
+    "name": "열공 멀티타이머",
+    "slug": "yeolgong-timer",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/characters/group.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a2e"
+      "backgroundColor": "#F8F5FC"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yeolgong.timer"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1a2e"
+        "foregroundImage": "./assets/icons/app-icon.png",
+        "backgroundColor": "#F8F5FC"
       },
-      "package": "com.leedongsik.suneungtimer",
+      "package": "com.yeolgong.timer",
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM",
-        "WAKE_LOCK",
-        "POST_NOTIFICATIONS",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_SPECIAL_USE"
-      ],
-      "useNextNotificationsApi": true
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "plugins": [
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#ffffff",
-          "sounds": []
+          "icon": "./assets/icons/app-icon.png",
+          "color": "#FF6B9D"
         }
-      ]
+      ],
+      "expo-sensors"
     ],
     "extra": {
       "eas": {
-        "projectId": "09c6720d-cbf9-4a3c-b838-d7fe8f121850"
+        "projectId": "ff1ee02a-77f5-4799-96d9-accb8eab8b36"
       }
     }
   }
