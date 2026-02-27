@@ -1,17 +1,20 @@
 // src/components/CharacterAvatar.js
-// 캐릭터 아바타 — 원형에 캐릭터 꽉 차게 (머리~발)
+// 캐릭터 아바타 — 원형에 캐릭터 꽉 차게, 발바닥 하단 정렬
 
 import React, { useState } from 'react';
 import { View, Image, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 
-/**
- * 이미지 원본: 1376x768 (비율 1.79:1)
- * 캐릭터는 이미지 중앙에 세로 약 85% 차지
- * → 이미지 높이를 원형의 1.3배로 → 캐릭터가 머리~발 꽉 참
- * → 가로는 비율대로 자동 → 좌우 배경만 잘림
- * → overflow:hidden으로 원형 클리핑
- */
+// 캐릭터별 미세 조정 (이미지 내 캐릭터 크기/위치가 다름)
+// scale: 이미지 확대 비율 (높이 기준, 1.0 = 원형과 같은 높이, >1.0은 상하 crop 됨)
+// offsetY: 발바닥을 원형 하단에 맞추기 위해 위로 당기기 (양수 = 아래로, 음수 = 위로)
+const CHAR_ADJUST = {
+  toru:   { scale: 1.25, offsetY: 0.12 },  // 캐릭터를 크게, 발바닥 정렬
+  paengi: { scale: 1.20, offsetY: 0.07 },  // 캐릭터를 크게, 다리 노출 (조정)
+  taco:   { scale: 1.20, offsetY: 0.09 },  // 캐릭터를 크게, 다리 노출 (조정)
+  totoru: { scale: 1.35, offsetY: 0.10 },  // 더 크게 키움
+};
+
 export default function CharacterAvatar({
   characterId = 'toru',
   size = 56,
@@ -26,6 +29,7 @@ export default function CharacterAvatar({
 
   const currentId = tappable ? CHARACTER_LIST[localIdx % CHARACTER_LIST.length] : characterId;
   const char = CHARACTERS[currentId] || CHARACTERS.toru;
+  const adj = CHAR_ADJUST[currentId] || { scale: 1.0, offsetY: 0.05 };
 
   const handleTap = () => {
     if (!tappable) return;
@@ -37,10 +41,10 @@ export default function CharacterAvatar({
   const Wrapper = tappable ? TouchableOpacity : View;
   const wrapProps = tappable ? { onPress: handleTap, activeOpacity: 0.7 } : {};
 
-  // 이미지 높이 = 원형 * 1.3 → 캐릭터 머리~발 꽉 참
-  // 이미지 가로 = 높이 * 1.79 (원본 비율) → 좌우 배경만 잘림
-  const imgH = size * 1.3;
+  // 이미지 원본: 1376x768 (1.79:1), 캐릭터는 중앙
+  const imgH = size * adj.scale;
   const imgW = imgH * 1.79;
+  const topOffset = size * adj.offsetY;
 
   return (
     <Wrapper {...wrapProps} style={[styles.container, { width: size, height: size }]}>
@@ -49,16 +53,16 @@ export default function CharacterAvatar({
         backgroundColor: char.bgColor,
         overflow: 'hidden',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-end', // 하단 정렬 (발바닥 맞춤)
       }}>
         <Image
           source={char.image}
           style={[
-            { width: imgW, height: imgH },
+            { width: imgW, height: imgH, marginBottom: -topOffset },
             mood === 'sad' && { opacity: 0.7 },
             mood === 'sleep' && { opacity: 0.5 },
           ]}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </View>
       {mood === 'happy' && (

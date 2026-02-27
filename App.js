@@ -13,6 +13,7 @@ import * as Font from 'expo-font';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
+import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
 import RunningTimersBar from './src/components/RunningTimersBar';
@@ -24,15 +25,9 @@ import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
-// ── 폰트 맵 ──
-const FONT_MAP = {
-  default: null,
-  pretendard:  { 'CustomFont': require('./assets/fonts/Pretendard-Medium.ttf'), 'CustomFont-Bold': require('./assets/fonts/Pretendard-Bold.ttf') },
-  gowunDodum:  { 'CustomFont': require('./assets/fonts/GowunDodum-Regular.ttf'), 'CustomFont-Bold': require('./assets/fonts/GowunDodum-Regular.ttf') },
-  cookieRun:   { 'CustomFont': require('./assets/fonts/CookieRun-Regular.ttf'), 'CustomFont-Bold': require('./assets/fonts/CookieRun-Bold.ttf') },
-  nanumSquare: { 'CustomFont': require('./assets/fonts/NanumSquareR.ttf'), 'CustomFont-Bold': require('./assets/fonts/NanumSquareB.ttf') },
-  maplestory:  { 'CustomFont': require('./assets/fonts/MaplestoryLight.ttf'), 'CustomFont-Bold': require('./assets/fonts/MaplestoryBold.ttf') },
-};
+// 폰트 설정 데이터를 별도 파일로 분리했습니다.
+// 필요 시 FONT_MAP, FONT_FAMILY_MAP를 가져다 쓰면 됩니다.
+
 
 // ── 온보딩 (3단계) ──
 function OnboardingScreen() {
@@ -307,16 +302,33 @@ function Root() {
         return;
       }
       try {
+        // 새로운 폰트를 로드하면 이름이 같아도 이전 것이 캐시되거나 덮어쓰기되지 않는 문제가 있으므로
+        // 각 폰트마다 고유한 family 이름을 사용합니다. FONT_MAP의 키가 곧 alias가 됩니다.
         await Font.loadAsync(FONT_MAP[fontId]);
-        // 전역 폰트 적용
-        Text.defaultProps = Text.defaultProps || {};
-        Text.defaultProps.style = { fontFamily: 'CustomFont' };
-        TextInput.defaultProps = TextInput.defaultProps || {};
-        TextInput.defaultProps.style = { fontFamily: 'CustomFont' };
+        // 전역 텍스트 렌더링을 가로채서 weight에 따라 올바른 패밀리를 지정하도록 패치
+        const baseFamily = FONT_FAMILY_MAP[fontId] || FONT_FAMILY_MAP[fontId];
+        const origRender = Text.render;
+        Text.render = function (...args) {
+          const origin = origRender.call(this, ...args);
+          const props = origin.props;
+          if (props.style) {
+            let flat = StyleSheet.flatten(props.style) || {};
+            if (fontId !== 'default') {
+              // weight가 있으면 Bold variant로 대체
+              const w = flat.fontWeight;
+              if (w && (w === 'bold' || parseInt(w, 10) >= 700)) {
+                flat.fontFamily = baseFamily + '-Bold';
+              } else {
+                flat.fontFamily = baseFamily;
+              }
+            }
+            origin.props.style = flat;
+          }
+          return origin;
+        };
         setLoadedFont(fontId);
       } catch (e) {
         console.log('폰트 로딩 실패:', e);
-        // 폰트 파일이 없으면 기본 폰트로 폴백
         app.updateSettings({ fontFamily: 'default' });
       }
       setFontsLoaded(true);

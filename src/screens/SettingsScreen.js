@@ -1,7 +1,7 @@
 // src/screens/SettingsScreen.js
 // 탭 4: 설정
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking,
@@ -13,6 +13,8 @@ import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 import { formatDDay, generateId } from '../utils/format';
 import { clearAllData } from '../utils/storage';
 import CharacterAvatar from '../components/CharacterAvatar';
+// 폰트 미리보기용 맵
+import { FONT_FAMILY_MAP } from '../constants/fonts';
 
 // 가이드 섹션 컴포넌트
 function GuideSection({ title, color, T, children }) {
@@ -33,6 +35,42 @@ function GuideSection({ title, color, T, children }) {
   );
 }
 
+// 챌린지 입력을 독립된 컴포넌트로 분리하여 부모 리렌더로 인한 포커스 손실 방지
+function ChallengeInput({ initial, onSave, T }) {
+  const [text, setText] = useState(initial || '');
+  const inputRef = useRef(null);
+  useEffect(() => { setText(initial || ''); }, [initial]);
+  const handleSave = () => {
+    onSave(text);
+    inputRef.current?.blur();
+  };
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <TextInput
+          ref={inputRef}
+          style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: T.bg }}
+          value={text}
+          onChangeText={(v) => { if (!v.includes('\n')) setText(v); }}
+          onBlur={handleSave}
+          placeholder="예: 서울대 가자!"
+          placeholderTextColor={T.sub}
+          maxLength={40}
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
+          blurOnSubmit={true}
+        />
+        <TouchableOpacity onPress={handleSave} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: T.accent, borderRadius: 8 }}>
+          <Text style={{ color: 'white', fontWeight: '700' }}>저장</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={{ fontSize: 9, color: T.sub, marginTop: 4 }}>
+        {text?.trim() ? `이탈 시 "${text.trim()}" 입력해야 해제돼요` : '비워두면 기본 응원 문구가 나와요'}
+      </Text>
+    </>
+  );
+}
+
 export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
@@ -50,6 +88,8 @@ export default function SettingsScreen() {
   const [pickerMonth, setPickerMonth] = useState(new Date());
   const [pickerSelected, setPickerSelected] = useState(null);
   const today = new Date().toISOString().split('T')[0];
+
+  
 
   const DDAY_PRESETS = [
     { label: '수능 2026', date: '2026-11-19' },
@@ -121,7 +161,8 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: T.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="always" keyboardDismissMode="none">
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
 
         {/* 캐릭터 */}
@@ -262,17 +303,11 @@ export default function SettingsScreen() {
           </Text>
           <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
-            <TextInput
-              style={{ borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: T.bg }}
-              value={app.settings.challengeText || ''}
-              onChangeText={(v) => app.updateSettings({ challengeText: v })}
-              placeholder="예: 서울대 가자! / 홍길동 정신차려! / 이번 시험 꼭 1등!"
-              placeholderTextColor={T.sub}
-              maxLength={40}
+            <ChallengeInput
+              initial={app.settings.challengeText}
+              onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
+              T={T}
             />
-            <Text style={{ fontSize: 9, color: T.sub, marginTop: 4 }}>
-              {app.settings.challengeText?.trim() ? `이탈 시 "${app.settings.challengeText.trim()}" 입력해야 해제돼요` : '비워두면 기본 응원 문구가 나와요'}
-            </Text>
           </View>
         </Section>
 
@@ -347,13 +382,16 @@ export default function SettingsScreen() {
                 { id: 'maplestory',  label: '메이플스토리', sample: '재밌는 느낌', ready: true },
               ].map(f => {
                 const sel = (app.settings.fontFamily || 'default') === f.id;
+                // 현재 옵션에 맞는 fontFamily 문자열 계산
+                const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
+                const famStyle = fam ? { fontFamily: fam } : {};
                 return (
                   <TouchableOpacity key={f.id}
                     onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
                     style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '10' : 'transparent', opacity: f.ready ? 1 : 0.5 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: sel ? T.accent : T.text }}>{f.label}</Text>
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 1 }}>{f.sample}</Text>
+                      <Text style={[{ fontSize: 13, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
+                      <Text style={[{ fontSize: 10, color: T.sub, marginTop: 1 }, famStyle]}>{f.sample}</Text>
                     </View>
                     {sel && <Text style={{ fontSize: 14 }}>✓</Text>}
                   </TouchableOpacity>
@@ -468,6 +506,11 @@ export default function SettingsScreen() {
               {/* 기본 사용법 */}
               <GuideSection title="⏰ 기본 사용법" color={T.accent} T={T}>
                 {'1. 집중탭에서 즐겨찾기 또는 + 버튼으로 타이머 시작\n2. 🔥/📖 공부 모드를 선택\n3. 타이머가 끝나면 집중밀도 점수 확인!\n4. 통계탭에서 오늘/주간 기록을 확인해요'}
+              </GuideSection>
+
+              {/* 즐겨찾기 팁 */}
+              <GuideSection title="⭐ 즐겨찾기 사용법" color="#FFD700" T={T}>
+                {'• 리스트에 없는 타이머는 **실행 중일 때** 집중탭에서 꾹 누르면 즐겨찾기에 추가할 수 있어요\n• 울트라디안, 수능 시뮬레이션 같은 특별한 설정도 동일하게 등록됩니다\n• 즐겨찾기는 길게 눌러 삭제하거나 순서를 바꿀 수 있어요'}
               </GuideSection>
 
               {/* 집중 모드 */}

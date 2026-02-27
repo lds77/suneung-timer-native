@@ -945,8 +945,8 @@ export default function StatsScreen() {
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareReport} activeOpacity={0.85}>
                 <Text style={S.shareBtnT}>📸 이미지로 공유</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowReport(false)} style={[S.shareBtn, { backgroundColor: T.card, borderWidth: 1.5, borderColor: T.border }]} activeOpacity={0.85}>
-                <Text style={[S.shareBtnT, { color: T.text }]}>닫기</Text>
+              <TouchableOpacity onPress={() => setShowReport(false)} style={[S.shareBtn, { backgroundColor: T.accent }]} activeOpacity={0.85}>
+                <Text style={S.shareBtnT}>닫기</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>

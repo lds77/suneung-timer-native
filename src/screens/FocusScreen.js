@@ -652,34 +652,50 @@ export default function FocusScreen() {
               <Text style={S.favMgrIcon}>{f.icon}</Text><Text style={[S.favMgrChipT, { color: f.color }]} numberOfLines={1}>{f.label}</Text><Text style={[S.favMgrX, { color: f.color }]}>×</Text></TouchableOpacity>
           ))}</View>
           {favs.length < 5 && (<>
-            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🍅 뽀모도로 / ⏰ 타이머</Text>
+            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🍅 뽀모도로 / ⏰ 타임어택</Text>
             <View style={S.favMgrGrid}>{[
               { label: '뽀모 25+5', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 25, pomoBreakMin: 5 },
               { label: '뽀모 50+10', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 50, pomoBreakMin: 10 },
-              { label: '5분', icon: '⏰', type: 'countdown', color: '#FF6B9D', totalSec: 300 },
-              { label: '25분', icon: '⏰', type: 'countdown', color: '#00B894', totalSec: 1500 },
-              { label: '1시간', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 3600 },
-              { label: '2시간', icon: '⏰', type: 'countdown', color: '#E17055', totalSec: 7200 },
+              { label: '뽀모 15+5', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 15, pomoBreakMin: 5 },
+              { label: '3분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 180 },
+              { label: '5분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 300 },
+              { label: '10분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 600 },
             ].map(item => { const ex = favs.some(f => f.label === item.label); return (
               <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
                 {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
-            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>📋 시험 / 수능</Text>
+            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>📘 학습법</Text>
             <View style={S.favMgrGrid}>{[
-              { label: '중학 국어 45분', icon: '🏫', type: 'countdown', color: '#E8575A', totalSec: 2700 },
-              { label: '고등 수학 70분', icon: '🎓', type: 'countdown', color: '#4A90D9', totalSec: 4200 },
-              { label: '수능 국어 80분', icon: '🎯', type: 'countdown', color: '#E8575A', totalSec: 4800 },
-              { label: '수능 수학 100분', icon: '🎯', type: 'countdown', color: '#4A90D9', totalSec: 6000 },
+              { label: '미션스프린트', icon: '🚀', type: 'countdown', color: '#FF6B6B', totalSec: 300 },
+              { label: '52/17 법칙', icon: '⏱️', type: 'sequence', color: '#4A90D9', totalSec: 0, seqItems: [{label:'집중',color:'#4A90D9',min:52},{label:'휴식',color:'#27AE60',min:17,isBreak:true}], seqBreak: 17 },
+              { label: '울트라디안 90분', icon: '🌊', type: 'countdown', color: '#9B59B6', totalSec: 5400 },
+              { label: '하드스타트', icon: '⚡', type: 'countdown', color: '#E67E22', totalSec: 900 },
+              { label: '인터리빙', icon: '🔀', type: 'countdown', color: '#16A085', totalSec: 1200 },
+              { label: '소리+묵독', icon: '📢', type: 'countdown', color: '#E8575A', totalSec: 1800 },
             ].map(item => { const ex = favs.some(f => f.label === item.label); return (
               <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
                 {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
             <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🎒 초등 루틴</Text>
             <View style={S.favMgrGrid}>{[
-              { label: '저학년 방과후', icon: '🎒', type: 'sequence', color: '#4A90D9', totalSec: 0, seqItems: [{label:'숙제',color:'#F5A623',min:20},{label:'국어',color:'#E8575A',min:20},{label:'수학',color:'#4A90D9',min:20}], seqBreak: 5 },
-              { label: '고학년 방과후', icon: '🎒', type: 'sequence', color: '#5CB85C', totalSec: 0, seqItems: [{label:'숙제',color:'#00B894',min:25},{label:'수학',color:'#4A90D9',min:25},{label:'영어',color:'#5CB85C',min:25}], seqBreak: 5 },
-              { label: '고학년 집중', icon: '🔥', type: 'sequence', color: '#E17055', totalSec: 0, seqItems: [{label:'수학',color:'#4A90D9',min:25},{label:'영어',color:'#5CB85C',min:25},{label:'독서',color:'#E17055',min:20},{label:'복습',color:'#9B6FC3',min:20}], seqBreak: 5 },
-              { label: '빠르게 끝내기', icon: '⚡', type: 'sequence', color: '#F5A623', totalSec: 0, seqItems: [{label:'숙제',color:'#F5A623',min:20},{label:'수학',color:'#4A90D9',min:20}], seqBreak: 5 },
+              { label: '초1-2 저학년', icon: '👧', type: 'sequence', color: '#F5A623', totalSec: 0, seqItems: [{label:'숙제',color:'#F5A623',min:15},{label:'국어',color:'#E8575A',min:15}], seqBreak: 5 },
+              { label: '초3-4 중학년', icon: '🧒', type: 'sequence', color: '#00B894', totalSec: 0, seqItems: [{label:'숙제',color:'#00B894',min:20},{label:'수학',color:'#4A90D9',min:20}], seqBreak: 5 },
+            ].map(item => { const ex = favs.some(f => f.label === item.label); return (
+              <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
+                <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
+                {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
+            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🎒 중등 루틴</Text>
+            <View style={S.favMgrGrid}>{[
+              { label: '중1-2 저학년', icon: '👦', type: 'sequence', color: '#5CB85C', totalSec: 0, seqItems: [{label:'숙제',color:'#5CB85C',min:25},{label:'영어',color:'#16A085',min:25}], seqBreak: 5 },
+              { label: '중3 고학년', icon: '👨', type: 'sequence', color: '#4A90D9', totalSec: 0, seqItems: [{label:'수학',color:'#4A90D9',min:30},{label:'영어',color:'#16A085',min:25},{label:'과학',color:'#E17055',min:25}], seqBreak: 5 },
+            ].map(item => { const ex = favs.some(f => f.label === item.label); return (
+              <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
+                <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
+                {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
+            <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🎒 고등 루틴</Text>
+            <View style={S.favMgrGrid}>{[
+              { label: '고1-2 저학년', icon: '👨‍🎓', type: 'sequence', color: '#9B6FC3', totalSec: 0, seqItems: [{label:'수학',color:'#4A90D9',min:30},{label:'국어',color:'#E8575A',min:25}], seqBreak: 5 },
+              { label: '고3 수능준비', icon: '🎯', type: 'sequence', color: '#E17055', totalSec: 0, seqItems: [{label:'국어',color:'#E8575A',min:40},{label:'수학',color:'#4A90D9',min:40},{label:'영어',color:'#16A085',min:30}], seqBreak: 10 },
             ].map(item => { const ex = favs.some(f => f.label === item.label); return (
               <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
@@ -810,8 +826,8 @@ export default function FocusScreen() {
         </View>
       </Modal>
 
-      {/* 🔒 잠금 오버레이 (🔥모드 전용) */}
-      {screenLocked && (
+      {/* 🔒 잠금 오버레이 (🔥모드 전용) - 풀스크린 모달 */}
+      <Modal visible={screenLocked} transparent animationType="none">
         <View style={S.lockOverlay} pointerEvents="box-none">
           <View style={S.lockOverlayBg} pointerEvents="auto">
             {/* 첫 사용 한 줄 가이드 */}
@@ -856,7 +872,7 @@ export default function FocusScreen() {
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
@@ -966,7 +982,7 @@ const S = StyleSheet.create({
   // 가이드 말풍선
   guideBubble: { borderRadius: 10, padding: 12, borderWidth: 1, marginTop: 10, width: '100%' },
   // 🔒 잠금 오버레이
-  lockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 },
+  lockOverlay: { flex: 1, zIndex: 999 },
   lockOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
   lockMsg: { fontSize: 16, fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' },
   lockTimer: { fontSize: 52, fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 },
