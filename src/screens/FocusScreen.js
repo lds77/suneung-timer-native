@@ -50,7 +50,10 @@ export default function FocusScreen() {
     setFavs(p => [...p, { ...fav, id: `fav_${Date.now()}` }]);
     app.showToastCustom(`⭐ ${fav.label} 추가!`, 'toru');
   };
-  const removeFav = (id) => setFavs(p => p.filter(f => f.id !== id));
+  const removeFav = (id) => {
+    setFavs(p => p.filter(f => f.id !== id));
+    app.showToastCustom('⭐ 즐겨찾기에서 제거됐어요', 'paengi');
+  };
   const runFav = (fav) => {
     startTimerWithModeCheck(() => {
       if (fav.type === 'sequence' && fav.seqItems) {
@@ -404,6 +407,11 @@ export default function FocusScreen() {
         <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={S.quickHeader}><Text style={[S.quickTitle, { color: T.text }]}>⭐ 즐겨찾기</Text>
             <TouchableOpacity onPress={() => setShowFavMgr(true)}><Text style={[S.quickEdit, { color: T.accent }]}>편집</Text></TouchableOpacity></View>
+          {favs.length === 0 && (
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: T.accent + '10', borderRadius: 8, marginBottom: 8 }}>
+              <Text style={{ fontSize: 10, color: T.accent, fontWeight: '700' }}>💡 '편집'을 눌러 나만의 공부 루틴을 저장해보세요!</Text>
+            </View>
+          )}
           {/* 1행: 뽀모(고정) + 사용자1 + 사용자2 */}
           <View style={S.favGrid}>
             <TouchableOpacity style={[S.favCell, { backgroundColor: '#E1705512', borderColor: '#E1705550' }]} onPress={() => runFav({ id: 'fix_pomo', label: '뽀모도로', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 25, pomoBreakMin: 5 })}>
