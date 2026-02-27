@@ -1,41 +1,66 @@
 // src/components/CharacterAvatar.js
-// 캐릭터 아바타 + 기분 오버레이 이펙트
+// 캐릭터 아바타 — 원형에 캐릭터 꽉 차게 (머리~발)
 
-import React from 'react';
-import { View, Image, Text, StyleSheet, Animated } from 'react-native';
-import { CHARACTERS } from '../constants/characters';
+import React, { useState } from 'react';
+import { View, Image, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 
 /**
- * @param {string} characterId - 'toru', 'paengi', 'taco', 'totoru'
- * @param {number} size - 아바타 크기 (기본 48)
- * @param {string} mood - 'happy', 'normal', 'sad', 'sleep', 'splus'
- * @param {boolean} showBg - 배경색 원 표시 여부
+ * 이미지 원본: 1376x768 (비율 1.79:1)
+ * 캐릭터는 이미지 중앙에 세로 약 85% 차지
+ * → 이미지 높이를 원형의 1.3배로 → 캐릭터가 머리~발 꽉 참
+ * → 가로는 비율대로 자동 → 좌우 배경만 잘림
+ * → overflow:hidden으로 원형 클리핑
  */
 export default function CharacterAvatar({
   characterId = 'toru',
-  size = 48,
+  size = 56,
   mood = 'normal',
-  showBg = false,
+  tappable = false,
+  onCharChange,
 }) {
-  const char = CHARACTERS[characterId] || CHARACTERS.toru;
+  const [localIdx, setLocalIdx] = useState(() => {
+    const idx = CHARACTER_LIST.indexOf(characterId);
+    return idx >= 0 ? idx : 0;
+  });
+
+  const currentId = tappable ? CHARACTER_LIST[localIdx % CHARACTER_LIST.length] : characterId;
+  const char = CHARACTERS[currentId] || CHARACTERS.toru;
+
+  const handleTap = () => {
+    if (!tappable) return;
+    const next = (localIdx + 1) % CHARACTER_LIST.length;
+    setLocalIdx(next);
+    onCharChange?.(CHARACTER_LIST[next]);
+  };
+
+  const Wrapper = tappable ? TouchableOpacity : View;
+  const wrapProps = tappable ? { onPress: handleTap, activeOpacity: 0.7 } : {};
+
+  // 이미지 높이 = 원형 * 1.3 → 캐릭터 머리~발 꽉 참
+  // 이미지 가로 = 높이 * 1.79 (원본 비율) → 좌우 배경만 잘림
+  const imgH = size * 1.3;
+  const imgW = imgH * 1.79;
 
   return (
-    <View style={[
-      styles.container,
-      { width: size, height: size },
-      showBg && { backgroundColor: char.bgColor, borderRadius: size / 2 },
-    ]}>
-      <Image
-        source={char.image}
-        style={[
-          styles.image,
-          { width: size * 0.85, height: size * 0.85 },
-          mood === 'sad' && { opacity: 0.7 },
-          mood === 'sleep' && { opacity: 0.5 },
-        ]}
-        resizeMode="contain"
-      />
-      {/* 오버레이 이펙트 */}
+    <Wrapper {...wrapProps} style={[styles.container, { width: size, height: size }]}>
+      <View style={{
+        width: size, height: size, borderRadius: size / 2,
+        backgroundColor: char.bgColor,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <Image
+          source={char.image}
+          style={[
+            { width: imgW, height: imgH },
+            mood === 'sad' && { opacity: 0.7 },
+            mood === 'sleep' && { opacity: 0.5 },
+          ]}
+          resizeMode="cover"
+        />
+      </View>
       {mood === 'happy' && (
         <View style={[styles.overlay, { top: -2, right: -2 }]}>
           <Text style={{ fontSize: size * 0.25 }}>✨</Text>
@@ -56,7 +81,7 @@ export default function CharacterAvatar({
           <Text style={{ fontSize: size * 0.22 }}>💤</Text>
         </View>
       )}
-    </View>
+    </Wrapper>
   );
 }
 
@@ -65,9 +90,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-  },
-  image: {
-    // 크기는 인라인으로
   },
   overlay: {
     position: 'absolute',

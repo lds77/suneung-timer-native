@@ -7,7 +7,7 @@
     "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/characters/group.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#F8F5FC"
     },
@@ -16,21 +16,39 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yeolgong.timer"
+      "bundleIdentifier": "com.yeolgong.timer",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icons/app-icon.png",
-        "backgroundColor": "#F8F5FC"
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
+      "versionCode": 5,
+      "targetSdkVersion": 35,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM"
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
       ]
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -38,7 +56,8 @@
           "color": "#FF6B9D"
         }
       ],
-      "expo-sensors"
+      "expo-av",
+      "expo-font"
     ],
     "extra": {
       "eas": {
