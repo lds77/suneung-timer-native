@@ -13,7 +13,7 @@ const SOUND_FILES = {
   wave:   require('../../assets/sounds/wave.mp3'),
   forest: require('../../assets/sounds/forest.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs } from '../utils/storage';
 import { getToday, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
 import { getRandomMessage } from '../constants/characters';
@@ -36,6 +36,14 @@ const DEFAULT_SETTINGS = {
   guideLock: false,     // 잠금 화면 설명
 };
 
+const DEFAULT_COUNTUP_FAVS = [
+  { id: 'cf_kor', label: '국어', icon: '📘', color: '#E8575A' },
+  { id: 'cf_math', label: '수학', icon: '📐', color: '#4A90D9' },
+  { id: 'cf_eng', label: '영어', icon: '📗', color: '#5CB85C' },
+  { id: 'cf_exp', label: '탐구', icon: '🔬', color: '#F5A623' },
+  { id: 'cf_free', label: '자유', icon: '✨', color: '#9B6FC3' },
+];
+
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
@@ -45,6 +53,9 @@ export function AppProvider({ children }) {
   const [sessions, setSessions] = useState([]);
   const [ddays, setDDays] = useState([]);
   const [todos, setTodos] = useState([]);
+  // 즐겨찾기 설정 (FocusScreen에서 사용)
+  const [favs, setFavs] = useState([]);
+  const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
 
   // ═══ 멀티타이머 ═══
   // status: 'running'|'paused'|'completed'|'waiting' (순차 대기)
@@ -575,7 +586,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     (async () => {
       await Notifications.requestPermissionsAsync();
-      const [s, subj, sess, dd, td] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos()]);
+      const [s, subj, sess, dd, td, cuf] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs()]);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -586,6 +597,7 @@ export function AppProvider({ children }) {
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
       if (sess) setSessions(sess); if (dd) setDDays(dd); if (td) setTodos(td);
+      if (cuf) setCountupFavs(cuf);
       setLoading(false);
     })();
   }, []);
@@ -594,8 +606,8 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); }, 500);
-  }, [settings, subjects, sessions, ddays, todos, loading]);
+    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); }, 500);
+  }, [settings, subjects, sessions, ddays, todos, countupFavs, loading]);
 
   // 통계
   const todaySessions = sessions.filter(s => s.date === getToday());
@@ -663,6 +675,30 @@ export function AppProvider({ children }) {
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
   const updateSettings = useCallback((u) => setSettings(prev => ({ ...prev, ...u })), []);
 
+  // 즐겨찾기 추가/제거
+  const addFav = useCallback((fav) => {
+    if (favs.length >= 5) { showToastCustom('즐겨찾기 최대 5개!', 'paengi'); return; }
+    if (favs.some(f => f.label === fav.label && f.type === fav.type)) { showToastCustom('이미 있어요!', 'paengi'); return; }
+    setFavs(p => [...p, { ...fav, id: `fav_${Date.now()}` }]);
+    showToastCustom(`⭐ ${fav.label} 추가!`, 'toru');
+  }, [favs]);
+  const removeFav = useCallback((id) => {
+    setFavs(p => p.filter(f => f.id !== id));
+    showToastCustom('⭐ 즐겨찾기에서 제거됐어요', 'paengi');
+  }, []);
+
+  // 공부량 즐겨찾기 추가/제거
+  const addCountupFav = useCallback((fav) => {
+    if (countupFavs.length >= 6) { showToastCustom('공부량 즐겨찾기 최대 6개!', 'paengi'); return; }
+    if (countupFavs.some(f => f.label === fav.label)) { showToastCustom('이미 있어요!', 'paengi'); return; }
+    setCountupFavs(p => [...p, { ...fav, id: `cf_${Date.now()}` }]);
+    showToastCustom(`📈 ${fav.label} 추가!`, 'toru');
+  }, [countupFavs]);
+  const removeCountupFav = useCallback((id) => {
+    setCountupFavs(p => p.filter(f => f.id !== id));
+    showToastCustom('📈 즐겨찾기에서 제거됐어요', 'paengi');
+  }, []);
+
   return (
     <AppContext.Provider value={{
       loading, settings, updateSettings,
@@ -674,6 +710,9 @@ export function AppProvider({ children }) {
       queue, startSequence, cancelSequence,
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
+      applyFocusBrightness, restoreBrightness,
+      favs, setFavs, addFav, removeFav,
+      countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,
     }}>
       {children}

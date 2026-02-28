@@ -13,6 +13,7 @@ import { getTheme } from '../constants/colors';
 import { CHARACTERS } from '../constants/characters';
 import { getTier } from '../constants/presets';
 import { formatDuration, formatShort, formatDDay, getToday } from '../utils/format';
+import RunningTimersBar from '../components/RunningTimersBar';
 import { calcAverageDensity } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
 
@@ -224,8 +225,8 @@ export default function StatsScreen() {
   const getHeatColor = (sec) => {
     if (sec === 0) return T.surface2;
     const r = Math.min(1, sec / Math.max(monthMaxSec, 3600));
-    if (r < 0.25) return T.accent + '30'; if (r < 0.5) return T.accent + '60';
-    if (r < 0.75) return T.accent + 'A0'; return T.accent;
+    if (r < 0.25) return T.accent + '66'; if (r < 0.5) return T.accent + '99';
+    if (r < 0.75) return T.accent + 'CC'; return T.accent;
   };
 
   // ─── 365일 히트맵 (깃허브 잔디) ──────────────────────────────
@@ -241,7 +242,7 @@ export default function StatsScreen() {
     const end = new Date();
     const endDow = end.getDay();
     const endSat = addDays(end, 6 - endDow);
-    const startSun = addDays(endSat, -52 * 7 + 1);
+    const startSun = addDays(endSat, -HM_WEEKS * 7 + 1);
     const weeks = [];
     let cur = new Date(startSun);
     while (cur <= endSat) {
@@ -259,24 +260,24 @@ export default function StatsScreen() {
   }, [app.sessions, today]);
   const heatmap365Max = useMemo(() => Math.max(...heatmap365.flat().map(d => d.sec), 1), [heatmap365]);
 
-  // 잔디 색상: 📖모드 = 연한 초록, 🔥모드 = 진한 초록, Verified = 골드
+  // 잔디 색상: 📖모드 = accent 계열, 🔥모드 = 초록, Verified = 골드
   const getHeat365Color = (day) => {
     if (day.isFuture) return 'transparent';
     if (day.sec === 0) return T.surface2;
     const r = Math.min(1, day.sec / Math.max(heatmap365Max * 0.8, 3600));
     if (day.hasVerified) {
       // 🏆 Verified 있는 날: 골드 계열
-      if (r < 0.25) return '#FFD70035'; if (r < 0.5) return '#FFD70065';
-      if (r < 0.75) return '#FFD700A5'; return '#FFD700';
+      if (r < 0.25) return '#FFD70066'; if (r < 0.5) return '#FFD70099';
+      if (r < 0.75) return '#FFD700CC'; return '#FFD700';
     }
     if (day.hasScreenOn) {
-      // 🔥모드 있는 날: 진한 초록
-      if (r < 0.25) return '#4CAF5045'; if (r < 0.5) return '#4CAF5075';
-      if (r < 0.75) return '#4CAF50B5'; return '#4CAF50';
+      // 🔥모드 있는 날: 초록
+      if (r < 0.25) return '#4CAF5066'; if (r < 0.5) return '#4CAF5099';
+      if (r < 0.75) return '#4CAF50CC'; return '#4CAF50';
     }
-    // 📖모드만: 기본 accent 연한 색
-    if (r < 0.25) return T.accent + '35'; if (r < 0.5) return T.accent + '65';
-    if (r < 0.75) return T.accent + 'A5'; return T.accent;
+    // 📖모드만: 기본 accent
+    if (r < 0.25) return T.accent + '66'; if (r < 0.5) return T.accent + '99';
+    if (r < 0.75) return T.accent + 'CC'; return T.accent;
   };
   const totalStudyDays365 = useMemo(() => heatmap365.flat().filter(d => d.sec > 0 && !d.isFuture).length, [heatmap365]);
 
@@ -367,6 +368,7 @@ export default function StatsScreen() {
   // ═══ RENDER ═══════════════════════════════════════════════════
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
+      <RunningTimersBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={S.scroll}>
 
         {/* ── 헤더 ── */}
@@ -597,7 +599,7 @@ export default function StatsScreen() {
             </View>
             <View style={S.heatLegend}>
               <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-              {[T.surface2, T.accent + '30', T.accent + '60', T.accent + 'A0', T.accent].map((c, i) => (
+              {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
                 <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
               ))}
               <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
@@ -624,14 +626,14 @@ export default function StatsScreen() {
           {/* 365일 히트맵 */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={S.hmHeader}>
-              <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>365일 공부 잔디</Text>
+              <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 6개월 공부 잔디</Text>
               <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
                 <Text style={[S.hmBadgeT, { color: T.accent }]}>🌱 {totalStudyDays365}일</Text>
               </View>
             </View>
 
-            {/* 잔디 그리드 + 월 라벨 (하나의 ScrollView 안에서 정렬) */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {/* 잔디 그리드 + 월 라벨 */}
+            <View>
               <View>
                 {/* 월 라벨 행 — 잔디 열 위치와 동일 기준으로 */}
                 <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
@@ -679,20 +681,20 @@ export default function StatsScreen() {
                   </View>
                 </View>
               </View>
-            </ScrollView>
+            </View>
 
             {/* 범례 */}
             <View style={S.heatLegend}>
               <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-              {[T.surface2, T.accent + '35', T.accent + '65', T.accent + 'A5', T.accent].map((c, i) => (
+              {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
                 <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
               ))}
               <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
             </View>
             <View style={[S.heatLegend, { marginTop: 6 }]}>
-              <View style={[S.heatBox, { backgroundColor: T.accent + '65' }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 📖</Text>
-              <View style={[S.heatBox, { backgroundColor: '#4CAF5075', marginLeft: 8 }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 🔥</Text>
-              <View style={[S.heatBox, { backgroundColor: '#FFD70075', marginLeft: 8 }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 🏆Verified</Text>
+              <View style={[S.heatBox, { backgroundColor: T.accent + '99' }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 📖</Text>
+              <View style={[S.heatBox, { backgroundColor: '#4CAF5099', marginLeft: 8 }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 🔥</Text>
+              <View style={[S.heatBox, { backgroundColor: '#FFD70099', marginLeft: 8 }]} /><Text style={[S.heatLegendT, { color: T.sub }]}> 🏆Verified</Text>
             </View>
           </View>
 
@@ -957,8 +959,9 @@ export default function StatsScreen() {
 }
 
 // 히트맵 셀 크기
-const HM_CELL = 11;
-const HM_GAP  = 2;
+const HM_WEEKS = 26;
+const HM_GAP   = 2;
+const HM_CELL  = Math.max(8, Math.floor((SW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS));
 
 const S = StyleSheet.create({
   container: { flex: 1 },

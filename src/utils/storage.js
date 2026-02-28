@@ -11,6 +11,7 @@ const KEYS = {
   TODOS: '@yeolgong/todos',
   DAILY_RECORDS: '@yeolgong/dailyRecords',
   TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
+  COUNTUP_FAVS: '@yeolgong/countupFavs',
 };
 
 /**
@@ -59,6 +60,10 @@ export const loadDDays = () => loadJSON(KEYS.DDAYS, []);
 // ── 할 일 ──
 export const saveTodos = (todos) => saveJSON(KEYS.TODOS, todos);
 export const loadTodos = () => loadJSON(KEYS.TODOS, []);
+
+// ── 공부량 즐겨찾기 ──
+export const saveCountupFavs = (favs) => saveJSON(KEYS.COUNTUP_FAVS, favs);
+export const loadCountupFavs = () => loadJSON(KEYS.COUNTUP_FAVS, null);
 
 // ── 일일 기록 ──
 export const saveDailyRecords = (records) => saveJSON(KEYS.DAILY_RECORDS, records);

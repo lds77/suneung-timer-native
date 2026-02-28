@@ -1,6 +1,6 @@
 // src/components/RunningTimersBar.js
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK } from '../constants/colors';
 import { formatTime } from '../utils/format';
@@ -14,7 +14,7 @@ export default function RunningTimersBar() {
 
   return (
     <View style={[styles.container, { backgroundColor: T.card, borderBottomColor: T.border }]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <View style={styles.scroll}>
         {active.map(t => {
           const display = t.type === 'free' ? t.elapsedSec
             : t.type === 'countdown' ? Math.max(0, t.totalSec - t.elapsedSec)
@@ -38,15 +38,15 @@ export default function RunningTimersBar() {
             </View>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { borderBottomWidth: 1, paddingVertical: 5, paddingHorizontal: 8 },
-  scroll: { flexDirection: 'row', gap: 6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  scroll: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8, borderWidth: 1, flexBasis: '47%', flexGrow: 1 },
   chipIcon: { fontSize: 10 },
   chipLabel: { fontSize: 9, fontWeight: '700', maxWidth: 50 },
   chipTime: { fontSize: 12, fontWeight: '900', fontVariant: ['tabular-nums'], minWidth: 38 },

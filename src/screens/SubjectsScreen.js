@@ -8,6 +8,7 @@ import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { formatShort, formatTime } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
+import RunningTimersBar from '../components/RunningTimersBar';
 
 // ═══ 추천 루틴 ═══
 const ROUTINES = {
@@ -151,6 +152,12 @@ export default function SubjectsScreen() {
     const defMin = school === 'elementary' ? (elemGrade === 'lower' ? 20 : 25) : (school === 'middle' ? 50 : 60);
     app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
   };
+  const deleteSubject = (subj) => {
+    Alert.alert('과목 삭제', `'${subj.name}'을(를) 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => app.removeSubject(subj.id) },
+    ]);
+  };
 
   const startSuneungSingle = (subj) => {
     app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 });
@@ -172,6 +179,7 @@ export default function SubjectsScreen() {
 
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
+      <RunningTimersBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={S.scroll}>
 
         {/* 헤더 */}
@@ -354,7 +362,7 @@ export default function SubjectsScreen() {
               return (
                 <TouchableOpacity key={subj.id} style={[S.subjCard, { backgroundColor: T.card, borderColor: running ? subj.color : T.border, borderWidth: running ? 1.5 : 1 }]}
                   onPress={() => startSingle(subj)}
-                  onLongPress={() => Alert.alert(subj.name, '삭제할까요?', [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => app.removeSubject(subj.id) }])}>
+                  onLongPress={() => deleteSubject(subj)}>
                   <View style={[S.subjDot, { backgroundColor: subj.color }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>{subj.name}</Text>
@@ -367,9 +375,9 @@ export default function SubjectsScreen() {
                       <Text style={{ fontSize: 9, fontWeight: '800', color: subj.color }}>실행중</Text>
                     </View>
                   ) : (
-                    <View style={[S.playBtn, { backgroundColor: subj.color }]}>
-                      <Text style={{ color: 'white', fontSize: 11, fontWeight: '800' }}>▶</Text>
-                    </View>
+                    <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
+                      <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>▶</Text>
+                    </TouchableOpacity>
                   )}
                 </TouchableOpacity>
               );
@@ -468,6 +476,7 @@ const S = StyleSheet.create({
   subjDot: { width: 4, height: 30, borderRadius: 2 },
   runBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   playBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  labelBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, minWidth: 66, alignItems: 'center' },
   addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   emptyCard: { borderRadius: 14, padding: 24, borderWidth: 1, alignItems: 'center', marginBottom: 10 },
   presetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },

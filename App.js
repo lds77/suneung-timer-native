@@ -16,7 +16,6 @@ import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
-import RunningTimersBar from './src/components/RunningTimersBar';
 
 import FocusScreen from './src/screens/FocusScreen';
 import SubjectsScreen from './src/screens/SubjectsScreen';
@@ -250,9 +249,6 @@ function MainApp() {
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
       <SafeAreaView style={{ flex: 1 }}>
-        {/* 글로벌 실행 중 타이머 바 */}
-        <RunningTimersBar />
-
         <NavigationContainer>
           <Tab.Navigator screenOptions={{
             headerShown: false,

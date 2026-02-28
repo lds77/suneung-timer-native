@@ -11,8 +11,8 @@ import { LIGHT, DARK, getTheme } from '../constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 import { formatDDay, generateId } from '../utils/format';
-import { clearAllData } from '../utils/storage';
 import CharacterAvatar from '../components/CharacterAvatar';
+import RunningTimersBar from '../components/RunningTimersBar';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 
@@ -121,23 +121,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleReset = () => {
-    Alert.alert(
-      '전체 데이터 초기화',
-      '모든 과목, 세션 기록, 설정이 삭제됩니다.\n이 작업은 되돌릴 수 없어요!',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '초기화',
-          style: 'destructive',
-          onPress: async () => {
-            await clearAllData();
-            app.showToastCustom('초기화 완료. 앱을 다시 시작해주세요.', 'totoru');
-          },
-        },
-      ],
-    );
-  };
 
   // 설정 아이템 렌더링
   const Section = ({ title, children }) => (
@@ -161,6 +144,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: T.bg }]}>
+      <RunningTimersBar />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always" keyboardDismissMode="none">
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
@@ -194,7 +178,7 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        {/* 목표 */}
+        {/* 목표 (목표시간 + 학교급) */}
         <Section title="목표">
           <Text style={[styles.goalLabel, { color: T.sub }]}>일일 목표 시간</Text>
           <View style={styles.goalRow}>
@@ -218,6 +202,23 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+          <Text style={[styles.goalLabel, { color: T.sub, marginTop: 8 }]}>학교급</Text>
+          <View style={styles.schoolRow}>
+            {[
+              { id: 'elementary', label: '초등' },
+              { id: 'middle', label: '중등' },
+              { id: 'high', label: '고등' },
+            ].map(s => {
+              const sel = (app.settings.schoolLevel || 'high') === s.id;
+              return (
+                <TouchableOpacity key={s.id} onPress={() => app.updateSettings({ schoolLevel: s.id })}
+                  style={[styles.schoolBtn, sel && { backgroundColor: T.accent, borderColor: T.accent }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: sel ? '900' : '600', color: sel ? 'white' : T.text }}>{s.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Section>
 
@@ -247,18 +248,6 @@ export default function SettingsScreen() {
           )}
         </Section>
 
-        {/* 타이머 기본값 */}
-        <Section title="타이머 기본값">
-          <Row
-            label="뽀모도로 집중"
-            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroWorkMin}분</Text>}
-          />
-          <Row
-            label="뽀모도로 휴식"
-            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroBreakMin}분</Text>}
-          />
-        </Section>
-
         {/* 알림 */}
         <Section title="알림">
           <Row
@@ -274,14 +263,15 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        {/* 🔥 집중 도전 모드 설정 */}
+        {/* 🔥 집중 도전 모드 */}
         <Section title="🔥 집중 도전 모드">
           <Text style={[styles.hint, { color: T.text, fontWeight: '700', marginBottom: 4 }]}>🔥모드 잠금 강도</Text>
           <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
+            {/* desc: 문구=챌린지 도전 문구, 정지=타이머 일시정지 */}
             {[
               { id: 'normal', label: '🟢 일반', desc: '알림만' },
-              { id: 'focus', label: '🟡 집중', desc: '알림+문구' },
-              { id: 'exam', label: '🔴 시험', desc: '정지+문구' },
+              { id: 'focus', label: '🟡 집중', desc: '챌린지 문구' },
+              { id: 'exam', label: '🔴 시험', desc: '정지 + 문구' },
             ].map(lv => {
               const sel = (app.settings.ultraFocusLevel || 'focus') === lv.id;
               return (
@@ -295,12 +285,13 @@ export default function SettingsScreen() {
           </View>
           <Text style={[styles.hint, { color: T.sub }]}>
             {(app.settings.ultraFocusLevel || 'focus') === 'normal' ? '🔥모드에서 이탈 시 알림만 보내요' :
-             (app.settings.ultraFocusLevel || 'focus') === 'focus' ? '🔥모드에서 1분 이상 이탈 시 문구 입력 필수' :
-             '🔥모드에서 이탈 즉시 타이머 정지 + 문구 입력'}
+             (app.settings.ultraFocusLevel || 'focus') === 'focus' ? '🔥모드에서 1분 이상 이탈 시 챌린지 문구 입력' :
+             '🔥모드에서 이탈 즉시 타이머 일시정지 + 챌린지 문구 입력'}
           </Text>
           <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>
             💡 타이머 시작 시 🔥집중 도전 / 📖편하게 공부 중 선택해요
           </Text>
+          <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>💡 문구 = 챌린지 도전 문구, 정지 = 타이머 일시정지</Text>
           <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
             <ChallengeInput
@@ -311,24 +302,6 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        {/* 학교급 */}
-        <Section title="학교급">
-          <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}>
-            {[
-              { id: 'elementary', label: '초등' },
-              { id: 'middle', label: '중등' },
-              { id: 'high', label: '고등' },
-            ].map(s => {
-              const sel = (app.settings.schoolLevel || 'high') === s.id;
-              return (
-                <TouchableOpacity key={s.id} onPress={() => app.updateSettings({ schoolLevel: s.id })}
-                  style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '15' : 'transparent', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{s.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </Section>
 
         {/* 테마 */}
         <Section title="테마">
@@ -372,7 +345,7 @@ export default function SettingsScreen() {
           </View>
           <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: T.text, marginBottom: 6 }}>글꼴</Text>
-            <View style={{ gap: 6 }}>
+            <View style={styles.fontGrid}>
               {[
                 { id: 'default',     label: '기본', sample: '시스템 기본 글꼴', ready: true },
                 { id: 'pretendard',  label: 'Pretendard', sample: '깔끔한 고딕체', ready: true },
@@ -388,7 +361,8 @@ export default function SettingsScreen() {
                 return (
                   <TouchableOpacity key={f.id}
                     onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '10' : 'transparent', opacity: f.ready ? 1 : 0.5 }}>
+                    style={[styles.fontItem, sel && { borderColor: T.accent, backgroundColor: T.accent + '10' }, !sel && { borderColor: T.border }]}
+                  >
                     <View style={{ flex: 1 }}>
                       <Text style={[{ fontSize: 13, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
                       <Text style={[{ fontSize: 10, color: T.sub, marginTop: 1 }, famStyle]}>{f.sample}</Text>
@@ -402,11 +376,16 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        {/* 데이터 */}
-        <Section title="데이터">
-          <TouchableOpacity style={styles.dangerBtn} onPress={handleReset}>
-            <Text style={[styles.dangerText, { color: T.red }]}>전체 데이터 초기화</Text>
-          </TouchableOpacity>
+        {/* 타이머 기본값 */}
+        <Section title="타이머 기본값">
+          <Row
+            label="뽀모도로 집중"
+            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroWorkMin}분</Text>}
+          />
+          <Row
+            label="뽀모도로 휴식"
+            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroBreakMin}분</Text>}
+          />
         </Section>
 
         {/* 사용 가이드 */}
@@ -563,6 +542,14 @@ const styles = StyleSheet.create({
   goalRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   goalBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
   goalBtnText: { fontSize: 10, fontWeight: '700' },
+
+  // 학교급 선택 row (목표 섹션 내)
+  schoolRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  schoolBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+
+  // 폰트 선택 그리드
+  fontGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  fontItem: { width: '48%', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5 },
 
   // D-Day
   ddayRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, borderBottomWidth: 0.5 },
