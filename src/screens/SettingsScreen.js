@@ -13,6 +13,7 @@ import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 import { formatDDay, generateId } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
+import Constants from 'expo-constants';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 
@@ -400,7 +401,7 @@ export default function SettingsScreen() {
 
         {/* 정보 */}
         <Section title="정보">
-          <Row label="버전" right={<Text style={[styles.rowValue, { color: T.sub }]}>1.0.0</Text>} />
+          <Row label="버전" right={<Text style={[styles.rowValue, { color: T.sub }]}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>} />
           <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/privacy-policy.html')}>
             <Row label="개인정보 처리방침" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
