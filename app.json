@@ -25,7 +25,7 @@
         "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
-      "versionCode": 5,
+      "versionCode": 7,
       "targetSdkVersion": 35,
       "permissions": [
         "VIBRATE",

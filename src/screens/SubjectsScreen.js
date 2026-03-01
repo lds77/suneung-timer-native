@@ -150,9 +150,13 @@ export default function SubjectsScreen() {
     app.showToastCustom(`${method.icon} ${method.name} 시작!`, 'toru');
   };
 
+  const defMin = school === 'elementary' ? (elemGrade === 'lower' ? 20 : 25) : (school === 'middle' ? 50 : 60);
+
   const startSingle = (subj) => {
-    const defMin = school === 'elementary' ? (elemGrade === 'lower' ? 20 : 25) : (school === 'middle' ? 50 : 60);
     app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
+  };
+  const startCountup = (subj) => {
+    app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id });
   };
   const deleteSubject = (subj) => {
     Alert.alert('과목 삭제', `'${subj.name}'을(를) 삭제할까요?`, [
@@ -172,6 +176,7 @@ export default function SubjectsScreen() {
     app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: '🎯', seqColor: '#E8575A' });
     setSuneungSelected([]);
   };
+
 
   const handleAdd = () => {
     if (!addName.trim()) return;
@@ -377,9 +382,15 @@ export default function SubjectsScreen() {
                       <Text style={{ fontSize: 9, fontWeight: '800', color: subj.color }}>실행중</Text>
                     </View>
                   ) : (
-                    <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
-                      <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>▶</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
+                        onPress={() => startCountup(subj)}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: subj.color }}>📈 자유</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
+                        <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>⏱ {defMin}분</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </TouchableOpacity>
               );

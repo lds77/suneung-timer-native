@@ -4,9 +4,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, Image, ActivityIndicator,
+  StatusBar, ActivityIndicator,
   TextInput, ScrollView,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import * as Font from 'expo-font';
@@ -307,19 +308,15 @@ function Root() {
         Text.render = function (...args) {
           const origin = origRender.call(this, ...args);
           const props = origin.props;
-          if (props.style) {
-            let flat = StyleSheet.flatten(props.style) || {};
-            if (fontId !== 'default') {
-              // weight가 있으면 Bold variant로 대체
-              const w = flat.fontWeight;
-              if (w && (w === 'bold' || parseInt(w, 10) >= 700)) {
-                flat.fontFamily = baseFamily + '-Bold';
-              } else {
-                flat.fontFamily = baseFamily;
-              }
-            }
-            origin.props.style = flat;
+          // style 유무와 관계없이 모든 Text에 폰트 적용
+          let flat = StyleSheet.flatten(props.style) || {};
+          const w = flat.fontWeight;
+          if (w && (w === 'bold' || parseInt(w, 10) >= 700)) {
+            flat.fontFamily = baseFamily + '-Bold';
+          } else {
+            flat.fontFamily = baseFamily;
           }
+          origin.props.style = flat;
           return origin;
         };
         setLoadedFont(fontId);
@@ -345,7 +342,11 @@ function Root() {
 }
 
 export default function App() {
-  return <AppProvider><Root /></AppProvider>;
+  return (
+    <SafeAreaProvider>
+      <AppProvider><Root /></AppProvider>
+    </SafeAreaProvider>
+  );
 }
 
 const styles = StyleSheet.create({

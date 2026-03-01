@@ -1,6 +1,6 @@
 // src/hooks/useAppState.js
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, Vibration } from 'react-native';
+import { AppState, Vibration, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -450,7 +450,7 @@ export function AppProvider({ children }) {
     } else {
       fireNotif(`⏰ ${t.label} 완료!`, '🎉'); Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     }
-    if (t.elapsedSec > 10) {
+    if (t.elapsedSec >= 60) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
@@ -482,12 +482,22 @@ export function AppProvider({ children }) {
       pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
       result: null, laps: [],
     };
-    setTimers(prev => [...prev, t]);
-    if (alreadyRunning.length > 0) {
-      showToastCustom('⚠️ 동시 실행 중! 공부시간이 중복 집계돼요', 'toru');
-    } else {
-      showToast('start');
+    if (alreadyRunning.length > 0 && opts.type !== 'lap') {
+      Alert.alert(
+        '⚠️ 타이머 동시 실행',
+        '이미 실행 중인 타이머가 있어요.\n공부시간이 중복 집계될 수 있어요.\n그래도 시작할까요?',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '그래도 시작', style: 'destructive', onPress: () => {
+            setTimers(prev => [...prev, t]);
+            showToast('start');
+          }},
+        ]
+      );
+      return null;
     }
+    setTimers(prev => [...prev, t]);
+    showToast('start');
     return t;
   }, []);
 
@@ -497,7 +507,7 @@ export function AppProvider({ children }) {
   const stopTimer = useCallback((id) => {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      if (t.elapsedSec > 30 && t.status !== 'completed') {
+      if (t.elapsedSec >= 60 && t.status !== 'completed') {
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount });
         return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec), memoSessionId: sessId };
       }
@@ -514,7 +524,18 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'paused', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [] } : t));
   }, []);
 
-  const removeTimer = useCallback((id) => setTimers(prev => prev.filter(t => t.id !== id)), []);
+  const removeTimer = useCallback((id) => {
+    setTimers(prev => {
+      const t = prev.find(timer => timer.id === id);
+      if (t && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60) {
+        recordSessionInternal({
+          subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+          durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount,
+        });
+      }
+      return prev.filter(timer => timer.id !== id);
+    });
+  }, [recordSessionInternal]);
 
   // 랩 기록
   const addLap = useCallback((id) => {
@@ -655,6 +676,18 @@ export function AppProvider({ children }) {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, memo: memo.trim() } : s));
   }, []);
 
+  // 자기평가 업데이트 — 기존 보너스 제거 후 새 보너스 적용
+  const updateSessionSelfRating = useCallback((sessionId, selfRating) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : s.selfRating === 'sleepy' ? -5 : 0;
+      const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
+      const newDensity = Math.max(40, Math.min(118, (s.focusDensity || 0) - oldBonus + newBonus));
+      const { getTier } = require('../constants/presets');
+      return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id };
+    }));
+  }, []);
+
   // 타이머 메모 업데이트 (완료 카드 표시용)
   const updateTimerMemo = useCallback((timerId, memo) => {
     setTimers(prev => prev.map(t => t.id === timerId ? { ...t, memoText: memo } : t));
@@ -714,7 +747,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject,
-      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo,
+      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
