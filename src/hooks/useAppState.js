@@ -134,10 +134,11 @@ export function AppProvider({ children }) {
     if (!item) return { ...q, status: 'done' };
     const timerId = generateId('tmr_');
     const queueMeta = { id: q.id, name: q.name, icon: q.icon, color: q.color, total: q.items.length, myIndex: q.currentIndex, labels: q.items.map(it => it.label) };
+    const advanceStartedAt = Date.now();
     const timer = {
       id: timerId, type: item.type || 'countdown', label: item.label,
       subjectId: item.subjectId || null, color: item.color, totalSec: item.totalSec,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: Date.now(),
+      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: advanceStartedAt, startedAt: advanceStartedAt,
       pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [],
       queueId: q.id, queueIndex: q.currentIndex, queueMeta,
     };
@@ -158,10 +159,11 @@ export function AppProvider({ children }) {
     const timerId = generateId('tmr_');
     const queueId = generateId('q_');
     const queueMeta = { id: queueId, name: seqName, icon: seqIcon, color: seqColor, total: items.length, myIndex: 0, labels: items.map(it => it.label) };
+    const seqStartedAt = Date.now();
     const timer = {
       id: timerId, type: firstItem.type || 'countdown', label: firstItem.label,
       subjectId: firstItem.subjectId || null, color: firstItem.color, totalSec: firstItem.totalSec,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: Date.now(),
+      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: seqStartedAt, startedAt: seqStartedAt,
       pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [],
       queueId, queueIndex: 0, queueMeta,
     };
@@ -429,7 +431,7 @@ export function AppProvider({ children }) {
 
   const pomoFlip = (t) => {
     if (t.pomoPhase === 'work') {
-      recordSessionInternal({ subjectId: t.subjectId, durationSec: t.pomoWorkMin * 60, mode: 'pomodoro', pauseCount: t.pauseCount });
+      recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: Date.now() - t.pomoWorkMin * 60 * 1000, durationSec: t.pomoWorkMin * 60, mode: 'pomodoro', pauseCount: t.pauseCount });
       fireNotif(`🍅 ${t.label} 집중 완료!`, '쉬는 시간~'); Vibration.vibrate([0, 300, 100, 300]);
       return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0 };
     }
@@ -451,7 +453,7 @@ export function AppProvider({ children }) {
     if (t.elapsedSec > 10) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       const sessId = recordSessionInternal({
-        subjectId: t.subjectId,
+        subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
         durationSec: t.type === 'countdown' ? t.totalSec : t.elapsedSec,
         mode: t.type, pauseCount: t.pauseCount, exitCount: exitCnt,
         focusMode: mode, timerType: t.type,
@@ -470,14 +472,23 @@ export function AppProvider({ children }) {
   const addTimer = useCallback((opts) => {
     // 모드 미선택 상태에서 타이머 추가 → 자동 📖모드
     if (!focusModeRef.current) activateScreenOffMode();
+    // 동시 실행 경고: 이미 실행 중인 타이머가 있으면 경고 (start 토스트 대신)
+    const alreadyRunning = timersRef.current.filter(t => t.status === 'running');
+    const startedAt = Date.now();
     const t = {
       id: generateId('tmr_'), type: opts.type || 'free', label: opts.label || '타이머',
       subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: Date.now(),
+      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
       pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
       result: null, laps: [],
     };
-    setTimers(prev => [...prev, t]); showToast('start'); return t;
+    setTimers(prev => [...prev, t]);
+    if (alreadyRunning.length > 0) {
+      showToastCustom('⚠️ 동시 실행 중! 공부시간이 중복 집계돼요', 'toru');
+    } else {
+      showToast('start');
+    }
+    return t;
   }, []);
 
   const pauseTimer = useCallback((id) => setTimers(prev => prev.map(t => t.id === id ? { ...t, status: 'paused', pauseCount: t.pauseCount + 1 } : t)), []);
@@ -487,7 +498,7 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
       if (t.elapsedSec > 30 && t.status !== 'completed') {
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount });
         return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec), memoSessionId: sessId };
       }
       return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec) };
@@ -616,7 +627,7 @@ export function AppProvider({ children }) {
   const runningTodaySec = runningTimers.length > 0 ? Math.max(...runningTimers.map(t => t.elapsedSec)) : 0;
   const mood = (() => { const t = todayTotalSec + runningTodaySec; const g = settings.dailyGoalMin * 60; if (t >= g * 0.8) return 'happy'; if (t < 600) return 'sad'; return 'normal'; })();
 
-  const recordSessionInternal = useCallback(({ subjectId = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null }) => {
+  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null }) => {
     const density = calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
@@ -626,8 +637,8 @@ export function AppProvider({ children }) {
     const tier = getTier(density);
     const verified = fm === 'screen_on' && exitCount === 0;
     const newSess = {
-      id: generateId('sess_'), date: getToday(), subjectId,
-      startedAt: Date.now() - durationSec * 1000, endedAt: Date.now(),
+      id: generateId('sess_'), date: getToday(), subjectId, label: label.trim(),
+      startedAt: startedAt ?? Date.now() - durationSec * 1000, endedAt: Date.now(),
       durationSec, mode, focusDensity: density, tier: tier.id,
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
       selfRating, memo: memo.trim(),

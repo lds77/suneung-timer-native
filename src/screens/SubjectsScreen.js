@@ -1,6 +1,7 @@
 // src/screens/SubjectsScreen.js
 // v23: 학습법 탭 + 고등 수능 탭
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
@@ -117,7 +118,8 @@ export default function SubjectsScreen() {
   const school = app.settings.schoolLevel || 'high';
   const isHigh = school === 'high';
   const [elemGrade, setElemGrade] = useState('upper');
-  const [tab, setTab] = useState('routine');
+  const [tab, setTab] = useState('subjects');
+  useFocusEffect(useCallback(() => { setTab('subjects'); }, []));
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState('');
   const [addColor, setAddColor] = useState(SUBJECT_COLORS[0]);
@@ -133,8 +135,8 @@ export default function SubjectsScreen() {
 
   // 탭 목록: 고등만 수능 포함
   const tabs = isHigh
-    ? [{ id: 'routine', icon: '📋', label: '추천 루틴' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'suneung', icon: '🎯', label: '수능' }, { id: 'subjects', icon: '📝', label: '내 과목' }]
-    : [{ id: 'routine', icon: '📋', label: '추천 루틴' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'subjects', icon: '📝', label: '내 과목' }];
+    ? [{ id: 'subjects', icon: '📝', label: '내 과목' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'routine', icon: '📋', label: '추천 루틴' }, { id: 'suneung', icon: '🎯', label: '수능' }]
+    : [{ id: 'subjects', icon: '📝', label: '내 과목' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'routine', icon: '📋', label: '추천 루틴' }];
 
   const startRoutine = (routine) => {
     const items = routine.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));

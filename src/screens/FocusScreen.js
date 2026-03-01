@@ -48,8 +48,11 @@ export default function FocusScreen() {
   const removeFav = (id) => { app.removeFav?.(id); };
   const runCountupFav = (fav) => {
     startTimerWithModeCheck(() => {
+      const wasRunning = (app.timers || []).some(t => t.status === 'running');
       app.addTimer({ type: 'free', label: fav.label, color: fav.color, totalSec: 0 });
-      app.showToastCustom(`📈 ${fav.label} 공부량 측정 시작!`, 'toru');
+      if (!wasRunning) {
+        app.showToastCustom(`📈 ${fav.label} 공부량 측정 시작!`, 'toru');
+      }
     });
   };
   const runFav = (fav) => {
