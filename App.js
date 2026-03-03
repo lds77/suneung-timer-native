@@ -5,8 +5,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator,
-  TextInput, ScrollView,
+  TextInput, ScrollView, Platform,
 } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -29,24 +30,76 @@ const Tab = createBottomTabNavigator();
 // 필요 시 FONT_MAP, FONT_FAMILY_MAP를 가져다 쓰면 됩니다.
 
 
-// ── 온보딩 (3단계) ──
+// ── 온보딩 (6단계) ──
 function OnboardingScreen() {
   const app = useApp();
-  const T = LIGHT;
-  const [step, setStep] = useState(0); // 0=캐릭터, 1=D-Day, 2=과목
+  const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=목표, 4=D-Day, 5=과목
   const [selected, setSelected] = useState('toru');
+  const [selectedAccent, setSelectedAccent] = useState('pink');
+  const [selectedSchool, setSelectedSchool] = useState('high');
+  const [selectedElemGrade, setSelectedElemGrade] = useState('upper');
+  const [selectedGoalMin, setSelectedGoalMin] = useState(360);
+  const T = getTheme(false, selectedAccent, 'medium'); // 선택한 테마 실시간 반영
+
+  // ── 테마 옵션
+  const ACCENT_OPTIONS = [
+    { id: 'pink',   label: '로즈핑크', color: '#FF6B9D' },
+    { id: 'purple', label: '퍼플',     color: '#6C5CE7' },
+    { id: 'blue',   label: '블루',     color: '#4A90D9' },
+    { id: 'mint',   label: '민트',     color: '#00B894' },
+    { id: 'navy',   label: '네이비',   color: '#2C5F9E' },
+    { id: 'coral',  label: '코랄',     color: '#E07050' },
+  ];
+
+  // ── 학교급 옵션
+  const SCHOOL_OPTIONS = [
+    { school: 'elementary', grade: 'lower', label: '초등 1~3학년', emoji: '🌱', goal: 60 },
+    { school: 'elementary', grade: 'upper', label: '초등 4~6학년', emoji: '🌿', goal: 120 },
+    { school: 'middle',     grade: null,    label: '중학생',        emoji: '📘', goal: 240 },
+    { school: 'high',       grade: null,    label: '고등/N수',      emoji: '🔥', goal: 360 },
+  ];
+  const handleSchoolSelect = (opt) => {
+    setSelectedSchool(opt.school);
+    setSelectedElemGrade(opt.grade || 'upper');
+    setSelectedGoalMin(opt.goal);
+  };
+
+  // ── 목표 시간 옵션 (학교급에 따라)
+  const GOAL_OPTIONS = (() => {
+    if (selectedSchool === 'elementary' && selectedElemGrade === 'lower') return [30, 60, 90];
+    if (selectedSchool === 'elementary') return [60, 120, 180];
+    if (selectedSchool === 'middle') return [120, 180, 240, 360];
+    return [180, 240, 360, 480, 600];
+  })();
+  const formatGoal = (min) => {
+    if (min < 60) return `${min}분`;
+    if (min % 60 === 0) return `${min / 60}시간`;
+    return `${Math.floor(min / 60)}시간${min % 60}분`;
+  };
 
   // D-Day
   const [ddLabel, setDdLabel] = useState('');
   const [pickerMonth, setPickerMonth] = useState(new Date());
   const [pickerSelected, setPickerSelected] = useState(null);
   const today = new Date().toISOString().split('T')[0];
-  const PRESETS = [
-    { label: '수능 2026', date: '2026-11-19' },
-    { label: '중간고사', date: null },
-    { label: '기말고사', date: null },
-    { label: '모의고사', date: null },
-  ];
+  const DDAY_PRESETS = (() => {
+    if (selectedSchool === 'high') return [
+      { label: '수능 2026', date: '2026-11-19' },
+      { label: '중간고사', date: null },
+      { label: '기말고사', date: null },
+      { label: '모의고사', date: null },
+    ];
+    if (selectedSchool === 'middle') return [
+      { label: '중간고사', date: null },
+      { label: '기말고사', date: null },
+      { label: '전국연합', date: null },
+    ];
+    return [
+      { label: '중간고사', date: null },
+      { label: '기말고사', date: null },
+      { label: '경시대회', date: null },
+    ];
+  })();
   const pickerStr = `${pickerMonth.getFullYear()}.${String(pickerMonth.getMonth() + 1).padStart(2, '0')}`;
   const pickerCells = React.useMemo(() => {
     const y = pickerMonth.getFullYear(), m = pickerMonth.getMonth();
@@ -55,7 +108,6 @@ function OnboardingScreen() {
     for (let d = 1; d <= last.getDate(); d++) cells.push({ day: d, date: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
     return cells;
   }, [pickerMonth]);
-
   const addDDay = () => {
     if (!ddLabel.trim() || !pickerSelected) return;
     app.addDDay({ label: ddLabel.trim(), date: pickerSelected });
@@ -64,32 +116,46 @@ function OnboardingScreen() {
 
   // 과목
   const [subjName, setSubjName] = useState('');
-  const SUBJ_PRESETS = [
-    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
-    { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
-    { name: '사회', color: '#9B6FC3' }, { name: '역사', color: '#E17055' },
-  ];
+  const SUBJ_PRESETS = (() => {
+    if (selectedSchool === 'elementary') return [
+      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
+      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
+      { name: '사회', color: '#9B6FC3' }, { name: '한자', color: '#E17055' },
+    ];
+    return [
+      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
+      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
+      { name: '사회', color: '#9B6FC3' }, { name: '역사', color: '#E17055' },
+    ];
+  })();
 
   const handleFinish = () => {
-    app.updateSettings({ mainCharacter: selected, onboardingDone: true });
+    app.updateSettings({
+      mainCharacter: selected,
+      accentColor: selectedAccent,
+      schoolLevel: selectedSchool,
+      elemGrade: selectedElemGrade,
+      dailyGoalMin: selectedGoalMin,
+      onboardingDone: true,
+    });
   };
 
   return (
     <SafeAreaView style={[styles.onboarding, { backgroundColor: T.bg }]}>
       <StatusBar barStyle="dark-content" />
-      {/* 진행 표시 */}
+      {/* 진행 표시 (6단계) */}
       <View style={styles.obProgress}>
-        {[0, 1, 2].map(i => (
+        {[0,1,2,3,4,5].map(i => (
           <View key={i} style={[styles.obDot, { backgroundColor: i <= step ? T.accent : T.border }]} />
         ))}
       </View>
 
       <ScrollView contentContainerStyle={styles.obScroll} showsVerticalScrollIndicator={false}>
 
-      {/* ═══ Step 0: 캐릭터 선택 ═══ */}
+      {/* ═══ Step 0: 캐릭터 ═══ */}
       {step === 0 && (
         <View style={styles.obStep}>
-          <Text style={[styles.obEmoji]}>💕</Text>
+          <Text style={styles.obEmoji}>💕</Text>
           <Text style={[styles.obTitle, { color: T.text }]}>함께할 친구를 골라줘!</Text>
           <Text style={[styles.obSub, { color: T.sub }]}>공부할 때 응원해주는 캐릭터야</Text>
           <View style={styles.charGrid}>
@@ -108,38 +174,126 @@ function OnboardingScreen() {
             })}
           </View>
           <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent }]} onPress={() => setStep(1)}>
-            <Text style={styles.obBtnT}>다음 →</Text></TouchableOpacity>
+            <Text style={styles.obBtnT}>다음 →</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* ═══ Step 1: D-Day ═══ */}
+      {/* ═══ Step 1: 테마 색상 ═══ */}
       {step === 1 && (
         <View style={styles.obStep}>
-          <Text style={[styles.obEmoji]}>📅</Text>
+          <Text style={styles.obEmoji}>🎨</Text>
+          <Text style={[styles.obTitle, { color: T.text }]}>테마 색상을 골라줘!</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>앱 전체 색상이 바뀌어요</Text>
+          <View style={styles.accentGrid}>
+            {ACCENT_OPTIONS.map(opt => {
+              const active = selectedAccent === opt.id;
+              return (
+                <TouchableOpacity key={opt.id}
+                  style={[styles.accentCard, { backgroundColor: active ? opt.color + '20' : T.card, borderColor: active ? opt.color : T.border, borderWidth: active ? 2.5 : 1 }]}
+                  onPress={() => setSelectedAccent(opt.id)}>
+                  <View style={[styles.accentDot, { backgroundColor: opt.color }]} />
+                  <Text style={[styles.accentLabel, { color: active ? opt.color : T.text }]}>{opt.label}</Text>
+                  {active && <Text style={{ fontSize: 11, color: opt.color }}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.obBtnRow}>
+            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(0)}>
+              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(2)}>
+              <Text style={styles.obBtnT}>다음 →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ═══ Step 2: 학교급 ═══ */}
+      {step === 2 && (
+        <View style={styles.obStep}>
+          <Text style={styles.obEmoji}>🏫</Text>
+          <Text style={[styles.obTitle, { color: T.text }]}>지금 몇 학년이야?</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>학교급에 맞게 과목이 추천돼요</Text>
+          <View style={styles.schoolGrid}>
+            {SCHOOL_OPTIONS.map(opt => {
+              const active = selectedSchool === opt.school && (opt.grade !== null ? selectedElemGrade === opt.grade : true);
+              return (
+                <TouchableOpacity key={opt.label}
+                  style={[styles.schoolCard, { backgroundColor: active ? T.accent + '15' : T.card, borderColor: active ? T.accent : T.border, borderWidth: active ? 2.5 : 1 }]}
+                  onPress={() => handleSchoolSelect(opt)}>
+                  <Text style={styles.schoolEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.schoolLabel, { color: active ? T.accent : T.text }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.obBtnRow}>
+            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(1)}>
+              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(3)}>
+              <Text style={styles.obBtnT}>다음 →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ═══ Step 3: 일일 목표 ═══ */}
+      {step === 3 && (
+        <View style={styles.obStep}>
+          <Text style={styles.obEmoji}>🎯</Text>
+          <Text style={[styles.obTitle, { color: T.text }]}>하루 목표 시간은?</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>설정에서 언제든 바꿀 수 있어요</Text>
+          <View style={styles.goalGrid}>
+            {GOAL_OPTIONS.map(min => {
+              const active = selectedGoalMin === min;
+              return (
+                <TouchableOpacity key={min}
+                  style={[styles.goalCard, { backgroundColor: active ? T.accent : T.card, borderColor: active ? T.accent : T.border, borderWidth: active ? 2.5 : 1 }]}
+                  onPress={() => setSelectedGoalMin(min)}>
+                  <Text style={[styles.goalCardText, { color: active ? 'white' : T.text }]}>{formatGoal(min)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.obBtnRow}>
+            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(2)}>
+              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(4)}>
+              <Text style={styles.obBtnT}>다음 →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ═══ Step 4: D-Day ═══ */}
+      {step === 4 && (
+        <View style={styles.obStep}>
+          <Text style={styles.obEmoji}>📅</Text>
           <Text style={[styles.obTitle, { color: T.text }]}>시험 D-Day를 설정해!</Text>
           <Text style={[styles.obSub, { color: T.sub }]}>나중에 설정에서 추가/수정할 수 있어</Text>
-
-          {/* 프리셋 */}
           <View style={styles.obPresetRow}>
-            {PRESETS.map(p => (
+            {DDAY_PRESETS.map(p => (
               <TouchableOpacity key={p.label} style={[styles.obPreset, { borderColor: ddLabel === p.label ? T.accent : T.border, backgroundColor: ddLabel === p.label ? T.accent + '15' : T.card }]}
                 onPress={() => { setDdLabel(p.label); if (p.date) setPickerSelected(p.date); }}>
                 <Text style={[styles.obPresetT, { color: ddLabel === p.label ? T.accent : T.sub }]}>{p.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
-
           <TextInput value={ddLabel} onChangeText={setDdLabel} placeholder="이름 (예: 중간고사)" placeholderTextColor={T.sub}
             style={[styles.obInput, { borderColor: T.border, backgroundColor: T.card, color: T.text }]} />
-
-          {/* 달력 */}
           <View style={[styles.obCalendar, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={styles.obCalNav}>
               <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()-1); return d; })}>
-                <Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 10 }}>◀</Text></TouchableOpacity>
+                <Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 10 }}>◀</Text>
+              </TouchableOpacity>
               <Text style={{ color: T.text, fontSize: 14, fontWeight: '800' }}>{pickerStr}</Text>
               <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()+1); return d; })}>
-                <Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 10 }}>▶</Text></TouchableOpacity>
+                <Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 10 }}>▶</Text>
+              </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', marginBottom: 4 }}>
               {'일월화수목금토'.split('').map(d => <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: T.sub, fontWeight: '600' }}>{d}</Text>)}
@@ -159,13 +313,11 @@ function OnboardingScreen() {
               })}
             </View>
           </View>
-
           {pickerSelected && ddLabel.trim() ? (
             <TouchableOpacity style={[styles.obAddBtn, { backgroundColor: T.accent + '15', borderColor: T.accent }]} onPress={addDDay}>
               <Text style={{ color: T.accent, fontWeight: '800', fontSize: 13 }}>+ {ddLabel} ({pickerSelected}) 추가</Text>
             </TouchableOpacity>
           ) : null}
-
           {app.ddays.length > 0 && (
             <View style={styles.obDDayList}>
               {app.ddays.map(dd => (
@@ -176,24 +328,23 @@ function OnboardingScreen() {
               ))}
             </View>
           )}
-
           <View style={styles.obBtnRow}>
-            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(0)}>
-              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(2)}>
-              <Text style={styles.obBtnT}>{app.ddays.length > 0 ? '다음 →' : '건너뛰기 →'}</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(3)}>
+              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(5)}>
+              <Text style={styles.obBtnT}>{app.ddays.length > 0 ? '다음 →' : '건너뛰기 →'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* ═══ Step 2: 과목 추가 ═══ */}
-      {step === 2 && (
+      {/* ═══ Step 5: 과목 ═══ */}
+      {step === 5 && (
         <View style={styles.obStep}>
-          <Text style={[styles.obEmoji]}>📚</Text>
+          <Text style={styles.obEmoji}>📚</Text>
           <Text style={[styles.obTitle, { color: T.text }]}>공부할 과목을 추가해!</Text>
           <Text style={[styles.obSub, { color: T.sub }]}>탭하면 바로 추가돼. 나중에 수정 가능!</Text>
-
-          {/* 프리셋 과목 */}
           <View style={styles.obSubjGrid}>
             {SUBJ_PRESETS.map(s => {
               const added = app.subjects.some(x => x.name === s.name);
@@ -207,16 +358,14 @@ function OnboardingScreen() {
               );
             })}
           </View>
-
-          {/* 직접 입력 */}
           <View style={styles.obSubjInputRow}>
             <TextInput value={subjName} onChangeText={setSubjName} placeholder="직접 입력 (예: 한국사)" placeholderTextColor={T.sub}
               style={[styles.obInput, { borderColor: T.border, backgroundColor: T.card, color: T.text, flex: 1 }]} />
             <TouchableOpacity style={[styles.obSubjAddBtn, { backgroundColor: T.accent }]}
-              onPress={() => { if (subjName.trim()) { app.addSubject({ name: subjName.trim(), color: '#FF6B9D' }); setSubjName(''); } }}>
-              <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>추가</Text></TouchableOpacity>
+              onPress={() => { if (subjName.trim()) { app.addSubject({ name: subjName.trim(), color: T.accent }); setSubjName(''); } }}>
+              <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>추가</Text>
+            </TouchableOpacity>
           </View>
-
           {app.subjects.length > 0 && (
             <View style={styles.obSubjList}>
               {app.subjects.map(s => (
@@ -226,12 +375,29 @@ function OnboardingScreen() {
               ))}
             </View>
           )}
-
+          {/* 배터리 최적화 안내 (Android 전용) */}
+          {Platform.OS === 'android' && (
+            <View style={{ marginHorizontal: 4, marginBottom: 14, padding: 14, borderRadius: 14, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent, marginBottom: 4 }}>⚡ 정확한 타이머 알림을 위해</Text>
+              <Text style={{ fontSize: 12, color: T.sub, lineHeight: 18, marginBottom: 10 }}>
+                배터리 최적화가 켜져 있으면 알림이 늦게 오거나 오지 않을 수 있어요.{'\n'}
+                설정에서 이 앱을 <Text style={{ fontWeight: '800', color: T.text }}>'제한 없음'</Text>으로 바꿔주세요!
+              </Text>
+              <TouchableOpacity
+                onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
+                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 20, backgroundColor: T.accent }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>배터리 설정 바로가기 →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={styles.obBtnRow}>
-            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(1)}>
-              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(4)}>
+              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={handleFinish}>
-              <Text style={styles.obBtnT}>🎉 시작하기!</Text></TouchableOpacity>
+              <Text style={styles.obBtnT}>🎉 시작하기!</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -369,7 +535,24 @@ const styles = StyleSheet.create({
   charName: { fontSize: 12, fontWeight: '800', marginTop: 6 },
   charDesc: { fontSize: 7, marginTop: 2, textAlign: 'center' },
 
-  // Step 1: D-Day
+  // Step 1: 테마 색상
+  accentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24, width: '100%' },
+  accentCard: { width: '30%', alignItems: 'center', paddingVertical: 14, borderRadius: 12, gap: 6 },
+  accentDot: { width: 28, height: 28, borderRadius: 14 },
+  accentLabel: { fontSize: 12, fontWeight: '800' },
+
+  // Step 2: 학교급
+  schoolGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24, width: '100%' },
+  schoolCard: { width: '47%', alignItems: 'center', paddingVertical: 18, borderRadius: 14, gap: 6 },
+  schoolEmoji: { fontSize: 28 },
+  schoolLabel: { fontSize: 14, fontWeight: '800' },
+
+  // Step 3: 목표 시간
+  goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24, width: '100%', justifyContent: 'center' },
+  goalCard: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12, minWidth: '28%', alignItems: 'center' },
+  goalCardText: { fontSize: 15, fontWeight: '900' },
+
+  // Step 4: D-Day
   obPresetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12, width: '100%' },
   obPreset: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   obPresetT: { fontSize: 11, fontWeight: '700' },

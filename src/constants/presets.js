@@ -26,8 +26,8 @@ export const getTier = (density) => {
   return TIERS[TIERS.length - 1];
 };
 
-// 일일 목표 옵션 (분)
-export const DAILY_GOAL_OPTIONS = [180, 240, 300, 360, 420, 480, 540, 600];
+// 일일 목표 옵션 (분) — 2행 6열 (1~12시간)
+export const DAILY_GOAL_OPTIONS = [60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720];
 
 // 뽀모도로 기본값
 export const POMO_DEFAULTS = {

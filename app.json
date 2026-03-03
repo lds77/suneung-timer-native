@@ -2,7 +2,7 @@
   "expo": {
     "name": "열공 멀티타이머",
     "slug": "yeolgong-timer",
-    "version": "1.0.0",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "automatic",
@@ -28,11 +28,13 @@
         "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
-      "versionCode": 7,
+      "versionCode": 8,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
@@ -59,7 +61,8 @@
         }
       ],
       "expo-av",
-      "expo-font"
+      "expo-font",
+      "./plugins/withForegroundService"
     ],
     "extra": {
       "eas": {

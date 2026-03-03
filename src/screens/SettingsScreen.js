@@ -14,6 +14,7 @@ import { formatDDay, generateId } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
+import * as IntentLauncher from 'expo-intent-launcher';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 
@@ -182,28 +183,30 @@ export default function SettingsScreen() {
         {/* 목표 (목표시간 + 학교급) */}
         <Section title="목표">
           <Text style={[styles.goalLabel, { color: T.sub }]}>일일 목표 시간</Text>
-          <View style={styles.goalRow}>
-            {DAILY_GOAL_OPTIONS.map(min => (
-              <TouchableOpacity
-                key={min}
-                style={[
-                  styles.goalBtn,
-                  {
-                    borderColor: app.settings.dailyGoalMin === min ? T.accent : T.border,
-                    backgroundColor: app.settings.dailyGoalMin === min ? T.accent : T.card,
-                  },
-                ]}
-                onPress={() => app.updateSettings({ dailyGoalMin: min })}
-              >
-                <Text style={[
-                  styles.goalBtnText,
-                  { color: app.settings.dailyGoalMin === min ? 'white' : T.sub },
-                ]}>
-                  {min / 60}시간
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {[DAILY_GOAL_OPTIONS.slice(0, 6), DAILY_GOAL_OPTIONS.slice(6, 12)].map((row, ri) => (
+            <View key={ri} style={[styles.goalRow, ri === 0 && { marginBottom: 5 }]}>
+              {row.map(min => (
+                <TouchableOpacity
+                  key={min}
+                  style={[
+                    styles.goalBtn,
+                    {
+                      borderColor: app.settings.dailyGoalMin === min ? T.accent : T.border,
+                      backgroundColor: app.settings.dailyGoalMin === min ? T.accent : T.card,
+                    },
+                  ]}
+                  onPress={() => app.updateSettings({ dailyGoalMin: min })}
+                >
+                  <Text style={[
+                    styles.goalBtnText,
+                    { color: app.settings.dailyGoalMin === min ? 'white' : T.sub },
+                  ]}>
+                    {min / 60}시간
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
           <Text style={[styles.goalLabel, { color: T.sub, marginTop: 8 }]}>학교급</Text>
           <View style={styles.schoolRow}>
             {[
@@ -262,6 +265,19 @@ export default function SettingsScreen() {
               />
             }
           />
+          {Platform.OS === 'android' && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }}>
+              <Text style={{ fontSize: 12, color: T.sub }}>
+                알림이 늦게 오거나 오지 않는다면 배터리 최적화를 해제하세요.
+              </Text>
+              <TouchableOpacity
+                onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
+                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: T.accent + '20', borderWidth: 1, borderColor: T.accent }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>⚡ 배터리 최적화 설정 바로가기</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </Section>
 
         {/* 🔥 집중 도전 모드 */}
@@ -540,8 +556,8 @@ const styles = StyleSheet.create({
 
   // 목표
   goalLabel: { fontSize: 10, marginBottom: 6 },
-  goalRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  goalBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
+  goalRow: { flexDirection: 'row', gap: 5 },
+  goalBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
   goalBtnText: { fontSize: 10, fontWeight: '700' },
 
   // 학교급 선택 row (목표 섹션 내)

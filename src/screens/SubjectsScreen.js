@@ -117,7 +117,7 @@ export default function SubjectsScreen() {
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const school = app.settings.schoolLevel || 'high';
   const isHigh = school === 'high';
-  const [elemGrade, setElemGrade] = useState('upper');
+  const [elemGrade, setElemGrade] = useState(app.settings.elemGrade || 'upper');
   const [tab, setTab] = useState('subjects');
   useFocusEffect(useCallback(() => { setTab('subjects'); }, []));
   const [showAdd, setShowAdd] = useState(false);
