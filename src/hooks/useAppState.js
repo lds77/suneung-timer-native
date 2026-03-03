@@ -20,13 +20,7 @@ import { calculateDensity } from '../utils/density';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    // 진행 중 알림(timer-progress)은 포그라운드에서 억제 (앱이 켜진 상태에서는 불필요)
-    if (notification.request.content.data?.type === 'timer-progress') {
-      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
-    }
-    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false };
-  },
+  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
 // Android 8+ 필수: Notification Channel 설정 (없으면 백그라운드 알림이 조용히 실패)
@@ -40,15 +34,6 @@ if (Platform.OS === 'android') {
     sound: 'default',
     enableVibrate: true,
     showBadge: true,
-  });
-  // 진행 중 알림 채널 (Foreground Service 신호용 — 무음, 지속 표시)
-  Notifications.deleteNotificationChannelAsync('timer-progress').catch(() => {});
-  Notifications.setNotificationChannelAsync('timer-progress', {
-    name: '타이머 진행 중',
-    importance: Notifications.AndroidImportance.LOW,
-    sound: null,
-    enableVibrate: false,
-    showBadge: false,
   });
 }
 
@@ -259,7 +244,6 @@ export function AppProvider({ children }) {
   settingsRef.current = settings;
 
   const notifIdMap = useRef(new Map()); // timerId → 예약 알림 identifier
-  const progressNotifIdRef = useRef(null); // 진행 중 알림 identifier (Foreground Service 신호용)
   const bgTime = useRef(null);
 
   // 🔥모드 활성화
@@ -365,11 +349,6 @@ export function AppProvider({ children }) {
       else if (state === 'background') {
         bgTime.current = Date.now();
 
-        // 실행 중 타이머가 있으면 진행 중 알림 표시 (Foreground Service 신호)
-        if (hasRunning) {
-          showProgressNotif(timersRef.current.filter(t => t.status === 'running'));
-        }
-
         // 🔥모드에서만 이탈 감지 (keep-awake라서 background = 진짜 이탈)
         if (mode === 'screen_on' && hasRunning && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
@@ -381,9 +360,6 @@ export function AppProvider({ children }) {
         // 📖모드는 아무것도 안 함
       }
       else if (state === 'active') {
-        // 포그라운드 복귀 시 진행 중 알림 즉시 제거
-        dismissProgressNotif();
-
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
         const awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
         bgTime.current = null;
@@ -453,12 +429,11 @@ export function AppProvider({ children }) {
     return () => sub.remove();
   }, []);
 
-  // 모든 타이머 완료/삭제 시 모드 자동 해제 + 진행 중 알림 제거
+  // 모든 타이머 완료/삭제 시 모드 자동 해제
   useEffect(() => {
     const hasActive = timers.some(t => t.status === 'running' || t.status === 'paused');
-    if (!hasActive) {
-      if (focusMode) deactivateFocusMode();
-      dismissProgressNotif();
+    if (!hasActive && focusMode) {
+      deactivateFocusMode();
     }
   }, [timers]);
 
@@ -614,46 +589,6 @@ export function AppProvider({ children }) {
       if (id) {
         await Notifications.cancelScheduledNotificationAsync(id);
         notifIdMap.current.delete(timerId);
-      }
-    } catch {}
-  };
-
-  // 백그라운드 진입 시 진행 중 알림 표시 (Foreground Service 신호 — Android 전용)
-  // sticky: true → Android가 앱을 중요한 백그라운드 작업으로 인식, 프로세스 생존 유리
-  const showProgressNotif = async (runningTimers) => {
-    if (Platform.OS !== 'android') return;
-    if (!settingsRef.current.notifEnabled) return;
-    try {
-      if (progressNotifIdRef.current) {
-        await Notifications.dismissNotificationAsync(progressNotifIdRef.current).catch(() => {});
-        progressNotifIdRef.current = null;
-      }
-      if (!runningTimers || runningTimers.length === 0) return;
-      const label = runningTimers.length === 1
-        ? runningTimers[0].label
-        : `${runningTimers[0].label} 외 ${runningTimers.length - 1}개`;
-      const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '⏱ 타이머 실행 중',
-          body: label,
-          sticky: true,
-          data: { type: 'timer-progress' },
-          channelId: 'timer-progress',
-          color: '#FF6B9D',
-        },
-        trigger: null,
-      });
-      progressNotifIdRef.current = id;
-    } catch (e) { console.log('showProgressNotif:', e); }
-  };
-
-  // 포그라운드 복귀 / 타이머 전부 종료 시 진행 중 알림 제거
-  const dismissProgressNotif = async () => {
-    if (Platform.OS !== 'android') return;
-    try {
-      if (progressNotifIdRef.current) {
-        await Notifications.dismissNotificationAsync(progressNotifIdRef.current);
-        progressNotifIdRef.current = null;
       }
     } catch {}
   };
