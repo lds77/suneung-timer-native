@@ -1,6 +1,16 @@
 {
-  "cli": { "version": ">= 3.0.0" },
+  "cli": {
+    "version": ">= 3.0.0",
+    "promptToConfigurePushNotifications": false
+  },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {
