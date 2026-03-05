@@ -8,6 +8,8 @@ import { formatTime, formatDuration, formatDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
+import ScheduleEditorScreen from './ScheduleEditorScreen';
+import { getPlannerMessage } from '../constants/characters';
 
 const SW = Dimensions.get('window').width;
 const GAP = 8;
@@ -49,6 +51,8 @@ export default function FocusScreen() {
   const [memoTimerId, setMemoTimerId] = useState(null);  // 메모 입력 중인 타이머 id
   const [memoText, setMemoText] = useState('');
   const [memoSessionId, setMemoSessionId] = useState(null); // 연결된 세션 id
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [planCardCollapsed, setPlanCardCollapsed] = useState(false);
 
 
   const countupFavs = app.countupFavs || [];
@@ -87,6 +91,9 @@ export default function FocusScreen() {
   const goalPct = Math.min(100, Math.round((realToday / (app.settings.dailyGoalMin * 60)) * 100));
   const hasRunning = app.timers.some(t => t.status === 'running');
   const hasPausedByUltra = app.timers.some(t => t.pausedByUltra && t.status === 'paused');
+
+  // 플래너 달성률 (enabled이고 오늘 plans 있을 때만 숫자, 아니면 null)
+  const plannerRate = app.weeklySchedule?.enabled ? app.getTodayPlanRate?.() : null;
 
   // 챌린지
   const [challengeInput, setChallengeInput] = useState('');
@@ -559,6 +566,11 @@ export default function FocusScreen() {
             <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
             <View style={{ marginLeft: 8 }}><Text style={[S.title, { color: T.text }]}>열공 멀티타이머</Text>
               {app.settings.streak > 0 && <Text style={[S.headerSub, { color: T.sub }]}>🔥{app.settings.streak}일 연속</Text>}
+              {plannerRate !== null && (
+                <Text style={{ fontSize: 10, color: T.accent, marginTop: 1, fontWeight: '600' }} numberOfLines={1}>
+                  {getPlannerMessage(app.settings.mainCharacter, plannerRate)}
+                </Text>
+              )}
             </View></View>
           <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}><Text>{app.settings.darkMode ? '☀️' : '🌙'}</Text></TouchableOpacity>
         </View>
@@ -581,6 +593,99 @@ export default function FocusScreen() {
           <View style={S.progRow}><Text style={[S.progLabel, { color: T.sub }]}>오늘</Text><Text style={[S.progVal, { color: T.accent }]}>{formatDuration(realToday)}</Text></View>
           <View style={[S.progTrack, { backgroundColor: T.surface2 }]}><View style={[S.progFill, { width: `${goalPct}%`, backgroundColor: goalPct >= 100 ? T.gold : T.accent }]} /></View>
         </View>
+
+        {/* ═══ 오늘의 계획 카드 ═══ */}
+        {(() => {
+          const ws = app.weeklySchedule;
+          if (!ws || !ws.enabled) return null;
+          const dayKey = app.getDayKey?.();
+          const dayData = dayKey && ws[dayKey];
+          if (!dayData || !dayData.plans || dayData.plans.length === 0) return null;
+          const fixed = (dayData.fixed || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+          const plans = (dayData.plans || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+          const getPlanStatus = (plan) => {
+            const completedSec = app.getPlanCompletedSec?.(plan.id) || 0;
+            const targetSec = (plan.targetMin || 0) * 60;
+            const runningTimer = app.timers.find(t => t.planId === plan.id && t.status === 'running');
+            const currentSec = completedSec + (runningTimer ? runningTimer.elapsedSec : 0);
+            const pct = targetSec > 0 ? currentSec / targetSec : 0;
+            if (pct >= 0.8) return { type: 'done', currentSec, targetSec };
+            if (runningTimer) return { type: 'running', currentSec, targetSec, pct };
+            return { type: 'idle', currentSec, targetSec };
+          };
+          const totalTargetSec = plans.reduce((sum, p) => sum + (p.targetMin || 0) * 60, 0);
+          const totalDoneSec = plans.reduce((sum, p) => {
+            const completedSec = app.getPlanCompletedSec?.(p.id) || 0;
+            const runningTimer = app.timers.find(t => t.planId === p.id && t.status === 'running');
+            return sum + completedSec + (runningTimer ? runningTimer.elapsedSec : 0);
+          }, 0);
+          const overallPct = totalTargetSec > 0 ? Math.min(1, totalDoneSec / totalTargetSec) : 0;
+          return (
+            <View style={[S.planCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <TouchableOpacity style={S.planCardHeader} onPress={() => setPlanCardCollapsed(c => !c)}>
+                <Text style={[S.planCardTitle, { color: T.text }]}>📅 오늘의 계획</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity onPress={() => setShowScheduleEditor(true)}>
+                    <Text style={[S.planEditBtn, { color: T.accent }]}>편집</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: T.sub, fontSize: 12 }}>{planCardCollapsed ? '▼' : '▲'}</Text>
+                </View>
+              </TouchableOpacity>
+              {!planCardCollapsed && (
+                <>
+                  {fixed.map(item => (
+                    <View key={item.id} style={S.planFixedRow}>
+                      <Text style={S.planFixedIcon}>{item.icon || '📌'}</Text>
+                      <Text style={[S.planFixedLabel, { color: T.sub }]}>{item.label}</Text>
+                      <Text style={[S.planFixedTime, { color: T.sub }]}>{item.start}–{item.end}</Text>
+                    </View>
+                  ))}
+                  {fixed.length > 0 && plans.length > 0 && (
+                    <View style={[S.planDivider, { backgroundColor: T.border }]} />
+                  )}
+                  {plans.map(plan => {
+                    const status = getPlanStatus(plan);
+                    return (
+                      <View key={plan.id} style={S.planRow}>
+                        <Text style={S.planRowIcon}>{plan.icon || '📖'}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[S.planLabel, { color: T.text }]}>{plan.label}</Text>
+                          {status.type === 'running' && (
+                            <View style={[S.planMiniTrack, { backgroundColor: T.surface2 }]}>
+                              <View style={[S.planMiniFill, { width: `${Math.round(status.pct * 100)}%`, backgroundColor: T.accent }]} />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[S.planTime, { color: T.sub }]}>
+                          {status.type === 'idle'
+                            ? `${plan.targetMin}분`
+                            : `${Math.floor(status.currentSec / 60)}분/${plan.targetMin}분`}
+                        </Text>
+                        <View style={S.planAction}>
+                          {status.type === 'done' ? (
+                            <Text style={{ fontSize: 16 }}>✅</Text>
+                          ) : status.type === 'running' ? (
+                            <Text style={{ fontSize: 14 }}>🔵</Text>
+                          ) : (
+                            <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
+                              <Text style={S.planPlayBtnT}>▶</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+              <View style={S.planProgress}>
+                <View style={[S.planProgTrack, { backgroundColor: T.surface2 }]}>
+                  <View style={[S.planProgFill, { width: `${Math.round(overallPct * 100)}%`, backgroundColor: overallPct >= 1 ? T.gold || '#FFD700' : T.accent }]} />
+                </View>
+                <Text style={[S.planProgLabel, { color: T.sub }]}>{Math.round(overallPct * 100)}% 달성</Text>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* ═══ 공부량 즐겨찾기 ═══ */}
         <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1184,6 +1289,9 @@ export default function FocusScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 주간 플래너 편집 */}
+      <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
     </View>
   );
 }
@@ -1197,6 +1305,28 @@ const S = StyleSheet.create({
   ddayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 6 },
   ddayCell: { width: (SW - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
   ddayCellLabel: { fontSize: 7, fontWeight: '700' }, ddayCellVal: { fontSize: 9, fontWeight: '900', marginTop: 1 },
+  planCard: { borderRadius: 14, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
+  planCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
+  planCardTitle: { fontSize: 13, fontWeight: '800' },
+  planEditBtn: { fontSize: 12, fontWeight: '700' },
+  planFixedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4 },
+  planFixedIcon: { fontSize: 13 },
+  planFixedLabel: { flex: 1, fontSize: 11 },
+  planFixedTime: { fontSize: 10 },
+  planDivider: { height: 1, marginHorizontal: 12, marginVertical: 4 },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6 },
+  planRowIcon: { fontSize: 16 },
+  planLabel: { fontSize: 12, fontWeight: '600' },
+  planMiniTrack: { height: 3, borderRadius: 2, marginTop: 3, overflow: 'hidden' },
+  planMiniFill: { height: 3, borderRadius: 2 },
+  planTime: { fontSize: 10, minWidth: 54, textAlign: 'right' },
+  planAction: { width: 32, alignItems: 'center' },
+  planPlayBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  planPlayBtnT: { color: 'white', fontSize: 10, fontWeight: '800' },
+  planProgress: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, paddingTop: 4 },
+  planProgTrack: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden' },
+  planProgFill: { height: 5, borderRadius: 3 },
+  planProgLabel: { fontSize: 10, fontWeight: '700', minWidth: 52, textAlign: 'right' },
   progCard: { borderRadius: 12, padding: 10, borderWidth: 1, marginBottom: 8 },
   progRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   progLabel: { fontSize: 10, fontWeight: '600' }, progVal: { fontSize: 15, fontWeight: '900' },

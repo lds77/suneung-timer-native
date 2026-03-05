@@ -109,15 +109,18 @@ const SUNEUNG_SUBJECTS = [
   { name: '제2외국어', min: 40, color: '#00B894', order: 7 },
 ];
 
-const SCHOOL_LABELS = { elementary: '초등', middle: '중등', high: '고등' };
-const ELEM_GRADE_KEY = (school, grade) => school === 'elementary' ? `elementary_${grade}` : school;
+const SCHOOL_LABELS = {
+  elementary_lower: '초등 저', elementary_upper: '초등 고',
+  middle: '중등', high: '고등',
+  nsuneung: 'N수생', university: '대학생', exam_prep: '공시생',
+};
+const ELEM_GRADE_KEY = (school) => school;
 
 export default function SubjectsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const school = app.settings.schoolLevel || 'high';
-  const isHigh = school === 'high';
-  const [elemGrade, setElemGrade] = useState(app.settings.elemGrade || 'upper');
+  const isHigh = school === 'high' || school === 'nsuneung';
   const [tab, setTab] = useState('subjects');
   useFocusEffect(useCallback(() => { setTab('subjects'); }, []));
   const [showAdd, setShowAdd] = useState(false);
@@ -128,7 +131,7 @@ export default function SubjectsScreen() {
   const [suneungSelected, setSuneungSelected] = useState([]);
   const toggleSuneung = (name) => setSuneungSelected(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
 
-  const key = ELEM_GRADE_KEY(school, elemGrade);
+  const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
   const methods = STUDY_METHODS[key] || STUDY_METHODS.high;
   const sorted = [...app.subjects].sort((a, b) => (b.totalElapsedSec || 0) - (a.totalElapsedSec || 0));
@@ -150,7 +153,7 @@ export default function SubjectsScreen() {
     if (ok) app.showToastCustom(`${method.icon} ${method.name} 시작!`, 'toru');
   };
 
-  const defMin = school === 'elementary' ? (elemGrade === 'lower' ? 20 : 25) : (school === 'middle' ? 50 : 60);
+  const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
 
   const startSingle = (subj) => {
     app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
@@ -197,15 +200,12 @@ export default function SubjectsScreen() {
           </View>
         </View>
 
-        {/* 초등: 학년 선택 */}
-        {school === 'elementary' && (
+        {/* 초등: 학년 정보 */}
+        {(school === 'elementary_lower' || school === 'elementary_upper') && (
           <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
-            {[{ id: 'lower', l: '1~3학년' }, { id: 'upper', l: '4~6학년' }].map(g => (
-              <TouchableOpacity key={g.id} style={[S.gradeBtn, elemGrade === g.id && { backgroundColor: T.accent }]}
-                onPress={() => setElemGrade(g.id)}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: elemGrade === g.id ? 'white' : T.sub }}>{g.l}</Text>
-              </TouchableOpacity>
-            ))}
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
+              {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
+            </Text>
           </View>
         )}
 

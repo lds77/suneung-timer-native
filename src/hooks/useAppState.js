@@ -14,7 +14,7 @@ const SOUND_FILES = {
   wave:   require('../../assets/sounds/wave.mp3'),
   forest: require('../../assets/sounds/forest.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule } from '../utils/storage';
 import { getToday, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
 import { getRandomMessage } from '../constants/characters';
@@ -75,6 +75,9 @@ export function AppProvider({ children }) {
   // 즐겨찾기 설정 (FocusScreen에서 사용)
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
+
+  // ═══ 주간 플래너 ═══
+  const [weeklySchedule, setWeeklySchedule] = useState(null);
 
   // ═══ 타이머 ═══
   const [timers, setTimers] = useState([]);
@@ -189,6 +192,13 @@ export function AppProvider({ children }) {
 
   const notifIdMap = useRef(new Map()); // timerId → 예약 알림 identifier
   const bgTime = useRef(null);
+  const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
+
+  // ref: 최신 weeklySchedule / sessions (schedulePlannerReminders에서 사용)
+  const weeklyScheduleRef = useRef(null);
+  const sessionsRef = useRef([]);
+  weeklyScheduleRef.current = weeklySchedule;
+  sessionsRef.current = sessions;
 
   // 🔥모드 활성화
   const activateScreenOnMode = useCallback(async () => {
@@ -563,7 +573,7 @@ export function AppProvider({ children }) {
         mode: t.type, pauseCount: t.pauseCount, exitCount: exitCnt,
         focusMode: mode, timerType: t.type,
         completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
-        pomoSets: t.pomoSet || 0,
+        pomoSets: t.pomoSet || 0, planId: t.planId || null,
       });
       // 완료 결과 모달 트리거 (랩/시퀀스 제외)
       if (t.type !== 'sequence') {
@@ -626,6 +636,62 @@ export function AppProvider({ children }) {
     } catch {}
   };
 
+  // ═══ 플래너 리마인더 알림 예약 ═══
+  // 고정 일정 종료 + 10분 후에 미완료 계획이 있으면 알림 예약
+  const schedulePlannerReminders = useCallback(async () => {
+    // 기존 플래너 알림 모두 취소
+    for (const id of plannerNotifIds.current) {
+      try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
+    }
+    plannerNotifIds.current = [];
+
+    if (!settingsRef.current.notifEnabled) return;
+    const ws = weeklyScheduleRef.current;
+    if (!ws || !ws.enabled) return;
+
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayKey = dayKeys[new Date().getDay()];
+    const dayData = ws[dayKey];
+    if (!dayData?.fixed?.length || !dayData?.plans?.length) return;
+
+    const now = Date.now();
+    const today = getToday();
+
+    for (const fixed of dayData.fixed) {
+      if (!fixed.end) continue;
+      const [endH, endM] = fixed.end.split(':').map(Number);
+      const endDate = new Date();
+      endDate.setHours(endH, endM, 0, 0);
+      const triggerMs = endDate.getTime() + 10 * 60 * 1000; // 종료 + 10분
+      if (triggerMs <= now) continue; // 이미 지난 시간
+
+      // 미완료 계획 있는지 확인
+      const hasIncompletePlan = dayData.plans.some(plan => {
+        const doneSec = sessionsRef.current
+          .filter(s => s.date === today && s.planId === plan.id)
+          .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+        return doneSec < (plan.targetMin || 0) * 60 * 0.8;
+      });
+      if (!hasIncompletePlan) continue;
+
+      try {
+        const trigger = Platform.OS === 'android'
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs), channelId: 'timer-complete' }
+          : { seconds: Math.max(1, Math.ceil((triggerMs - now) / 1000)) };
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '📅 공부 계획 알림',
+            body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
+            sound: true,
+            ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+          },
+          trigger,
+        });
+        plannerNotifIds.current.push(id);
+      } catch {}
+    }
+  }, []);
+
   // 타이머 조작
   const addTimer = useCallback((opts) => {
     // 랩타이머: 단일 제약 없이 바로 시작 (집중모드 불필요)
@@ -646,7 +712,7 @@ export function AppProvider({ children }) {
         subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
         elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
         pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
-        result: null, laps: [],
+        result: null, laps: [], planId: opts.planId || null,
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleTimerNotif(t.id, t.label, t.pomoWorkMin * 60, `🍅 ${t.label} 집중 완료!`, '쉬는 시간~');
@@ -662,6 +728,17 @@ export function AppProvider({ children }) {
     }
     return null;
   }, []);
+
+  const startFromPlan = useCallback((plan) => {
+    addTimer({
+      type: 'countdown',
+      label: `${plan.icon || ''} ${plan.label}`.trim(),
+      color: plan.color,
+      subjectId: plan.subjectId || null,
+      totalSec: plan.targetMin * 60,
+      planId: plan.id,
+    });
+  }, [addTimer]);
 
   const pauseTimer = useCallback((id) => {
     cancelTimerNotif(id); // 예약 알림 취소
@@ -824,11 +901,15 @@ export function AppProvider({ children }) {
           delete s.ultraFocusStrict;
         }
         if (s.ultraFocusEnabled !== undefined) delete s.ultraFocusEnabled;
+        // schoolLevel 마이그레이션: 'elementary' → 'elementary_upper'
+        if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
       if (sess) setSessions(sess); if (dd) setDDays(dd); if (td) setTodos(td);
       if (cuf) setCountupFavs(cuf);
       if (fv && fv.length > 0) setFavs(fv);
+      const ws = await loadWeeklySchedule();
+      if (ws) setWeeklySchedule(ws);
       setLoading(false);
     })();
   }, []);
@@ -837,8 +918,8 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); }, 500);
-  }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, loading]);
+    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
+  }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
 
   // Android 12+ 정확한 알람 권한 안내 (최초 1회)
   useEffect(() => {
@@ -873,7 +954,46 @@ export function AppProvider({ children }) {
   const runningTodaySec = runningTimers.length > 0 ? Math.max(...runningTimers.map(t => t.elapsedSec)) : 0;
   const mood = (() => { const t = todayTotalSec + runningTodaySec; const g = settings.dailyGoalMin * 60; if (t >= g * 0.8) return 'happy'; if (t < 600) return 'sad'; return 'normal'; })();
 
-  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null }) => {
+  // ═══ 주간 플래너 헬퍼 ═══
+  const getDayKey = useCallback(() => {
+    return ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+  }, []);
+
+  const getTodaySchedule = useCallback(() => {
+    if (!weeklySchedule || !weeklySchedule.enabled) return null;
+    const dayData = weeklySchedule[getDayKey()];
+    return dayData || { fixed: [], plans: [] };
+  }, [weeklySchedule, getDayKey]);
+
+  const getPlanCompletedSec = useCallback((planId) => {
+    const today = getToday();
+    return sessions
+      .filter(s => s.date === today && s.planId === planId)
+      .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+  }, [sessions]);
+
+  const getTodayPlanRate = useCallback(() => {
+    const todaySched = getTodaySchedule();
+    if (!todaySched || !todaySched.plans || todaySched.plans.length === 0) return null;
+    const totalTarget = todaySched.plans.reduce((sum, p) => sum + p.targetMin * 60, 0);
+    if (totalTarget === 0) return null;
+    const totalDone = todaySched.plans.reduce((sum, p) => sum + getPlanCompletedSec(p.id), 0);
+    return Math.min(100, Math.round(totalDone / totalTarget * 100));
+  }, [getTodaySchedule, getPlanCompletedSec]);
+
+  const getAvailableMin = useCallback((dayKey) => {
+    if (!weeklySchedule) return 24 * 60;
+    const dayData = weeklySchedule[dayKey];
+    if (!dayData || !dayData.fixed || dayData.fixed.length === 0) return 24 * 60;
+    const fixedMin = dayData.fixed.reduce((sum, f) => {
+      const [sh, sm] = f.start.split(':').map(Number);
+      const [eh, em] = f.end.split(':').map(Number);
+      return sum + (eh * 60 + em) - (sh * 60 + sm);
+    }, 0);
+    return Math.max(0, 24 * 60 - fixedMin);
+  }, [weeklySchedule]);
+
+  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null }) => {
     const density = calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
@@ -887,7 +1007,7 @@ export function AppProvider({ children }) {
       startedAt: startedAt ?? Date.now() - durationSec * 1000, endedAt: Date.now(),
       durationSec, mode, focusDensity: density, tier: tier.id,
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
-      selfRating, memo: memo.trim(),
+      selfRating, memo: memo.trim(), planId: planId || null,
     };
     setSessions(prev => [...prev, newSess]);
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
@@ -953,6 +1073,12 @@ export function AppProvider({ children }) {
     }
   }, [settings.notifEnabled, loading]);
 
+  // 플래너 리마인더: 앱 시작 + weeklySchedule 변경 시 재예약
+  useEffect(() => {
+    if (loading) return;
+    schedulePlannerReminders();
+  }, [weeklySchedule, loading]);
+
   // 즐겨찾기 추가/제거
   const addFav = useCallback((fav) => {
     if (favs.length >= 5) { showToastCustom('즐겨찾기 최대 5개!', 'paengi'); return; }
@@ -994,6 +1120,9 @@ export function AppProvider({ children }) {
       favs, setFavs, addFav, removeFav,
       countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,
+      weeklySchedule, setWeeklySchedule,
+      getTodaySchedule, getPlanCompletedSec, getTodayPlanRate,
+      startFromPlan, getAvailableMin, getDayKey, schedulePlannerReminders,
     }}>
       {children}
     </AppContext.Provider>

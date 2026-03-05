@@ -548,6 +548,30 @@ export default function StatsScreen() {
     return app.sessions.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.durationSec || 0), 0);
   }, [app.sessions]);
 
+  // ─── 오늘 플래너 달성률 ──────────────────────────────────────
+  const todayPlanRate = app.weeklySchedule?.enabled ? app.getTodayPlanRate?.() : null;
+
+  // ─── 이번 주 플래너 달성률 ───────────────────────────────────
+  const weekPlanRate = useMemo(() => {
+    if (!app.weeklySchedule?.enabled) return null;
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    let totalTargetSec = 0;
+    let totalDoneSec = 0;
+    weekData.forEach(({ date }) => {
+      const d = new Date(date + 'T00:00:00');
+      const dayData = app.weeklySchedule[dayKeys[d.getDay()]];
+      if (!dayData?.plans?.length) return;
+      dayData.plans.forEach(plan => {
+        totalTargetSec += (plan.targetMin || 0) * 60;
+        totalDoneSec += app.sessions
+          .filter(s => s.date === date && s.planId === plan.id)
+          .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+      });
+    });
+    if (totalTargetSec === 0) return null;
+    return Math.min(100, Math.round(totalDoneSec / totalTargetSec * 100));
+  }, [app.weeklySchedule, weekData, app.sessions]);
+
   // ─── 주간 베스트 날 인덱스 ────────────────────────────────────
   const weekBestDayIdx = useMemo(() => {
     if (weekData.every(d => d.sec === 0)) return -1;
@@ -837,6 +861,23 @@ export default function StatsScreen() {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* ── 오늘 플래너 달성률 ── */}
+          {todayPlanRate !== null && (
+            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
+              <Text style={{ fontSize: 18 }}>📅</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.text }}>오늘 계획 달성률</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{todayPlanRate}%</Text>
+                </View>
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
+                  <View style={{ height: 6, borderRadius: 3, width: `${todayPlanRate}%`, backgroundColor: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+                </View>
+              </View>
+              {todayPlanRate >= 100 && <Text style={{ fontSize: 18 }}>🎉</Text>}
+            </View>
+          )}
 
           {/* ── Gantt 타임라인 ── */}
           {todaySessions.length > 0 && (
@@ -1563,6 +1604,19 @@ export default function StatsScreen() {
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: weekSubjects[0].color }} />
                       <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{weekSubjects[0].name}</Text>
                       <Text style={{ fontSize: 11, color: T.sub }}>{formatShort(weekSubjects[0].sec)}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 이번 주 플래너 달성률 */}
+                {weekPlanRate !== null && (
+                  <View style={[S.reportMiniCard, { backgroundColor: T.surface2, marginHorizontal: 16, marginBottom: 12 }]}>
+                    <Text style={{ fontSize: 10, color: T.sub }}>📅 이번 주 계획 달성률</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                      <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.border, overflow: 'hidden' }}>
+                        <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+                      </View>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
                     </View>
                   </View>
                 )}

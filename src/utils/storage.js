@@ -13,6 +13,7 @@ const KEYS = {
   TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
   COUNTUP_FAVS: '@yeolgong/countupFavs',
   FAVS: '@yeolgong/favs',
+  WEEKLY_SCHEDULE: '@yeolgong/weeklySchedule',
 };
 
 /**
@@ -80,6 +81,10 @@ export const loadTimerSnapshot = () => loadJSON(KEYS.TIMER_SNAPSHOT, null);
 export const clearTimerSnapshot = async () => {
   try { await AsyncStorage.removeItem(KEYS.TIMER_SNAPSHOT); } catch {}
 };
+
+// ── 주간 스케줄 ──
+export const saveWeeklySchedule = (schedule) => saveJSON(KEYS.WEEKLY_SCHEDULE, schedule);
+export const loadWeeklySchedule = () => loadJSON(KEYS.WEEKLY_SCHEDULE, null);
 
 // ── 전체 초기화 ──
 export const clearAllData = async () => {

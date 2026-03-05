@@ -10,13 +10,14 @@ import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme } from '../constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
-import { formatDDay, generateId } from '../utils/format';
+import { formatDDay } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
+import ScheduleEditorScreen from './ScheduleEditorScreen';
 
 // 가이드 섹션 컴포넌트
 function GuideSection({ title, color, T, children }) {
@@ -80,6 +81,7 @@ export default function SettingsScreen() {
   // D-Day 추가 모달 (캘린더 방식)
   const [showDDayModal, setShowDDayModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
 const [ddLabel, setDdLabel] = useState('');
   const [ddDays, setDdDays] = useState(1);
@@ -204,22 +206,44 @@ const [ddLabel, setDdLabel] = useState('');
             </View>
           ))}
           <Text style={[styles.goalLabel, { color: T.sub, marginTop: 8 }]}>학교급</Text>
-          <View style={styles.schoolRow}>
-            {[
-              { id: 'elementary', label: '초등' },
-              { id: 'middle', label: '중등' },
-              { id: 'high', label: '고등' },
-            ].map(s => {
-              const sel = (app.settings.schoolLevel || 'high') === s.id;
-              return (
-                <TouchableOpacity key={s.id} onPress={() => app.updateSettings({ schoolLevel: s.id })}
-                  style={[styles.schoolBtn, sel && { backgroundColor: T.accent, borderColor: T.accent }]}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: sel ? '900' : '600', color: sel ? 'white' : T.text }}>{s.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {[
+            [
+              { id: 'elementary_lower', label: '초등 저학년', sub: '1~3학년' },
+              { id: 'elementary_upper', label: '초등 고학년', sub: '4~6학년' },
+              { id: 'middle', label: '중학생', sub: '중1~3' },
+              { id: 'high', label: '고등학생', sub: '고1~3' },
+            ],
+            [
+              { id: 'nsuneung', label: 'N수생', sub: '수능 재도전' },
+              { id: 'university', label: '대학생', sub: '대학 재학' },
+              { id: 'exam_prep', label: '공시생/자격증', sub: '공무원·자격증' },
+            ],
+          ].map((row, ri) => (
+            <View key={ri} style={[styles.schoolRow, ri === 0 && { marginBottom: 5 }]}>
+              {row.map(s => {
+                const sel = (app.settings.schoolLevel || 'high') === s.id;
+                return (
+                  <TouchableOpacity key={s.id} onPress={() => {
+                    app.updateSettings({ schoolLevel: s.id });
+                  }}
+                    style={[styles.schoolBtn, { flex: 1 }, sel && { backgroundColor: T.accent, borderColor: T.accent }]}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: sel ? '900' : '600', color: sel ? 'white' : T.text, textAlign: 'center' }}>{s.label}</Text>
+                    <Text style={{ fontSize: 9, color: sel ? 'rgba(255,255,255,0.8)' : T.sub, textAlign: 'center', marginTop: 1 }}>{s.sub}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+          {/* 주간 플래너 진입점 */}
+          <TouchableOpacity onPress={() => setShowScheduleEditor(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4 }}>
+            <View>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>📅 주간 플래너 설정</Text>
+              <Text style={{ fontSize: 10, color: T.sub, marginTop: 1 }}>오늘의 공부 계획을 세워보세요</Text>
+            </View>
+            <Text style={{ fontSize: 20, color: T.sub }}>›</Text>
+          </TouchableOpacity>
         </Section>
 
         {/* D-Day */}
@@ -389,19 +413,7 @@ const [ddLabel, setDdLabel] = useState('');
           </View>
         </Section>
 
-        {/* 타이머 기본값 */}
-        <Section title="타이머 기본값">
-          <Row
-            label="뽀모도로 집중"
-            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroWorkMin}분</Text>}
-          />
-          <Row
-            label="뽀모도로 휴식"
-            right={<Text style={[styles.rowValue, { color: T.accent }]}>{app.settings.pomodoroBreakMin}분</Text>}
-          />
-        </Section>
-
-        {/* 사용 가이드 */}
+{/* 사용 가이드 */}
         <Section title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Row label="📖 사용 가이드" right={<Text style={{ color: T.sub }}>→</Text>} />
@@ -530,6 +542,8 @@ const [ddLabel, setDdLabel] = useState('');
           </ScrollView>
         </View>
       </Modal>
+
+      <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
     </View>
   );
 }
