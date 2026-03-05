@@ -14,7 +14,7 @@ const SOUND_FILES = {
   wave:   require('../../assets/sounds/wave.mp3'),
   forest: require('../../assets/sounds/forest.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs } from '../utils/storage';
 import { getToday, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
 import { getRandomMessage } from '../constants/characters';
@@ -76,15 +76,16 @@ export function AppProvider({ children }) {
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
 
-  // ═══ 멀티타이머 ═══
-  // status: 'running'|'paused'|'completed'|'waiting' (순차 대기)
+  // ═══ 타이머 ═══
   const [timers, setTimers] = useState([]);
   const timersRef = useRef([]); timersRef.current = timers;
 
-  // 순차 실행 큐
-  const [queue, setQueue] = useState(null);
-  const queueRef = useRef(null); queueRef.current = queue;
-  // queue: { id, items: [{label,color,totalSec,subjectId,type}], currentIndex, breakSec, status:'running'|'break'|'done' }
+  // 완료 결과 모달 데이터 (null이면 모달 숨김)
+  // { timerId, label, totalSec, result, seqSummary? }
+  const [completedResultData, setCompletedResultData] = useState(null);
+
+  // 전역 집중모드 선택 대기 콜백
+  const [pendingModeAction, setPendingModeAction] = useState(null);
 
   // 1초 틱
   useEffect(() => {
@@ -98,126 +99,69 @@ export function AppProvider({ children }) {
           // 랩 스톱워치는 무한
           if (t.type === 'lap') return next;
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
-            fireComplete(t); return { ...next, status: 'completed', result: calcResult(t, next.elapsedSec) };
+            const sessId = fireComplete(t);
+            return { ...next, status: 'completed', result: calcResult(t, next.elapsedSec), ...(sessId ? { memoSessionId: sessId } : {}) };
           }
           if (t.type === 'pomodoro') {
             const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;
             if (next.elapsedSec >= target) return pomoFlip(next);
           }
+          if (t.type === 'sequence') {
+            const target = t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
+            if (next.elapsedSec >= target) return seqFlip(next);
+          }
           if (t.type === 'free') return next;
           return next;
         });
-      });
-
-      // 순차 큐 틱
-      setQueue(prev => {
-        if (!prev || prev.status === 'done') return prev;
-        const next = { ...prev, elapsed: (prev.elapsed || 0) + 1 };
-        if (prev.status === 'break') {
-          if (next.elapsed >= prev.breakSec) {
-            // 쉬는시간 끝 → 다음 과목 시작
-            return startNextInQueue(next);
-          }
-          return next;
-        }
-        // 현재 과목 진행 중 — 타이머가 알아서 처리
-        return next;
       });
     }, 1000);
     return () => clearInterval(id);
   }, []);
 
-  // 순차 큐에서 현재 타이머 완료 감지
-  useEffect(() => {
-    if (!queue || queue.status !== 'running') return;
-    const currentItem = queue.items[queue.currentIndex];
-    if (!currentItem) return;
-    const currentTimer = timers.find(t => t.id === currentItem.timerId);
-    if (currentTimer && currentTimer.status === 'completed') {
-      // 다음으로 넘어감
-      const nextIndex = queue.currentIndex + 1;
-      if (nextIndex >= queue.items.length) {
-        setQueue(prev => prev ? { ...prev, status: 'done' } : null);
-        fireNotif('📋 순차 실행 완료!', '모든 과목을 끝냈어! 🎉');
-        Vibration.vibrate([0, 500, 200, 500]);
-      } else {
-        // 쉬는시간 시작
-        setQueue(prev => prev ? { ...prev, status: 'break', currentIndex: nextIndex, elapsed: 0 } : null);
-        fireNotif('☕ 쉬는 시간!', `${queue.breakSec / 60}분 후 다음 과목`);
-        Vibration.vibrate([0, 300, 100, 300]);
-      }
-    }
-  }, [timers, queue]);
 
-  const startNextInQueue = (q) => {
-    const item = q.items[q.currentIndex];
-    if (!item) return { ...q, status: 'done' };
-    const timerId = generateId('tmr_');
-    const queueMeta = { id: q.id, name: q.name, icon: q.icon, color: q.color, total: q.items.length, myIndex: q.currentIndex, labels: q.items.map(it => it.label) };
-    const advanceStartedAt = Date.now();
-    const timer = {
-      id: timerId, type: item.type || 'countdown', label: item.label,
-      subjectId: item.subjectId || null, color: item.color, totalSec: item.totalSec,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: advanceStartedAt, startedAt: advanceStartedAt,
-      pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [],
-      queueId: q.id, queueIndex: q.currentIndex, queueMeta,
-    };
-    setTimers(prev => [...prev, timer]);
-    // 다음 타이머 백그라운드 알림 예약
-    if ((item.type || 'countdown') === 'countdown' && item.totalSec > 0) {
-      scheduleTimerNotif(timerId, item.label, item.totalSec);
-    }
-    // item에 timerId 기록
-    const newItems = [...q.items];
-    newItems[q.currentIndex] = { ...item, timerId };
-    return { ...q, items: newItems, status: 'running', elapsed: 0 };
-  };
-
-  // 순차 실행 시작
+  // 연속모드 시작 (단일 sequence 타이머 생성)
   const startSequence = useCallback(({ items, breakSec = 600, seqName = '', seqIcon = '📋', seqColor = '#6C5CE7' }) => {
-    // 모드 미선택 상태에서 연속모드 → 자동 📖모드
-    if (!focusModeRef.current) activateScreenOffMode();
-    // items: [{label, color, totalSec, subjectId, type}]
     if (!items.length) return;
-    const firstItem = items[0];
-    const timerId = generateId('tmr_');
-    const queueId = generateId('q_');
-    const queueMeta = { id: queueId, name: seqName, icon: seqIcon, color: seqColor, total: items.length, myIndex: 0, labels: items.map(it => it.label) };
-    const seqStartedAt = Date.now();
-    const timer = {
-      id: timerId, type: firstItem.type || 'countdown', label: firstItem.label,
-      subjectId: firstItem.subjectId || null, color: firstItem.color, totalSec: firstItem.totalSec,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: seqStartedAt, startedAt: seqStartedAt,
-      pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [],
-      queueId, queueIndex: 0, queueMeta,
+    // 단일 타이머 제약
+    const hasActive = timersRef.current.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
+    if (hasActive) { showToastCustom('실행 중인 타이머가 있어요!', 'paengi'); return false; }
+    const startAction = () => {
+      const firstItem = items[0];
+      const timerId = generateId('tmr_');
+      const seqStartedAt = Date.now();
+      const timer = {
+        id: timerId, type: 'sequence', label: firstItem.label,
+        subjectId: firstItem.subjectId || null, color: firstItem.color, totalSec: firstItem.totalSec,
+        elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: seqStartedAt, startedAt: seqStartedAt,
+        result: null, laps: [],
+        seqItems: items, seqIndex: 0, seqTotal: items.length,
+        seqBreakSec: breakSec, seqPhase: 'work',
+        seqName, seqIcon, seqColor,
+      };
+      setTimers(prev => [...prev, timer]);
+      if (firstItem.totalSec > 0) scheduleTimerNotif(timerId, firstItem.label, firstItem.totalSec);
+      showToast('start');
     };
-    setTimers(prev => [...prev, timer]);
-    // 첫 타이머 백그라운드 알림 예약
-    if ((firstItem.type || 'countdown') === 'countdown' && firstItem.totalSec > 0) {
-      scheduleTimerNotif(timerId, firstItem.label, firstItem.totalSec);
+    // 모드 미선택 시 전역 모드 선택 팝업
+    if (!focusModeRef.current) {
+      setPendingModeAction(() => startAction);
+    } else {
+      startAction();
     }
-    const newItems = items.map((it, i) => i === 0 ? { ...it, timerId } : it);
-    setQueue({ id: queueId, name: seqName, icon: seqIcon, color: seqColor, items: newItems, currentIndex: 0, breakSec, status: 'running', elapsed: 0 });
-    showToast('start');
+    return true;
   }, []);
 
   const cancelSequence = useCallback(() => {
-    const q = queueRef.current;
-    if (q && q.items) {
-      const queueTimerIds = new Set(q.items.filter(item => item.timerId).map(item => item.timerId));
-      queueTimerIds.forEach(tid => cancelTimerNotif(tid));
-      setTimers(prev => prev.map(t => {
-        if (!queueTimerIds.has(t.id)) return t;
-        if (t.status === 'running' || t.status === 'paused') {
-          if (t.elapsedSec >= 60) {
-            recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount });
-          }
-          return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
-        }
-        return t;
-      }));
-    }
-    setQueue(null);
+    setTimers(prev => prev.map(t => {
+      if (t.type !== 'sequence' || t.status === 'completed') return t;
+      cancelTimerNotif(t.id);
+      if (t.seqPhase === 'work' && t.elapsedSec >= 60) {
+        const mode = focusModeRef.current || 'screen_off';
+        const ufState = ultraRef.current;
+        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: t.elapsedSec / Math.max(1, t.totalSec) });
+      }
+      return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
+    }));
   }, []);
 
   // ═══ 집중 모드 (🔥 화면 켜두고 집중 도전 / 📖 화면 끄고 편하게 공부) ═══
@@ -252,9 +196,8 @@ export function AppProvider({ children }) {
       // 원래 설정 저장
       originalDarkMode.current = settings.darkMode;
       try { originalBrightness.current = await Brightness.getBrightnessAsync(); } catch { originalBrightness.current = 0.5; }
-      // keep-awake + 다크모드 + 최소밝기
+      // keep-awake + 최소밝기 (다크모드는 잠금화면 표시 시 applyFocusBrightness에서 적용)
       await activateKeepAwakeAsync('focus');
-      if (!settings.darkMode) setSettings(prev => ({ ...prev, darkMode: true }));
       try { await Brightness.setBrightnessAsync(0.05); } catch {}
     } catch {}
     setFocusMode('screen_on');
@@ -279,6 +222,22 @@ export function AppProvider({ children }) {
     }
     setFocusMode(null);
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
+  }, []);
+
+  // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
+  const requestModeSelect = useCallback((action) => {
+    if (focusModeRef.current) { action(); return; }
+    setPendingModeAction(() => action);
+  }, []);
+
+  const resolveModeSelect = useCallback((mode) => {
+    if (mode === 'screen_on') activateScreenOnMode();
+    else activateScreenOffMode();
+    setPendingModeAction(prev => { if (prev) { setTimeout(prev, 50); } return null; });
+  }, [activateScreenOnMode, activateScreenOffMode]);
+
+  const cancelModeSelect = useCallback(() => {
+    setPendingModeAction(null);
   }, []);
 
   // 🔥모드 이탈 시 밝기/다크 복원, 복귀 시 다시 적용
@@ -411,18 +370,20 @@ export function AppProvider({ children }) {
             if (t.status !== 'running') return t;
             const e = t.elapsedSec + gap;
             if (t.type === 'countdown' && e >= t.totalSec) {
-              fireComplete(t, true); return { ...t, elapsedSec: t.totalSec, status: 'completed', result: calcResult(t, t.totalSec) };
+              const sessId = fireComplete(t, true);
+              return { ...t, elapsedSec: t.totalSec, status: 'completed', result: calcResult(t, t.totalSec), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
             if (t.type === 'pomodoro') {
               const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;
-              if (e >= target) return pomoFlip({ ...t, elapsedSec: e }, true); // skipNotif=true: OS가 이미 알림 보냄
+              if (e >= target) return pomoFlip({ ...t, elapsedSec: e }, true);
+            }
+            if (t.type === 'sequence') {
+              const target = t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
+              if (e >= target) return seqFlip({ ...t, elapsedSec: e }, true);
+              return { ...t, elapsedSec: e };
             }
             return { ...t, elapsedSec: e };
           }));
-          setQueue(prev => {
-            if (!prev || prev.status === 'done') return prev;
-            return { ...prev, elapsed: (prev.elapsed || 0) + gap };
-          });
         }
       }
     });
@@ -469,8 +430,8 @@ export function AppProvider({ children }) {
     timersRef.current.filter(t => t.status === 'running' || t.status === 'paused').forEach(t => cancelTimerNotif(t.id));
     setTimers(prev => prev.map(t => {
       if (t.status === 'running' || t.status === 'paused') {
-        fireComplete(t);
-        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec), gaveUp: true };
+        const sessId = fireComplete(t);
+        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec), gaveUp: true, ...(sessId ? { memoSessionId: sessId } : {}) };
       }
       return t;
     }));
@@ -480,20 +441,37 @@ export function AppProvider({ children }) {
   const calcResult = (t, dur) => {
     const mode = focusModeRef.current || 'screen_off';
     const ufState = ultraRef.current;
+    // sequence 타입: 전체 항목 합산 시간 + countdown 기준으로 계산
+    let timerType = t.type;
+    let totalSec = dur;
+    let completionRatio = t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1;
+    if (t.type === 'sequence') {
+      timerType = 'countdown';
+      totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
+      completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+    }
     const d = calculateDensity({
-      pausedCount: t.pauseCount, totalSec: dur,
-      timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1,
+      pausedCount: t.pauseCount, totalSec,
+      timerType, completionRatio,
       pomoSets: t.pomoSet || 0, focusMode: mode,
       exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
       todaySessionCount: todaySessions.length, streak: settings.streak,
     });
     const { getTier } = require('../constants/presets');
-    return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0 };
+    return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
   };
 
   const pomoFlip = (t, skipNotif = false) => {
     if (t.pomoPhase === 'work') {
-      recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: Date.now() - t.pomoWorkMin * 60 * 1000, durationSec: t.pomoWorkMin * 60, mode: 'pomodoro', pauseCount: t.pauseCount });
+      recordSessionInternal({
+        subjectId: t.subjectId, label: t.label,
+        startedAt: Date.now() - t.pomoWorkMin * 60 * 1000,
+        durationSec: t.pomoWorkMin * 60, mode: 'pomodoro',
+        pauseCount: t.pauseCount, timerType: 'pomodoro',
+        focusMode: focusModeRef.current || 'screen_off',
+        exitCount: focusModeRef.current === 'screen_on' ? (ultraRef.current?.exitCount || 0) : 0,
+        pomoSets: t.pomoSet + 1,
+      });
       if (!skipNotif) { fireNotif(`🍅 ${t.label} 집중 완료!`, '쉬는 시간~'); Vibration.vibrate([0, 300, 100, 300]); }
       // 휴식 페이즈 시작 → 휴식 끝날 때 알림 예약
       scheduleTimerNotif(t.id, t.label, t.pomoBreakMin * 60, `🍅 ${t.label} 휴식 끝!`, '다시 집중!');
@@ -503,6 +481,55 @@ export function AppProvider({ children }) {
     // 집중 페이즈 시작 → 집중 끝날 때 알림 예약
     scheduleTimerNotif(t.id, t.label, t.pomoWorkMin * 60, `🍅 ${t.label} 집중 완료!`, '쉬는 시간~');
     return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0 };
+  };
+
+  // 연속모드 페이즈 전환 (pomoFlip 패턴)
+  const seqFlip = (t, skipNotif = false) => {
+    if (t.seqPhase === 'work') {
+      // 현재 항목 세션 기록
+      if (t.elapsedSec >= 60) {
+        const mode = focusModeRef.current || 'screen_off';
+        const ufState = ultraRef.current;
+        recordSessionInternal({
+          subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+          durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
+          exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
+          focusMode: mode, timerType: 'countdown', completionRatio: 1,
+        });
+      }
+      cancelTimerNotif(t.id);
+      const nextIndex = t.seqIndex + 1;
+      if (nextIndex >= t.seqTotal) {
+        // 마지막 항목 완료 → 전체 완료
+        if (!skipNotif) { fireNotif('📋 순차 실행 완료!', '모든 과목을 끝냈어! 🎉'); Vibration.vibrate([0, 500, 200, 500]); }
+        const result = calcResult(t, t.totalSec);
+        // 완료 결과 모달 데이터 세팅
+        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal });
+        return { ...t, elapsedSec: 0, status: 'completed', result };
+      }
+      // 쉬는시간 전환 (별도 알림 없음 — 자연스럽게 전환)
+      if (!skipNotif) { Vibration.vibrate([0, 200, 100, 200]); }
+      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0 };
+    } else {
+      // 쉬는시간 끝 → 다음 항목 시작
+      const nextItem = t.seqItems[t.seqIndex + 1];
+      if (!nextItem) {
+        // 안전장치
+        const result = calcResult(t, 0);
+        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal });
+        return { ...t, status: 'completed', result };
+      }
+      const advanceStartedAt = Date.now();
+      if (!skipNotif) { fireNotif(`▶ ${nextItem.label} 시작!`, '집중하자! 🔥'); Vibration.vibrate([0, 200, 100, 200]); }
+      if ((nextItem.type || 'countdown') === 'countdown' && nextItem.totalSec > 0 && !skipNotif) {
+        scheduleTimerNotif(t.id, nextItem.label, nextItem.totalSec);
+      }
+      return {
+        ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
+        label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
+        subjectId: nextItem.subjectId || null, startedAt: advanceStartedAt, pauseCount: 0,
+      };
+    }
   };
 
   const fireComplete = (t, skipNotif = false) => {
@@ -528,7 +555,7 @@ export function AppProvider({ children }) {
         showToastCustom(`⏰ ${t.label} 완료!`, 'toru');
       }
     }
-    if (t.elapsedSec >= 60) {
+    if (t.type !== 'lap' && t.elapsedSec >= 60) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
@@ -538,8 +565,14 @@ export function AppProvider({ children }) {
         completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
         pomoSets: t.pomoSet || 0,
       });
-      setTimers(prev => prev.map(tt => tt.id === t.id ? { ...tt, memoSessionId: sessId } : tt));
+      // 완료 결과 모달 트리거 (랩/시퀀스 제외)
+      if (t.type !== 'sequence') {
+        const result = calcResult(t, t.type === 'countdown' ? t.totalSec : t.elapsedSec);
+        setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+      }
+      return sessId;
     }
+    return null;
   };
 
   const fireNotif = async (title, body) => {
@@ -595,45 +628,39 @@ export function AppProvider({ children }) {
 
   // 타이머 조작
   const addTimer = useCallback((opts) => {
-    // 모드 미선택 상태에서 타이머 추가 → 자동 📖모드
-    if (!focusModeRef.current) activateScreenOffMode();
-    // 동시 실행 경고: 이미 실행 중인 타이머가 있으면 경고 (start 토스트 대신)
-    const alreadyRunning = timersRef.current.filter(t => t.status === 'running');
-    const startedAt = Date.now();
-    const t = {
-      id: generateId('tmr_'), type: opts.type || 'free', label: opts.label || '타이머',
-      subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
-      elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
-      pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
-      result: null, laps: [],
-    };
-    // 백그라운드 알림 예약 헬퍼
-    const scheduleForNewTimer = (timer) => {
-      if (timer.type === 'countdown' && timer.totalSec > 0) {
-        scheduleTimerNotif(timer.id, timer.label, timer.totalSec);
-      } else if (timer.type === 'pomodoro') {
-        scheduleTimerNotif(timer.id, timer.label, timer.pomoWorkMin * 60, `🍅 ${timer.label} 집중 완료!`, '쉬는 시간~');
-      }
-    };
-    if (alreadyRunning.length > 0 && opts.type !== 'lap') {
-      Alert.alert(
-        '⚠️ 타이머 동시 실행',
-        '이미 실행 중인 타이머가 있어요.\n공부시간이 중복 집계될 수 있어요.\n그래도 시작할까요?',
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '그래도 시작', style: 'destructive', onPress: () => {
-            setTimers(prev => [...prev, t]);
-            scheduleForNewTimer(t);
-            showToast('start');
-          }},
-        ]
-      );
-      return null;
+    // 랩타이머: 단일 제약 없이 바로 시작 (집중모드 불필요)
+    if (opts.type === 'lap') {
+      const startedAt = Date.now();
+      const t = { id: generateId('tmr_'), type: 'lap', label: opts.label || '타이머', subjectId: null, color: opts.color || '#6C5CE7', totalSec: 0, elapsedSec: 0, status: 'paused', pauseCount: 0, createdAt: startedAt, startedAt, pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [] };
+      setTimers(prev => [...prev, t]);
+      return t;
     }
-    setTimers(prev => [...prev, t]);
-    scheduleForNewTimer(t);
-    showToast('start');
-    return t;
+    // 단일 타이머 제약
+    const hasActive = timersRef.current.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
+    if (hasActive) { showToastCustom('실행 중인 타이머가 있어요!', 'paengi'); return null; }
+
+    const doStart = () => {
+      const startedAt = Date.now();
+      const t = {
+        id: generateId('tmr_'), type: opts.type || 'free', label: opts.label || '타이머',
+        subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
+        elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
+        pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
+        result: null, laps: [],
+      };
+      if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
+      else if (t.type === 'pomodoro') scheduleTimerNotif(t.id, t.label, t.pomoWorkMin * 60, `🍅 ${t.label} 집중 완료!`, '쉬는 시간~');
+      setTimers(prev => [...prev, t]);
+      showToast('start');
+    };
+
+    // 모드 미선택 시 전역 모드 선택 팝업
+    if (!focusModeRef.current) {
+      setPendingModeAction(() => doStart);
+    } else {
+      doStart();
+    }
+    return null;
   }, []);
 
   const pauseTimer = useCallback((id) => {
@@ -660,12 +687,17 @@ export function AppProvider({ children }) {
   }, []);
 
   const stopTimer = useCallback((id) => {
-    cancelTimerNotif(id); // 예약 알림 취소
+    cancelTimerNotif(id);
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      if (t.elapsedSec >= 60 && t.status !== 'completed') {
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount });
-        return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec), memoSessionId: sessId };
+      if (t.type !== 'lap' && t.elapsedSec >= 60 && t.status !== 'completed') {
+        const mode = focusModeRef.current || 'screen_off';
+        const ufState = ultraRef.current;
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0 });
+        const result = calcResult(t, t.elapsedSec);
+        // 완료 결과 모달 트리거 (랩 제외)
+        setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+        return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
       return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec) };
     }));
@@ -784,7 +816,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     (async () => {
       await Notifications.requestPermissionsAsync();
-      const [s, subj, sess, dd, td, cuf] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs()]);
+      const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -796,6 +828,7 @@ export function AppProvider({ children }) {
       } if (subj) setSubjects(subj);
       if (sess) setSessions(sess); if (dd) setDDays(dd); if (td) setTodos(td);
       if (cuf) setCountupFavs(cuf);
+      if (fv && fv.length > 0) setFavs(fv);
       setLoading(false);
     })();
   }, []);
@@ -804,8 +837,8 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); }, 500);
-  }, [settings, subjects, sessions, ddays, todos, countupFavs, loading]);
+    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); }, 500);
+  }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, loading]);
 
   // Android 12+ 정확한 알람 권한 안내 (최초 1회)
   useEffect(() => {
@@ -869,14 +902,14 @@ export function AppProvider({ children }) {
   }, []);
 
   // 자기평가 업데이트 — 기존 보너스 제거 후 새 보너스 적용
-  const updateSessionSelfRating = useCallback((sessionId, selfRating) => {
+  const updateSessionSelfRating = useCallback((sessionId, selfRating, memo) => {
     setSessions(prev => prev.map(s => {
       if (s.id !== sessionId) return s;
       const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : s.selfRating === 'sleepy' ? -5 : 0;
       const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
       const newDensity = Math.max(40, Math.min(118, (s.focusDensity || 0) - oldBonus + newBonus));
       const { getTier } = require('../constants/presets');
-      return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id };
+      return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id, ...(memo !== undefined && memo !== null ? { memo } : {}) };
     }));
   }, []);
 
@@ -952,7 +985,9 @@ export function AppProvider({ children }) {
       ddays, addDDay, removeDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
-      queue, startSequence, cancelSequence,
+      startSequence, cancelSequence,
+      completedResultData, setCompletedResultData,
+      pendingModeAction, requestModeSelect, resolveModeSelect, cancelModeSelect,
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness,

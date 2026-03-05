@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, ActivityIndicator,
+  StatusBar, ActivityIndicator, Modal,
   TextInput, ScrollView, Platform,
 } from 'react-native';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -436,6 +436,39 @@ function MainApp() {
       </SafeAreaView>
 
       <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
+
+      {/* 전역 집중모드 선택 모달 */}
+      <Modal visible={!!app.pendingModeAction} transparent animationType="fade" onRequestClose={app.cancelModeSelect}>
+        <View style={{ flex: 1, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' }}>
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood="happy" />
+            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 12, marginBottom: 4 }}>어떤 공부할래?</Text>
+            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 20, textAlign: 'center' }}>집중 방식을 선택하면 타이머가 시작돼요</Text>
+
+            <TouchableOpacity
+              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#FF6B6B15', borderWidth: 1.5, borderColor: '#FF6B6B60', marginBottom: 10 }}
+              onPress={() => app.resolveModeSelect('screen_on')}
+              activeOpacity={0.8}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B', marginBottom: 2 }}>🔥 화면 켜두고 집중 도전!</Text>
+              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 보너스에 도전해요</Text>
+              <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>⚡ 이탈 0회 시 +15점! · 다크모드 자동 전환</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#4CAF5015', borderWidth: 1.5, borderColor: '#4CAF5060', marginBottom: 16 }}
+              onPress={() => app.resolveModeSelect('screen_off')}
+              activeOpacity={0.8}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#4CAF50', marginBottom: 2 }}>📖 화면 끄고 편하게 공부</Text>
+              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 없이 편하게 공부해요</Text>
+              <Text style={{ fontSize: 10, color: '#4CAF5099', marginTop: 2 }}>화면 꺼도 OK · 알림 없음 · 기본 점수</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={app.cancelModeSelect}>
+              <Text style={{ fontSize: 13, color: T.sub, fontWeight: '600' }}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

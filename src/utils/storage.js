@@ -12,6 +12,7 @@ const KEYS = {
   DAILY_RECORDS: '@yeolgong/dailyRecords',
   TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
   COUNTUP_FAVS: '@yeolgong/countupFavs',
+  FAVS: '@yeolgong/favs',
 };
 
 /**
@@ -64,6 +65,10 @@ export const loadTodos = () => loadJSON(KEYS.TODOS, []);
 // ── 공부량 즐겨찾기 ──
 export const saveCountupFavs = (favs) => saveJSON(KEYS.COUNTUP_FAVS, favs);
 export const loadCountupFavs = () => loadJSON(KEYS.COUNTUP_FAVS, null);
+
+// ── 카운트다운 즐겨찾기 ──
+export const saveFavs = (favs) => saveJSON(KEYS.FAVS, favs);
+export const loadFavs = () => loadJSON(KEYS.FAVS, []);
 
 // ── 일일 기록 ──
 export const saveDailyRecords = (records) => saveJSON(KEYS.DAILY_RECORDS, records);

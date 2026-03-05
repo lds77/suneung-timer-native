@@ -7,10 +7,15 @@ import { LIGHT, DARK, getTheme } from '../constants/colors';
 import { formatTime, formatDuration, formatDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
+import Svg, { Circle } from 'react-native-svg';
 
 const SW = Dimensions.get('window').width;
 const GAP = 8;
 const CARD_W = (SW - 32 - GAP) / 2;
+const RING_SIZE = Math.min(SW - 72, 248);
+const RING_STROKE = 14;
+const RING_R = (RING_SIZE - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
 
 const DEFAULT_FAVS = [];
 // 상단 3개(5분/10분/뽀모)는 코드에서 직접 렌더링, favs는 사용자 추가분만
@@ -50,32 +55,22 @@ export default function FocusScreen() {
   const addToFav = (fav) => { app.addFav?.(fav); };
   const removeFav = (id) => { app.removeFav?.(id); };
   const runCountupFav = (fav) => {
-    startTimerWithModeCheck(() => {
-      const wasRunning = (app.timers || []).some(t => t.status === 'running');
-      app.addTimer({ type: 'free', label: fav.label, color: fav.color, totalSec: 0 });
-      if (!wasRunning) {
-        app.showToastCustom(`📈 ${fav.label} 공부량 측정 시작!`, 'toru');
-      }
-    });
+    app.addTimer({ type: 'free', label: fav.label, color: fav.color, totalSec: 0 });
   };
   const runFav = (fav) => {
-    startTimerWithModeCheck(() => {
-      if (fav.type === 'sequence' && fav.seqItems) {
-        const items = fav.seqItems.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
-        app.startSequence({ items, breakSec: (fav.seqBreak || 5) * 60, seqName: fav.label, seqIcon: fav.icon, seqColor: fav.color });
-        app.showToastCustom(`▶ ${fav.label} 시작!`, 'taco');
-      } else { app.addTimer({ type: fav.type, label: `${fav.icon} ${fav.label}`, color: fav.color, subjectId: fav.subjectId || null, totalSec: fav.totalSec || 0, pomoWorkMin: fav.pomoWorkMin || 25, pomoBreakMin: fav.pomoBreakMin || 5 }); }
-    });
+    if (fav.type === 'sequence' && fav.seqItems) {
+      const items = fav.seqItems.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
+      app.startSequence({ items, breakSec: (fav.seqBreak ?? 5) * 60, seqName: fav.label, seqIcon: fav.icon, seqColor: fav.color });
+    } else {
+      app.addTimer({ type: fav.type, label: `${fav.icon} ${fav.label}`, color: fav.color, subjectId: fav.subjectId || null, totalSec: fav.totalSec || 0, pomoWorkMin: fav.pomoWorkMin || 25, pomoBreakMin: fav.pomoBreakMin || 5 });
+    }
   };
   // 연속모드 빌더
   const handleStartSeq = () => {
     const realItems = seqItems.filter(it => it.label.trim());
     if (realItems.length < 2) { app.showToastCustom('2개 이상 추가하세요!', 'paengi'); return; }
-    if (app.queue && app.queue.status !== 'done') { app.showToastCustom('연속모드는 1개만 실행 가능해요!', 'paengi'); setShowAdd(false); return; }
-    startTimerWithModeCheck(() => {
-      app.startSequence({ items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown' })), breakSec: 0, seqName: seqName.trim() || '연속모드' });
-      app.showToastCustom(`▶ 연속모드 시작!`, 'taco'); setShowAdd(false);
-    });
+    app.startSequence({ items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown' })), breakSec: 0, seqName: seqName.trim() || '연속모드' });
+    setShowAdd(false);
   };
   const handleSaveSeq = () => {
     if (seqItems.filter(it => it.label.trim()).length < 2 || !seqName.trim()) { app.showToastCustom('이름과 2개 이상 필요!', 'paengi'); return; }
@@ -93,10 +88,6 @@ export default function FocusScreen() {
   const hasRunning = app.timers.some(t => t.status === 'running');
   const hasPausedByUltra = app.timers.some(t => t.pausedByUltra && t.status === 'paused');
 
-  // 모드 선택 모달
-  const [showModeSelect, setShowModeSelect] = useState(false);
-  const [pendingTimerAction, setPendingTimerAction] = useState(null); // 모드 선택 후 실행할 액션
-
   // 챌린지
   const [challengeInput, setChallengeInput] = useState('');
   const challengeTarget = app.getChallengeText?.(app.settings.ultraFocusLevel || 'focus', app.ultraFocus?.challengeAwayMs || 0) || '집중';
@@ -104,26 +95,9 @@ export default function FocusScreen() {
   const challengeAwayMin = Math.floor((app.ultraFocus?.challengeAwayMs || 0) / 60000);
   const challengeAwaySec = Math.floor(((app.ultraFocus?.challengeAwayMs || 0) % 60000) / 1000);
 
-  // 자가평가 모달
-  const [showSelfRating, setShowSelfRating] = useState(null); // 완료된 타이머 id
-  const [selfRatingTimer, setSelfRatingTimer] = useState(null);
-  const ratedSessionsRef = useRef(new Set()); // 이미 자기평가 팝업을 띄운 세션 id
-
-  // 타이머 완료 감지 → 자기평가 팝업
-  useEffect(() => {
-    if (showSelfRating) return; // 이미 팝업 열려있으면 skip
-    const justCompleted = app.timers.find(t =>
-      t.status === 'completed' &&
-      t.type !== 'lap' &&
-      t.memoSessionId &&
-      !ratedSessionsRef.current.has(t.memoSessionId)
-    );
-    if (justCompleted) {
-      ratedSessionsRef.current.add(justCompleted.memoSessionId);
-      setShowSelfRating(justCompleted.id);
-      setSelfRatingTimer(justCompleted);
-    }
-  }, [app.timers, showSelfRating]);
+  // 완료 결과 모달 — 자기평가 입력
+  const [resultSelfRating, setResultSelfRating] = useState(null);
+  const [resultMemo, setResultMemo] = useState('');
 
   const ultraMood = app.ultraFocus?.gaveUp ? 'sad' : app.ultraFocus?.showChallenge ? 'sad' : app.ultraFocus?.showWarning ? 'sad' : app.mood;
 
@@ -187,20 +161,6 @@ export default function FocusScreen() {
     }
   };
 
-  // 모드 선택 후 타이머 실행
-  const startWithMode = (mode) => {
-    setShowModeSelect(false);
-    if (mode === 'screen_on') app.activateScreenOnMode();
-    else app.activateScreenOffMode();
-    if (pendingTimerAction) { pendingTimerAction(); setPendingTimerAction(null); }
-  };
-
-  // 타이머 시작 시 모드 선택 체크
-  const startTimerWithModeCheck = (action) => {
-    if (app.focusMode) { action(); return; } // 이미 모드 선택됨
-    setPendingTimerAction(() => action);
-    setShowModeSelect(true);
-  };
 
   // 기록 스톱워치 찾기
   const lapTimer = app.timers.find(t => t.type === 'lap' && (t.status === 'running' || t.status === 'paused'));
@@ -213,10 +173,8 @@ export default function FocusScreen() {
   const handleAddTimer = () => {
     const subj = addSubject ? app.subjects.find(s => s.id === addSubject) : null;
     const label = subj ? subj.name : (addType === 'countdown' ? `${addMin}분` : `뽀모 ${addPomoWork}+${addPomoBreak}`);
-    startTimerWithModeCheck(() => {
-      app.addTimer({ type: addType, label, subjectId: addSubject, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
-      setShowAdd(false);
-    });
+    app.addTimer({ type: addType, label, subjectId: addSubject, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
+    setShowAdd(false);
   };
   const handleAddAndFav = () => {
     handleAddTimer();
@@ -235,25 +193,29 @@ export default function FocusScreen() {
   const getDisplay = (t) => {
     if (t.type === 'free' || t.type === 'lap') return t.elapsedSec;
     if (t.type === 'countdown') return Math.max(0, t.totalSec - t.elapsedSec);
+    if (t.type === 'sequence') {
+      if (t.seqPhase === 'break') return Math.max(0, t.seqBreakSec - t.elapsedSec);
+      return Math.max(0, t.totalSec - t.elapsedSec);
+    }
     return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec);
   };
   const getProgress = (t) => {
     if (t.type === 'free' || t.type === 'lap') return Math.min(100, (t.elapsedSec / 3600) * 100);
     if (t.type === 'countdown') return (t.elapsedSec / Math.max(1, t.totalSec)) * 100;
+    if (t.type === 'sequence') {
+      const target = t.seqPhase === 'break' ? t.seqBreakSec : t.totalSec;
+      return (t.elapsedSec / Math.max(1, target)) * 100;
+    }
     return (t.elapsedSec / Math.max(1, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60))) * 100;
   };
 
   // 타이머 카드 즐겨찾기 토글
   const handleToggleFav = (t) => {
-    if (t.queueMeta) {
-      // 연속모드 → 시퀀스 전체 저장
-      const qm = t.queueMeta;
-      const seqName = qm.name || '연속모드';
+    if (t.type === 'sequence') {
+      const seqName = t.seqName || '연속모드';
       if (favs.some(f => f.label === seqName)) { app.showToastCustom('이미 즐겨찾기에 있어요!', 'paengi'); return; }
-      const qItems = app.queue && app.queue.id === qm.id ? app.queue.items : null;
-      const breakSec = app.queue && app.queue.id === qm.id ? (app.queue.breakSec || 0) : 0;
-      if (qItems) {
-        addToFav({ label: seqName, icon: qm.icon || '📋', type: 'sequence', color: qm.color || '#6C5CE7', totalSec: 0, seqItems: qItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: breakSec ? Math.round(breakSec / 60) : 5 });
+      if (t.seqItems?.length) {
+        addToFav({ label: seqName, icon: t.seqIcon || '📋', type: 'sequence', color: t.seqColor || '#6C5CE7', totalSec: 0, seqItems: t.seqItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: t.seqBreakSec ? Math.round(t.seqBreakSec / 60) : 5 });
       } else { app.showToastCustom('저장할 수 없어요', 'paengi'); }
       return;
     }
@@ -271,25 +233,18 @@ export default function FocusScreen() {
   // 일반 타이머 렌더
   const handleTimerLongPress = (t) => {
     const opts = [{ text: '취소', style: 'cancel' }];
-    const inSeq = !!t.queueMeta;
+    const inSeq = t.type === 'sequence';
     if (inSeq && t.status !== 'completed') {
-      const qm = t.queueMeta;
-      const seqLabel = qm.name || '연속모드';
+      const seqLabel = t.seqName || '연속모드';
       const existingFav = favs.find(f => f.label === seqLabel);
       if (existingFav) {
         opts.push({ text: `⭐ "${seqLabel}" 즐겨찾기 삭제`, style: 'destructive', onPress: () => removeFav(existingFav.id) });
       } else {
         opts.push({ text: `⭐ "${seqLabel}" 세트 저장`, onPress: () => {
           if (favs.length >= 5) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
-          const qItems = app.queue && app.queue.id === qm.id ? app.queue.items : null;
-          const breakSec = app.queue && app.queue.id === qm.id ? (app.queue.breakSec || 0) : 0;
-          if (qItems) {
-            addToFav({ label: seqLabel, icon: qm.icon || '📋', type: 'sequence', color: qm.color || '#6C5CE7', totalSec: 0, seqItems: qItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: breakSec ? Math.round(breakSec / 60) : 5 });
-          } else if (qm.labels) {
-            addToFav({ label: seqLabel, icon: qm.icon || '📋', type: 'sequence', color: qm.color || '#6C5CE7', totalSec: 0, seqItems: qm.labels.map(l => ({ label: l, color: qm.color || '#4A90D9', min: 25 })), seqBreak: 5 });
-          } else {
-            app.showToastCustom('저장할 수 없어요', 'paengi');
-          }
+          if (t.seqItems?.length) {
+            addToFav({ label: seqLabel, icon: t.seqIcon || '📋', type: 'sequence', color: t.seqColor || '#6C5CE7', totalSec: 0, seqItems: t.seqItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: t.seqBreakSec ? Math.round(t.seqBreakSec / 60) : 5 });
+          } else { app.showToastCustom('저장할 수 없어요', 'paengi'); }
         }});
       }
     } else if (t.status !== 'completed') {
@@ -317,7 +272,11 @@ export default function FocusScreen() {
       }
     }
     opts.push({ text: '↺ 리셋', onPress: () => app.resetTimer(t.id) });
-    opts.push({ text: '🗑 삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
+    if (inSeq) {
+      opts.push({ text: '✕ 연속모드 전체취소', style: 'destructive', onPress: () => app.cancelSequence() });
+    } else {
+      opts.push({ text: '🗑 삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
+    }
     Alert.alert(t.label, '타이머 옵션', opts);
   };
 
@@ -326,24 +285,13 @@ export default function FocusScreen() {
     const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? '🍅' : '☕') : t.type === 'countdown' ? '⏰' : '⏱';
     const display = isD ? 0 : getDisplay(t);
     const progress = isD ? 100 : getProgress(t);
-    // 연속모드: 타이머 자체에 저장된 메타정보 사용 (큐 상태와 무관)
-    const qm = t.queueMeta;
     return (
       <TouchableOpacity key={t.id} activeOpacity={0.8} onLongPress={() => handleTimerLongPress(t)}
         style={[S.tc, { backgroundColor: isD ? (t.result?.tier?.color || T.accent) + '10' : T.card, borderColor: isD ? (t.result?.tier?.color || T.accent) + '60' : isA ? t.color : T.border, borderWidth: isA ? 1.5 : 1, width: single ? '100%' : CARD_W }]}>
-        {qm && qm.labels && <View style={{ backgroundColor: (qm.color || T.accent) + '10', borderRadius: 6, padding: 5, marginBottom: 4 }}>
-          <Text style={{ fontSize: 10, fontWeight: '900', color: qm.color || T.accent, marginBottom: 2 }}>{qm.icon || '📋'} {qm.name || '연속모드'} ({(qm.myIndex || 0) + 1}/{qm.total || '?'})</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
-            {qm.labels.map((label, i) => {
-              const isMe = i === (qm.myIndex || 0);
-              return <Text key={i} style={{ fontSize: 8, fontWeight: isMe ? '900' : '500', color: isMe ? (qm.color || T.accent) : T.sub, textDecorationLine: isMe ? 'underline' : 'none' }}>{isMe ? '●' : `${i+1}`}{label}</Text>;
-            })}
-          </View>
-        </View>}
         <View style={S.tcTop}><Text style={S.tcIcon}>{icon}</Text>
           {(() => {
-            const isFav = t.queueMeta
-              ? favs.some(f => f.label === (t.queueMeta.name || '연속모드'))
+            const isFav = t.type === 'sequence'
+              ? favs.some(f => f.label === (t.seqName || '연속모드'))
               : (t.type === 'free' || t.type === 'lap')
               ? countupFavs.some(f => f.label === t.label)
               : favs.some(f => f.label === t.label && f.type === t.type);
@@ -414,20 +362,136 @@ export default function FocusScreen() {
     );
   };
 
+  const renderLargeTimer = (t) => {
+    const isA = t.status === 'running', isP = t.status === 'paused';
+    const display = getDisplay(t);
+    const pct = Math.max(0, Math.min(100, getProgress(t)));
+    const dashOffset = RING_C * (1 - pct / 100);
+    const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? '🍅' : '☕')
+      : t.type === 'sequence' ? (t.seqPhase === 'break' ? '☕' : (t.seqIcon || '📋'))
+      : t.type === 'countdown' ? '⏰' : '⏱';
+    const ringColor = (t.type === 'sequence' && t.seqPhase === 'break') ? T.green
+      : (t.type === 'pomodoro' && t.pomoPhase !== 'work') ? T.green
+      : t.color;
+    const isFav = t.type === 'sequence'
+      ? favs.some(f => f.label === (t.seqName || '연속모드'))
+      : (t.type === 'free') ? countupFavs.some(f => f.label === t.label)
+      : favs.some(f => f.label === t.label && f.type === t.type);
+    return (
+      <TouchableOpacity key={t.id} activeOpacity={0.95} onLongPress={() => handleTimerLongPress(t)}
+        style={{ backgroundColor: T.card, borderWidth: 1.5, borderColor: isA ? ringColor : T.border, borderRadius: 20, margin: 10, marginBottom: 4, padding: 16, paddingBottom: 14 }}>
+
+        {/* 상단 행: 아이콘 + 라벨 + 즐겨찾기 + 닫기 */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <Text style={{ fontSize: 15 }}>{icon}</Text>
+          <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }} numberOfLines={1}>{t.label}</Text>
+          <TouchableOpacity onPress={() => handleToggleFav(t)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 2 }}>
+            <Text style={{ fontSize: 14, color: isFav ? '#F0B429' : T.sub }}>{isFav ? '⭐' : '☆'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { if (t.elapsedSec >= 60) { app.showToastCustom('■ 종료 버튼으로 먼저 타이머를 종료해주세요', 'paengi'); } else { app.removeTimer(t.id); } }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: t.elapsedSec >= 60 ? T.border : T.sub }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 연속모드 단계 표시 */}
+        {t.type === 'sequence' && (
+          <View style={{ marginBottom: 10 }}>
+            {t.seqPhase === 'break' ? (
+              <Text style={{ fontSize: 11, fontWeight: '700', color: T.green, textAlign: 'center' }}>
+                ☕ 쉬는 중 · {Math.ceil(display / 60)}분 후 다음 항목
+              </Text>
+            ) : (
+              <>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: t.seqColor || T.accent, textAlign: 'center', marginBottom: 4 }}>
+                  {t.seqIcon || '📋'} {t.seqName || '연속모드'} ({(t.seqIndex || 0) + 1}/{t.seqTotal})
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                  {t.seqItems?.map((item, i) => (
+                    <Text key={i} style={{ fontSize: 9, fontWeight: i === t.seqIndex ? '900' : '500', color: i === t.seqIndex ? ringColor : T.sub, textDecorationLine: i === t.seqIndex ? 'underline' : 'none' }}>
+                      {i === t.seqIndex ? '●' : `${i + 1}`} {item.label}
+                    </Text>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+        )}
+        {/* 뽀모도로 페이즈 */}
+        {t.type === 'pomodoro' && (
+          <Text style={{ fontSize: 11, fontWeight: '700', color: ringColor, textAlign: 'center', marginBottom: 8 }}>
+            {t.pomoPhase === 'work' ? `🍅 집중·${(t.pomoSet || 0) + 1}세트` : '☕ 휴식 중'}
+          </Text>
+        )}
+
+        {/* 원형 타이머 링 */}
+        <View style={{ alignItems: 'center', marginBottom: 14 }}>
+          <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+            <Svg width={RING_SIZE} height={RING_SIZE} style={{ position: 'absolute' }}>
+              {/* 트랙 (배경 링) */}
+              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                stroke={T.surface2} strokeWidth={RING_STROKE} fill="transparent" />
+              {/* 진행 링 */}
+              {pct > 0 && (
+                <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                  stroke={isP ? T.sub : ringColor} strokeWidth={RING_STROKE} fill="transparent"
+                  strokeDasharray={RING_C} strokeDashoffset={dashOffset}
+                  strokeLinecap="round"
+                  transform={`rotate(-90, ${RING_SIZE / 2}, ${RING_SIZE / 2})`}
+                />
+              )}
+            </Svg>
+            {/* 링 내부: 시간 + 서브 텍스트 */}
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 50, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+                {formatTime(display)}
+              </Text>
+              {t.type === 'countdown' && (
+                <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
+              )}
+              {t.type === 'free' && t.elapsedSec > 0 && (
+                <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>자유 공부</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* 컨트롤 버튼 */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.resetTimer(t.id)}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
+          </TouchableOpacity>
+          {t.type === 'sequence' ? (
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#E84047' }}>✕ 취소</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.stopTimer(t.id)}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: T.sub }}>■ 종료</Text>
+            </TouchableOpacity>
+          )}
+          {isA ? (
+            <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#E84047' }}>⏸ 일시정지</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: ringColor, alignItems: 'center' }} onPress={() => app.resumeTimer(t.id)}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: 'white' }}>▶ 계속하기</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
 
-      {/* ═══ 타이머 고정 영역 ═══ */}
-      {allNonLap.length > 0 && (
+      {/* ═══ 타이머 고정 영역: 실행 중 대형 뷰 ═══ */}
+      {nonLapActive.length > 0 && (
         <View style={[S.timerFixedArea, { borderBottomColor: T.border }]}>
-          <Text style={[S.secTitle, { color: T.sub, paddingHorizontal: 16, paddingTop: 8 }]}>
-            타이머 ({nonLapActive.length}실행{nonLapCompleted.length > 0 ? ` · ${nonLapCompleted.length}완료` : ''})
-          </Text>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-            <View style={S.timerGrid}>
-              {allNonLap.map(t => renderTimer(t, allNonLap.length === 1))}
-            </View>
-          </View>
+          {renderLargeTimer(nonLapActive[0])}
         </View>
       )}
 
@@ -593,12 +657,6 @@ export default function FocusScreen() {
           </View>
         </View>
 
-        {/* 순차 큐 (전체 목록) */}
-        {app.queue && app.queue.status !== 'done' && (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, marginBottom: 2 }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>{app.queue.icon || '📋'} {app.queue.name || '연속모드'} 진행중</Text>
-            <TouchableOpacity onPress={app.cancelSequence}><Text style={{ fontSize: 10, fontWeight: '800', color: T.red }}>전체 취소</Text></TouchableOpacity></View>
-        )}
 
         {/* 노이즈 */}
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -674,7 +732,7 @@ export default function FocusScreen() {
                 <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#E8404720' }]} onPress={() => app.pauseTimer(lapTimer.id)}>
                   <Text style={[S.lapMiniBtnT, { color: '#E84047' }]}>⏸</Text></TouchableOpacity>
               ) : (
-                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => app.resumeTimer(lapTimer.id)}>
+                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => { app.resumeTimer(lapTimer.id); }}>
                   <Text style={S.lapMiniBtnT}>▶</Text></TouchableOpacity>
               )}
               <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(lapTimer.id)}>
@@ -698,14 +756,16 @@ export default function FocusScreen() {
               ))}
             </ScrollView>
           )}
-          {/* 큰 기록 버튼 */}
+          {/* 큰 기록/시작 버튼 */}
           <TouchableOpacity
-            style={[S.lapBigRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : T.surface2 }]}
-            onPress={() => lapTimer.status === 'running' && app.addLap(lapTimer.id)}
-            disabled={lapTimer.status !== 'running'}
-            activeOpacity={0.6}>
-            <Text style={[S.lapBigRecordT, { color: lapTimer.status === 'running' ? 'white' : T.sub }]}>
-              ⏱️ {lapTimer.status === 'running' ? '랩 기록' : '일시정지 중'}
+            style={[S.lapBigRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? '#6C5CE7' : T.surface2 }]}
+            onPress={() => {
+              if (lapTimer.status === 'running') app.addLap(lapTimer.id);
+              else if (lapTimer.elapsedSec === 0) app.resumeTimer(lapTimer.id);
+            }}
+            activeOpacity={0.7}>
+            <Text style={[S.lapBigRecordT, { color: lapTimer.status === 'running' ? 'white' : lapTimer.elapsedSec === 0 ? 'white' : T.sub }]}>
+              {lapTimer.status === 'running' ? '⏱️ 랩 기록' : lapTimer.elapsedSec === 0 ? '▶ 타임어택 시작' : '⏸ 일시정지 중'}
             </Text>
             {(lapTimer.laps || []).length > 0 && lapTimer.status === 'running' && (
               <Text style={S.lapBigRecordSub}>
@@ -862,34 +922,6 @@ export default function FocusScreen() {
               <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
                 {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
-            {app.subjects.length > 0 && (<>
-              <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>📝 내 과목 타이머</Text>
-              <Text style={{ fontSize: 10, color: T.sub, marginBottom: 6 }}>탭: {subjectDefMin}분 자동 추가 · 길게 누르면 시간 직접 선택</Text>
-              <View style={S.favMgrGrid}>{app.subjects.map(subj => {
-                const ex = favs.some(f => f.subjectId === subj.id || f.label === subj.name);
-                return (
-                  <TouchableOpacity key={subj.id}
-                    style={[S.favAddChip, { borderColor: ex ? T.border : subj.color + '60', backgroundColor: ex ? T.surface2 : subj.color + '08' }]}
-                    onPress={() => !ex && addToFav({ label: subj.name, icon: '📚', type: 'countdown', color: subj.color, subjectId: subj.id, totalSec: subjectDefMin * 60 })}
-                    onLongPress={() => !ex && Alert.alert(
-                      `📚 ${subj.name} 시간 설정`,
-                      `학교급 기본: ${subjectDefMin}분`,
-                      [
-                        { text: '취소', style: 'cancel' },
-                        ...subjectTimeChoices.map(m => ({
-                          text: `${m}분${m === subjectDefMin ? ' ★' : ''}`,
-                          onPress: () => addToFav({ label: subj.name, icon: '📚', type: 'countdown', color: subj.color, subjectId: subj.id, totalSec: m * 60 }),
-                        })),
-                      ]
-                    )}
-                    disabled={ex}>
-                    <Text style={S.favAddIcon}>📚</Text>
-                    <Text style={[S.favAddChipT, { color: ex ? T.sub : subj.color }]} numberOfLines={1}>{subj.name}</Text>
-                    {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 9, fontWeight: '700', color: subj.color }}>{subjectDefMin}분</Text>}
-                  </TouchableOpacity>
-                );
-              })}</View>
-            </>)}
           </>)}
           <TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={() => { app.setFavs?.(DEFAULT_FAVS); app.showToastCustom('기본 복원!', 'toru'); }}><Text style={[S.favResetT, { color: T.sub }]}>기본으로 복원</Text></TouchableOpacity>
           <TouchableOpacity style={[S.favDoneBtn, { backgroundColor: T.accent }]} onPress={() => setShowFavMgr(false)}><Text style={S.favDoneBtnT}>완료</Text></TouchableOpacity>
@@ -988,49 +1020,6 @@ export default function FocusScreen() {
         </View></ScrollView></View>
       </Modal>
 
-      {/* 🔥📖 모드 선택 모달 */}
-      <Modal visible={showModeSelect} transparent animationType="fade">
-        <View style={S.chalOverlay}>
-          <View style={[S.chalBox, { backgroundColor: T.card }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={70} mood="happy" />
-            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text, marginTop: 10 }}>어떻게 공부할래?</Text>
-            <Text style={{ fontSize: 11, color: T.sub, marginTop: 4, textAlign: 'center' }}>모드는 타이머 실행 중 변경할 수 없어요</Text>
-
-            {/* 첫 사용 한 줄 가이드 */}
-            {!app.settings.guideMode && (
-              <TouchableOpacity onPress={() => app.updateSettings({ guideMode: true })}
-                style={{ backgroundColor: T.accent + '12', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginTop: 8, width: '100%' }}>
-                <Text style={{ fontSize: 11, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                  💡 잘 모르겠으면 📖 편하게 시작을 추천해요!
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity style={[S.modeBtn, { backgroundColor: '#FF6B6B12', borderColor: '#FF6B6B60' }]} onPress={() => startWithMode('screen_on')} activeOpacity={0.8}>
-              <Text style={{ fontSize: 20 }}>🔥</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: '#FF6B6B' }}>화면 켜두고 집중 도전!</Text>
-                <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>집중 점수 보너스에 도전해요</Text>
-                <Text style={{ fontSize: 9, color: '#FF6B6B', marginTop: 2 }}>⚡ 이탈 0회 시 +15점! · 다크모드 자동 전환 · 배터리 절약</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[S.modeBtn, { backgroundColor: '#4CAF5012', borderColor: '#4CAF5060' }]} onPress={() => startWithMode('screen_off')} activeOpacity={0.8}>
-              <Text style={{ fontSize: 20 }}>📖</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: '#4CAF50' }}>화면 끄고 편하게 공부</Text>
-                <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>집중 점수 없이 편하게 공부해요</Text>
-                <Text style={{ fontSize: 9, color: '#4CAF50', marginTop: 2 }}>화면 꺼도 OK · 알림 없음 · 기본 점수</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => { setShowModeSelect(false); setPendingTimerAction(null); }} style={{ paddingVertical: 10 }}>
-              <Text style={{ fontSize: 12, color: T.sub }}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       {/* 잠금 해제 챌린지 모달 */}
       <Modal visible={!!app.ultraFocus?.showChallenge} transparent animationType="fade">
         <View style={S.chalOverlay}>
@@ -1048,7 +1037,7 @@ export default function FocusScreen() {
             </View>
             <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginTop: 14 }}>다시 집중하려면 아래 문구를 따라 쓰세요</Text>
             <View style={[S.chalTargetBox, { backgroundColor: T.accent + '12', borderColor: T.accent + '40' }]}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, letterSpacing: 2 }}>{challengeTarget}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, letterSpacing: 0 }}>{challengeTarget}</Text>
             </View>
             <TextInput style={[S.chalInput, { color: T.text, borderColor: challengeMatch ? '#4CAF50' : T.border, backgroundColor: challengeMatch ? '#4CAF5010' : T.bg }]}
               value={challengeInput} onChangeText={setChallengeInput} placeholder="여기에 입력..." placeholderTextColor={T.sub} autoFocus />
@@ -1087,7 +1076,21 @@ export default function FocusScreen() {
 
             {/* 타이머 표시 */}
             <Text style={S.lockTimer}>
-              {(() => { const rt = app.timers.find(t => t.status === 'running'); if (!rt) return '--:--'; const d = rt.type === 'countdown' ? Math.max(0, rt.totalSec - rt.elapsedSec) : rt.elapsedSec; const m = Math.floor(d / 60); const s = d % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; })()}
+              {(() => {
+                const rt = app.timers.find(t => t.status === 'running');
+                if (!rt) return '--:--';
+                let d;
+                if (rt.type === 'countdown' || rt.type === 'sequence') {
+                  d = Math.max(0, rt.totalSec - rt.elapsedSec);
+                } else if (rt.type === 'pomodoro') {
+                  const target = (rt.pomoPhase === 'work' ? rt.pomoWorkMin : rt.pomoBreakMin) * 60;
+                  d = Math.max(0, target - rt.elapsedSec);
+                } else {
+                  d = rt.elapsedSec;
+                }
+                const m = Math.floor(d / 60); const s = d % 60;
+                return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+              })()}
             </Text>
             <Text style={S.lockModeBadge}>🔥 집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
 
@@ -1111,37 +1114,70 @@ export default function FocusScreen() {
         </View>
       </Modal>
 
-      {/* ── 자기평가 팝업 ── */}
-      <Modal visible={!!showSelfRating} transparent animationType="slide" onRequestClose={() => { setShowSelfRating(null); setSelfRatingTimer(null); }}>
+      {/* ── 완료 결과 + 자기평가 ── */}
+      <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
-            <Text style={[S.selfRatingTitle, { color: T.text }]}>오늘 공부 어땠나요?</Text>
-            <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginBottom: 20 }} numberOfLines={1}>
-              {selfRatingTimer?.label}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+            <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>🎉</Text>
+            <Text style={[S.selfRatingTitle, { color: T.text }]}>공부 완료!</Text>
+            {/* 결과 정보 */}
+            {app.completedResultData?.result && (
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                {app.completedResultData.result.tier && (
+                  <View style={[S.resTier, { backgroundColor: app.completedResultData.result.tier.color + '20', marginBottom: 4 }]}>
+                    <Text style={[S.resTierT, { color: app.completedResultData.result.tier.color }]}>{app.completedResultData.result.tier.label}</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 22, fontWeight: '900', color: app.completedResultData.result.tier?.color || T.accent }}>
+                  밀도 {app.completedResultData.result.density || 0}점
+                </Text>
+                <Text style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>
+                  {formatDuration(app.completedResultData.result.durationSec || 0)}
+                  {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
+                </Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginBottom: 12 }}>오늘 공부 어땠나요?</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               {[
                 { icon: '🔥', label: '완전 집중', value: 'fire', bonus: '+3점', color: '#FF6B9D' },
                 { icon: '😐', label: '보통이었어', value: 'normal', bonus: '±0점', color: T.sub },
                 { icon: '😴', label: '좀 딴 짓', value: 'sleepy', bonus: '-5점', color: '#B2BEC3' },
               ].map(opt => (
                 <TouchableOpacity key={opt.value}
-                  style={[S.selfRatingBtn, { backgroundColor: T.card, borderColor: T.border }]}
-                  onPress={() => {
-                    if (selfRatingTimer?.memoSessionId) {
-                      app.updateSessionSelfRating(selfRatingTimer.memoSessionId, opt.value);
-                    }
-                    setShowSelfRating(null);
-                    setSelfRatingTimer(null);
-                  }}>
+                  style={[S.selfRatingBtn, { backgroundColor: T.card, borderColor: resultSelfRating === opt.value ? opt.color : T.border, borderWidth: resultSelfRating === opt.value ? 2 : 1 }]}
+                  onPress={() => setResultSelfRating(opt.value)}>
                   <Text style={{ fontSize: 28, marginBottom: 6 }}>{opt.icon}</Text>
                   <Text style={{ fontSize: 11, fontWeight: '800', color: T.text, textAlign: 'center' }}>{opt.label}</Text>
                   <Text style={{ fontSize: 9, color: opt.color, fontWeight: '700', marginTop: 3 }}>{opt.bonus}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity onPress={() => { setShowSelfRating(null); setSelfRatingTimer(null); }}
+            <TextInput
+              value={resultMemo}
+              onChangeText={setResultMemo}
+              placeholder="한줄 메모 (선택)"
+              placeholderTextColor={T.sub}
+              style={[S.memoInput, { borderColor: T.border, color: T.text, backgroundColor: T.surface }]}
+              maxLength={50}
+            />
+            <TouchableOpacity
+              style={{ width: '100%', paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 8, backgroundColor: resultSelfRating ? T.accent : T.border }}
+              onPress={() => {
+                if (!resultSelfRating) { app.showToastCustom('자기평가를 선택해주세요!', 'paengi'); return; }
+                const data = app.completedResultData;
+                if (data?.sessionId) {
+                  app.updateSessionSelfRating(data.sessionId, resultSelfRating, resultMemo.trim() || null);
+                }
+                app.setCompletedResultData(null);
+                if (data?.timerId) app.removeTimer(data.timerId);
+                setResultSelfRating(null);
+                setResultMemo('');
+              }}>
+              <Text style={{ color: 'white', fontSize: 15, fontWeight: '900', letterSpacing: 1 }}>완료</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}
               style={{ alignItems: 'center', paddingVertical: 10 }}>
               <Text style={{ fontSize: 12, color: T.sub }}>건너뛰기</Text>
             </TouchableOpacity>
@@ -1257,7 +1293,7 @@ const S = StyleSheet.create({
   chalBox: { width: '100%', maxWidth: 360, borderRadius: 24, padding: 28, alignItems: 'center' },
   chalInfo: { width: '100%', borderRadius: 14, borderWidth: 1, padding: 14, alignItems: 'center', marginTop: 14 },
   chalTargetBox: { width: '100%', borderRadius: 10, borderWidth: 1.5, padding: 12, alignItems: 'center', marginTop: 8 },
-  chalInput: { width: '100%', borderRadius: 10, borderWidth: 2, padding: 12, fontSize: 15, fontWeight: '700', textAlign: 'center', marginTop: 8, letterSpacing: 1 },
+  chalInput: { width: '100%', borderRadius: 10, borderWidth: 2, padding: 12, fontSize: 15, fontWeight: '700', textAlign: 'center', marginTop: 8, letterSpacing: 0 },
   chalBtn: { width: '100%', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 14 },
   // 가이드 말풍선
   guideBubble: { borderRadius: 10, padding: 12, borderWidth: 1, marginTop: 10, width: '100%' },

@@ -81,11 +81,7 @@ export default function SettingsScreen() {
   const [showDDayModal, setShowDDayModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  const resetGuides = () => {
-    app.updateSettings({ guideMode: false, guideDensity: false, guideHeatmap: false, guideLock: false });
-    app.showToastCustom('가이드가 초기화됐어요!', 'toru');
-  };
-  const [ddLabel, setDdLabel] = useState('');
+const [ddLabel, setDdLabel] = useState('');
   const [ddDays, setDdDays] = useState(1);
   const [pickerMonth, setPickerMonth] = useState(new Date());
   const [pickerSelected, setPickerSelected] = useState(null);
@@ -410,9 +406,6 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Row label="📖 사용 가이드" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={resetGuides}>
-            <Row label="💡 한줄 가이드 다시 보기" right={<Text style={{ fontSize: 10, color: T.sub }}>초기화</Text>} />
-          </TouchableOpacity>
         </Section>
 
         {/* 정보 */}
@@ -516,7 +509,7 @@ export default function SettingsScreen() {
 
               {/* 집중밀도 */}
               <GuideSection title="📊 집중밀도란?" color="#6C5CE7" T={T}>
-                {'같은 1시간을 공부해도 집중한 정도가 달라요.\n집중밀도는 "얼마나 몰입했는지"를 점수로 보여줘요.\n\n점수를 높이는 방법:\n• 타이머를 끝까지 완주하기 (중간에 안 끄기)\n• 일시정지 적게 하기\n• 🔥모드로 이탈 0회 달성하기\n• 매일 꾸준히 공부하기\n\n등급: S+ (전설) > S > A+ > A > B > C > D > F'}
+                {'같은 1시간을 공부해도 집중한 정도가 달라요.\n집중밀도는 "얼마나 몰입했는지"를 40~118점으로 보여줘요.\n\n점수 구성 (최대 118점):\n• 완료 점수 (최대 40점) — 타이머 끝까지 완주\n• 습관 점수 (최대 30점) — 일시정지 횟수 적게\n• 지속력 보너스 (최대 15점) — 오래 공부할수록↑\n• 꾸준함 보너스 (최대 15점) — 하루 여러 세션·연속 공부\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified!\n• 자가평가 보너스 (-5~+3점)\n\n등급: S+(95+) > S(90) > A(80) > B(70) > C(60) > F'}
               </GuideSection>
 
               {/* 잔디 */}

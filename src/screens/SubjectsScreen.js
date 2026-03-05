@@ -140,14 +140,14 @@ export default function SubjectsScreen() {
 
   const startRoutine = (routine) => {
     const items = routine.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
-    app.startSequence({ items, breakSec: routine.breakMin * 60, seqName: routine.name, seqIcon: routine.icon, seqColor: routine.color || items[0]?.color || '#4A90D9' });
-    app.showToastCustom(`${routine.icon} ${routine.name} 시작!`, 'taco');
+    const ok = app.startSequence({ items, breakSec: routine.breakMin * 60, seqName: routine.name, seqIcon: routine.icon, seqColor: routine.color || items[0]?.color || '#4A90D9' });
+    if (ok) app.showToastCustom(`${routine.icon} ${routine.name} 시작!`, 'taco');
   };
 
   const startMethod = (method) => {
     const items = method.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
-    app.startSequence({ items, breakSec: method.breakMin * 60, seqName: method.name, seqIcon: method.icon, seqColor: method.color });
-    app.showToastCustom(`${method.icon} ${method.name} 시작!`, 'toru');
+    const ok = app.startSequence({ items, breakSec: method.breakMin * 60, seqName: method.name, seqIcon: method.icon, seqColor: method.color });
+    if (ok) app.showToastCustom(`${method.icon} ${method.name} 시작!`, 'toru');
   };
 
   const defMin = school === 'elementary' ? (elemGrade === 'lower' ? 20 : 25) : (school === 'middle' ? 50 : 60);
@@ -173,8 +173,8 @@ export default function SubjectsScreen() {
     if (suneungSelected.length === 0) { app.showToastCustom('과목을 선택하세요!', 'paengi'); return; }
     const ordered = suneungSelected.map(name => SUNEUNG_SUBJECTS.find(s => s.name === name)).filter(Boolean).sort((a, b) => a.order - b.order);
     const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
-    app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: '🎯', seqColor: '#E8575A' });
-    setSuneungSelected([]);
+    const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: '🎯', seqColor: '#E8575A' });
+    if (ok) setSuneungSelected([]);
   };
 
 
@@ -221,16 +221,20 @@ export default function SubjectsScreen() {
         </View>
 
         {/* 연속모드 진행 */}
-        {app.queue && app.queue.status !== 'done' && (
-          <View style={[S.queueBar, { backgroundColor: T.accent + '12', borderColor: T.accent + '30' }]}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>
-              {app.queue.icon || '📋'} {app.queue.name || '연속모드'} {app.queue.status === 'break' ? '☕ 쉬는중' : `${app.queue.currentIndex + 1}/${app.queue.items.length}`}
-            </Text>
-            <TouchableOpacity onPress={app.cancelSequence}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: T.red }}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {(() => {
+          const seqTimer = app.timers.find(t => t.type === 'sequence' && (t.status === 'running' || t.status === 'paused'));
+          if (!seqTimer) return null;
+          return (
+            <View style={[S.queueBar, { backgroundColor: T.accent + '12', borderColor: T.accent + '30' }]}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>
+                {seqTimer.seqIcon || '📋'} {seqTimer.seqName || '연속모드'} {seqTimer.seqPhase === 'break' ? '☕ 쉬는중' : `${(seqTimer.seqIndex || 0) + 1}/${seqTimer.seqTotal}`}
+              </Text>
+              <TouchableOpacity onPress={app.cancelSequence}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: T.red }}>취소</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
 
         {/* ═══ 탭: 추천 루틴 ═══ */}
         {tab === 'routine' && (

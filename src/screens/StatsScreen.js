@@ -1525,6 +1525,7 @@ export default function StatsScreen() {
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
                   <View style={S.reportMetricItem}>
                     <Text style={[S.reportMetricVal, { color: getTier(weekAvgDensity).color }]}>{getTier(weekAvgDensity).label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: getTier(weekAvgDensity).color }}>{weekAvgDensity}점</Text>
                     <Text style={[S.reportMetricLabel, { color: T.sub }]}>집중밀도</Text>
                   </View>
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
@@ -1627,6 +1628,7 @@ export default function StatsScreen() {
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
                   <View style={S.reportMetricItem}>
                     <Text style={[S.reportMetricVal, { color: getTier(todayAvgDensity).color }]}>{getTier(todayAvgDensity).label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: getTier(todayAvgDensity).color }}>{todayAvgDensity}점</Text>
                     <Text style={[S.reportMetricLabel, { color: T.sub }]}>집중밀도</Text>
                   </View>
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
@@ -1698,6 +1700,7 @@ export default function StatsScreen() {
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
                   <View style={S.reportMetricItem}>
                     <Text style={[S.reportMetricVal, { color: getTier(monthAvgDensity).color }]}>{getTier(monthAvgDensity).label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: getTier(monthAvgDensity).color }}>{monthAvgDensity}점</Text>
                     <Text style={[S.reportMetricLabel, { color: T.sub }]}>집중밀도</Text>
                   </View>
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
