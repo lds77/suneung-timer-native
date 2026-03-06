@@ -24,6 +24,8 @@ const DEFAULT_FAVS = [];
 
 export default function FocusScreen() {
   const app = useApp();
+  // 🔥모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
+  const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const school = app.settings.schoolLevel || 'high';
   const subjectDefMin = school === 'elementary' ? 25 : school === 'middle' ? 30 : 45;
@@ -109,12 +111,16 @@ export default function FocusScreen() {
   const ultraMood = app.ultraFocus?.gaveUp ? 'sad' : app.ultraFocus?.showChallenge ? 'sad' : app.ultraFocus?.showWarning ? 'sad' : app.mood;
 
   // ═══ 🔒 잠금 오버레이 (🔥모드 전용) ═══
-  const [screenLocked, setScreenLocked] = useState(false);
   const SLIDE_WIDTH = Dimensions.get('window').width - 80;
   const THUMB_SIZE = 56;
   const SLIDE_THRESHOLD = SLIDE_WIDTH - THUMB_SIZE - 10;
   const slideX = useRef(new Animated.Value(0)).current;
   const slideOpacity = useRef(new Animated.Value(1)).current;
+
+  // screenLocked 변경 시 useAppState에 알림 (AppState 핸들러가 잠금 여부 체크용)
+  useEffect(() => {
+    app.notifyScreenLocked?.(screenLocked);
+  }, [screenLocked]);
 
   // 🔥모드 타이머 실행 시 자동 잠금
   useEffect(() => {
@@ -125,8 +131,11 @@ export default function FocusScreen() {
       }
     }
     if (!hasRunning || app.focusMode !== 'screen_on') {
-      // unlock and restore brightness when not applicable
-      try { app.restoreBrightness?.(); } catch {}
+      // 집중모드가 완전히 꺼진 경우에만 밝기/다크 복원
+      // focusMode가 여전히 screen_on이면 타이머 시작 50ms 갭 또는 deactivateFocusMode가 처리 예정
+      if (app.focusMode !== 'screen_on') {
+        try { app.restoreBrightness?.(); } catch {}
+      }
       setScreenLocked(false);
     }
   }, [app.focusMode, hasRunning, app.ultraFocus?.showChallenge, app.ultraFocus?.gaveUp]);
@@ -606,18 +615,19 @@ export default function FocusScreen() {
           const getPlanStatus = (plan) => {
             const completedSec = app.getPlanCompletedSec?.(plan.id) || 0;
             const targetSec = (plan.targetMin || 0) * 60;
-            const runningTimer = app.timers.find(t => t.planId === plan.id && t.status === 'running');
-            const currentSec = completedSec + (runningTimer ? runningTimer.elapsedSec : 0);
-            const pct = targetSec > 0 ? currentSec / targetSec : 0;
-            if (pct >= 0.8) return { type: 'done', currentSec, targetSec };
-            if (runningTimer) return { type: 'running', currentSec, targetSec, pct };
-            return { type: 'idle', currentSec, targetSec };
+            const activeTimer = app.timers.find(t => t.planId === plan.id && (t.status === 'running' || t.status === 'paused'));
+            const currentSec = completedSec + (activeTimer ? activeTimer.elapsedSec : 0);
+            const pct = targetSec > 0 ? Math.min(1, currentSec / targetSec) : 0;
+            if (pct >= 0.8) return { type: 'done', currentSec, targetSec, pct };
+            if (activeTimer) return { type: 'running', currentSec, targetSec, pct };
+            if (completedSec > 0) return { type: 'partial', currentSec, targetSec, pct };
+            return { type: 'idle', currentSec, targetSec, pct: 0 };
           };
           const totalTargetSec = plans.reduce((sum, p) => sum + (p.targetMin || 0) * 60, 0);
           const totalDoneSec = plans.reduce((sum, p) => {
             const completedSec = app.getPlanCompletedSec?.(p.id) || 0;
-            const runningTimer = app.timers.find(t => t.planId === p.id && t.status === 'running');
-            return sum + completedSec + (runningTimer ? runningTimer.elapsedSec : 0);
+            const activeTimer = app.timers.find(t => t.planId === p.id && (t.status === 'running' || t.status === 'paused'));
+            return sum + completedSec + (activeTimer ? activeTimer.elapsedSec : 0);
           }, 0);
           const overallPct = totalTargetSec > 0 ? Math.min(1, totalDoneSec / totalTargetSec) : 0;
           return (
@@ -650,25 +660,27 @@ export default function FocusScreen() {
                         <Text style={S.planRowIcon}>{plan.icon || '📖'}</Text>
                         <View style={{ flex: 1 }}>
                           <Text style={[S.planLabel, { color: T.text }]}>{plan.label}</Text>
-                          {status.type === 'running' && (
+                          {status.type !== 'idle' && status.pct < 1 && (
                             <View style={[S.planMiniTrack, { backgroundColor: T.surface2 }]}>
-                              <View style={[S.planMiniFill, { width: `${Math.round(status.pct * 100)}%`, backgroundColor: T.accent }]} />
+                              <View style={[S.planMiniFill, { width: `${Math.round(status.pct * 100)}%`, backgroundColor: status.type === 'partial' || status.type === 'done' ? T.sub : T.accent }]} />
                             </View>
                           )}
                         </View>
                         <Text style={[S.planTime, { color: T.sub }]}>
                           {status.type === 'idle'
                             ? `${plan.targetMin}분`
+                            : status.type === 'done'
+                            ? `✅ ${plan.targetMin}분`
                             : `${Math.floor(status.currentSec / 60)}분/${plan.targetMin}분`}
                         </Text>
                         <View style={S.planAction}>
-                          {status.type === 'done' ? (
-                            <Text style={{ fontSize: 16 }}>✅</Text>
-                          ) : status.type === 'running' ? (
+                          {status.type === 'running' ? (
                             <Text style={{ fontSize: 14 }}>🔵</Text>
+                          ) : status.pct >= 1 ? (
+                            <Text style={{ fontSize: 16 }}>✅</Text>
                           ) : (
                             <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
-                              <Text style={S.planPlayBtnT}>▶</Text>
+                              <Text style={S.planPlayBtnT}>{status.type === 'done' ? '▶+' : '▶'}</Text>
                             </TouchableOpacity>
                           )}
                         </View>

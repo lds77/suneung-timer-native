@@ -23,8 +23,7 @@ const saveJSON = async (key, data) => {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(data));
     return true;
-  } catch (e) {
-    console.warn(`[Storage] Save failed: ${key}`, e);
+  } catch {
     return false;
   }
 };
@@ -37,8 +36,7 @@ const loadJSON = async (key, fallback = null) => {
     const raw = await AsyncStorage.getItem(key);
     if (raw === null) return fallback;
     return JSON.parse(raw);
-  } catch (e) {
-    console.warn(`[Storage] Load failed: ${key}`, e);
+  } catch {
     return fallback;
   }
 };
@@ -92,8 +90,7 @@ export const clearAllData = async () => {
     const keys = Object.values(KEYS);
     await AsyncStorage.multiRemove(keys);
     return true;
-  } catch (e) {
-    console.warn('[Storage] Clear all failed', e);
+  } catch {
     return false;
   }
 };

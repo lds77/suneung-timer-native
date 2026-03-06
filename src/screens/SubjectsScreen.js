@@ -25,16 +25,34 @@ const ROUTINES = {
     { id: 'ur4', icon: '🏖️', name: '주말/방학', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }, { label: '사회/과학', color: '#F5A623', min: 25 }, { label: '독서', color: '#E17055', min: 20 }], breakMin: 5 },
   ],
   middle: [
-    { id: 'mr1', icon: '🎒', name: '방과후 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }, { label: '영어', color: '#5CB85C', min: 30 }], breakMin: 10 },
+    { id: 'mr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }, { label: '영어', color: '#5CB85C', min: 30 }], breakMin: 10 },
     { id: 'mr2', icon: '🔥', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 35 }, { label: '과학', color: '#F5A623', min: 35 }, { label: '사회', color: '#9B6FC3', min: 30 }], breakMin: 10 },
     { id: 'mr3', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }], breakMin: 10 },
-    { id: 'mr4', icon: '🏖️', name: '주말 올라운드', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 30 }, { label: '과학', color: '#F5A623', min: 30 }, { label: '사회', color: '#9B6FC3', min: 30 }, { label: '역사', color: '#E17055', min: 25 }], breakMin: 10 },
+    { id: 'mr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 30 }, { label: '과학', color: '#F5A623', min: 30 }, { label: '사회', color: '#9B6FC3', min: 30 }, { label: '역사', color: '#E17055', min: 25 }], breakMin: 10 },
   ],
   high: [
-    { id: 'hr1', icon: '🎒', name: '방과후 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 10 },
+    { id: 'hr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 10 },
     { id: 'hr2', icon: '🔥', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 50 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '사회', color: '#9B6FC3', min: 50 }], breakMin: 10 },
     { id: 'hr3', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 50 }], breakMin: 10 },
-    { id: 'hr4', icon: '🏖️', name: '주말/방학', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 60 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '한국사', color: '#E17055', min: 50 }], breakMin: 10 },
+    { id: 'hr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 60 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '한국사', color: '#E17055', min: 50 }], breakMin: 10 },
+  ],
+  nsuneung: [
+    { id: 'nr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 80 }, { label: '수학', color: '#4A90D9', min: 90 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 15 },
+    { id: 'nr2', icon: '🔥', name: '수능 올인', color: '#E17055', items: [{ label: '국어', color: '#E8575A', min: 100 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구', color: '#F5A623', min: 60 }], breakMin: 15 },
+    { id: 'nr3', icon: '⚡', name: '단과 몰입', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 120 }], breakMin: 10 },
+    { id: 'nr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 90 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구 1', color: '#F5A623', min: 70 }, { label: '탐구 2', color: '#9B6FC3', min: 60 }], breakMin: 15 },
+  ],
+  university: [
+    { id: 'unr1', icon: '🗂️', name: '평일 기본', color: '#4A90D9', items: [{ label: '전공', color: '#4A90D9', min: 60 }, { label: '전공 2', color: '#6C5CE7', min: 50 }, { label: '교양', color: '#00B894', min: 40 }], breakMin: 10 },
+    { id: 'unr2', icon: '🔥', name: '시험 기간', color: '#E17055', items: [{ label: '전공', color: '#4A90D9', min: 90 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '복습', color: '#E17055', min: 50 }], breakMin: 15 },
+    { id: 'unr3', icon: '⚡', name: '과제 집중', color: '#F5A623', items: [{ label: '과제', color: '#F5A623', min: 80 }, { label: '복습', color: '#9B6FC3', min: 30 }], breakMin: 10 },
+    { id: 'unr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '전공', color: '#4A90D9', min: 80 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '교양', color: '#00B894', min: 50 }, { label: '복습', color: '#9B6FC3', min: 40 }], breakMin: 15 },
+  ],
+  exam_prep: [
+    { id: 'er1', icon: '🗂️', name: '평일 기본', color: '#4A90D9', items: [{ label: '핵심 과목', color: '#4A90D9', min: 80 }, { label: '보조 과목', color: '#6C5CE7', min: 60 }, { label: '문제풀이', color: '#E17055', min: 50 }], breakMin: 10 },
+    { id: 'er2', icon: '🔥', name: '집중 학습', color: '#E17055', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 60 }], breakMin: 15 },
+    { id: 'er3', icon: '⚡', name: '문제풀이 집중', color: '#F5A623', items: [{ label: '문제풀이', color: '#E17055', min: 90 }, { label: '오답 정리', color: '#F5A623', min: 40 }], breakMin: 10 },
+    { id: 'er4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 70 }, { label: '암기', color: '#00B894', min: 50 }], breakMin: 15 },
   ],
 };
 

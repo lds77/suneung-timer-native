@@ -246,6 +246,10 @@ export default function StatsScreen() {
   const [subjPeriod, setSubjPeriod] = useState('30d'); // '7d' | '30d' | 'all'
   const [subjDetail, setSubjDetail] = useState(null);  // subject id → 상세 시트 트리거
 
+  // 메모 탭
+  const [memoSubjectFilter, setMemoSubjectFilter] = useState('all');
+  const [memoPage, setMemoPage] = useState(1); // 1 = 최근 14일, 2 = 최근 28일, ...
+
   // 헬퍼: HH:MM 포맷
   const formatHM = (ts) => {
     const d = new Date(ts);
@@ -632,6 +636,38 @@ export default function StatsScreen() {
     return { ...stat, recentSess };
   }, [subjDetail, subjectAllStats, app.sessions, app.subjects, subjPeriod]);
 
+  // ─── 메모 탭 데이터 ──────────────────────────────────────────
+  const allMemoSessions = useMemo(() =>
+    [...app.sessions]
+      .filter(s => s.memo && s.memo.trim())
+      .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0)),
+  [app.sessions]);
+
+  const memoSubjects = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    allMemoSessions.forEach(s => {
+      const subj = getSessionSubject(s, app.subjects);
+      if (!seen.has(subj.id)) { seen.add(subj.id); result.push(subj); }
+    });
+    return result;
+  }, [allMemoSessions, app.subjects]);
+
+  const filteredMemoSessions = useMemo(() =>
+    memoSubjectFilter === 'all'
+      ? allMemoSessions
+      : allMemoSessions.filter(s => getSessionSubject(s, app.subjects).id === memoSubjectFilter),
+  [allMemoSessions, memoSubjectFilter, app.subjects]);
+
+  const visibleMemoSessions = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - memoPage * 14);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return filteredMemoSessions.filter(s => (s.date || '') >= cutoffStr);
+  }, [filteredMemoSessions, memoPage]);
+
+  const memoHasMore = filteredMemoSessions.length > visibleMemoSessions.length;
+
   // 과목 비율 렌더
   const renderSubjects = (data, label) => {
     if (data.length === 0) return null;
@@ -676,9 +712,7 @@ export default function StatsScreen() {
           return;
         }
       }
-    } catch (e) {
-      console.log('이미지 공유 실패, 텍스트로 대체:', e);
-    }
+    } catch {}
     // 이미지 공유 실패 시 텍스트 공유 폴백
     const text = buildReportText({
       weekTotal, weekPrev: weekPrevTotal, topSubject,
@@ -751,7 +785,7 @@ export default function StatsScreen() {
         <View style={S.header}>
           <Text style={[S.headerTitle, { color: T.text }]}>📊 통계</Text>
           <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
-            {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
+            {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }, { id: 'memo', l: '메모' }].map(t => (
               <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card }]} onPress={() => setTab(t.id)}>
                 <Text style={[S.tabText, { color: tab === t.id ? T.text : T.sub }]}>{t.l}</Text>
               </TouchableOpacity>
@@ -760,7 +794,7 @@ export default function StatsScreen() {
         </View>
 
         {/* ── 요약 카드 ── */}
-        {tab !== 'subject' && <View style={S.summaryRow}>
+        {tab !== 'subject' && tab !== 'memo' && <View style={S.summaryRow}>
           <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.sLabel, { color: T.sub }]}>{tab === 'daily' ? '오늘' : tab === 'weekly' ? '이번주' : tab === 'heatmap' ? '공부일수' : viewMonthStr}</Text>
             <Text style={[S.sVal, { color: T.accent }]}>
@@ -1490,6 +1524,90 @@ export default function StatsScreen() {
             })()}
           </>)}
         </>)}
+
+        {/* ── 메모 탭 ── */}
+        {tab === 'memo' && (() => {
+          if (allMemoSessions.length === 0) return (
+            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, marginTop: 4 }]}>
+              <Text style={[S.secLabel, { color: T.sub }]}>📝 공부 메모</Text>
+              <Text style={[S.emptyText, { color: T.sub, marginTop: 8, lineHeight: 20 }]}>
+                아직 메모가 없어요.{'\n'}타이머 완료 후 한줄 메모를 남겨보세요! ✏️
+              </Text>
+            </View>
+          );
+          return (
+            <>
+              {/* 과목 필터 칩 */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
+                contentContainerStyle={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={[S.memoChip, { borderColor: memoSubjectFilter === 'all' ? T.accent : T.border, backgroundColor: memoSubjectFilter === 'all' ? T.accent : T.surface2 }]}
+                  onPress={() => { setMemoSubjectFilter('all'); setMemoPage(1); }}>
+                  <Text style={[S.memoChipT, { color: memoSubjectFilter === 'all' ? 'white' : T.sub }]}>전체</Text>
+                </TouchableOpacity>
+                {memoSubjects.map(subj => {
+                  const sel = memoSubjectFilter === subj.id;
+                  return (
+                    <TouchableOpacity key={subj.id}
+                      style={[S.memoChip, { borderColor: sel ? subj.color : T.border, backgroundColor: sel ? subj.color : T.surface2 }]}
+                      onPress={() => { setMemoSubjectFilter(subj.id); setMemoPage(1); }}>
+                      <View style={[S.memoChipDot, { backgroundColor: sel ? 'rgba(255,255,255,0.6)' : subj.color }]} />
+                      <Text style={[S.memoChipT, { color: sel ? 'white' : T.text }]}>{subj.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* 메모 개수 안내 */}
+              <Text style={{ fontSize: 10, color: T.sub, marginBottom: 8 }}>
+                최근 {memoPage * 14}일 · {visibleMemoSessions.length}개
+                {memoSubjectFilter !== 'all' ? ' (필터 적용 중)' : ''}
+              </Text>
+
+              {visibleMemoSessions.length === 0 ? (
+                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                  <Text style={[S.emptyText, { color: T.sub }]}>해당 기간에 메모가 없어요</Text>
+                </View>
+              ) : visibleMemoSessions.map(s => {
+                const subj = getSessionSubject(s, app.subjects);
+                const d = new Date((s.date || today) + 'T00:00:00');
+                const dateLabel = s.date === today ? '오늘'
+                  : `${d.getMonth() + 1}/${d.getDate()} (${DAYS_KR[d.getDay()]})`;
+                return (
+                  <TouchableOpacity key={s.id}
+                    style={[S.memoCard, { backgroundColor: T.card, borderColor: T.border, borderLeftColor: subj.color }]}
+                    onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
+                    activeOpacity={0.75}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <Text style={{ fontSize: 10, color: T.sub, minWidth: 56 }}>{dateLabel}</Text>
+                      <View style={[S.memoSubjBadge, { backgroundColor: subj.color + '20', borderColor: subj.color + '50' }]}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: subj.color }}>{subj.name}</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: T.sub, marginLeft: 'auto' }}>{formatShort(s.durationSec)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', lineHeight: 18 }}>
+                      "{s.memo}"
+                    </Text>
+                    <Text style={{ fontSize: 9, color: T.surface2, marginTop: 4, textAlign: 'right' }}>탭하면 수정 ✏️</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* 더보기 버튼 */}
+              {memoHasMore && (
+                <TouchableOpacity
+                  style={[S.memoMoreBtn, { backgroundColor: T.surface2, borderColor: T.border }]}
+                  onPress={() => setMemoPage(p => p + 1)}
+                  activeOpacity={0.7}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>+ 더보기 (이전 2주)</Text>
+                </TouchableOpacity>
+              )}
+              {!memoHasMore && visibleMemoSessions.length > 0 && (
+                <Text style={{ fontSize: 10, color: T.sub, textAlign: 'center', marginTop: 4 }}>전체 메모를 표시하고 있어요</Text>
+              )}
+            </>
+          );
+        })()}
 
         {/* ── 인사이트 (오늘 세션 있을 때) ── */}
         {todaySessions.length > 0 && (
@@ -2444,4 +2562,12 @@ const S = StyleSheet.create({
   subjListBarFill: { height: 6, borderRadius: 3 },
   subjInsightCard: { borderRadius: 12, padding: 14, marginTop: 12, gap: 10 },
   subjInsightRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  // 메모 탭
+  memoChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  memoChipT: { fontSize: 12, fontWeight: '700' },
+  memoChipDot: { width: 7, height: 7, borderRadius: 4 },
+  memoCard: { borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, padding: 12, marginBottom: 8 },
+  memoSubjBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
+  memoMoreBtn: { borderRadius: 10, borderWidth: 1, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 4 },
 });
