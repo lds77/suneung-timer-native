@@ -297,14 +297,14 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           {ws?.enabled ? (
             <>
               {/* 요일 탭 */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                style={s.dayTabScroll} contentContainerStyle={s.dayTabContent}>
+              <View style={[s.dayTabScroll, { flexDirection: 'row', paddingHorizontal: 16, gap: 6 }]}>
                 {DAY_KEYS.map((key, i) => {
                   const isToday = key === todayKey;
                   const isSel = key === selectedDay;
                   return (
                     <TouchableOpacity key={key} onPress={() => setSelectedDay(key)}
                       style={[s.dayTab, {
+                        flex: 1,
                         borderColor: isSel ? T.accent : T.border,
                         backgroundColor: isSel ? T.accent : T.card,
                       }]}>
@@ -313,7 +313,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </View>
 
               {/* 고정 일정 */}
               <View style={s.section}>
@@ -656,13 +656,13 @@ const s = StyleSheet.create({
   toggleLabel: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
   toggleSub: { fontSize: 11 },
 
-  dayTabScroll: { marginBottom: 8 },
-  dayTabContent: { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
+  dayTabScroll: { marginBottom: 8, paddingVertical: 4 },
+  dayTabContent: { paddingHorizontal: 16, gap: 6, paddingVertical: 4 },
   dayTab: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, alignItems: 'center', minWidth: 44,
+    paddingHorizontal: 4, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1, alignItems: 'center',
   },
-  dayTabText: { fontSize: 14, fontWeight: '700' },
+  dayTabText: { fontSize: 13, fontWeight: '700' },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3 },
 
   section: { paddingHorizontal: 16, marginBottom: 4 },

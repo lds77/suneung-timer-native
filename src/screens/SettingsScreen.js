@@ -85,8 +85,9 @@ export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
 
-  // D-Day 추가 모달 (캘린더 방식)
+  // D-Day 추가/수정 모달 (캘린더 방식)
   const [showDDayModal, setShowDDayModal] = useState(false);
+  const [editingDDay, setEditingDDay] = useState(null); // null=추가, dd객체=수정
   const [showGuide, setShowGuide] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
@@ -112,13 +113,36 @@ const [ddLabel, setDdLabel] = useState('');
     return cells;
   }, [pickerMonth]);
 
+  const openAddDDay = () => {
+    setEditingDDay(null);
+    setDdLabel(''); setPickerSelected(null); setDdDays(1);
+    setShowDDayModal(true);
+  };
+
+  const openEditDDay = (dd) => {
+    setEditingDDay(dd);
+    setDdLabel(dd.label);
+    setPickerSelected(dd.date);
+    setDdDays(dd.days || 1);
+    if (dd.date) {
+      const d = new Date(dd.date + 'T00:00:00');
+      setPickerMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+    setShowDDayModal(true);
+  };
+
   const handleAddDDay = () => {
     if (!ddLabel.trim() || !pickerSelected) { app.showToastCustom('이름과 날짜를 선택하세요', 'paengi'); return; }
-    if (app.ddays.length >= 10) { app.showToastCustom('D-Day는 최대 10개까지!', 'paengi'); return; }
-    app.addDDay({ label: ddLabel.trim(), date: pickerSelected, days: ddDays });
-    setDdLabel(''); setPickerSelected(null); setDdDays(1);
+    if (editingDDay) {
+      app.updateDDay(editingDDay.id, { label: ddLabel.trim(), date: pickerSelected, days: ddDays });
+      app.showToastCustom('D-Day 수정 완료!', 'taco');
+    } else {
+      if (app.ddays.length >= 10) { app.showToastCustom('D-Day는 최대 10개까지!', 'paengi'); return; }
+      app.addDDay({ label: ddLabel.trim(), date: pickerSelected, days: ddDays });
+      app.showToastCustom('D-Day 추가 완료!', 'taco');
+    }
+    setDdLabel(''); setPickerSelected(null); setDdDays(1); setEditingDDay(null);
     setShowDDayModal(false);
-    app.showToastCustom('D-Day 추가 완료!', 'taco');
   };
 
   const handleDeleteDDay = (dd) => {
@@ -264,6 +288,9 @@ const [ddLabel, setDdLabel] = useState('');
               </TouchableOpacity>
               <View style={{ flex: 1 }} />
               <Text style={[styles.ddayBadge, { color: T.accent }]}>{formatDDay(dd.date)}</Text>
+              <TouchableOpacity onPress={() => openEditDDay(dd)} style={{ paddingHorizontal: 6 }}>
+                <Text style={{ fontSize: 14, color: T.sub }}>✏️</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteDDay(dd)}>
                 <Text style={[styles.ddayDel, { color: T.red }]}>×</Text>
               </TouchableOpacity>
@@ -272,7 +299,7 @@ const [ddLabel, setDdLabel] = useState('');
           {app.ddays.length < 10 && (
             <TouchableOpacity
               style={[styles.ddayAddBtn, { borderColor: T.border }]}
-              onPress={() => setShowDDayModal(true)}
+              onPress={openAddDDay}
             >
               <Text style={[styles.ddayAddText, { color: T.accent }]}>+ D-Day 추가</Text>
             </TouchableOpacity>
@@ -433,7 +460,7 @@ const [ddLabel, setDdLabel] = useState('');
           <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/privacy-policy.html')}>
             <Row label="개인정보 처리방침" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => Linking.openURL('mailto:dongsikl51@gmail.com?subject=열공 멀티타이머 피드백')}>
+          <TouchableOpacity onPress={() => Linking.openURL('mailto:dongsikl51@gmail.com?subject=열공메이트 피드백')}>
             <Row label="피드백 보내기" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
@@ -441,10 +468,10 @@ const [ddLabel, setDdLabel] = useState('');
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* D-Day 추가 모달 (캘린더 피커) */}
+      {/* D-Day 추가/수정 모달 (캘린더 피커) */}
       <Modal visible={showDDayModal} transparent animationType="fade">
         <View style={styles.modalOverlay}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[styles.modalTitle, { color: T.text }]}>📅 D-Day 추가</Text>
+            <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? '📅 D-Day 수정' : '📅 D-Day 추가'}</Text>
             {/* 프리셋 */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
               <TouchableOpacity key={p.label} style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddLabel === p.label ? T.accent : T.border }}
@@ -497,10 +524,10 @@ const [ddLabel, setDdLabel] = useState('');
                   onPress={() => setDdDays(n)}><Text style={{ fontSize: 10, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text></TouchableOpacity>
               ))}</View></View>
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={[styles.modalCancel, { borderColor: T.border }]} onPress={() => { setShowDDayModal(false); setDdLabel(''); setPickerSelected(null); setDdDays(1); }}>
+              <TouchableOpacity style={[styles.modalCancel, { borderColor: T.border }]} onPress={() => { setShowDDayModal(false); setDdLabel(''); setPickerSelected(null); setDdDays(1); setEditingDDay(null); }}>
                 <Text style={[styles.modalCancelText, { color: T.sub }]}>취소</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.modalConfirm, { backgroundColor: T.accent }]} onPress={handleAddDDay}>
-                <Text style={styles.modalConfirmText}>추가</Text></TouchableOpacity></View>
+                <Text style={styles.modalConfirmText}>{editingDDay ? '수정' : '추가'}</Text></TouchableOpacity></View>
           </View></ScrollView></View>
       </Modal>
 
@@ -513,7 +540,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 기본 사용법 */}
               <GuideSection title="⏰ 기본 사용법" color={T.accent} T={T}>
-                {'열공 멀티타이머에 오신 걸 환영해요! 🎉\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 🔥 집중 도전 또는 📖 편하게 공부 중 모드를 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n💡 처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
+                {'열공메이트에 오신 걸 환영해요! 🎉\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 🔥 집중 도전 또는 📖 편하게 공부 중 모드를 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n💡 처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
               </GuideSection>
 
               {/* 타이머 종류 */}
@@ -563,7 +590,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 알림 팁 */}
               <GuideSection title="🔔 알림이 안 울려요?" color="#74B9FF" T={T}>
-                {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공 멀티타이머 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서\n이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (가장 중요!)\n배터리 최적화가 켜져 있으면 백그라운드에서 앱이 종료되어 알림이 오지 않을 수 있어요.\n설정 탭 > 알림 섹션 > "배터리 최적화 설정 바로가기"를 탭해서 이 앱을 "최적화 안 함"으로 설정해주세요.\n\n💡 위 설정을 완료하면 화면이 꺼진 상태에서도 정확하게 알림이 와요!'}
+                {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공메이트 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서\n이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (가장 중요!)\n배터리 최적화가 켜져 있으면 백그라운드에서 앱이 종료되어 알림이 오지 않을 수 있어요.\n설정 탭 > 알림 섹션 > "배터리 최적화 설정 바로가기"를 탭해서 이 앱을 "최적화 안 함"으로 설정해주세요.\n\n💡 위 설정을 완료하면 화면이 꺼진 상태에서도 정확하게 알림이 와요!'}
               </GuideSection>
 
               {/* 학습법 */}

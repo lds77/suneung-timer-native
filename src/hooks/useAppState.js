@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS = {
   guideHeatmap: false,  // 잔디 설명
   guideLock: false,     // 잠금 화면 설명
   exactAlarmGuideShown: false, // Android 12+ 정확한 알람 권한 안내 표시 여부
+  giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -449,9 +450,12 @@ export function AppProvider({ children }) {
     showToastCustom('💪 다시 집중! 할 수 있어!', 'toru');
   }, []);
 
-  // 포기
+  // 그만하기
   const giveUpFocus = useCallback(async () => {
     setUltraFocus(prev => ({ ...prev, showChallenge: false, gaveUp: true }));
+    const today = getToday();
+    const prevCount = settingsRef.current.giveUpDate === today ? (settingsRef.current.giveUpCount || 0) : 0;
+    updateSettings({ giveUpCount: prevCount + 1, giveUpDate: today });
     // 모든 실행/일시정지 타이머의 예약 알림 취소
     timersRef.current.filter(t => t.status === 'running' || t.status === 'paused').forEach(t => cancelTimerNotif(t.id));
     setTimers(prev => prev.map(t => {
@@ -461,7 +465,7 @@ export function AppProvider({ children }) {
       }
       return t;
     }));
-    showToastCustom('다음엔 같이 하자... 😴', 'totoru');
+    showToastCustom('오늘은 여기까지! 내일 다시 도전해봐요 😴', 'totoru');
   }, []);
 
   const calcResult = (t, dur) => {
@@ -685,13 +689,13 @@ export function AppProvider({ children }) {
       let count = 0;
       while (offset > 0 && count < 16) {
         if (phase === 'work') {
-          await push(offset, `🍅 ${timer.label} 집중 완료!`, '쉬는 시간~');
+          await push(offset, `🍅 ${timer.label} 집중 완료!`, '기지개 한 번 펴자! 🙆');
           const isLong = (set + 1) % 4 === 0;
           phase = isLong ? 'longbreak' : 'break';
           set++;
           offset += (isLong ? timer.pomoBreakMin * 2 : timer.pomoBreakMin) * 60;
         } else {
-          await push(offset, `🍅 ${timer.label} 휴식 끝!`, '다시 집중!');
+          await push(offset, `🍅 ${timer.label} 휴식 끝!`, '다시 달려보자! 🔥');
           phase = 'work';
           offset += timer.pomoWorkMin * 60;
         }
@@ -709,7 +713,7 @@ export function AppProvider({ children }) {
             await push(offset, '📋 연속 실행 완료!', '모든 과목을 끝냈어! 🎉');
             break;
           }
-          await push(offset, `✅ ${timer.seqItems[idx].label} 완료!`, `잠깐 쉬어요 (${Math.round(timer.seqBreakSec / 60)}분)`);
+          await push(offset, `✅ ${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 🥤 (${Math.round(timer.seqBreakSec / 60)}분)`);
           phase = 'break';
           offset += timer.seqBreakSec;
         } else {
@@ -717,7 +721,7 @@ export function AppProvider({ children }) {
           if (idx >= timer.seqTotal) break;
           const ni = timer.seqItems[idx];
           const niSec = ni.totalSec || ((ni.min || 0) * 60);
-          await push(offset, `▶ ${ni.label} 시작!`, '집중하자! 🔥');
+          await push(offset, `▶ ${ni.label} 시작!`, '다음 과목 시작! 집중! 🔥');
           phase = 'work';
           offset += niSec;
         }
@@ -1180,6 +1184,7 @@ export function AppProvider({ children }) {
   const updateSubject = useCallback((id, u) => setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...u } : s)), []);
   const addDDay = useCallback((dd) => { const n = { id: generateId('dd_'), isPrimary: ddays.length === 0, ...dd }; setDDays(prev => [...prev, n]); return n; }, [ddays]);
   const removeDDay = useCallback((id) => { setDDays(prev => { const f = prev.filter(d => d.id !== id); if (f.length > 0 && !f.some(d => d.isPrimary)) f[0].isPrimary = true; return f; }); }, []);
+  const updateDDay = useCallback((id, changes) => { setDDays(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d)); }, []);
   const setPrimaryDDay = useCallback((id) => setDDays(prev => {
     const target = prev.find(d => d.id === id);
     if (!target) return prev;
@@ -1210,7 +1215,7 @@ export function AppProvider({ children }) {
 
   // 즐겨찾기 추가/제거
   const addFav = useCallback((fav) => {
-    if (favs.length >= 5) { showToastCustom('즐겨찾기 최대 5개!', 'paengi'); return; }
+    if (favs.length >= 6) { showToastCustom('즐겨찾기 최대 6개!', 'paengi'); return; }
     if (favs.some(f => f.label === fav.label && f.type === fav.type)) { showToastCustom('이미 있어요!', 'paengi'); return; }
     setFavs(p => [...p, { ...fav, id: `fav_${Date.now()}` }]);
     showToastCustom(`⭐ ${fav.label} 추가!`, 'toru');
@@ -1237,7 +1242,7 @@ export function AppProvider({ children }) {
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
-      ddays, addDDay, removeDDay, setPrimaryDDay,
+      ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,

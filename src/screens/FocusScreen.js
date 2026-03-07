@@ -19,8 +19,27 @@ const RING_STROKE = 14;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
-const DEFAULT_FAVS = [];
-// 상단 3개(5분/10분/뽀모)는 코드에서 직접 렌더링, favs는 사용자 추가분만
+const getSchoolDefaultFavs = (school) => {
+  const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
+  const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏱', type: 'countdown', color: color, totalSec: min * 60 });
+  if (school === 'elementary') return [
+    pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3'),
+  ];
+  if (school === 'middle') return [
+    pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3'),
+  ];
+  if (school === 'university') return [
+    pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3'),
+  ];
+  if (school === 'exam_prep') return [
+    pomo(50, 10, '뽀모 50+10'), cd(60, '1시간', '#5CB85C'), cd(90, '90분', '#4A90D9'), cd(120, '2시간', '#9B6FC3'),
+  ];
+  // high, nsuneung
+  return [
+    pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3'),
+  ];
+};
+const DEFAULT_FAVS = getSchoolDefaultFavs('high');
 
 export default function FocusScreen() {
   const app = useApp();
@@ -257,7 +276,7 @@ export default function FocusScreen() {
         opts.push({ text: `⭐ "${seqLabel}" 즐겨찾기 삭제`, style: 'destructive', onPress: () => removeFav(existingFav.id) });
       } else {
         opts.push({ text: `⭐ "${seqLabel}" 세트 저장`, onPress: () => {
-          if (favs.length >= 5) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
+          if (favs.length >= 6) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
           if (t.seqItems?.length) {
             addToFav({ label: seqLabel, icon: t.seqIcon || '📋', type: 'sequence', color: t.seqColor || '#6C5CE7', totalSec: 0, seqItems: t.seqItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: t.seqBreakSec ? Math.round(t.seqBreakSec / 60) : 5 });
           } else { app.showToastCustom('저장할 수 없어요', 'paengi'); }
@@ -281,7 +300,7 @@ export default function FocusScreen() {
           opts.push({ text: '⭐ 즐겨찾기 삭제', style: 'destructive', onPress: () => removeFav(existingFav.id) });
         } else {
           opts.push({ text: '⭐ 즐겨찾기 추가', onPress: () => {
-            if (favs.length >= 5) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
+            if (favs.length >= 6) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
             addToFav({ label: t.label, icon: t.type === 'pomodoro' ? '🍅' : '⏰', type: t.type, color: t.color, totalSec: t.totalSec, pomoWorkMin: t.pomoWorkMin, pomoBreakMin: t.pomoBreakMin });
           }});
         }
@@ -563,7 +582,7 @@ export default function FocusScreen() {
           <View style={[S.ultraBanner, { backgroundColor: '#6B7B8D18', borderColor: '#6B7B8D60' }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
             <View style={{ flex: 1 }}>
-              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>😴 집중 포기</Text>
+              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>😴 오늘은 여기까지</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>다음엔 더 잘할 수 있어!</Text>
             </View>
           </View>
@@ -573,7 +592,7 @@ export default function FocusScreen() {
         <View style={S.header}>
           <View style={S.headerLeft}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
-            <View style={{ marginLeft: 8 }}><Text style={[S.title, { color: T.text }]}>열공 멀티타이머</Text>
+            <View style={{ marginLeft: 8 }}><Text style={[S.title, { color: T.text }]}>열공메이트</Text>
               {app.settings.streak > 0 && <Text style={[S.headerSub, { color: T.sub }]}>🔥{app.settings.streak}일 연속</Text>}
               {plannerRate !== null && (
                 <Text style={{ fontSize: 10, color: T.accent, marginTop: 1, fontWeight: '600' }} numberOfLines={1}>
@@ -739,12 +758,9 @@ export default function FocusScreen() {
           <View style={S.quickHeader}><Text style={[S.quickTitle, { color: T.text }]}>📋 학습법·루틴·과목 즐겨찾기 (카운트다운)</Text>
             <TouchableOpacity onPress={() => setShowFavMgr(true)}><Text style={[S.quickEdit, { color: T.accent }]}>편집</Text></TouchableOpacity></View>
           <Text style={{ fontSize: 10, color: T.sub, marginBottom: 8 }}>탭하면 타이머 시작 · 실행 중 타이머의 ☆ 탭으로 즐겨찾기 추가 · 길게 누르면 삭제</Text>
-          {/* 1행: 뽀모(고정) + 사용자1 + 사용자2 */}
+          {/* 1행: 즐겨찾기 0~2 */}
           <View style={S.favGrid}>
-            <TouchableOpacity style={[S.favCell, { backgroundColor: '#E1705512', borderColor: '#E1705550' }]} onPress={() => runFav({ id: 'fix_pomo', label: '뽀모도로', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 25, pomoBreakMin: 5 })}>
-              <Text style={S.favCellIcon}>🍅</Text>
-              <Text style={[S.favCellLabel, { color: '#E17055' }]} numberOfLines={1}>뽀모도로</Text></TouchableOpacity>
-            {[0, 1].map(i => {
+            {[0, 1, 2].map(i => {
               const fav = favs[i];
               if (fav) return (
                 <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
@@ -757,9 +773,9 @@ export default function FocusScreen() {
                   <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text></TouchableOpacity>);
             })}
           </View>
-          {/* 2행: 사용자3 + 사용자4 + 사용자5 */}
+          {/* 2행: 즐겨찾기 3~5 */}
           <View style={S.favGrid}>
-            {[2, 3, 4].map(i => {
+            {[3, 4, 5].map(i => {
               const fav = favs[i];
               if (fav) return (
                 <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
@@ -984,12 +1000,12 @@ export default function FocusScreen() {
       <Modal visible={showFavMgr} transparent animationType="fade">
         <View style={S.mo}><ScrollView contentContainerStyle={S.moScroll}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>⭐ 즐겨찾기 편집</Text>
-          <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({favs.length}/5) · 탭하면 삭제</Text>
+          <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({favs.length}/6) · 탭하면 삭제</Text>
           <View style={S.favMgrGrid}>{favs.map(f => (
             <TouchableOpacity key={f.id} style={[S.favMgrChip, { backgroundColor: f.color + '15', borderColor: f.color }]} onPress={() => removeFav(f.id)}>
               <Text style={S.favMgrIcon}>{f.icon}</Text><Text style={[S.favMgrChipT, { color: f.color }]} numberOfLines={1}>{f.label}</Text><Text style={[S.favMgrX, { color: f.color }]}>×</Text></TouchableOpacity>
           ))}</View>
-          {favs.length < 5 && (<>
+          {favs.length < 6 && (<>
             <Text style={[S.favSecLabel, { color: T.text, marginTop: 14 }]}>🍅 뽀모도로 / ⏰ 타임어택</Text>
             <View style={S.favMgrGrid}>{[
               { label: '뽀모 25+5', icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: 25, pomoBreakMin: 5 },
@@ -1040,7 +1056,7 @@ export default function FocusScreen() {
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
                 {ex ? <Text style={{ fontSize: 10, color: T.sub }}>✓</Text> : <Text style={{ fontSize: 12, fontWeight: '800', color: item.color }}>+</Text>}</TouchableOpacity>); })}</View>
           </>)}
-          <TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={() => { app.setFavs?.(DEFAULT_FAVS); app.showToastCustom('기본 복원!', 'toru'); }}><Text style={[S.favResetT, { color: T.sub }]}>기본으로 복원</Text></TouchableOpacity>
+          <TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={() => { app.setFavs?.(getSchoolDefaultFavs(school)); app.showToastCustom('기본 복원!', 'toru'); }}><Text style={[S.favResetT, { color: T.sub }]}>기본으로 복원</Text></TouchableOpacity>
           <TouchableOpacity style={[S.favDoneBtn, { backgroundColor: T.accent }]} onPress={() => setShowFavMgr(false)}><Text style={S.favDoneBtnT}>완료</Text></TouchableOpacity>
         </View></ScrollView></View>
       </Modal>
@@ -1162,8 +1178,13 @@ export default function FocusScreen() {
               onPress={() => { if (challengeMatch) { setChallengeInput(''); app.dismissChallenge?.(); } }} disabled={!challengeMatch} activeOpacity={0.8}>
               <Text style={{ fontSize: 15, fontWeight: '900', color: challengeMatch ? 'white' : T.sub }}>{challengeMatch ? '💪 다시 집중하기!' : '문구를 정확히 입력하세요'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8 }} onPress={() => Alert.alert('😴 정말 포기할까요?', '모든 타이머가 중단돼요', [{ text: '계속', style: 'cancel' }, { text: '포기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }])}>
-              <Text style={{ fontSize: 11, color: T.sub, textDecorationLine: 'underline' }}>포기하기</Text>
+            <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8 }} onPress={() => {
+                const today = new Date().toISOString().split('T')[0];
+                const todayCount = app.settings.giveUpDate === today ? (app.settings.giveUpCount || 0) : 0;
+                const countMsg = todayCount > 0 ? `오늘 ${todayCount + 1}번째 그만하기예요.\n` : '';
+                Alert.alert('😴 정말 그만할까요?', `${countMsg}모든 타이머가 중단돼요`, [{ text: '계속하기', style: 'cancel' }, { text: '그만하기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }]);
+              }}>
+              <Text style={{ fontSize: 11, color: T.sub, textDecorationLine: 'underline' }}>그만하기</Text>
             </TouchableOpacity>
           </View>
         </View>

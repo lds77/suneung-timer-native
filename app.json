@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "열공 멀티타이머",
+    "name": "열공메이트",
     "slug": "yeolgong-timer",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yeolgong.timer",
-      "buildNumber": "1",
+      "buildNumber": "9",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -28,12 +28,11 @@
         "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
-"android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "blockedPermissions": [

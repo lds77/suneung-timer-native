@@ -68,7 +68,7 @@ function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, streak, 
   const fsl = focusStats || {};
   const fsLine = fsl.screenOnSessions ? `🔥 집중 도전: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
   const fsLine2 = fsl.screenOffSessions ? `📖 편하게 공부: ${fsl.screenOffSessions}세션` : '';
-  return `📊 열공 멀티타이머 주간 리포트
+  return `📊 열공메이트 주간 리포트
 
 ⏱️ 이번 주 공부시간: ${formatDuration(weekTotal)}
 📈 ${diffStr}
@@ -85,7 +85,7 @@ ${fsLine ? '\n' + fsLine : ''}${fsLine2 ? '\n' + fsLine2 : ''}
 function buildDayReportText({ date, totalSec, goalSec, avgDensity, sessions, topSubject, streak }) {
   const tier = getTier(avgDensity);
   const pct = Math.min(100, Math.round(totalSec / Math.max(1, goalSec) * 100));
-  return `📊 열공 멀티타이머 오늘 리포트 (${date})
+  return `📊 열공메이트 오늘 리포트 (${date})
 
 ⏱️ 공부시간: ${formatDuration(totalSec)}
 🎯 목표 달성: ${pct}% (목표 ${formatDuration(goalSec)})
@@ -100,7 +100,7 @@ ${topSubject ? `💪 최다 과목: ${topSubject}` : ''}
 // ─── 월간 리포트 텍스트 생성 ─────────────────────────────────────
 function buildMonthReportText({ monthStr, totalSec, studyDays, totalDays, avgDensity, topSubject }) {
   const tier = getTier(avgDensity);
-  return `📊 열공 멀티타이머 ${monthStr} 월간 리포트
+  return `📊 열공메이트 ${monthStr} 월간 리포트
 
 ⏱️ 총 공부시간: ${formatDuration(totalSec)}
 📅 공부일: ${studyDays}/${totalDays}일
@@ -112,7 +112,7 @@ ${topSubject ? `💪 최다 과목: ${topSubject}` : ''}
 
 // ─── 잔디 리포트 텍스트 생성 ─────────────────────────────────────
 function buildHeatReportText({ studyDays, streak, longestStreak, yearTotal }) {
-  return `🌱 열공 멀티타이머 공부 기록
+  return `🌱 열공메이트 공부 기록
 
 📆 공부일 (최근 6개월): ${studyDays}일
 🔥 현재 연속: ${streak}일
@@ -1759,7 +1759,7 @@ export default function StatsScreen() {
 
                 {/* 워터마크 */}
                 <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center', paddingBottom: 16, opacity: 0.6 }}>
-                  열공 멀티타이머 · #공부스타그램
+                  열공메이트 · #공부스타그램
                 </Text>
               </View>
             </ViewShot>
@@ -1833,7 +1833,7 @@ export default function StatsScreen() {
                   </View>
                 )}
                 <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center', paddingBottom: 14, opacity: 0.6 }}>
-                  열공 멀티타이머 · #공부스타그램
+                  열공메이트 · #공부스타그램
                 </Text>
               </View>
             </ViewShot>
@@ -1904,7 +1904,7 @@ export default function StatsScreen() {
                   </View>
                 )}
                 <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center', paddingBottom: 14, opacity: 0.6 }}>
-                  열공 멀티타이머 · #공부스타그램
+                  열공메이트 · #공부스타그램
                 </Text>
               </View>
             </ViewShot>
@@ -1956,7 +1956,7 @@ export default function StatsScreen() {
                   <Text style={{ fontSize: 20, fontWeight: '900', color: T.accent, marginTop: 4 }}>{formatDuration(yearTotalSec)}</Text>
                 </View>
                 <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center', paddingBottom: 14, opacity: 0.6 }}>
-                  열공 멀티타이머 · #공부스타그램 #공부잔디
+                  열공메이트 · #공부스타그램 #공부잔디
                 </Text>
               </View>
             </ViewShot>

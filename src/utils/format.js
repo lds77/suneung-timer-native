@@ -43,7 +43,10 @@ export const formatShort = (totalSec) => {
 /**
  * 오늘 날짜를 YYYY-MM-DD 형태로
  */
-export const getToday = () => new Date().toISOString().slice(0, 10);
+export const getToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /**
  * D-Day 계산 (남은 일수)

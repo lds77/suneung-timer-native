@@ -56,7 +56,10 @@ function OnboardingScreen() {
     { school: 'elementary', grade: 'lower', label: '초등 1~3학년', emoji: '🌱', goal: 60 },
     { school: 'elementary', grade: 'upper', label: '초등 4~6학년', emoji: '🌿', goal: 120 },
     { school: 'middle',     grade: null,    label: '중학생',        emoji: '📘', goal: 240 },
-    { school: 'high',       grade: null,    label: '고등/N수',      emoji: '🔥', goal: 360 },
+    { school: 'high',       grade: null,    label: '고등학생',      emoji: '🔥', goal: 360 },
+    { school: 'nsuneung',   grade: null,    label: 'N수생',         emoji: '📚', goal: 480 },
+    { school: 'university', grade: null,    label: '대학생',        emoji: '🎓', goal: 300 },
+    { school: 'exam_prep',  grade: null,    label: '공시생/자격증', emoji: '📝', goal: 480 },
   ];
   const handleSchoolSelect = (opt) => {
     setSelectedSchool(opt.school);
@@ -69,6 +72,10 @@ function OnboardingScreen() {
     if (selectedSchool === 'elementary' && selectedElemGrade === 'lower') return [30, 60, 90];
     if (selectedSchool === 'elementary') return [60, 120, 180];
     if (selectedSchool === 'middle') return [120, 180, 240, 360];
+    if (selectedSchool === 'high') return [180, 240, 360, 480, 600];
+    if (selectedSchool === 'nsuneung') return [360, 480, 600, 720];
+    if (selectedSchool === 'university') return [120, 180, 240, 360];
+    if (selectedSchool === 'exam_prep') return [360, 480, 600, 720];
     return [180, 240, 360, 480, 600];
   })();
   const formatGoal = (min) => {
@@ -79,6 +86,7 @@ function OnboardingScreen() {
 
   // D-Day
   const [ddLabel, setDdLabel] = useState('');
+  const [ddDays, setDdDays] = useState(1);
   const [pickerMonth, setPickerMonth] = useState(new Date());
   const [pickerSelected, setPickerSelected] = useState(null);
   const today = new Date().toISOString().split('T')[0];
@@ -89,10 +97,25 @@ function OnboardingScreen() {
       { label: '기말고사', date: null },
       { label: '모의고사', date: null },
     ];
+    if (selectedSchool === 'nsuneung') return [
+      { label: '수능 2026', date: '2026-11-19' },
+      { label: '모의고사', date: null },
+      { label: '원서접수', date: null },
+    ];
     if (selectedSchool === 'middle') return [
       { label: '중간고사', date: null },
       { label: '기말고사', date: null },
       { label: '전국연합', date: null },
+    ];
+    if (selectedSchool === 'university') return [
+      { label: '중간고사', date: null },
+      { label: '기말고사', date: null },
+      { label: '졸업', date: null },
+    ];
+    if (selectedSchool === 'exam_prep') return [
+      { label: '필기시험', date: null },
+      { label: '실기시험', date: null },
+      { label: '면접', date: null },
     ];
     return [
       { label: '중간고사', date: null },
@@ -110,8 +133,8 @@ function OnboardingScreen() {
   }, [pickerMonth]);
   const addDDay = () => {
     if (!ddLabel.trim() || !pickerSelected) return;
-    app.addDDay({ label: ddLabel.trim(), date: pickerSelected });
-    setDdLabel(''); setPickerSelected(null);
+    app.addDDay({ label: ddLabel.trim(), date: pickerSelected, days: ddDays });
+    setDdLabel(''); setPickerSelected(null); setDdDays(1);
   };
 
   // 과목
@@ -122,12 +145,32 @@ function OnboardingScreen() {
       { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
       { name: '사회', color: '#9B6FC3' }, { name: '한자', color: '#E17055' },
     ];
+    if (selectedSchool === 'university') return [
+      { name: '전공', color: '#4A90D9' }, { name: '교양', color: '#5CB85C' },
+      { name: '영어', color: '#E8575A' }, { name: '수학', color: '#F5A623' },
+      { name: '자격증', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
+    ];
+    if (selectedSchool === 'exam_prep') return [
+      { name: '국어', color: '#E8575A' }, { name: '영어', color: '#5CB85C' },
+      { name: '한국사', color: '#F5A623' }, { name: '행정학', color: '#4A90D9' },
+      { name: '행정법', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
+    ];
     return [
       { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
       { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
       { name: '사회', color: '#9B6FC3' }, { name: '역사', color: '#E17055' },
     ];
   })();
+
+  const getSchoolDefaultFavs = (school) => {
+    const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
+    const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏱', type: 'countdown', color: color, totalSec: min * 60 });
+    if (school === 'elementary') return [pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3')];
+    if (school === 'middle') return [pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3')];
+    if (school === 'university') return [pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3')];
+    if (school === 'exam_prep') return [pomo(50, 10, '뽀모 50+10'), cd(60, '1시간', '#5CB85C'), cd(90, '90분', '#4A90D9'), cd(120, '2시간', '#9B6FC3')];
+    return [pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3')];
+  };
 
   const handleFinish = () => {
     app.updateSettings({
@@ -138,6 +181,7 @@ function OnboardingScreen() {
       dailyGoalMin: selectedGoalMin,
       onboardingDone: true,
     });
+    app.setFavs?.(getSchoolDefaultFavs(selectedSchool));
   };
 
   return (
@@ -214,8 +258,8 @@ function OnboardingScreen() {
       {step === 2 && (
         <View style={styles.obStep}>
           <Text style={styles.obEmoji}>🏫</Text>
-          <Text style={[styles.obTitle, { color: T.text }]}>지금 몇 학년이야?</Text>
-          <Text style={[styles.obSub, { color: T.sub }]}>학교급에 맞게 과목이 추천돼요</Text>
+          <Text style={[styles.obTitle, { color: T.text }]}>나는 어떤 학생이야?</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>학습 단계에 맞게 추천이 달라져요</Text>
           <View style={styles.schoolGrid}>
             {SCHOOL_OPTIONS.map(opt => {
               const active = selectedSchool === opt.school && (opt.grade !== null ? selectedElemGrade === opt.grade : true);
@@ -313,9 +357,21 @@ function OnboardingScreen() {
               })}
             </View>
           </View>
+          {/* 시험 기간 */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <Text style={{ fontSize: 11, color: T.sub }}>시험 기간</Text>
+            <View style={{ flexDirection: 'row', gap: 4 }}>
+              {[1,2,3,4,5].map(n => (
+                <TouchableOpacity key={n} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddDays === n ? T.accent : T.border, backgroundColor: ddDays === n ? T.accent : 'transparent' }}
+                  onPress={() => setDdDays(n)}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
           {pickerSelected && ddLabel.trim() ? (
             <TouchableOpacity style={[styles.obAddBtn, { backgroundColor: T.accent + '15', borderColor: T.accent }]} onPress={addDDay}>
-              <Text style={{ color: T.accent, fontWeight: '800', fontSize: 13 }}>+ {ddLabel} ({pickerSelected}) 추가</Text>
+              <Text style={{ color: T.accent, fontWeight: '800', fontSize: 13 }}>+ {ddLabel} ({pickerSelected}{ddDays > 1 ? ` ~ ${ddDays}일간` : ''}) 추가</Text>
             </TouchableOpacity>
           ) : null}
           {app.ddays.length > 0 && (
@@ -323,7 +379,7 @@ function OnboardingScreen() {
               {app.ddays.map(dd => (
                 <View key={dd.id} style={[styles.obDDayItem, { backgroundColor: T.card, borderColor: T.border }]}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: T.text }}>{dd.label}</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>{dd.date}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>{dd.date}{dd.days > 1 ? ` (${dd.days}일간)` : ''}</Text>
                 </View>
               ))}
             </View>
