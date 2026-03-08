@@ -129,6 +129,8 @@ export default function FocusScreen() {
 
   const ultraMood = app.ultraFocus?.gaveUp ? 'sad' : app.ultraFocus?.showChallenge ? 'sad' : app.ultraFocus?.showWarning ? 'sad' : app.mood;
 
+  const mainScrollRef = useRef(null);
+
   // ═══ 🔒 잠금 오버레이 (🔥모드 전용) ═══
   const SLIDE_WIDTH = Dimensions.get('window').width - 80;
   const THUMB_SIZE = 56;
@@ -530,7 +532,7 @@ export default function FocusScreen() {
         </View>
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
+      <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
 
         {/* 🔥모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (
@@ -830,7 +832,7 @@ export default function FocusScreen() {
         {/* 할 일 (탭: 펼치기, 길게: 수정) */}
         <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={S.todoH}><Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text><Text style={[S.todoCnt, { color: T.sub }]}>{app.todos.filter(x => x.done).length}/{app.todos.length}</Text></View>
-          <TextInput value={newTodo} onChangeText={setNewTodo} onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }} placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done" style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
+          <TextInput value={newTodo} onChangeText={setNewTodo} onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }} onFocus={() => setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 300)} placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done" style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
           {app.todos.map(t => (<TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
             onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
             onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
