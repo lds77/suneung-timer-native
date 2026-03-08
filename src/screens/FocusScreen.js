@@ -84,7 +84,7 @@ export default function FocusScreen() {
   };
   const runFav = (fav) => {
     if (fav.type === 'sequence' && fav.seqItems) {
-      const items = fav.seqItems.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
+      const items = fav.seqItems.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown', isBreak: !!it.isBreak }));
       app.startSequence({ items, breakSec: (fav.seqBreak ?? 5) * 60, seqName: fav.label, seqIcon: fav.icon, seqColor: fav.color });
     } else {
       app.addTimer({ type: fav.type, label: `${fav.icon} ${fav.label}`, color: fav.color, subjectId: fav.subjectId || null, totalSec: fav.totalSec || 0, pomoWorkMin: fav.pomoWorkMin || 25, pomoBreakMin: fav.pomoBreakMin || 5 });
@@ -94,7 +94,7 @@ export default function FocusScreen() {
   const handleStartSeq = () => {
     const realItems = seqItems.filter(it => it.label.trim());
     if (realItems.length < 2) { app.showToastCustom('2개 이상 추가하세요!', 'paengi'); return; }
-    app.startSequence({ items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown' })), breakSec: 0, seqName: seqName.trim() || '연속모드' });
+    app.startSequence({ items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown', isBreak: !!it.isBreak })), breakSec: 0, seqName: seqName.trim() || '연속모드' });
     setShowAdd(false);
   };
   const handleSaveSeq = () => {
@@ -598,7 +598,14 @@ export default function FocusScreen() {
           <View style={S.headerLeft}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
             <View style={{ marginLeft: 8 }}><Text style={[S.title, { color: T.text }]}>열공메이트</Text>
-              {app.settings.streak > 0 && <Text style={[S.headerSub, { color: T.sub }]}>🔥{app.settings.streak}일 연속</Text>}
+              {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
+                <Text style={[S.headerSub, { color: T.sub }]}>
+                  {[
+                    app.settings.streak > 0 ? `🔥 ${app.settings.streak}일 연속` : '',
+                    app.todaySessions?.length > 0 ? `📚 오늘 ${app.todaySessions.length}세션` : '',
+                  ].filter(Boolean).join('  ·  ')}
+                </Text>
+              )}
               {plannerRate !== null && (
                 <Text style={{ fontSize: 10, color: T.accent, marginTop: 1, fontWeight: '600' }} numberOfLines={1}>
                   {getPlannerMessage(app.settings.mainCharacter, plannerRate)}
@@ -642,8 +649,8 @@ export default function FocusScreen() {
             const activeTimer = app.timers.find(t => t.planId === plan.id && (t.status === 'running' || t.status === 'paused'));
             const currentSec = completedSec + (activeTimer ? activeTimer.elapsedSec : 0);
             const pct = targetSec > 0 ? Math.min(1, currentSec / targetSec) : 0;
-            if (pct >= 0.8) return { type: 'done', currentSec, targetSec, pct };
             if (activeTimer) return { type: 'running', currentSec, targetSec, pct };
+            if (pct >= 0.8) return { type: 'done', currentSec, targetSec, pct };
             if (completedSec > 0) return { type: 'partial', currentSec, targetSec, pct };
             return { type: 'idle', currentSec, targetSec, pct: 0 };
           };
@@ -702,9 +709,16 @@ export default function FocusScreen() {
                             <Text style={{ fontSize: 14 }}>🔵</Text>
                           ) : status.pct >= 1 ? (
                             <Text style={{ fontSize: 16 }}>✅</Text>
+                          ) : status.type === 'done' ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 14 }}>✅</Text>
+                              <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
+                                <Text style={S.planPlayBtnT}>▶+</Text>
+                              </TouchableOpacity>
+                            </View>
                           ) : (
                             <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
-                              <Text style={S.planPlayBtnT}>{status.type === 'done' ? '▶+' : '▶'}</Text>
+                              <Text style={S.planPlayBtnT}>{status.type === 'partial' ? '▶+' : '▶'}</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -1313,7 +1327,12 @@ export default function FocusScreen() {
               onPress={() => {
                 if (!resultSelfRating) { app.showToastCustom('자기평가를 선택해주세요!', 'paengi'); return; }
                 const data = app.completedResultData;
-                if (data?.sessionId) {
+                if (data?.seqSessionIds?.length) {
+                  // 연속모드: 모든 구간 세션에 자기평가 일괄 적용
+                  data.seqSessionIds.forEach(id => {
+                    app.updateSessionSelfRating(id, resultSelfRating, resultMemo.trim() || null);
+                  });
+                } else if (data?.sessionId) {
                   app.updateSessionSelfRating(data.sessionId, resultSelfRating, resultMemo.trim() || null);
                 }
                 app.setCompletedResultData(null);

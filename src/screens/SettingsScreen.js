@@ -1,10 +1,11 @@
 // src/screens/SettingsScreen.js
 // 탭 4: 설정
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking,
+  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView, findNodeHandle,
+  Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme } from '../constants/colors';
@@ -63,7 +64,7 @@ function Row({ label, right, onPress, T }) {
 
 // 챌린지 입력을 독립된 컴포넌트로 분리하여 부모 리렌더로 인한 포커스 손실 방지
 // React.memo + 색상값 비교 → T 객체 참조가 바뀌어도 실제 색상이 같으면 리렌더 안 함
-const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, T }) {
+const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onFocus, T }) {
   const [text, setText] = useState(initial || '');
   const inputRef = useRef(null);
   useEffect(() => { setText(initial || ''); }, [initial]);
@@ -85,6 +86,7 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, T }
           returnKeyType="done"
           onSubmitEditing={handleSave}
           blurOnSubmit={true}
+          onFocus={onFocus}
         />
         <TouchableOpacity onPress={handleSave} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: T.accent, borderRadius: 8 }}>
           <Text style={{ color: 'white', fontWeight: '700' }}>저장</Text>
@@ -107,6 +109,30 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, T }
 export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const scrollRef = useRef(null);
+  const challengeViewRef = useRef(null);
+  const kbHeightRef = useRef(0);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => { kbHeightRef.current = e.endCoordinates.height; });
+    const hide = Keyboard.addListener('keyboardDidHide', () => { kbHeightRef.current = 0; });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const handleChallengeInputFocus = useCallback(() => {
+    setTimeout(() => {
+      if (!challengeViewRef.current || !scrollRef.current) return;
+      challengeViewRef.current.measureLayout(
+        findNodeHandle(scrollRef.current),
+        (_x, y, _w, h) => {
+          const screenH = Dimensions.get('window').height;
+          const kbH = kbHeightRef.current || 300;
+          // 입력창 하단이 키보드 바로 위(+16px 여백)에 오도록 스크롤
+          const targetY = y - (screenH - kbH) + h + 16;
+          scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
+        },
+        () => {}
+      );
+    }, 200);
+  }, []);
 
   // D-Day 추가/수정 모달 (캘린더 방식)
   const [showDDayModal, setShowDDayModal] = useState(false);
@@ -178,9 +204,9 @@ const [ddLabel, setDdLabel] = useState('');
 
 
   return (
-    <View style={[styles.container, { backgroundColor: T.bg }]}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: T.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always" keyboardDismissMode="none">
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
 
@@ -368,11 +394,12 @@ const [ddLabel, setDdLabel] = useState('');
             💡 타이머 시작 시 🔥집중 도전 / 📖편하게 공부 중 선택해요
           </Text>
           <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>💡 문구 = 챌린지 도전 문구, 정지 = 타이머 일시정지</Text>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+          <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
             <ChallengeInput
               initial={app.settings.challengeText}
               onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
+              onFocus={handleChallengeInputFocus}
               T={T}
             />
           </View>
@@ -476,6 +503,7 @@ const [ddLabel, setDdLabel] = useState('');
 
       {/* D-Day 추가/수정 모달 (캘린더 피커) */}
       <Modal visible={showDDayModal} transparent animationType="fade">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.modalOverlay}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? '📅 D-Day 수정' : '📅 D-Day 추가'}</Text>
             {/* 프리셋 */}
@@ -535,6 +563,7 @@ const [ddLabel, setDdLabel] = useState('');
               <TouchableOpacity style={[styles.modalConfirm, { backgroundColor: T.accent }]} onPress={handleAddDDay}>
                 <Text style={styles.modalConfirmText}>{editingDDay ? '수정' : '추가'}</Text></TouchableOpacity></View>
           </View></ScrollView></View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 📖 사용 가이드 모달 */}
@@ -577,7 +606,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 집중밀도 */}
               <GuideSection title="📊 집중밀도란?" color="#6C5CE7" T={T}>
-                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 40~118점으로 측정해요.\n\n점수 구성 (최대 118점):\n• 완료 점수 (최대 40점) — 타이머를 끝까지 완주했나요?\n• 습관 점수 (최대 30점) — 일시정지를 적게 할수록 높아요\n• 지속력 보너스 (최대 15점) — 오래 공부할수록↑\n• 꾸준함 보너스 (최대 15점) — 하루 여러 세션, 연속 공부일수록↑\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified 달성!\n• 자가평가 보너스 (-5~+3점) — 세션 후 스스로 평가\n\n등급:\nS+ (95+) 🏆 > S (90+) > A (80+) > B (70+) > C (60+) > F\n\n💡 세션이 끝난 후 메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
+                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 20~103점으로 측정해요.\n\n점수 구성 (최대 103점):\n• 완료 점수 (최대 40점) — 타이머를 끝까지 완주했나요?\n• 습관 점수 (최대 30점) — 일시정지를 적게 할수록 높아요\n• 지속력 보너스 (최대 15점) — 오래 공부할수록↑\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified 달성!\n• 자가평가 보너스 (-5~+3점) — 세션 후 스스로 평가\n\n등급:\nS+ (95+) 🏆 > S (90+) > A (80+) > B (70+) > C (60+) > F\n\n💡 세션이 끝난 후 메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}
@@ -615,7 +644,7 @@ const [ddLabel, setDdLabel] = useState('');
       </Modal>
 
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

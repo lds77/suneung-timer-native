@@ -1,10 +1,11 @@
 // src/utils/density.js
-// 집중 밀도 점수 계산 엔진 v3
+// 집중 밀도 점수 계산 엔진 v5
 
 import { getTier } from '../constants/presets';
 
 /**
- * 집중밀도 공식 (최대 118점)
+ * 집중밀도 공식 v5 (최대 103점)
+ * — 꾸준함 보너스 제거: 밀도는 한 세션의 집중도만 측정
  *
  * ━━━ 완료 점수 (0~40) ━━━
  *   카운트다운 완료              = 40
@@ -21,24 +22,19 @@ import { getTier } from '../constants/presets';
  *   일시정지 0회 = 30
  *   1회 = 25, 2회 = 20, 3회 = 15, 4회+ = 10
  *
- * ━━━ 지속력 보너스 (0~15) ━━━  ← NEW v3
- *   15분 미만   = +0
- *   15분~30분   = +3
- *   30분~60분   = +7
+ * ━━━ 지속력 보너스 (0~15) ━━━
+ *   10분 미만   = +0
+ *   10분~15분   = +3
+ *   15분~30분   = +6
+ *   30분~60분   = +9
  *   60분~90분   = +12
  *   90분 이상   = +15
  *
- * ━━━ 꾸준함 보너스 (0~15) ━━━
- *   오늘 2세션 이상 = +5
- *   오늘 3세션 이상 = +10
- *   연속 공부 3일+  = +5
- *
- * ━━━ 선언 보너스 (0~15, 🔥모드 전용) ━━━
- *   📖 편하게 공부 모드          = +0
- *   🔥 집중 도전 모드 선택       = +5 (기본)
- *   🔥 + 이탈 0회 완료          = +15 (Verified!)
- *   🔥 + 이탈 1~2회             = +8
- *   🔥 + 이탈 3회+              = +3
+ * ━━━ 선언 보너스 (0~15) ━━━
+ *   📖 편하게 공부 모드 완료     = +5
+ *   🔥 집중 도전 모드 이탈 0회   = +15 (Verified!)
+ *   🔥 집중 도전 모드 이탈 1~2회 = +8
+ *   🔥 집중 도전 모드 이탈 3회+  = +3
  *
  * ━━━ 자가평가 보너스 (-5~+3) ━━━
  *   🔥 또는 ⚡ 선택 시           = +3
@@ -46,7 +42,7 @@ import { getTier } from '../constants/presets';
  *   😴 선택 시                  = -5
  *   선택 안 함                  = +0
  *
- * 이론 최대: 40+30+15+15+15+3 = 118
+ * 이론 최대: 40+30+15+15+3 = 103
  */
 
 export const calculateDensity = ({
@@ -58,8 +54,6 @@ export const calculateDensity = ({
   focusMode = 'screen_off',
   exitCount = 0,
   selfRating = null,
-  todaySessionCount = 0,
-  streak = 0,
 }) => {
   if (totalSec < 30) return 100;
 
@@ -91,34 +85,32 @@ export const calculateDensity = ({
   else if (pausedCount === 3) habitScore = 15;
   else if (pausedCount >= 4) habitScore = 10;
 
-  // 3. 지속력 보너스 (0~15) — 공부 시간 가중치
+  // 3. 지속력 보너스 (0~15) — 10분부터 인정
   let persistenceBonus = 0;
   if (totalMin >= 90) persistenceBonus = 15;
   else if (totalMin >= 60) persistenceBonus = 12;
-  else if (totalMin >= 30) persistenceBonus = 7;
-  else if (totalMin >= 15) persistenceBonus = 3;
+  else if (totalMin >= 30) persistenceBonus = 9;
+  else if (totalMin >= 15) persistenceBonus = 6;
+  else if (totalMin >= 10) persistenceBonus = 3;
 
-  // 4. 꾸준함 보너스 (0~15)
-  let consistencyBonus = 0;
-  if (todaySessionCount >= 3) consistencyBonus += 10;
-  else if (todaySessionCount >= 2) consistencyBonus += 5;
-  if (streak >= 3) consistencyBonus += 5;
-
-  // 5. 선언 보너스 (0~15)
+  // 4. 선언 보너스 (0~15)
   let declarationBonus = 0;
   if (focusMode === 'screen_on') {
     if (exitCount === 0) declarationBonus = 15;
     else if (exitCount <= 2) declarationBonus = 8;
     else declarationBonus = 3;
+  } else if (focusMode === 'screen_off') {
+    // 📖 편하게공부 모드: 완료한 경우 +5 보너스
+    if (completionRatio >= 1 || timerType !== 'countdown') declarationBonus = 5;
   }
 
-  // 6. 자가평가 보너스 (-5~+3)
+  // 5. 자가평가 보너스 (-5~+3)
   let selfBonus = 0;
   if (selfRating === 'fire' || selfRating === 'perfect') selfBonus = 3;
   else if (selfRating === 'sleepy') selfBonus = -5;
 
-  const total = completionScore + habitScore + persistenceBonus + consistencyBonus + declarationBonus + selfBonus;
-  return Math.max(40, Math.min(118, Math.round(total)));
+  const total = completionScore + habitScore + persistenceBonus + declarationBonus + selfBonus;
+  return Math.max(20, Math.min(103, Math.round(total)));
 };
 
 export const getDensityTier = (density) => getTier(density);
@@ -134,7 +126,6 @@ export const getDensityBreakdown = (params) => {
   const {
     pausedCount = 0, totalSec = 0, timerType = 'free', completionRatio = 1,
     pomoSets = 0, focusMode = 'screen_off', exitCount = 0, selfRating = null,
-    todaySessionCount = 0, streak = 0,
   } = params;
   const totalMin = totalSec / 60;
 
@@ -146,11 +137,11 @@ export const getDensityBreakdown = (params) => {
 
   const hs = pausedCount === 0 ? 30 : pausedCount === 1 ? 25 : pausedCount === 2 ? 20 : pausedCount === 3 ? 15 : 10;
 
-  const pb = totalMin >= 90 ? 15 : totalMin >= 60 ? 12 : totalMin >= 30 ? 7 : totalMin >= 15 ? 3 : 0;
+  const pb = totalMin >= 90 ? 15 : totalMin >= 60 ? 12 : totalMin >= 30 ? 9 : totalMin >= 15 ? 6 : totalMin >= 10 ? 3 : 0;
 
-  const cb = (todaySessionCount >= 3 ? 10 : todaySessionCount >= 2 ? 5 : 0) + (streak >= 3 ? 5 : 0);
-
-  const db = focusMode === 'screen_on' ? (exitCount === 0 ? 15 : exitCount <= 2 ? 8 : 3) : 0;
+  const db = focusMode === 'screen_on'
+    ? (exitCount === 0 ? 15 : exitCount <= 2 ? 8 : 3)
+    : (focusMode === 'screen_off' && (completionRatio >= 1 || timerType !== 'countdown') ? 5 : 0);
 
   const sb = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
 
@@ -158,10 +149,9 @@ export const getDensityBreakdown = (params) => {
     completionScore: cs,
     habitScore: hs,
     persistenceBonus: pb,
-    consistencyBonus: cb,
     declarationBonus: db,
     selfBonus: sb,
-    total: Math.max(40, Math.min(118, cs + hs + pb + cb + db + sb)),
+    total: Math.max(20, Math.min(103, cs + hs + pb + db + sb)),
     focusMode, exitCount, verified: focusMode === 'screen_on' && exitCount === 0,
   };
 };

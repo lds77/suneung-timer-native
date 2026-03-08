@@ -2,7 +2,7 @@
 // v23: 학습법 탭 + 고등 수능 탭
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
@@ -425,6 +425,7 @@ export default function SubjectsScreen() {
 
       {/* 과목 추가 모달 */}
       <Modal visible={showAdd} transparent animationType="fade">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>과목 추가</Text>
           <TextInput value={addName} onChangeText={setAddName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}
@@ -447,6 +448,7 @@ export default function SubjectsScreen() {
               <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>추가</Text></TouchableOpacity>
           </View>
         </View></View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

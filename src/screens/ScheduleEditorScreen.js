@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView,
+  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
@@ -427,7 +427,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 고정 일정 추가 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
           onRequestClose={() => setShowAddFixed(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>고정 일정 추가</Text>
@@ -502,7 +502,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 공부 계획 추가 모달 ── */}
         <Modal visible={showAddPlan} transparent animationType="slide"
           onRequestClose={() => setShowAddPlan(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>과목 추가</Text>
@@ -552,7 +552,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       {PLAN_ICONS.map(ic => (
-                        <TouchableOpacity key={ic} onPress={() => setPlanIcon(ic)}
+                        <TouchableOpacity key={ic} onPress={() => { setPlanIcon(ic); Keyboard.dismiss(); }}
                           style={[s.iconChip, planIcon === ic && { backgroundColor: T.accent + '20', borderColor: T.accent }]}>
                           <Text style={{ fontSize: 20 }}>{ic}</Text>
                         </TouchableOpacity>
@@ -563,7 +563,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   <Text style={[s.fieldLabel, { color: T.sub }]}>색상</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                     {PLAN_COLORS.map(c => (
-                      <TouchableOpacity key={c} onPress={() => setPlanColor(c)}
+                      <TouchableOpacity key={c} onPress={() => { setPlanColor(c); Keyboard.dismiss(); }}
                         style={[s.colorDot, { backgroundColor: c }, planColor === c && s.colorDotSel]}>
                         {planColor === c && <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>✓</Text>}
                       </TouchableOpacity>

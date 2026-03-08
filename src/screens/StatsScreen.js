@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Pressable,
-  StyleSheet, Dimensions, Share, Animated, TextInput, Platform,
+  StyleSheet, Dimensions, Share, Animated, TextInput, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -1622,6 +1622,7 @@ export default function StatsScreen() {
 
       {/* ── 메모 수정 모달 ── */}
       <Modal visible={!!editMemo} transparent animationType="fade">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={S.mo}>
           <View style={[S.moScroll]}>
             <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }]}>
@@ -1656,6 +1657,7 @@ export default function StatsScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 주간 리포트 카드 모달 ── */}
@@ -2345,16 +2347,17 @@ export default function StatsScreen() {
               </View>
               {/* 점수 계산 기준 */}
               <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: T.text, marginBottom: 8 }}>💡 밀도 점수 기준</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: T.text, marginBottom: 8 }}>💡 밀도 점수 기준 (최대 103점)</Text>
                 {[
-                  { icon: '⏱', label: '기본 점수', desc: '시간이 길수록 기본점 부여' },
-                  { icon: '🔥', label: '집중모드 보너스', desc: '🔥 집중도전(화면 ON) + 이탈 없음 시 최대 +15점' },
-                  { icon: '⏸', label: '일시정지 패널티', desc: '자주 멈출수록 -점' },
-                  { icon: '✅', label: '자기평가 보너스', desc: '세션 종료 시 자기평가 +점' },
+                  { icon: '✅', label: '완료 점수 (최대 40점)', desc: '타이머를 끝까지 완주할수록 높아요' },
+                  { icon: '⏸', label: '습관 점수 (최대 30점)', desc: '일시정지를 적게 할수록 높아요' },
+                  { icon: '⏱', label: '지속력 보너스 (최대 15점)', desc: '10분부터 인정, 90분 이상 시 최대' },
+                  { icon: '🔥', label: '선언 보너스 (최대 15점)', desc: '🔥모드 이탈 0회 Verified +15 / 📖모드 완료 +5' },
+                  { icon: '⭐', label: '자가평가 보너스 (-5~+3점)', desc: '세션 종료 후 스스로 집중도를 평가해요' },
                 ].map(item => (
                   <View key={item.label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
                     <Text style={{ fontSize: 13 }}>{item.icon}</Text>
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 10, fontWeight: '800', color: T.text }}>{item.label}</Text>
                       <Text style={{ fontSize: 9, color: T.sub }}>{item.desc}</Text>
                     </View>

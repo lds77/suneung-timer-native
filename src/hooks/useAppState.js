@@ -140,7 +140,7 @@ export function AppProvider({ children }) {
         result: null, laps: [],
         seqItems: items, seqIndex: 0, seqTotal: items.length,
         seqBreakSec: breakSec, seqPhase: 'work',
-        seqName, seqIcon, seqColor,
+        seqName, seqIcon, seqColor, seqSessionIds: [],
       };
       setTimers(prev => [...prev, timer]);
       scheduleAllPhaseNotifs(timer);
@@ -485,7 +485,6 @@ export function AppProvider({ children }) {
       timerType, completionRatio,
       pomoSets: t.pomoSet || 0, focusMode: mode,
       exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
-      todaySessionCount: todaySessions.length, streak: settings.streak,
     });
     const { getTier } = require('../constants/presets');
     return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
@@ -513,16 +512,20 @@ export function AppProvider({ children }) {
   // 연속모드 페이즈 전환 (pomoFlip 패턴)
   const seqFlip = (t, skipNotif = false) => {
     if (t.seqPhase === 'work') {
-      // 현재 항목 세션 기록
-      if (t.elapsedSec >= 60) {
+      // 현재 항목 세션 기록 (쉬는시간 항목은 제외)
+      const currentItem = t.seqItems[t.seqIndex];
+      const isBreakItem = currentItem?.isBreak;
+      let updatedSeqSessionIds = t.seqSessionIds || [];
+      if (t.elapsedSec >= 60 && !isBreakItem) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        recordSessionInternal({
+        const sessId = recordSessionInternal({
           subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
           durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
           exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           focusMode: mode, timerType: 'countdown', completionRatio: 1,
         });
+        if (sessId) updatedSeqSessionIds = [...updatedSeqSessionIds, sessId];
       }
       const nextIndex = t.seqIndex + 1;
       if (nextIndex >= t.seqTotal) {
@@ -530,19 +533,19 @@ export function AppProvider({ children }) {
         if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500]);
         phaseNotifMap.current.delete(t.id);
         const result = calcResult(t, t.totalSec);
-        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal });
-        return { ...t, elapsedSec: 0, status: 'completed', result };
+        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
+        return { ...t, elapsedSec: 0, status: 'completed', result, seqSessionIds: updatedSeqSessionIds };
       }
       // 쉬는시간 전환 — 알림은 예약 알림이 처리
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0 };
+      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds };
     } else {
       // 쉬는시간 끝 → 다음 항목 시작
       const nextItem = t.seqItems[t.seqIndex + 1];
       if (!nextItem) {
         // 안전장치
         const result = calcResult(t, 0);
-        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal });
+        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: t.seqSessionIds || [] });
         return { ...t, status: 'completed', result };
       }
       const advanceStartedAt = Date.now();
@@ -713,7 +716,9 @@ export function AppProvider({ children }) {
             await push(offset, '📋 연속 실행 완료!', '모든 과목을 끝냈어! 🎉');
             break;
           }
-          await push(offset, `✅ ${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 🥤 (${Math.round(timer.seqBreakSec / 60)}분)`);
+          if (timer.seqBreakSec > 0) {
+            await push(offset, `✅ ${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 🥤 (${Math.round(timer.seqBreakSec / 60)}분)`);
+          }
           phase = 'break';
           offset += timer.seqBreakSec;
         } else {
@@ -900,10 +905,14 @@ export function AppProvider({ children }) {
     setTimers(prev => {
       const t = prev.find(timer => timer.id === id);
       if (t && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60) {
+        const mode = focusModeRef.current || 'screen_off';
+        const ufState = ultraRef.current;
         recordSessionInternal({
           subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
           durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount,
-          planId: t.planId || null,
+          focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
+          timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
+          pomoSets: t.pomoSet || 0, planId: t.planId || null,
         });
       }
       return prev.filter(timer => timer.id !== id);
@@ -1130,7 +1139,6 @@ export function AppProvider({ children }) {
     const density = calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
-      todaySessionCount: todaySessions.length, streak: settings.streak,
     });
     const { getTier } = require('../constants/presets');
     const tier = getTier(density);
@@ -1160,7 +1168,7 @@ export function AppProvider({ children }) {
       if (s.id !== sessionId) return s;
       const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : s.selfRating === 'sleepy' ? -5 : 0;
       const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
-      const newDensity = Math.max(40, Math.min(118, (s.focusDensity || 0) - oldBonus + newBonus));
+      const newDensity = Math.max(20, Math.min(103, (s.focusDensity || 0) - oldBonus + newBonus));
       const { getTier } = require('../constants/presets');
       return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id, ...(memo !== undefined && memo !== null ? { memo } : {}) };
     }));
