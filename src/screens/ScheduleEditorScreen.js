@@ -6,6 +6,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Switch, Alert, StyleSheet, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
 import { generateId } from '../utils/format';
@@ -50,6 +51,7 @@ const LEVEL_LABELS = {
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const todayKey = getTodayKey();
 
@@ -272,7 +274,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: T.bg }}>
 
         {/* 헤더 */}
-        <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg }]}>
+        <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg, paddingTop: insets.top + 12 }]}>
           <Text style={[s.headerTitle, { color: T.text }]}>📅 주간 플래너 설정</Text>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}>
             <Text style={[s.closeText, { color: T.accent }]}>닫기</Text>
@@ -643,7 +645,6 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 44 : 16,
     paddingBottom: 12, borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 17, fontWeight: '900' },
