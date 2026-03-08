@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Claude Code AI memory
+.claude/
+
 # Expo
 .expo/
 dist/
