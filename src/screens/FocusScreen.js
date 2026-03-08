@@ -523,7 +523,7 @@ export default function FocusScreen() {
   };
 
   return (
-    <View style={[S.container, { backgroundColor: T.bg }]}>
+    <KeyboardAvoidingView style={[S.container, { backgroundColor: T.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={56}>
 
       {/* ═══ 타이머 고정 영역: 실행 중 대형 뷰 ═══ */}
       {nonLapActive.length > 0 && (
@@ -1334,7 +1334,7 @@ export default function FocusScreen() {
 
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
