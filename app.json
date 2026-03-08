@@ -2,7 +2,7 @@
   "expo": {
     "name": "열공메이트",
     "slug": "yeolgong-timer",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yeolgong.timer",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -28,7 +28,7 @@
         "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
-      "versionCode": 10,
+      "versionCode": 11,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
