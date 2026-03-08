@@ -1,6 +1,6 @@
 // src/screens/FocusScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme } from '../constants/colors';
@@ -1158,6 +1158,7 @@ export default function FocusScreen() {
 
       {/* 잠금 해제 챌린지 모달 */}
       <Modal visible={!!app.ultraFocus?.showChallenge} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={S.chalOverlay}>
           <View style={[S.chalBox, { backgroundColor: T.card }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={90} mood="sad" />
@@ -1191,6 +1192,7 @@ export default function FocusScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 🔒 잠금 오버레이 (🔥모드 전용) - 풀스크린 모달 */}
@@ -1257,6 +1259,7 @@ export default function FocusScreen() {
 
       {/* ── 완료 결과 + 자기평가 ── */}
       <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
@@ -1324,6 +1327,7 @@ export default function FocusScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 주간 플래너 편집 */}
