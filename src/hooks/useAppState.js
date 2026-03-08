@@ -103,8 +103,8 @@ export function AppProvider({ children }) {
           // 랩 스톱워치는 무한
           if (t.type === 'lap') return next;
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
-            const sessId = fireComplete(t);
-            return { ...next, status: 'completed', result: calcResult(t, next.elapsedSec), ...(sessId ? { memoSessionId: sessId } : {}) };
+            const sessId = fireComplete(next);
+            return { ...next, status: 'completed', result: calcResult(next, next.elapsedSec), ...(sessId ? { memoSessionId: sessId } : {}) };
           }
           if (t.type === 'pomodoro') {
             const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;

@@ -125,8 +125,8 @@ export default function SettingsScreen() {
         (_x, y, _w, h) => {
           const screenH = Dimensions.get('window').height;
           const kbH = kbHeightRef.current || 300;
-          // 입력창 하단이 키보드 바로 위(+16px 여백)에 오도록 스크롤
-          const targetY = y - (screenH - kbH) + h + 16;
+          // 입력창 하단이 키보드 바로 위(+54px 여백 ≈ 1cm 추가)에 오도록 스크롤
+          const targetY = y - (screenH - kbH) + h + 54;
           scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
         },
         () => {}
