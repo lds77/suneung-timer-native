@@ -471,7 +471,7 @@ function MainApp() {
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <NavigationContainer>
           <Tab.Navigator screenOptions={{
             headerShown: false,

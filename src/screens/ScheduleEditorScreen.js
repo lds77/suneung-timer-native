@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  Modal, TextInput, Switch, Alert, StyleSheet, Platform,
+  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
@@ -427,6 +427,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 고정 일정 추가 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
           onRequestClose={() => setShowAddFixed(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>고정 일정 추가</Text>
@@ -495,11 +496,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── 공부 계획 추가 모달 ── */}
         <Modal visible={showAddPlan} transparent animationType="slide"
           onRequestClose={() => setShowAddPlan(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>과목 추가</Text>
@@ -594,6 +597,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── 요일 복사 모달 ── */}
