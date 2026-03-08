@@ -796,6 +796,19 @@ export default function FocusScreen() {
         </View>
 
 
+        {/* 할 일 (탭: 펼치기, 길게: 수정) */}
+        <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
+          <View style={S.todoH}><Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text><Text style={[S.todoCnt, { color: T.sub }]}>{app.todos.filter(x => x.done).length}/{app.todos.length}</Text></View>
+          <TextInput value={newTodo} onChangeText={setNewTodo} onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }} placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done" style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
+          {app.todos.map(t => (<TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
+            onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
+            onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
+            <TouchableOpacity onPress={() => app.toggleTodo(t.id)} style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent' }]}>{t.done && <Text style={S.todoCkM}>✓</Text>}</TouchableOpacity>
+            <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]} numberOfLines={expandedTodo === t.id ? 10 : 2}>{t.text}</Text>
+            <TouchableOpacity onPress={() => app.removeTodo(t.id)}><Text style={[S.todoDel, { color: T.sub }]}>×</Text></TouchableOpacity></TouchableOpacity>))}
+          {app.todos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 4 }}>탭: 펼치기 · 길게: 수정</Text>}
+        </View>
+
         {/* 노이즈 */}
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -828,19 +841,6 @@ export default function FocusScreen() {
               <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.card }]} onPress={() => app.updateSettings({ soundId: s.id })}><Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text }]}>{s.t}</Text></TouchableOpacity>
             ))}
           </View></View>
-
-        {/* 할 일 (탭: 펼치기, 길게: 수정) */}
-        <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
-          <View style={S.todoH}><Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text><Text style={[S.todoCnt, { color: T.sub }]}>{app.todos.filter(x => x.done).length}/{app.todos.length}</Text></View>
-          <TextInput value={newTodo} onChangeText={setNewTodo} onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }} onFocus={() => setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 300)} placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done" style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
-          {app.todos.map(t => (<TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
-            onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
-            onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
-            <TouchableOpacity onPress={() => app.toggleTodo(t.id)} style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent' }]}>{t.done && <Text style={S.todoCkM}>✓</Text>}</TouchableOpacity>
-            <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]} numberOfLines={expandedTodo === t.id ? 10 : 2}>{t.text}</Text>
-            <TouchableOpacity onPress={() => app.removeTodo(t.id)}><Text style={[S.todoDel, { color: T.sub }]}>×</Text></TouchableOpacity></TouchableOpacity>))}
-          {app.todos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 4 }}>탭: 펼치기 · 길게: 수정</Text>}
-        </View>
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
