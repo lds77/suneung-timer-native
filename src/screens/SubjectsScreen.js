@@ -238,21 +238,6 @@ export default function SubjectsScreen() {
           ))}
         </View>
 
-        {/* 연속모드 진행 */}
-        {(() => {
-          const seqTimer = app.timers.find(t => t.type === 'sequence' && (t.status === 'running' || t.status === 'paused'));
-          if (!seqTimer) return null;
-          return (
-            <View style={[S.queueBar, { backgroundColor: T.accent + '12', borderColor: T.accent + '30' }]}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>
-                {seqTimer.seqIcon || '📋'} {seqTimer.seqName || '연속모드'} {seqTimer.seqPhase === 'break' ? '☕ 쉬는중' : `${(seqTimer.seqIndex || 0) + 1}/${seqTimer.seqTotal}`}
-              </Text>
-              <TouchableOpacity onPress={app.cancelSequence}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: T.red }}>취소</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })()}
 
         {/* ═══ 탭: 추천 루틴 ═══ */}
         {tab === 'routine' && (

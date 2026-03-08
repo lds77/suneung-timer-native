@@ -536,10 +536,13 @@ export default function FocusScreen() {
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (
           <View style={[S.ultraStatus, { backgroundColor: '#FF6B6B12', borderColor: '#FF6B6B40' }]}>
             <Text style={{ fontSize: 10, fontWeight: '700', color: '#FF6B6B', flex: 1 }}>
-              🔥 집중 도전 중 · {app.settings.ultraFocusLevel === 'exam' ? '🔴 시험' : app.settings.ultraFocusLevel === 'focus' ? '🟡 집중' : '🟢 일반'} · {app.ultraFocus?.exitCount > 0 ? `이탈 ${app.ultraFocus.exitCount}회` : '이탈 0회 유지 중! 🏆'}
+              🔥 집중 도전 중 · {app.settings.ultraFocusLevel === 'exam' ? '🔴 시험' : app.settings.ultraFocusLevel === 'focus' ? '🟡 집중' : '🟢 일반'} · {app.ultraFocus?.exitCount > 0 ? `이탈 ${app.ultraFocus.exitCount}회` : '이탈 0회 유지 중!'}
             </Text>
             <TouchableOpacity onPress={lockScreen} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#FF6B6B20', marginRight: 4 }}>
-              <Text style={{ fontSize: 9, fontWeight: '700', color: '#FF6B6B' }}>🔒 잠금</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 9 }}>🔒</Text>
+                <Text style={{ fontSize: 9, fontWeight: '700', color: '#FF6B6B' }}> 잠금</Text>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => app.allowPause?.()} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#FF6B6B20' }}>
               <Text style={{ fontSize: 9, fontWeight: '700', color: '#FF6B6B' }}>⏸️ 잠깐</Text>
@@ -1244,7 +1247,7 @@ export default function FocusScreen() {
               <Animated.Text style={[S.lockSlideHint, { opacity: slideOpacity }]}>🔓 옆으로 밀어서 잠금 해제</Animated.Text>
               <View style={[S.lockSlideTrack, { width: SLIDE_WIDTH }]}>
                 <Animated.View style={[S.lockSlideThumb, { transform: [{ translateX: slideX }] }]} {...panResponder.panHandlers}>
-                  <Text style={{ fontSize: 22 }}>→</Text>
+                  <Text style={{ fontSize: 22, color: '#000000', fontWeight: '900' }}>→</Text>
                 </Animated.View>
               </View>
             </View>
@@ -1471,5 +1474,5 @@ const S = StyleSheet.create({
   lockSlideWrap: { alignItems: 'center', position: 'absolute', bottom: 80, left: 0, right: 0 },
   lockSlideHint: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginBottom: 14, letterSpacing: 1 },
   lockSlideTrack: { height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center' },
-  lockSlideThumb: { width: 56, height: 54, borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center' },
+  lockSlideThumb: { width: 56, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
 });

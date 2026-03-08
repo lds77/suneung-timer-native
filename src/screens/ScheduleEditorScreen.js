@@ -1,7 +1,7 @@
 // src/screens/ScheduleEditorScreen.js
 // 주간 플래너 편집 화면 — Modal로 SettingsScreen에서 진입
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Switch, Alert, StyleSheet, Platform,
@@ -50,6 +50,7 @@ const LEVEL_LABELS = {
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const scrollRef = useRef(null);
   const todayKey = getTodayKey();
 
   const [selectedDay, setSelectedDay] = useState(todayKey);
@@ -267,8 +268,8 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   );
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
-      <View style={[s.container, { backgroundColor: T.bg }]}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: T.bg }}>
 
         {/* 헤더 */}
         <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg }]}>
@@ -278,7 +279,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView key={visible ? 1 : 0} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" nestedScrollEnabled={true}>
 
           {/* ON/OFF */}
           <View style={[s.toggleRow, { backgroundColor: T.card, borderColor: T.border }]}>

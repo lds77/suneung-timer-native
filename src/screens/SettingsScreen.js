@@ -38,6 +38,29 @@ function GuideSection({ title, color, T, children }) {
   );
 }
 
+function Section({ title, children, T }) {
+  return (
+    <View style={[styles.section, { borderColor: T.border }]}>
+      <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Row({ label, right, onPress, T }) {
+  return (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      disabled={!onPress}
+      activeOpacity={onPress ? 0.6 : 1}
+    >
+      <Text style={[styles.rowLabel, { color: T.text }]}>{label}</Text>
+      <View style={styles.rowRight}>{right}</View>
+    </TouchableOpacity>
+  );
+}
+
 // 챌린지 입력을 독립된 컴포넌트로 분리하여 부모 리렌더로 인한 포커스 손실 방지
 // React.memo + 색상값 비교 → T 객체 참조가 바뀌어도 실제 색상이 같으면 리렌더 안 함
 const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, T }) {
@@ -153,25 +176,6 @@ const [ddLabel, setDdLabel] = useState('');
   };
 
 
-  // 설정 아이템 렌더링
-  const Section = ({ title, children }) => (
-    <View style={[styles.section, { borderColor: T.border }]}>
-      <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
-      {children}
-    </View>
-  );
-
-  const Row = ({ label, right, onPress }) => (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={onPress}
-      disabled={!onPress}
-      activeOpacity={onPress ? 0.6 : 1}
-    >
-      <Text style={[styles.rowLabel, { color: T.text }]}>{label}</Text>
-      <View style={styles.rowRight}>{right}</View>
-    </TouchableOpacity>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: T.bg }]}>
@@ -181,7 +185,7 @@ const [ddLabel, setDdLabel] = useState('');
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
 
         {/* 캐릭터 */}
-        <Section title="캐릭터">
+        <Section T={T} title="캐릭터">
           <View style={styles.charGrid}>
             {CHARACTER_LIST.map(cId => {
               const c = CHARACTERS[cId];
@@ -210,7 +214,7 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
         {/* 목표 (목표시간 + 학교급) */}
-        <Section title="목표">
+        <Section T={T} title="목표">
           <Text style={[styles.goalLabel, { color: T.sub }]}>일일 목표 시간</Text>
           {[DAILY_GOAL_OPTIONS.slice(0, 6), DAILY_GOAL_OPTIONS.slice(6, 12)].map((row, ri) => (
             <View key={ri} style={[styles.goalRow, ri === 0 && { marginBottom: 5 }]}>
@@ -278,7 +282,7 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
         {/* D-Day */}
-        <Section title={`D-Day (${app.ddays.length}/10)`}>
+        <Section T={T} title={`D-Day (${app.ddays.length}/10)`}>
           {app.ddays.map(dd => (
             <View key={dd.id} style={[styles.ddayRow, { borderColor: T.border }]}>
               <TouchableOpacity onPress={() => app.setPrimaryDDay(dd.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -307,8 +311,9 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
         {/* 알림 */}
-        <Section title="알림">
+        <Section T={T} title="알림">
           <Row
+            T={T}
             label="타이머 완료 알림"
             right={
               <Switch
@@ -335,7 +340,7 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
         {/* 🔥 집중 도전 모드 */}
-        <Section title="🔥 집중 도전 모드">
+        <Section T={T} title="🔥 집중 도전 모드">
           <Text style={[styles.hint, { color: T.text, fontWeight: '700', marginBottom: 4 }]}>🔥모드 잠금 강도</Text>
           <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
             {/* desc: 문구=챌린지 도전 문구, 정지=타이머 일시정지 */}
@@ -375,8 +380,9 @@ const [ddLabel, setDdLabel] = useState('');
 
 
         {/* 테마 */}
-        <Section title="테마">
+        <Section T={T} title="테마">
           <Row
+            T={T}
             label="다크 모드"
             right={
               <Switch
@@ -448,20 +454,20 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
 {/* 사용 가이드 */}
-        <Section title="도움말">
+        <Section T={T} title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>
-            <Row label="📖 사용 가이드" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="📖 사용 가이드" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
 
         {/* 정보 */}
-        <Section title="정보">
-          <Row label="버전" right={<Text style={[styles.rowValue, { color: T.sub }]}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>} />
+        <Section T={T} title="정보">
+          <Row T={T} label="버전" right={<Text style={[styles.rowValue, { color: T.sub }]}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>} />
           <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/privacy-policy.html')}>
-            <Row label="개인정보 처리방침" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="개인정보 처리방침" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL('mailto:dongsikl51@gmail.com?subject=열공메이트 피드백')}>
-            <Row label="피드백 보내기" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="피드백 보내기" right={<Text style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
 
@@ -533,10 +539,11 @@ const [ddLabel, setDdLabel] = useState('');
 
       {/* 📖 사용 가이드 모달 */}
       <Modal visible={showGuide} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 40 }}>
-            <View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+            <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 기본 사용법 */}
               <GuideSection title="⏰ 기본 사용법" color={T.accent} T={T}>
@@ -602,8 +609,8 @@ const [ddLabel, setDdLabel] = useState('');
               <TouchableOpacity onPress={() => setShowGuide(false)} style={[styles.modalCancel, { borderColor: T.border, marginTop: 14 }]}>
                 <Text style={[styles.modalCancelText, { color: T.sub }]}>닫기</Text>
               </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
