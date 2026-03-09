@@ -11,12 +11,12 @@ export const SUBJECT_PRESETS = [
 ];
 
 export const TIERS = [
-  { id: 'S+', min: 95, max: 120, color: '#FFD700', label: 'S+', message: '전설!' },
-  { id: 'S',  min: 90, max: 94,  color: '#FF6B9D', label: 'S',  message: '완벽!' },
-  { id: 'A',  min: 80, max: 89,  color: '#6C5CE7', label: 'A',  message: '대단해!' },
-  { id: 'B',  min: 70, max: 79,  color: '#00B894', label: 'B',  message: '좋아!' },
-  { id: 'C',  min: 60, max: 69,  color: '#FDCB6E', label: 'C',  message: '괜찮아' },
-  { id: 'F',  min: 0,  max: 59,  color: '#B2BEC3', label: 'F',  message: '다음엔...' },
+  { id: 'SS', min: 100, max: 120, color: '#FF4FCC', label: 'SS', message: '전설!' },
+  { id: 'S+', min: 93,  max: 99,  color: '#FFD700', label: 'S+', message: '완벽!' },
+  { id: 'S',  min: 86,  max: 92,  color: '#FF6B9D', label: 'S',  message: '대단해!' },
+  { id: 'A',  min: 76,  max: 85,  color: '#6C5CE7', label: 'A',  message: '훌륭해!' },
+  { id: 'B',  min: 66,  max: 75,  color: '#00B894', label: 'B',  message: '좋아!' },
+  { id: 'C',  min: 56,  max: 65,  color: '#F5A623', label: 'C',  message: '오늘도 수고했어!' },
 ];
 
 export const getTier = (density) => {

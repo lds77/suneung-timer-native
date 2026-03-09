@@ -46,9 +46,18 @@ const ACCENT_COLORS = {
 
 const FONT_SCALES = { small: 0.85, medium: 1.0, large: 1.15 };
 
-export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium') => {
+// 스타일 프리셋: cute(귀여운) / minimal(미니멀)
+// cardRadius: 카드/모달 borderRadius, buttonRadius: 버튼, chipRadius: 뱃지/칩
+// characterScale: 캐릭터 아바타 크기 배율
+const STYLE_PRESETS = {
+  cute:    { cardRadius: 20, buttonRadius: 14, chipRadius: 20, characterScale: 1.15 },
+  minimal: { cardRadius: 10, buttonRadius: 8,  chipRadius: 6,  characterScale: 1.0  },
+};
+
+export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium', stylePreset = 'cute') => {
   const ac = ACCENT_COLORS[accentColor] || ACCENT_COLORS.pink;
   const fs = FONT_SCALES[fontScaleId] || 1.0;
+  const sp = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.cute;
 
   if (darkMode) {
     return {
@@ -57,6 +66,9 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium')
       text: '#E8E8F2', sub: '#9898B0', accent: ac.accent, accentLight: ac.dt2,
       green: '#00B894', red: '#E84057', gold: '#FFD700',
       purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#636E72', fontScale: fs,
+      cardRadius: sp.cardRadius, buttonRadius: sp.buttonRadius,
+      chipRadius: sp.chipRadius, characterScale: sp.characterScale,
+      stylePreset,
     };
   }
   return {
@@ -65,6 +77,9 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium')
     text: '#2D2B3D', sub: '#8B8599', accent: ac.accent, accentLight: ac.t1,
     green: '#00B894', red: '#E84057', gold: '#FFD700',
     purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#B2BEC3', fontScale: fs,
+    cardRadius: sp.cardRadius, buttonRadius: sp.buttonRadius,
+    chipRadius: sp.chipRadius, characterScale: sp.characterScale,
+    stylePreset,
   };
 };
 

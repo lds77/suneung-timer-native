@@ -447,6 +447,7 @@ const [ddLabel, setDdLabel] = useState('');
               />
             }
           />
+
           <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: T.text, marginBottom: 6 }}>테마 컬러</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -486,13 +487,14 @@ const [ddLabel, setDdLabel] = useState('');
                 { id: 'maplestory',  label: '메이플스토리', sample: '재밌는 느낌', ready: true },
               ].map(f => {
                 const sel = (app.settings.fontFamily || 'default') === f.id;
-                // 현재 옵션에 맞는 fontFamily 문자열 계산
                 const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
                 const famStyle = fam ? { fontFamily: fam } : {};
                 return (
                   <TouchableOpacity key={f.id}
                     onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
-                    style={[styles.fontItem, sel && { borderColor: T.accent, backgroundColor: T.accent + '10' }, !sel && { borderColor: T.border }]}
+                    style={[styles.fontItem,
+                      sel && { borderColor: T.accent, backgroundColor: T.accent + '10' },
+                      !sel && { borderColor: T.border }]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[{ fontSize: 13, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
@@ -503,7 +505,7 @@ const [ddLabel, setDdLabel] = useState('');
                 );
               })}
             </View>
-            <Text style={{ fontSize: 9, color: T.sub, marginTop: 6 }}>💡 폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
+            <Text style={{ fontSize: 9, color: T.sub, marginTop: 6 }}>폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
           </View>
         </Section>
 
@@ -633,7 +635,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 집중밀도 */}
               <GuideSection title="📊 집중밀도란?" color="#6C5CE7" T={T}>
-                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 20~103점으로 측정해요.\n\n점수 구성 (최대 103점):\n• 완료 점수 (최대 40점) — 타이머를 끝까지 완주했나요?\n• 습관 점수 (최대 30점) — 일시정지를 적게 할수록 높아요\n• 지속력 보너스 (최대 15점) — 오래 공부할수록↑\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified 달성!\n• 자가평가 보너스 (-5~+3점) — 세션 후 스스로 평가\n\n등급:\nS+ (95+) 🏆 > S (90+) > A (80+) > B (70+) > C (60+) > F\n\n💡 세션이 끝난 후 메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
+                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 56~103점으로 측정해요.\n어떤 세션이든 최소 C등급이 보장돼요 😊\n\n점수 구성 (최대 103점):\n• 완료 점수 (최대 40점) — 타이머를 끝까지 완주했나요?\n• 습관 점수 (최대 30점) — 일시정지를 적게 할수록 높아요\n• 지속력 보너스 (최대 15점) — 오래 공부할수록↑\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified 달성!\n• 자가평가 보너스 (0~+3점) — 🔥⚡ 선택 시 +3점 보너스\n\n등급:\nSS (100+) ✨ > S+ (93+) 🏆 > S (86+) > A (76+) > B (66+) > C (56+)\n\n💡 세션이 끝난 후 메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}

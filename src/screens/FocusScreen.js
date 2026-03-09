@@ -1303,7 +1303,7 @@ export default function FocusScreen() {
               {[
                 { icon: '🔥', label: '완전 집중', value: 'fire', bonus: '+3점', color: '#FF6B9D' },
                 { icon: '😐', label: '보통이었어', value: 'normal', bonus: '±0점', color: T.sub },
-                { icon: '😴', label: '좀 딴 짓', value: 'sleepy', bonus: '-5점', color: '#B2BEC3' },
+                { icon: '😴', label: '좀 딴 짓', value: 'sleepy', bonus: '±0점', color: '#B2BEC3' },
               ].map(opt => (
                 <TouchableOpacity key={opt.value}
                   style={[S.selfRatingBtn, { backgroundColor: T.card, borderColor: resultSelfRating === opt.value ? opt.color : T.border, borderWidth: resultSelfRating === opt.value ? 2 : 1 }]}

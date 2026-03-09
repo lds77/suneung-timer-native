@@ -1167,9 +1167,9 @@ export function AppProvider({ children }) {
   const updateSessionSelfRating = useCallback((sessionId, selfRating, memo) => {
     setSessions(prev => prev.map(s => {
       if (s.id !== sessionId) return s;
-      const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : s.selfRating === 'sleepy' ? -5 : 0;
-      const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
-      const newDensity = Math.max(20, Math.min(103, (s.focusDensity || 0) - oldBonus + newBonus));
+      const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : 0;
+      const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : 0;
+      const newDensity = Math.max(56, Math.min(103, (s.focusDensity || 0) - oldBonus + newBonus));
       const { getTier } = require('../constants/presets');
       return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id, ...(memo !== undefined && memo !== null ? { memo } : {}) };
     }));

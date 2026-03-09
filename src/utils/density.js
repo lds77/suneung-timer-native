@@ -1,19 +1,22 @@
 // src/utils/density.js
-// 집중 밀도 점수 계산 엔진 v5
+// 집중 밀도 점수 계산 엔진 v6
 
 import { getTier } from '../constants/presets';
 
 /**
- * 집중밀도 공식 v5 (최대 103점)
+ * 집중밀도 공식 v6 (최대 103점)
  * — 꾸준함 보너스 제거: 밀도는 한 세션의 집중도만 측정
  *
  * ━━━ 완료 점수 (0~40) ━━━
  *   카운트다운 완료              = 40
- *   카운트다운 80%+ 중지         = 30
- *   카운트다운 50%+ 중지         = 20
- *   카운트다운 50% 미만 중지     = 10
- *   자유 모드 30분+              = 25
- *   자유 모드 1시간+             = 35
+ *   카운트다운 80%+ 중지         = 36  (10% 감소)
+ *   카운트다운 50%+ 중지         = 32  (10% 감소)
+ *   카운트다운 50% 미만 중지     = 28  (10% 감소)
+ *   자유 모드 5분 미만           = 10
+ *   자유 모드 5분~10분           = 15
+ *   자유 모드 10분~30분          = 20
+ *   자유 모드 30분~60분          = 28
+ *   자유 모드 1시간~2시간        = 35
  *   자유 모드 2시간+ (상한)      = 40
  *   뽀모도로 1세트 완료          = 35
  *   뽀모도로 2세트+              = 40
@@ -31,17 +34,22 @@ import { getTier } from '../constants/presets';
  *   90분 이상   = +15
  *
  * ━━━ 선언 보너스 (0~15) ━━━
- *   📖 편하게 공부 모드 완료     = +5
- *   🔥 집중 도전 모드 이탈 0회   = +15 (Verified!)
- *   🔥 집중 도전 모드 이탈 1~2회 = +8
- *   🔥 집중 도전 모드 이탈 3회+  = +3
+ *   📖 편하게 공부 모드 완료(100%)  = +5
+ *   📖 편하게 공부 모드 80%+ 중지   = +3
+ *   📖 편하게 공부 모드 50%+ 중지   = +2
+ *   📖 편하게 공부 모드 50% 미만    = 0
+ *   📖 편하게 공부 자유/뽀모 완료   = +5
+ *   🔥 집중 도전 모드 이탈 0회      = +15 (Verified!)
+ *   🔥 집중 도전 모드 이탈 1~2회    = +8
+ *   🔥 집중 도전 모드 이탈 3회+     = +3
  *
- * ━━━ 자가평가 보너스 (-5~+3) ━━━
+ * ━━━ 자가평가 보너스 (0~+3) ━━━
  *   🔥 또는 ⚡ 선택 시           = +3
  *   😐 선택 시                  = +0
- *   😴 선택 시                  = -5
+ *   😴 선택 시                  = +0  (패널티 제거 — 솔직한 선택 존중)
  *   선택 안 함                  = +0
  *
+ * 최저 보장: 56점 (C등급 이상 보장)
  * 이론 최대: 40+30+15+15+3 = 103
  */
 
@@ -63,9 +71,9 @@ export const calculateDensity = ({
   let completionScore = 0;
   if (timerType === 'countdown') {
     if (completionRatio >= 1) completionScore = 40;
-    else if (completionRatio >= 0.8) completionScore = 30;
-    else if (completionRatio >= 0.5) completionScore = 20;
-    else completionScore = 10;
+    else if (completionRatio >= 0.8) completionScore = 36;
+    else if (completionRatio >= 0.5) completionScore = 32;
+    else completionScore = 28;
   } else if (timerType === 'pomodoro') {
     if (pomoSets >= 2) completionScore = 40;
     else if (pomoSets >= 1) completionScore = 35;
@@ -73,8 +81,9 @@ export const calculateDensity = ({
   } else {
     if (totalMin >= 120) completionScore = 40;
     else if (totalMin >= 60) completionScore = 35;
-    else if (totalMin >= 30) completionScore = 25;
-    else if (totalMin >= 10) completionScore = 15;
+    else if (totalMin >= 30) completionScore = 28;
+    else if (totalMin >= 10) completionScore = 20;
+    else if (totalMin >= 5) completionScore = 15;
     else completionScore = 10;
   }
 
@@ -100,17 +109,19 @@ export const calculateDensity = ({
     else if (exitCount <= 2) declarationBonus = 8;
     else declarationBonus = 3;
   } else if (focusMode === 'screen_off') {
-    // 📖 편하게공부 모드: 완료한 경우 +5 보너스
-    if (completionRatio >= 1 || timerType !== 'countdown') declarationBonus = 5;
+    // 📖 편하게공부 모드: 자유/뽀모는 항상 +5, 카운트다운은 완료율에 따라 부분 보너스
+    if (timerType !== 'countdown') declarationBonus = 5;
+    else if (completionRatio >= 1) declarationBonus = 5;
+    else if (completionRatio >= 0.8) declarationBonus = 3;
+    else if (completionRatio >= 0.5) declarationBonus = 2;
   }
 
-  // 5. 자가평가 보너스 (-5~+3)
+  // 5. 자가평가 보너스 (0~+3) — 패널티 없음, 솔직한 선택 존중
   let selfBonus = 0;
   if (selfRating === 'fire' || selfRating === 'perfect') selfBonus = 3;
-  else if (selfRating === 'sleepy') selfBonus = -5;
 
   const total = completionScore + habitScore + persistenceBonus + declarationBonus + selfBonus;
-  return Math.max(20, Math.min(103, Math.round(total)));
+  return Math.max(56, Math.min(103, Math.round(total))); // 최저 56점(C) 보장
 };
 
 export const getDensityTier = (density) => getTier(density);
@@ -130,10 +141,10 @@ export const getDensityBreakdown = (params) => {
   const totalMin = totalSec / 60;
 
   const cs = timerType === 'countdown'
-    ? (completionRatio >= 1 ? 40 : completionRatio >= 0.8 ? 30 : completionRatio >= 0.5 ? 20 : 10)
+    ? (completionRatio >= 1 ? 40 : completionRatio >= 0.8 ? 36 : completionRatio >= 0.5 ? 32 : 28)
     : timerType === 'pomodoro'
     ? (pomoSets >= 2 ? 40 : pomoSets >= 1 ? 35 : 20)
-    : (totalMin >= 120 ? 40 : totalMin >= 60 ? 35 : totalMin >= 30 ? 25 : totalMin >= 10 ? 15 : 10);
+    : (totalMin >= 120 ? 40 : totalMin >= 60 ? 35 : totalMin >= 30 ? 28 : totalMin >= 10 ? 20 : totalMin >= 5 ? 15 : 10);
 
   const hs = pausedCount === 0 ? 30 : pausedCount === 1 ? 25 : pausedCount === 2 ? 20 : pausedCount === 3 ? 15 : 10;
 
@@ -141,9 +152,11 @@ export const getDensityBreakdown = (params) => {
 
   const db = focusMode === 'screen_on'
     ? (exitCount === 0 ? 15 : exitCount <= 2 ? 8 : 3)
-    : (focusMode === 'screen_off' && (completionRatio >= 1 || timerType !== 'countdown') ? 5 : 0);
+    : focusMode === 'screen_off'
+    ? (timerType !== 'countdown' ? 5 : completionRatio >= 1 ? 5 : completionRatio >= 0.8 ? 3 : completionRatio >= 0.5 ? 2 : 0)
+    : 0;
 
-  const sb = selfRating === 'fire' || selfRating === 'perfect' ? 3 : selfRating === 'sleepy' ? -5 : 0;
+  const sb = selfRating === 'fire' || selfRating === 'perfect' ? 3 : 0;
 
   return {
     completionScore: cs,
@@ -151,7 +164,7 @@ export const getDensityBreakdown = (params) => {
     persistenceBonus: pb,
     declarationBonus: db,
     selfBonus: sb,
-    total: Math.max(20, Math.min(103, cs + hs + pb + db + sb)),
+    total: Math.max(56, Math.min(103, cs + hs + pb + db + sb)),
     focusMode, exitCount, verified: focusMode === 'screen_on' && exitCount === 0,
   };
 };

@@ -39,14 +39,14 @@ const CHEER_MSGS = {
 function getInsight(sec, density, streak) {
   const h = sec / 3600;
   let pool;
-  if (density >= 95 && h >= 3) pool = CHEER_MSGS.godlike;
-  else if (density >= 85) pool = CHEER_MSGS.excellent;
+  if (density >= 100 && h >= 3) pool = CHEER_MSGS.godlike;
+  else if (density >= 86) pool = CHEER_MSGS.excellent;
   else if (streak >= 7) {
     pool = CHEER_MSGS.streak;
     return `${streak}${pool[Math.floor(Math.random() * pool.length)]}`;
   } else if (h >= 5) pool = CHEER_MSGS.longStudy;
   else if (h >= 2) pool = CHEER_MSGS.good;
-  else if (density < 60 && h > 0.5) pool = CHEER_MSGS.struggling;
+  else if (density < 66 && h > 0.5) pool = CHEER_MSGS.struggling;
   else if (h > 0 && h < 1) pool = CHEER_MSGS.justStarted;
   else pool = CHEER_MSGS.default;
   return pool[Math.floor(Math.random() * pool.length)];
@@ -2352,8 +2352,8 @@ export default function StatsScreen() {
                   { icon: '✅', label: '완료 점수 (최대 40점)', desc: '타이머를 끝까지 완주할수록 높아요' },
                   { icon: '⏸', label: '습관 점수 (최대 30점)', desc: '일시정지를 적게 할수록 높아요' },
                   { icon: '⏱', label: '지속력 보너스 (최대 15점)', desc: '10분부터 인정, 90분 이상 시 최대' },
-                  { icon: '🔥', label: '선언 보너스 (최대 15점)', desc: '🔥모드 이탈 0회 Verified +15 / 📖모드 완료 +5' },
-                  { icon: '⭐', label: '자가평가 보너스 (-5~+3점)', desc: '세션 종료 후 스스로 집중도를 평가해요' },
+                  { icon: '🔥', label: '선언 보너스 (최대 15점)', desc: '🔥모드 이탈 0회 Verified +15 / 📖모드 완료율에 따라 +2~+5' },
+                  { icon: '⭐', label: '자가평가 보너스 (0~+3점)', desc: '🔥⚡ 선택 시 +3점! 😴 선택해도 패널티 없어요' },
                 ].map(item => (
                   <View key={item.label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
                     <Text style={{ fontSize: 13 }}>{item.icon}</Text>
