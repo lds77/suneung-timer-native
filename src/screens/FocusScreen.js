@@ -68,6 +68,7 @@ export default function FocusScreen() {
   const [showFavMgr, setShowFavMgr] = useState(false);
   const [showCountupFavMgr, setShowCountupFavMgr] = useState(false);
   const [lapExpanded, setLapExpanded] = useState(false);
+  const [showCompletedTodos, setShowCompletedTodos] = useState(false);
   // 메모 모달
   const [memoTimerId, setMemoTimerId] = useState(null);  // 메모 입력 중인 타이머 id
   const [memoText, setMemoText] = useState('');
@@ -352,33 +353,62 @@ export default function FocusScreen() {
           </TouchableOpacity></View>
         {t.type === 'pomodoro' && !isD && <Text style={[S.tcPhase, { color: t.pomoPhase === 'work' ? t.color : T.green }]}>{t.pomoPhase === 'work' ? `집중·${t.pomoSet+1}세트` : '휴식'}</Text>}
         {isD ? (
-          <View style={S.resArea}><Text style={S.resEmoji}>🎉</Text>
-            {t.result?.tier && <View style={[S.resTier, { backgroundColor: t.result.tier.color + '20' }]}><Text style={[S.resTierT, { color: t.result.tier.color }]}>{t.result.tier.label}</Text></View>}
-            <Text style={[S.resDensity, { color: T.text }]}>밀도 {t.result?.density || 0}점</Text>
-            {/* 점수 이유 한 줄 */}
-            <Text style={{ fontSize: 9, color: T.sub, marginTop: 2, textAlign: 'center' }}>
-              {(() => {
-                const r = t.result || {};
-                const parts = [];
-                if (t.type === 'countdown') parts.push(r.density >= 30 ? '완주 👏' : '도전');
-                else if (t.type === 'pomodoro') parts.push(`${t.pomoSet || 1}세트`);
-                else parts.push(formatDuration(t.elapsedSec));
-                if ((t.pauseCount || 0) === 0) parts.push('일시정지 0회');
-                else parts.push(`일시정지 ${t.pauseCount}회`);
-                if (r.focusMode === 'screen_on') { parts.push(r.verified ? '🏆 Verified!' : '🔥모드'); }
-                return parts.join(' · ');
-              })()}
-            </Text>
-            <Text style={[S.resTime, { color: T.sub }]}>{formatDuration(t.type === 'countdown' ? t.totalSec : t.elapsedSec)}</Text>
-            {/* 메모 버튼 / 메모 표시 */}
-            <TouchableOpacity
-              style={[S.memoBtn, { backgroundColor: t.memoText ? T.accent + '18' : T.surface2, borderColor: t.memoText ? T.accent + '50' : T.border }]}
-              onPress={() => { setMemoTimerId(t.id); setMemoSessionId(t.memoSessionId || null); setMemoText(t.memoText || ''); }}
-            >
-              <Text style={[S.memoBtnT, { color: t.memoText ? T.accent : T.sub }]}>
-                {t.memoText ? `📝 ${t.memoText}` : '📝 한줄 메모 남기기'}
-              </Text>
-            </TouchableOpacity>
+          <View style={S.resArea}>
+            {(!t.memoSessionId && t.elapsedSec < 300) ? (
+              /* 5분 미만 — 통계 저장 안 됨 */
+              <>
+                <Text style={S.resEmoji}>⏱️</Text>
+                <Text style={{ fontSize: 11, color: T.sub, textAlign: 'center', marginTop: 4 }}>5분 미만 · 통계에 저장되지 않아요</Text>
+                <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center', marginTop: 2 }}>{formatDuration(t.elapsedSec)} 진행</Text>
+              </>
+            ) : (
+              /* 정상 결과 */
+              <>
+                <Text style={S.resEmoji}>🎉</Text>
+                {t.result?.tier && <View style={[S.resTier, { backgroundColor: t.result.tier.color + '20' }]}><Text style={[S.resTierT, { color: t.result.tier.color }]}>{t.result.tier.label}</Text></View>}
+                <Text style={[S.resDensity, { color: T.text }]}>밀도 {t.result?.density || 0}점</Text>
+                {/* 점수 이유 한 줄 */}
+                <Text style={{ fontSize: 9, color: T.sub, marginTop: 2, textAlign: 'center' }}>
+                  {(() => {
+                    const r = t.result || {};
+                    const parts = [];
+                    if (t.type === 'countdown') parts.push(r.density >= 30 ? '완주 👏' : '도전');
+                    else if (t.type === 'pomodoro') parts.push(`${t.pomoSet || 1}세트`);
+                    else parts.push(formatDuration(t.elapsedSec));
+                    if ((t.pauseCount || 0) === 0) parts.push('일시정지 0회');
+                    else parts.push(`일시정지 ${t.pauseCount}회`);
+                    if (r.focusMode === 'screen_on') { parts.push(r.verified ? '🏆 Verified!' : '🔥모드'); }
+                    return parts.join(' · ');
+                  })()}
+                </Text>
+                <Text style={[S.resTime, { color: T.sub }]}>{formatDuration(t.type === 'countdown' ? t.totalSec : t.elapsedSec)}</Text>
+                {/* 메모 버튼 */}
+                <TouchableOpacity
+                  style={[S.memoBtn, { backgroundColor: t.memoText ? T.accent + '18' : T.surface2, borderColor: t.memoText ? T.accent + '50' : T.border }]}
+                  onPress={() => { setMemoTimerId(t.id); setMemoSessionId(t.memoSessionId || null); setMemoText(t.memoText || ''); }}
+                >
+                  <Text style={[S.memoBtnT, { color: t.memoText ? T.accent : T.sub }]}>
+                    {t.memoText ? `📝 ${t.memoText}` : '📝 한줄 메모 남기기'}
+                  </Text>
+                </TouchableOpacity>
+                {/* 세션 완료 시 할일 체크 */}
+                {app.todos.filter(td => !td.done).length > 0 && (
+                  <View style={{ width: '100%', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
+                    <Text style={{ fontSize: 10, color: T.sub, marginBottom: 4, textAlign: 'center' }}>이 세션에서 완료한 할 일이 있나요?</Text>
+                    {app.todos.filter(td => !td.done).slice(0, 4).map(td => (
+                      <TouchableOpacity key={td.id} onPress={() => app.toggleTodo(td.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
+                        <View style={{ width: 14, height: 14, borderRadius: 3, borderWidth: 1.5, borderColor: T.border, backgroundColor: 'transparent' }} />
+                        <Text style={{ fontSize: 11, color: T.text, flex: 1 }} numberOfLines={1}>{td.text}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    {app.todos.filter(td => !td.done).length > 4 && (
+                      <Text style={{ fontSize: 9, color: T.sub, textAlign: 'center' }}>+{app.todos.filter(td => !td.done).length - 4}개 더</Text>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
           </View>
         ) : (<>
           <Text style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26 }]}>{formatTime(display)}</Text>
@@ -737,18 +767,57 @@ export default function FocusScreen() {
           );
         })()}
 
-        {/* 할 일 (탭: 펼치기, 길게: 수정) */}
-        <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
-          <View style={S.todoH}><Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text><Text style={[S.todoCnt, { color: T.sub }]}>{app.todos.filter(x => x.done).length}/{app.todos.length}</Text></View>
-          <TextInput value={newTodo} onChangeText={setNewTodo} onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }} placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done" style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
-          {app.todos.map(t => (<TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
-            onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
-            onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
-            <TouchableOpacity onPress={() => app.toggleTodo(t.id)} style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent' }]}>{t.done && <Text style={S.todoCkM}>✓</Text>}</TouchableOpacity>
-            <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]} numberOfLines={expandedTodo === t.id ? 10 : 2}>{t.text}</Text>
-            <TouchableOpacity onPress={() => app.removeTodo(t.id)}><Text style={[S.todoDel, { color: T.sub }]}>×</Text></TouchableOpacity></TouchableOpacity>))}
-          {app.todos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 4 }}>탭: 펼치기 · 길게: 수정</Text>}
-        </View>
+        {/* 할 일 */}
+        {(() => {
+          const incompleteTodos = app.todos.filter(t => !t.done);
+          const completedTodos = app.todos.filter(t => t.done);
+          const renderTodoRow = (t) => (
+            <TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
+              onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
+              onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
+              <TouchableOpacity onPress={() => app.toggleTodo(t.id)} style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent' }]}>
+                {t.done && <Text style={S.todoCkM}>✓</Text>}
+              </TouchableOpacity>
+              <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]} numberOfLines={expandedTodo === t.id ? 10 : 2}>{t.text}</Text>
+              {/* 반복 토글 */}
+              <TouchableOpacity onPress={() => app.toggleTodoRepeat(t.id)}
+                style={[S.todoActionBtn, { backgroundColor: t.repeat ? T.accent + '20' : 'transparent', borderColor: t.repeat ? T.accent : T.border }]}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: t.repeat ? T.accent : T.sub }}>반복</Text>
+              </TouchableOpacity>
+              {/* 타이머 바로 시작 (미완료만) */}
+              {!t.done && (
+                <TouchableOpacity onPress={() => { app.addTimer({ type: 'free', label: t.text, color: T.accent, totalSec: 0 }); app.showToastCustom('타이머 시작!', 'taco'); }}
+                  style={[S.todoActionBtn, { backgroundColor: T.accent + '15', borderColor: T.accent + '60' }]}>
+                  <Text style={{ fontSize: 11, color: T.accent }}>▶</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={S.todoDelBtn}>
+                <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          );
+          return (
+            <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={S.todoH}>
+                <Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text>
+                <Text style={[S.todoCnt, { color: T.sub }]}>{completedTodos.length}/{app.todos.length}</Text>
+              </View>
+              <TextInput value={newTodo} onChangeText={setNewTodo}
+                onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }}
+                placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done"
+                style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
+              {incompleteTodos.map(renderTodoRow)}
+              {/* 완료 항목 접힘 */}
+              {completedTodos.length > 0 && (
+                <TouchableOpacity onPress={() => setShowCompletedTodos(v => !v)} style={{ paddingVertical: 6, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: T.sub }}>완료 {completedTodos.length}개 {showCompletedTodos ? '▲ 접기' : '▼ 보기'}</Text>
+                </TouchableOpacity>
+              )}
+              {showCompletedTodos && completedTodos.map(renderTodoRow)}
+              {app.todos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 2 }}>탭: 펼치기 · 길게: 수정 · 🔁: 매일 반복 · ▶: 타이머 시작</Text>}
+            </View>
+          );
+        })()}
 
         {/* ═══ 공부량 즐겨찾기 ═══ */}
         <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1430,9 +1499,11 @@ const S = StyleSheet.create({
   todoH: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
   todoTitle: { fontSize: 12, fontWeight: '700' }, todoCnt: { fontSize: 9 },
   todoInput: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, fontSize: 11, marginBottom: 4 },
-  todoItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingVertical: 3 },
-  todoCk: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  todoItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5 },
+  todoCk: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   todoCkM: { color: 'white', fontSize: 10, fontWeight: '800' }, todoText: { flex: 1, fontSize: 11, lineHeight: 16 }, todoDel: { fontSize: 14, paddingHorizontal: 3 },
+  todoActionBtn: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  todoDelBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   lapPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 2, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8 },
   lapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lapTitle: { fontSize: 11, fontWeight: '700' },

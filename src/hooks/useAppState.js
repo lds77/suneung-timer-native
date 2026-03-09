@@ -54,6 +54,7 @@ const DEFAULT_SETTINGS = {
   guideLock: false,     // 잠금 화면 설명
   exactAlarmGuideShown: false, // Android 12+ 정확한 알람 권한 안내 표시 여부
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
+  lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -159,7 +160,7 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => {
       if (t.type !== 'sequence' || t.status === 'completed') return t;
       cancelTimerNotif(t.id);
-      if (t.seqPhase === 'work' && t.elapsedSec >= 60) {
+      if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: t.elapsedSec / Math.max(1, t.totalSec) });
@@ -517,7 +518,7 @@ export function AppProvider({ children }) {
       const currentItem = t.seqItems[t.seqIndex];
       const isBreakItem = currentItem?.isBreak;
       let updatedSeqSessionIds = t.seqSessionIds || [];
-      if (t.elapsedSec >= 60 && !isBreakItem) {
+      if (t.elapsedSec >= 300 && !isBreakItem) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         const sessId = recordSessionInternal({
@@ -584,7 +585,7 @@ export function AppProvider({ children }) {
         showToastCustom(`⏰ ${t.label} 완료!`, 'toru');
       }
     }
-    if (t.type !== 'lap' && t.elapsedSec >= 60) {
+    if (t.type !== 'lap' && t.elapsedSec >= 300) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
@@ -871,7 +872,7 @@ export function AppProvider({ children }) {
     cancelTimerNotif(id);
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      if (t.type !== 'lap' && t.elapsedSec >= 60 && t.status !== 'completed') {
+      if (t.type !== 'lap' && t.elapsedSec >= 300 && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null });
@@ -905,7 +906,7 @@ export function AppProvider({ children }) {
     cancelTimerNotif(id); // 예약 알림 취소
     setTimers(prev => {
       const t = prev.find(timer => timer.id === id);
-      if (t && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60) {
+      if (t && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         recordSessionInternal({
@@ -1013,7 +1014,21 @@ export function AppProvider({ children }) {
         if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
-      if (sess) setSessions(sess); if (dd) setDDays(dd); if (td) setTodos(td);
+      if (sess) setSessions(sess); if (dd) setDDays(dd);
+      // 할일 매일 자동 초기화: 완료된 일반 항목 삭제, 반복 항목은 done만 리셋
+      const today = getToday();
+      const mergedSettings = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
+      if (td) {
+        if (mergedSettings.lastTodoResetDate !== today) {
+          const resetTodos = td
+            .filter(t => !t.done || t.repeat)
+            .map(t => (t.repeat && t.done) ? { ...t, done: false } : t);
+          setTodos(resetTodos);
+          setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
+        } else {
+          setTodos(td);
+        }
+      }
       if (cuf) setCountupFavs(cuf);
       if (fv && fv.length > 0) setFavs(fv);
       const ws = await loadWeeklySchedule();
@@ -1202,9 +1217,10 @@ export function AppProvider({ children }) {
     if (cnt >= 8) return prev;
     return prev.map(d => d.id === id ? { ...d, isPrimary: true } : d);
   }), []);
-  const addTodo = useCallback((text) => setTodos(prev => [...prev, { id: generateId('todo_'), text, done: false }]), []);
+  const addTodo = useCallback((text) => setTodos(prev => [...prev, { id: generateId('todo_'), text, done: false, repeat: false }]), []);
   const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t)), []);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
+  const toggleTodoRepeat = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, repeat: !t.repeat } : t)), []);
   const updateSettings = useCallback((u) => setSettings(prev => ({ ...prev, ...u })), []);
 
   // 알림 설정 변경 감지
@@ -1252,7 +1268,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, mood,
+      todos, addTodo, toggleTodo, removeTodo, toggleTodoRepeat, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
       completedResultData, setCompletedResultData,
