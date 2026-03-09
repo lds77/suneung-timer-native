@@ -387,8 +387,9 @@ export function AppProvider({ children }) {
             if (t.status !== 'running') return t;
             const e = t.elapsedSec + gap;
             if (t.type === 'countdown' && e >= t.totalSec) {
-              const sessId = fireComplete(t, true);
-              return { ...t, elapsedSec: t.totalSec, status: 'completed', result: calcResult(t, t.totalSec), ...(sessId ? { memoSessionId: sessId } : {}) };
+              const completedT = { ...t, elapsedSec: t.totalSec };
+              const sessId = fireComplete(completedT, true);
+              return { ...completedT, status: 'completed', result: calcResult(completedT, t.totalSec), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
             if (t.type === 'pomodoro') {
               let tt = { ...t, elapsedSec: e };

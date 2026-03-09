@@ -62,13 +62,17 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [showCopy, setShowCopy] = useState(false);
 
-  // 고정 일정 추가 폼
+  // 편집 중인 항목 ID (null = 추가 모드)
+  const [editingFixedId, setEditingFixedId] = useState(null);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+
+  // 고정 일정 추가/수정 폼
   const [fixedType, setFixedType] = useState(FIXED_TYPES[0]);
   const [fixedLabel, setFixedLabel] = useState('');
   const [fixedStart, setFixedStart] = useState('08:00');
   const [fixedEnd, setFixedEnd] = useState('09:00');
 
-  // 공부 계획 추가 폼
+  // 공부 계획 추가/수정 폼
   const [planTab, setPlanTab] = useState('subject'); // 'subject' | 'custom'
   const [planSubjectId, setPlanSubjectId] = useState(null);
   const [planLabel, setPlanLabel] = useState('');
@@ -161,7 +165,27 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     });
   }, [selectedDay]);
 
-  // ── 고정 일정 추가 ──
+  // ── 고정 일정 추가/수정 ──
+  const resetFixedForm = useCallback(() => {
+    setFixedLabel(''); setFixedStart('08:00'); setFixedEnd('09:00');
+    setFixedType(FIXED_TYPES[0]); setEditingFixedId(null);
+  }, []);
+
+  const openAddFixed = useCallback(() => {
+    resetFixedForm();
+    setShowAddFixed(true);
+  }, [resetFixedForm]);
+
+  const openEditFixed = useCallback((f) => {
+    setEditingFixedId(f.id);
+    const ft = FIXED_TYPES.find(t => t.type === f.type) || FIXED_TYPES[0];
+    setFixedType(ft);
+    setFixedLabel(f.label);
+    setFixedStart(f.start);
+    setFixedEnd(f.end);
+    setShowAddFixed(true);
+  }, []);
+
   const handleAddFixed = useCallback(() => {
     if (!fixedLabel.trim()) {
       Alert.alert('이름을 입력해주세요.'); return;
@@ -171,55 +195,110 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     if (eh * 60 + em <= sh * 60 + sm) {
       Alert.alert('시간 오류', '끝 시간이 시작 시간보다 늦어야 해요.'); return;
     }
-    updateDay(day => ({
-      ...day,
-      fixed: [...(day.fixed || []), {
-        id: generateId('f_'), label: fixedLabel.trim(),
-        start: fixedStart, end: fixedEnd,
-        type: fixedType.type, icon: fixedType.icon, color: fixedType.color,
-      }],
-    }));
+    if (editingFixedId) {
+      updateDay(day => ({
+        ...day,
+        fixed: (day.fixed || []).map(f => f.id === editingFixedId
+          ? { ...f, label: fixedLabel.trim(), start: fixedStart, end: fixedEnd, type: fixedType.type, icon: fixedType.icon, color: fixedType.color }
+          : f
+        ),
+      }));
+    } else {
+      updateDay(day => ({
+        ...day,
+        fixed: [...(day.fixed || []), {
+          id: generateId('f_'), label: fixedLabel.trim(),
+          start: fixedStart, end: fixedEnd,
+          type: fixedType.type, icon: fixedType.icon, color: fixedType.color,
+        }],
+      }));
+    }
     setShowAddFixed(false);
-    setFixedLabel(''); setFixedStart('08:00'); setFixedEnd('09:00');
-    setFixedType(FIXED_TYPES[0]);
-  }, [fixedLabel, fixedStart, fixedEnd, fixedType, updateDay]);
+    resetFixedForm();
+  }, [fixedLabel, fixedStart, fixedEnd, fixedType, editingFixedId, updateDay, resetFixedForm]);
 
   const handleDeleteFixed = useCallback((id) => {
     updateDay(day => ({ ...day, fixed: (day.fixed || []).filter(f => f.id !== id) }));
   }, [updateDay]);
 
-  // ── 공부 계획 추가 ──
+  // ── 공부 계획 추가/수정 ──
+  const resetPlanForm = useCallback(() => {
+    setPlanLabel(''); setPlanTargetMin(30);
+    setPlanSubjectId(null); setPlanTab('subject');
+    setPlanIcon('📚'); setPlanColor('#4A90D9');
+    setEditingPlanId(null);
+  }, []);
+
+  const openAddPlan = useCallback(() => {
+    resetPlanForm();
+    setShowAddPlan(true);
+  }, [resetPlanForm]);
+
+  const openEditPlan = useCallback((p) => {
+    setEditingPlanId(p.id);
+    setPlanTargetMin(p.targetMin || 30);
+    if (p.subjectId) {
+      setPlanTab('subject');
+      setPlanSubjectId(p.subjectId);
+    } else {
+      setPlanTab('custom');
+      setPlanLabel(p.label || '');
+      setPlanIcon(p.icon || '📚');
+      setPlanColor(p.color || '#4A90D9');
+    }
+    setShowAddPlan(true);
+  }, []);
+
   const handleAddPlan = useCallback(() => {
     if (planTab === 'subject') {
       const subj = app.subjects.find(s => s.id === planSubjectId);
       if (!subj) { Alert.alert('과목을 선택해주세요.'); return; }
-      updateDay(day => {
-        const plans = day.plans || [];
-        return {
-          ...day, plans: [...plans, {
-            id: generateId('p_'), label: subj.name, icon: '📚',
-            color: subj.color, subjectId: subj.id,
-            targetMin: planTargetMin, order: plans.length,
-          }],
-        };
-      });
+      if (editingPlanId) {
+        updateDay(day => ({
+          ...day,
+          plans: (day.plans || []).map(p => p.id === editingPlanId
+            ? { ...p, label: subj.name, icon: '📚', color: subj.color, subjectId: subj.id, targetMin: planTargetMin }
+            : p
+          ),
+        }));
+      } else {
+        updateDay(day => {
+          const plans = day.plans || [];
+          return {
+            ...day, plans: [...plans, {
+              id: generateId('p_'), label: subj.name, icon: '📚',
+              color: subj.color, subjectId: subj.id,
+              targetMin: planTargetMin, order: plans.length,
+            }],
+          };
+        });
+      }
     } else {
       if (!planLabel.trim()) { Alert.alert('이름을 입력해주세요.'); return; }
-      updateDay(day => {
-        const plans = day.plans || [];
-        return {
-          ...day, plans: [...plans, {
-            id: generateId('p_'), label: planLabel.trim(), icon: planIcon,
-            color: planColor, subjectId: null,
-            targetMin: planTargetMin, order: plans.length,
-          }],
-        };
-      });
+      if (editingPlanId) {
+        updateDay(day => ({
+          ...day,
+          plans: (day.plans || []).map(p => p.id === editingPlanId
+            ? { ...p, label: planLabel.trim(), icon: planIcon, color: planColor, subjectId: null, targetMin: planTargetMin }
+            : p
+          ),
+        }));
+      } else {
+        updateDay(day => {
+          const plans = day.plans || [];
+          return {
+            ...day, plans: [...plans, {
+              id: generateId('p_'), label: planLabel.trim(), icon: planIcon,
+              color: planColor, subjectId: null,
+              targetMin: planTargetMin, order: plans.length,
+            }],
+          };
+        });
+      }
     }
     setShowAddPlan(false);
-    setPlanLabel(''); setPlanTargetMin(30);
-    setPlanSubjectId(null); setPlanTab('subject');
-  }, [planTab, planSubjectId, planLabel, planIcon, planColor, planTargetMin, app.subjects, updateDay]);
+    resetPlanForm();
+  }, [planTab, planSubjectId, planLabel, planIcon, planColor, planTargetMin, editingPlanId, app.subjects, updateDay, resetPlanForm]);
 
   const handleDeletePlan = useCallback((id) => {
     updateDay(day => ({
@@ -328,12 +407,15 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       <Text style={[s.itemLabel, { color: T.text }]}>{f.label}</Text>
                       <Text style={[s.itemSub, { color: T.sub }]}>{f.start} ~ {f.end}</Text>
                     </View>
+                    <TouchableOpacity onPress={() => openEditFixed(f)} style={s.editBtn}>
+                      <Text style={[s.editText, { color: T.sub }]}>✏️</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeleteFixed(f.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
-                <TouchableOpacity onPress={() => setShowAddFixed(true)}
+                <TouchableOpacity onPress={openAddFixed}
                   style={[s.addBtn, { borderColor: T.border }]}>
                   <Text style={[s.addBtnText, { color: T.accent }]}>+ 고정 일정 추가</Text>
                 </TouchableOpacity>
@@ -377,12 +459,15 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                         <Text style={{ color: T.sub, fontSize: 12 }}>▼</Text>
                       </TouchableOpacity>
                     </View>
+                    <TouchableOpacity onPress={() => openEditPlan(p)} style={s.editBtn}>
+                      <Text style={[s.editText, { color: T.sub }]}>✏️</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeletePlan(p.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
-                <TouchableOpacity onPress={() => setShowAddPlan(true)}
+                <TouchableOpacity onPress={openAddPlan}
                   style={[s.addBtn, { borderColor: T.border }]}>
                   <Text style={[s.addBtnText, { color: T.accent }]}>+ 과목 추가</Text>
                 </TouchableOpacity>
@@ -424,13 +509,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           <View style={{ height: 60 }} />
         </ScrollView>
 
-        {/* ── 고정 일정 추가 모달 ── */}
+        {/* ── 고정 일정 추가/수정 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
-          onRequestClose={() => setShowAddFixed(false)}>
+          onRequestClose={() => { setShowAddFixed(false); resetFixedForm(); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
-              <Text style={[s.sheetTitle, { color: T.text }]}>고정 일정 추가</Text>
+              <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
               <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
@@ -485,13 +570,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
 
               <View style={s.sheetBtnRow}>
-                <TouchableOpacity onPress={() => setShowAddFixed(false)}
+                <TouchableOpacity onPress={() => { setShowAddFixed(false); resetFixedForm(); }}
                   style={[s.cancelBtn, { borderColor: T.border }]}>
                   <Text style={{ color: T.sub, fontWeight: '700' }}>취소</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAddFixed}
                   style={[s.okBtn, { backgroundColor: T.accent }]}>
-                  <Text style={{ color: 'white', fontWeight: '800' }}>추가</Text>
+                  <Text style={{ color: 'white', fontWeight: '800' }}>{editingFixedId ? '수정' : '추가'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -499,13 +584,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           </KeyboardAvoidingView>
         </Modal>
 
-        {/* ── 공부 계획 추가 모달 ── */}
+        {/* ── 공부 계획 추가/수정 모달 ── */}
         <Modal visible={showAddPlan} transparent animationType="slide"
-          onRequestClose={() => setShowAddPlan(false)}>
+          onRequestClose={() => { setShowAddPlan(false); resetPlanForm(); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
-              <Text style={[s.sheetTitle, { color: T.text }]}>과목 추가</Text>
+              <Text style={[s.sheetTitle, { color: T.text }]}>{editingPlanId ? '과목 수정' : '과목 추가'}</Text>
 
               {/* 탭: 내 과목 / 직접 입력 */}
               <View style={[s.tabRow, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -586,13 +671,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
 
               <View style={s.sheetBtnRow}>
-                <TouchableOpacity onPress={() => setShowAddPlan(false)}
+                <TouchableOpacity onPress={() => { setShowAddPlan(false); resetPlanForm(); }}
                   style={[s.cancelBtn, { borderColor: T.border }]}>
                   <Text style={{ color: T.sub, fontWeight: '700' }}>취소</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAddPlan}
                   style={[s.okBtn, { backgroundColor: T.accent }]}>
-                  <Text style={{ color: 'white', fontWeight: '800' }}>추가</Text>
+                  <Text style={{ color: 'white', fontWeight: '800' }}>{editingPlanId ? '수정' : '추가'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -689,6 +774,8 @@ const s = StyleSheet.create({
   itemLabel: { fontSize: 14, fontWeight: '700' },
   itemSub: { fontSize: 11, marginTop: 1 },
   moveGroup: { flexDirection: 'row', marginRight: 2 },
+  editBtn: { padding: 6 },
+  editText: { fontSize: 14 },
   delBtn: { padding: 6, marginLeft: 2 },
   delText: { fontSize: 20 },
 

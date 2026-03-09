@@ -296,16 +296,43 @@ const [ddLabel, setDdLabel] = useState('');
               })}
             </View>
           ))}
-          {/* 주간 플래너 진입점 */}
-          <TouchableOpacity onPress={() => setShowScheduleEditor(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, marginTop: 4 }}>
-            <View>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>📅 주간 플래너 설정</Text>
-              <Text style={{ fontSize: 10, color: T.sub, marginTop: 1 }}>오늘의 공부 계획을 세워보세요</Text>
-            </View>
-            <Text style={{ fontSize: 20, color: T.sub }}>›</Text>
-          </TouchableOpacity>
         </Section>
+
+        {/* 주간 플래너 배너 */}
+        <TouchableOpacity
+          onPress={() => setShowScheduleEditor(true)}
+          activeOpacity={0.75}
+          style={{
+            marginBottom: 16,
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderColor: T.accent,
+            backgroundColor: T.accent + '14',
+            overflow: 'hidden',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
+            <View style={{
+              width: 48, height: 48, borderRadius: 14,
+              backgroundColor: T.accent + '25',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 26 }}>📅</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent }}>주간 플래너</Text>
+                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: T.accent }}>
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>추천</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: T.text, fontWeight: '600', lineHeight: 16 }}>
+                요일별 공부 계획을 미리 짜두면{'\n'}매일 자동으로 불러와서 바로 시작할 수 있어요!
+              </Text>
+            </View>
+            <Text style={{ fontSize: 22, color: T.accent, fontWeight: '700' }}>›</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* D-Day */}
         <Section T={T} title={`D-Day (${app.ddays.length}/10)`}>
