@@ -27,7 +27,7 @@ function GuideSection({ title, color, T, children }) {
     <View style={{ marginBottom: 10 }}>
       <TouchableOpacity onPress={() => setOpen(!open)}
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: color + '10', borderRadius: 10 }}>
-        <Text style={{ fontSize: 13, fontWeight: '900', color }}>{title}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '900', color, flex: 1, marginRight: 8 }}>{title}</Text>
         <Text style={{ fontSize: 12, color: T.sub }}>{open ? '▲' : '▼'}</Text>
       </TouchableOpacity>
       {open && (
