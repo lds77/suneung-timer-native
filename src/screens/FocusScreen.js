@@ -184,10 +184,11 @@ export default function FocusScreen() {
     app.notifyScreenLocked?.(screenLocked);
   }, [screenLocked]);
 
-  // 타이머 없어지면 전체모드로 복귀
+  // 타이머 없어지면 기본모드로 복귀
   useEffect(() => {
-    if (nonLapActive.length === 0) setTimerViewMode('full');
-  }, [nonLapActive.length]);
+    const hasActive = app.timers.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
+    if (!hasActive) setTimerViewMode('default');
+  }, [app.timers]);
 
   // 🔥모드 타이머 실행 시 자동 잠금
   useEffect(() => {
