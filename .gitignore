@@ -6,6 +6,9 @@ node_modules/
 # Claude Code AI memory
 .claude/
 
+# 작업 기획 문서
+*.md
+
 # Expo
 .expo/
 dist/
