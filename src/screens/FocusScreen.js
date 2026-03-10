@@ -1308,8 +1308,11 @@ export default function FocusScreen() {
                 const rt = app.timers.find(t => t.status === 'running');
                 if (!rt) return '--:--';
                 let d;
-                if (rt.type === 'countdown' || rt.type === 'sequence') {
+                if (rt.type === 'countdown') {
                   d = Math.max(0, rt.totalSec - rt.elapsedSec);
+                } else if (rt.type === 'sequence') {
+                  const seqTarget = rt.seqPhase === 'break' ? rt.seqBreakSec : rt.totalSec;
+                  d = Math.max(0, seqTarget - rt.elapsedSec);
                 } else if (rt.type === 'pomodoro') {
                   const target = (rt.pomoPhase === 'work' ? rt.pomoWorkMin : rt.pomoBreakMin) * 60;
                   d = Math.max(0, target - rt.elapsedSec);

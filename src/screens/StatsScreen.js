@@ -2301,23 +2301,15 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 26, fontWeight: '900', color: T.text }}>{todayAvgDensity}점</Text>
                 <Text style={{ fontSize: 13, color: todayTier.color, fontWeight: '700', marginTop: 3 }}>{todayTier.message}</Text>
               </View>
-              {/* 티어 진행 바 */}
-              <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14, marginBottom: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: T.text, marginBottom: 10 }}>🏆 티어 구간</Text>
+              {/* 티어 구간 — 가로 한 줄 */}
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
                 {TIERS.map(tier => {
                   const isCurrentTier = todayTier.id === tier.id;
                   return (
-                    <View key={tier.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: tier.color + (isCurrentTier ? '30' : '12'), alignItems: 'center', justifyContent: 'center', borderWidth: isCurrentTier ? 2 : 0, borderColor: tier.color }}>
-                        <Text style={{ fontSize: 11, fontWeight: '900', color: tier.color }}>{tier.label}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ height: 8, backgroundColor: T.surface2, borderRadius: 4, overflow: 'hidden' }}>
-                          <View style={{ height: 8, borderRadius: 4, backgroundColor: tier.color + (isCurrentTier ? 'FF' : '50'), width: `${((tier.max - tier.min) / 120) * 100 + (tier.min / 120 * 100)}%` }} />
-                        </View>
-                      </View>
-                      <Text style={{ fontSize: 10, fontWeight: isCurrentTier ? '900' : '600', color: isCurrentTier ? tier.color : T.sub, minWidth: 52, textAlign: 'right' }}>
-                        {tier.min === 0 ? `~${tier.max}` : tier.max >= 120 ? `${tier.min}+` : `${tier.min}~${tier.max}`}점
+                    <View key={tier.id} style={{ flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 10, backgroundColor: isCurrentTier ? tier.color + '25' : T.card, borderWidth: isCurrentTier ? 2 : 1, borderColor: isCurrentTier ? tier.color : T.border }}>
+                      <Text style={{ fontSize: 11, fontWeight: '900', color: tier.color }}>{tier.label}</Text>
+                      <Text style={{ fontSize: 8, color: isCurrentTier ? tier.color : T.sub, marginTop: 2 }}>
+                        {tier.max >= 120 ? `${tier.min}+` : `${tier.min}~`}
                       </Text>
                     </View>
                   );
@@ -2349,9 +2341,9 @@ export default function StatsScreen() {
               <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: T.text, marginBottom: 8 }}>💡 밀도 점수 기준 (최대 103점)</Text>
                 {[
-                  { icon: '✅', label: '완료 점수 (최대 40점)', desc: '타이머를 끝까지 완주할수록 높아요' },
+                  { icon: '✅', label: '완료 점수 (최대 40점)', desc: '타이머 완주할수록 높아요 · 자유모드는 학교급별 기준 시간 적용' },
                   { icon: '⏸', label: '습관 점수 (최대 30점)', desc: '일시정지를 적게 할수록 높아요' },
-                  { icon: '⏱', label: '지속력 보너스 (최대 15점)', desc: '10분부터 인정, 90분 이상 시 최대' },
+                  { icon: '⏱', label: '지속력 보너스 (최대 15점)', desc: '학교급에 맞는 기준으로 자동 조정 · 내 기준 최대 시간 달성 시 +15점' },
                   { icon: '🔥', label: '선언 보너스 (최대 15점)', desc: '🔥모드 이탈 0회 Verified +15 / 📖모드 완료율에 따라 +2~+5' },
                   { icon: '⭐', label: '자가평가 보너스 (0~+3점)', desc: '🔥⚡ 선택 시 +3점! 😴 선택해도 패널티 없어요' },
                 ].map(item => (
@@ -2363,6 +2355,26 @@ export default function StatsScreen() {
                     </View>
                   </View>
                 ))}
+                {/* 현재 학교급 기준 표시 */}
+                {(() => {
+                  const sl = app.settings.schoolLevel || 'high';
+                  const info = {
+                    elementary_lower: { label: '초등 저학년', persist: '20분', free: '25분' },
+                    elementary_upper: { label: '초등 고학년', persist: '30분', free: '40분' },
+                    middle:           { label: '중학생',      persist: '60분', free: '80분' },
+                    high:             { label: '고등학생',    persist: '90분', free: '120분' },
+                    nsuneung:         { label: 'N수생',       persist: '90분', free: '120분' },
+                    university:       { label: '대학생',      persist: '90분', free: '120분' },
+                    exam_prep:        { label: '공시생/자격증', persist: '90분', free: '120분' },
+                  }[sl] || { label: '고등학생', persist: '90분', free: '120분' };
+                  return (
+                    <View style={{ marginTop: 8, padding: 8, backgroundColor: T.surface2, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 9, color: T.sub }}>
+                        📌 내 기준 ({info.label}) — 지속력 만점 {info.persist} · 자유모드 만점 {info.free}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
             </ScrollView>
           </View>

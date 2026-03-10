@@ -487,6 +487,7 @@ export function AppProvider({ children }) {
       timerType, completionRatio,
       pomoSets: t.pomoSet || 0, focusMode: mode,
       exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
+      schoolLevel: settingsRef.current?.schoolLevel || 'high',
     });
     const { getTier } = require('../constants/presets');
     return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
@@ -1155,6 +1156,7 @@ export function AppProvider({ children }) {
     const density = calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
+      schoolLevel: settingsRef.current?.schoolLevel || 'high',
     });
     const { getTier } = require('../constants/presets');
     const tier = getTier(density);
