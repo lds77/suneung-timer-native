@@ -1517,9 +1517,10 @@ export default function FocusScreen() {
             )}
           </View>
           <View style={S.noiseRow}>
-            {[{ id: 'rain', t: '🌧️ 빗소리' }, { id: 'cafe', t: '☕ 카페' }, { id: 'fire', t: '🔥 모닥불' }, { id: 'wave', t: '🌊 파도' }, { id: 'forest', t: '🌲 숲속' }].map(s => (
+            {[{ id: 'rain', e: '🌧️', t: '빗소리' }, { id: 'cafe', e: '☕', t: '카페' }, { id: 'fire', e: '🔥', t: '모닥불' }, { id: 'wave', e: '🌊', t: '파도' }, { id: 'forest', e: '🌲', t: '숲속' }].map(s => (
               <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.card }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{s.t}</Text>
+                <Text style={{ fontSize: 13 }}>{s.e}</Text>
+                <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
               </TouchableOpacity>
             ))}
           </View></View>
