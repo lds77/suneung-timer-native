@@ -1,15 +1,16 @@
 // src/screens/FocusScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform, Vibration } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme } from '../constants/colors';
-import { formatTime, formatDuration, formatDDay } from '../utils/format';
+import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
-import { getPlannerMessage } from '../constants/characters';
+import { getPlannerMessage, getTodoMessage } from '../constants/characters';
+import { getTier } from '../constants/presets';
 
 const SW = Dimensions.get('window').width;
 const GAP = 8;
@@ -22,8 +23,11 @@ const RING_C = 2 * Math.PI * RING_R;
 const getSchoolDefaultFavs = (school) => {
   const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
   const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏱', type: 'countdown', color: color, totalSec: min * 60 });
-  if (school === 'elementary') return [
-    pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3'),
+  if (school === 'elementary_lower') return [
+    pomo(10, 5, '뽀모 10+5'), cd(15, '15분', '#5CB85C'), cd(20, '20분', '#4A90D9'), cd(25, '25분', '#9B6FC3'),
+  ];
+  if (school === 'elementary_upper') return [
+    pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(25, '25분', '#4A90D9'), cd(30, '30분', '#9B6FC3'),
   ];
   if (school === 'middle') return [
     pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3'),
@@ -47,15 +51,15 @@ export default function FocusScreen() {
   const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const school = app.settings.schoolLevel || 'high';
-  const subjectDefMin = school === 'elementary' ? 25 : school === 'middle' ? 30 : 45;
-  const subjectTimeChoices = school === 'elementary' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
+  const subjectDefMin = school === 'elementary_lower' ? 15 : school === 'elementary_upper' ? 20 : school === 'middle' ? 30 : 45;
+  const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
   const [showAdd, setShowAdd] = useState(false);
   const [addType, setAddType] = useState('countdown');
   const [addMin, setAddMin] = useState(25);
   const [addSubject, setAddSubject] = useState(null);
   const [addPomoWork, setAddPomoWork] = useState(app.settings.pomodoroWorkMin || 25);
   const [addPomoBreak, setAddPomoBreak] = useState(app.settings.pomodoroBreakMin || 5);
-  const [newTodo, setNewTodo] = useState('');
+
   const [expandedTodo, setExpandedTodo] = useState(null);
   const [editTodoId, setEditTodoId] = useState(null);
   const [editTodoText, setEditTodoText] = useState('');
@@ -69,6 +73,20 @@ export default function FocusScreen() {
   const [showCountupFavMgr, setShowCountupFavMgr] = useState(false);
   const [lapExpanded, setLapExpanded] = useState(false);
   const [showCompletedTodos, setShowCompletedTodos] = useState(false);
+  const [todoScopeFilter, setTodoScopeFilter] = useState('today');
+  // 할일 추가 모달
+  const [showAddTodoModal, setShowAddTodoModal] = useState(false);
+  const [addTodoText, setAddTodoText] = useState('');
+  const [addTodoSubjectId, setAddTodoSubjectId] = useState(null);
+  const [addTodoSubjectLabel, setAddTodoSubjectLabel] = useState(null);
+  const [addTodoSubjectColor, setAddTodoSubjectColor] = useState(null);
+  const [addTodoPriority, setAddTodoPriority] = useState('normal');
+  const [addTodoScope, setAddTodoScope] = useState('today');
+  const [addTodoRepeatType, setAddTodoRepeatType] = useState('none');
+  const [addTodoCustomDays, setAddTodoCustomDays] = useState([]);
+  const [addTodoDdayId, setAddTodoDdayId] = useState(null);
+  const [addTodoMemo, setAddTodoMemo] = useState('');
+  const [showAddTodoMemo, setShowAddTodoMemo] = useState(false);
   // 메모 모달
   const [memoTimerId, setMemoTimerId] = useState(null);  // 메모 입력 중인 타이머 id
   const [memoText, setMemoText] = useState('');
@@ -219,6 +237,44 @@ export default function FocusScreen() {
     const subj = addSubject ? app.subjects.find(s => s.id === addSubject) : null;
     const label = subj ? subj.name : (addType === 'countdown' ? `${addMin}분` : `뽀모 ${addPomoWork}+${addPomoBreak}`);
     addToFav({ label, icon: addType === 'pomodoro' ? '🍅' : '⏰', type: addType, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, subjectId: addSubject, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
+  };
+
+  // ── 할일 추가 모달 헬퍼 ──
+  const openAddTodo = (subject) => {
+    setAddTodoText('');
+    setAddTodoSubjectId(subject?.id || null);
+    setAddTodoSubjectLabel(subject?.name || null);
+    setAddTodoSubjectColor(subject?.color || null);
+    setAddTodoPriority('normal');
+    setAddTodoScope('today');
+    setAddTodoDdayId(null);
+    setAddTodoMemo('');
+    setShowAddTodoMemo(false);
+    setAddTodoRepeatType('none');
+    setAddTodoCustomDays([]);
+    setShowAddTodoModal(true);
+  };
+  const submitAddTodo = () => {
+    if (!addTodoText.trim()) return;
+    const repeatMap = { daily: [0,1,2,3,4,5,6], weekday: [1,2,3,4,5], weekend: [0,6], custom: addTodoCustomDays };
+    const repeatDays = addTodoRepeatType !== 'none' ? (repeatMap[addTodoRepeatType] || null) : null;
+    app.addTodo({
+      text: addTodoText.trim(),
+      subjectId: addTodoSubjectId,
+      subjectLabel: addTodoSubjectLabel,
+      subjectColor: addTodoSubjectColor,
+      priority: addTodoPriority,
+      scope: addTodoScope,
+      ddayId: addTodoDdayId,
+      memo: addTodoMemo,
+      isTemplate: repeatDays !== null,
+      repeatDays,
+    });
+    if (repeatDays !== null) app.generateDailyTodos?.();
+    Vibration.vibrate([0, 30]);
+    setAddTodoText('');
+    setAddTodoMemo('');
+    setShowAddTodoMemo(false);
   };
 
   const startLapTimer = () => {
@@ -769,52 +825,310 @@ export default function FocusScreen() {
 
         {/* 할 일 */}
         {(() => {
-          const incompleteTodos = app.todos.filter(t => !t.done);
-          const completedTodos = app.todos.filter(t => t.done);
-          const renderTodoRow = (t) => (
-            <TouchableOpacity key={t.id} style={S.todoItem} activeOpacity={0.7}
-              onPress={() => setExpandedTodo(expandedTodo === t.id ? null : t.id)}
-              onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
-              <TouchableOpacity onPress={() => app.toggleTodo(t.id)} style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent' }]}>
-                {t.done && <Text style={S.todoCkM}>✓</Text>}
-              </TouchableOpacity>
-              <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]} numberOfLines={expandedTodo === t.id ? 10 : 2}>{t.text}</Text>
-              {/* 반복 토글 */}
-              <TouchableOpacity onPress={() => app.toggleTodoRepeat(t.id)}
-                style={[S.todoActionBtn, { backgroundColor: t.repeat ? T.accent + '20' : 'transparent', borderColor: t.repeat ? T.accent : T.border }]}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: t.repeat ? T.accent : T.sub }}>반복</Text>
-              </TouchableOpacity>
-              {/* 타이머 바로 시작 (미완료만) */}
-              {!t.done && (
-                <TouchableOpacity onPress={() => { app.addTimer({ type: 'free', label: t.text, color: T.accent, totalSec: 0 }); app.showToastCustom('타이머 시작!', 'taco'); }}
-                  style={[S.todoActionBtn, { backgroundColor: T.accent + '15', borderColor: T.accent + '60' }]}>
-                  <Text style={{ fontSize: 11, color: T.accent }}>▶</Text>
+          const priorityOrder = { high: 0, normal: 1, low: 2 };
+          const sortTodos = (list) => [...list].sort((a, b) => {
+            if (a.done !== b.done) return a.done ? 1 : -1;
+            return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+          });
+
+          // scope 필터 적용
+          const visibleTodos = app.todos.filter(t => !t.isTemplate && (() => {
+            if (todoScopeFilter === 'today') return t.scope === 'today' || t.scope == null;
+            if (todoScopeFilter === 'week') return t.scope === 'week';
+            if (todoScopeFilter === 'exam') return t.scope === 'exam';
+            return true;
+          })());
+
+          // 과목별 그룹핑
+          const groupMap = {};
+          const groupOrder = [];
+          visibleTodos.forEach(t => {
+            const key = t.subjectId || '__none__';
+            if (!groupMap[key]) {
+              groupMap[key] = { key, label: t.subjectLabel || (t.subjectId ? '알 수 없음' : '미분류'), color: t.subjectColor || T.sub, todos: [] };
+              groupOrder.push(key);
+            }
+            groupMap[key].todos.push(t);
+          });
+          // 미완료 많은 순 정렬 (미분류는 마지막)
+          groupOrder.sort((a, b) => {
+            if (a === '__none__') return 1;
+            if (b === '__none__') return -1;
+            return groupMap[b].todos.filter(t => !t.done).length - groupMap[a].todos.filter(t => !t.done).length;
+          });
+
+          const renderTodoRow = (t) => {
+            const isExpanded = expandedTodo === t.id;
+            const timeStr = t.completedAt
+              ? new Date(t.completedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+              : null;
+            return (
+              <TouchableOpacity key={t.id} style={[S.todoItem, { alignItems: 'flex-start' }]} activeOpacity={0.7}
+                onPress={() => setExpandedTodo(isExpanded ? null : t.id)}
+                onLongPress={() => { setEditTodoId(t.id); setEditTodoText(t.text); }}>
+                {/* 우선순위 인디케이터 */}
+                {t.priority === 'high' && !t.done && (
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#E17055', marginTop: 6, marginRight: 4 }} />
+                )}
+                {t.priority !== 'high' && <View style={{ width: 6, marginRight: 4 }} />}
+                {/* 체크박스 */}
+                <TouchableOpacity onPress={() => {
+                  const wasDone = t.done;
+                  app.toggleTodo(t.id);
+                  Vibration.vibrate([0, 30]);
+                  // 올클리어 체크: 완료로 바꿀 때만
+                  if (!wasDone) {
+                    const todayList = app.todos.filter(x => !x.isTemplate && (x.scope === 'today' || x.scope == null));
+                    const nowDone = todayList.filter(x => x.id === t.id ? true : x.done).length;
+                    if (nowDone === todayList.length && todayList.length > 0) {
+                      app.showToastCustom('🎉 오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
+                    }
+                  }
+                }}
+                  style={[S.todoCk, { borderColor: t.done ? T.accent : T.border, backgroundColor: t.done ? T.accent : 'transparent', marginTop: 1 }]}>
+                  {t.done && <Text style={S.todoCkM}>✓</Text>}
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={S.todoDelBtn}>
-                <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
+                {/* 텍스트 + 시각 + 메모 */}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[S.todoText, { color: t.done ? T.sub : T.text, flex: 1 }, t.done && { textDecorationLine: 'line-through' }]}
+                      numberOfLines={isExpanded ? 0 : 2}>{t.text}</Text>
+                    {t.memo && !isExpanded && <Text style={{ fontSize: 11, color: T.sub }}>📎</Text>}
+                    {t.done && timeStr && <Text style={{ fontSize: 9, color: T.sub }}>{timeStr}</Text>}
+                  </View>
+                  {t.memo && isExpanded && (
+                    <View style={{ marginTop: 4, padding: 6, backgroundColor: T.surface2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 10, color: T.sub }}>📎 {t.memo}</Text>
+                    </View>
+                  )}
+                </View>
+                {/* 반복 토글 */}
+                <TouchableOpacity onPress={() => app.toggleTodoRepeat(t.id)}
+                  style={[S.todoActionBtn, { backgroundColor: t.repeat ? T.accent + '20' : 'transparent', borderColor: t.repeat ? T.accent : T.border }]}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: t.repeat ? T.accent : T.sub }}>🔁</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={S.todoDelBtn}>
+                  <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          );
+            );
+          };
+
+          // 오늘 완료 카운트 (캐릭터 메시지용)
+          const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+          const doneCount = todayTodos.filter(t => t.done).length;
+          const allDone = doneCount > 0 && doneCount === todayTodos.length;
+
           return (
             <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              {/* 헤더 */}
               <View style={S.todoH}>
                 <Text style={[S.todoTitle, { color: T.text }]}>📝 할 일</Text>
-                <Text style={[S.todoCnt, { color: T.sub }]}>{completedTodos.length}/{app.todos.length}</Text>
+                <Text style={[S.todoCnt, { color: T.sub }]}>{doneCount}/{todayTodos.length}</Text>
               </View>
-              <TextInput value={newTodo} onChangeText={setNewTodo}
-                onSubmitEditing={() => { if (newTodo.trim()) { app.addTodo(newTodo.trim()); setNewTodo(''); } }}
-                placeholder="할 일 추가" placeholderTextColor={T.sub} returnKeyType="done"
-                style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
-              {incompleteTodos.map(renderTodoRow)}
-              {/* 완료 항목 접힘 */}
-              {completedTodos.length > 0 && (
-                <TouchableOpacity onPress={() => setShowCompletedTodos(v => !v)} style={{ paddingVertical: 6, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: T.sub }}>완료 {completedTodos.length}개 {showCompletedTodos ? '▲ 접기' : '▼ 보기'}</Text>
+              {/* scope 필터 탭 */}
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                {[{ id: 'today', label: '오늘' }, { id: 'week', label: '이번주' }, { id: 'exam', label: '시험' }].map(opt => {
+                  const sel = todoScopeFilter === opt.id;
+                  const cnt = app.todos.filter(t => !t.isTemplate && (
+                    opt.id === 'today' ? (t.scope === 'today' || t.scope == null) : t.scope === opt.id
+                  )).length;
+                  return (
+                    <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                      <Text style={{ fontSize: 11, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>
+                        {opt.label}{cnt > 0 ? ` ${cnt}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {/* 빠른 추가 */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+                {app.subjects.slice(0, 6).map(s => (
+                  <TouchableOpacity key={s.id} onPress={() => openAddTodo(s)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: s.color + '15', borderWidth: 1, borderColor: s.color + '50' }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: s.color }} />
+                    <Text style={{ fontSize: 11, color: s.color, fontWeight: '700' }}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity onPress={() => openAddTodo(null)}
+                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, borderStyle: 'dashed' }}>
+                  <Text style={{ fontSize: 11, color: T.sub }}>+ 직접입력</Text>
                 </TouchableOpacity>
+              </ScrollView>
+              {/* D-Day 임박 경고 (시험 7일 이내) */}
+              {(() => {
+                const urgentDdays = (app.ddays || []).filter(d => {
+                  if (!d.date) return false;
+                  const days = calcDDay(d.date);
+                  if (days === null || days < 0 || days > 7) return false;
+                  return app.todos.some(t => !t.isTemplate && t.scope === 'exam' && t.ddayId === d.id && !t.done);
+                });
+                if (urgentDdays.length === 0 || todoScopeFilter === 'exam') return null;
+                return urgentDdays.map(d => {
+                  const days = calcDDay(d.date);
+                  const remaining = app.todos.filter(t => !t.isTemplate && t.scope === 'exam' && t.ddayId === d.id && !t.done).length;
+                  const dStr = days === 0 ? 'D-Day' : `D-${days}`;
+                  return (
+                    <TouchableOpacity key={d.id} onPress={() => setTodoScopeFilter('exam')}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#E17055' + '15', borderWidth: 1, borderColor: '#E17055' + '60', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12 }}>🎯</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#E17055', flex: 1 }}>
+                        {d.label} {dStr} · 할 일 {remaining}개 남음
+                      </Text>
+                      <Text style={{ fontSize: 10, color: '#E17055' }}>보기 ›</Text>
+                    </TouchableOpacity>
+                  );
+                });
+              })()}
+              {/* 할일 목록 */}
+              {todoScopeFilter === 'exam' ? (() => {
+                const examTodos = app.todos.filter(t => !t.isTemplate && t.scope === 'exam');
+                if (examTodos.length === 0) return (
+                  <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', paddingVertical: 12 }}>
+                    시험 체크리스트가 없어요!{'\n'}기한을 "시험"으로 설정해 추가해보세요
+                  </Text>
+                );
+                // D-Day별 그룹핑
+                const ddayMap = {};
+                const ddayOrder = [];
+                examTodos.forEach(t => {
+                  const key = t.ddayId || '__none__';
+                  if (!ddayMap[key]) { ddayMap[key] = { key, todos: [] }; ddayOrder.push(key); }
+                  ddayMap[key].todos.push(t);
+                });
+                // 정렬: 가까운 D-Day 먼저, 지난 시험 마지막, 미분류 마지막
+                ddayOrder.sort((a, b) => {
+                  if (a === '__none__') return 1;
+                  if (b === '__none__') return -1;
+                  const da = (app.ddays || []).find(d => d.id === a);
+                  const db = (app.ddays || []).find(d => d.id === b);
+                  const daysA = da?.date ? (calcDDay(da.date) ?? 9999) : 9999;
+                  const daysB = db?.date ? (calcDDay(db.date) ?? 9999) : 9999;
+                  if (daysA < 0 && daysB >= 0) return 1;
+                  if (daysA >= 0 && daysB < 0) return -1;
+                  return daysA - daysB;
+                });
+                const activeKeys = ddayOrder.filter(k => {
+                  if (k === '__none__') return true;
+                  const dd = (app.ddays || []).find(d => d.id === k);
+                  return !dd?.date || (calcDDay(dd.date) ?? 0) >= 0;
+                });
+                const pastKeys = ddayOrder.filter(k => {
+                  if (k === '__none__') return false;
+                  const dd = (app.ddays || []).find(d => d.id === k);
+                  return dd?.date && (calcDDay(dd.date) ?? 0) < 0;
+                });
+                return (
+                  <>
+                    {activeKeys.map(key => {
+                      const group = ddayMap[key];
+                      const dd = (app.ddays || []).find(d => d.id === key);
+                      const days = dd?.date ? calcDDay(dd.date) : null;
+                      const dStr = days === null ? '' : days === 0 ? ' D-Day' : days > 0 ? ` D-${days}` : ` D+${Math.abs(days)}`;
+                      const sorted = sortTodos(group.todos);
+                      const doneCnt = group.todos.filter(t => t.done).length;
+                      const pct = group.todos.length > 0 ? doneCnt / group.todos.length : 0;
+                      return (
+                        <View key={key} style={{ marginBottom: 12 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: T.text, flex: 1 }}>
+                              {key === '__none__' ? '📋 기타 시험 항목' : `🎯 ${dd?.label || '시험'}${dStr}`}
+                            </Text>
+                            <Text style={{ fontSize: 10, color: T.sub }}>{doneCnt}/{group.todos.length}</Text>
+                          </View>
+                          <View style={{ height: 4, backgroundColor: T.surface2, borderRadius: 2, marginBottom: 6, overflow: 'hidden' }}>
+                            <View style={{ height: 4, borderRadius: 2, backgroundColor: pct >= 1 ? '#27AE60' : T.accent, width: `${Math.round(pct * 100)}%` }} />
+                          </View>
+                          {sorted.map(renderTodoRow)}
+                        </View>
+                      );
+                    })}
+                    {pastKeys.length > 0 && (
+                      <View style={{ marginTop: 4, opacity: 0.65 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub, marginBottom: 8 }}>📁 완료된 시험</Text>
+                        {pastKeys.map(key => {
+                          const group = ddayMap[key];
+                          const dd = (app.ddays || []).find(d => d.id === key);
+                          const days = dd?.date ? calcDDay(dd.date) : null;
+                          const doneCnt = group.todos.filter(t => t.done).length;
+                          const pct = group.todos.length > 0 ? Math.round((doneCnt / group.todos.length) * 100) : 0;
+                          return (
+                            <View key={key} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                              <Text style={{ fontSize: 11, color: T.sub, flex: 1 }}>
+                                📁 {dd?.label || '시험'}{days !== null ? ` D+${Math.abs(days)}` : ''}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: T.sub }}>{doneCnt}/{group.todos.length} ({pct}%)</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </>
+                );
+              })() : (
+                visibleTodos.length === 0 ? (
+                  <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', paddingVertical: 12 }}>
+                    {todoScopeFilter === 'today' ? '오늘 할 일이 없어요!' : '이번주 할 일이 없어요!'}
+                  </Text>
+                ) : (
+                  groupOrder.map(key => {
+                    const group = groupMap[key];
+                    const sorted = sortTodos(group.todos);
+                    const groupDone = group.todos.filter(t => t.done).length;
+                    return (
+                      <View key={key} style={{ marginBottom: 8 }}>
+                        {(groupOrder.length > 1 || key !== '__none__') && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, paddingHorizontal: 2 }}>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: group.color }} />
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: group.color, flex: 1 }}>{group.label}</Text>
+                            <Text style={{ fontSize: 10, color: T.sub }}>{groupDone}/{group.todos.length}</Text>
+                          </View>
+                        )}
+                        {sorted.map(renderTodoRow)}
+                      </View>
+                    );
+                  })
+                )
               )}
-              {showCompletedTodos && completedTodos.map(renderTodoRow)}
-              {app.todos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 2 }}>탭: 펼치기 · 길게: 수정 · 🔁: 매일 반복 · ▶: 타이머 시작</Text>}
+              {/* 하단 완료 + 캐릭터 메시지 */}
+              {todayTodos.length > 0 && (
+                <View style={{ paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: T.border, marginTop: 4 }}>
+                  {doneCount > 0 && (
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent, marginBottom: 3 }}>
+                      ✅ 오늘 완료 {doneCount}개{allDone ? ' 🎉' : ''}
+                    </Text>
+                  )}
+                  <Text style={{ fontSize: 10, color: T.sub, textAlign: 'center' }}>
+                    {getTodoMessage(doneCount, allDone, app.settings.mainCharacter)}
+                  </Text>
+                </View>
+              )}
+              {/* 반복 템플릿 목록 */}
+              {(() => {
+                const templates = app.todos.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
+                if (templates.length === 0) return null;
+                const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+                return (
+                  <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub, marginBottom: 6 }}>🔁 반복 할 일 템플릿</Text>
+                    {templates.map(t => (
+                      <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
+                        <Text style={{ fontSize: 11, color: T.sub, flex: 1 }} numberOfLines={1}>{t.text}</Text>
+                        <Text style={{ fontSize: 9, color: T.sub }}>
+                          {t.repeatDays.length === 7 ? '매일' : t.repeatDays.length === 5 && !t.repeatDays.includes(0) && !t.repeatDays.includes(6) ? '주중' : t.repeatDays.map(d => dayLabels[d]).join('·')}
+                        </Text>
+                        <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={{ padding: 2 }}>
+                          <Text style={{ fontSize: 12, color: T.sub }}>×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+              {visibleTodos.length > 0 && <Text style={{ fontSize: 8, color: T.sub, textAlign: 'center', marginTop: 6 }}>탭: 펼치기 · 길게: 수정</Text>}
             </View>
           );
         })()}
@@ -1068,6 +1382,134 @@ export default function FocusScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* ── 할일 추가 모달 ── */}
+      <Modal visible={showAddTodoModal} transparent animationType="slide" onRequestClose={() => setShowAddTodoModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowAddTodoModal(false)} />
+          <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: T.border, padding: 20, paddingBottom: 32 }}>
+            {/* 헤더 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>📝 할 일 추가</Text>
+              <TouchableOpacity onPress={() => setShowAddTodoModal(false)}>
+                <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {/* 과목 선택 */}
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 6 }}>과목</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 6 }}>
+              <TouchableOpacity onPress={() => { setAddTodoSubjectId(null); setAddTodoSubjectLabel(null); setAddTodoSubjectColor(null); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: !addTodoSubjectId ? T.accent : T.surface2, borderWidth: 1, borderColor: !addTodoSubjectId ? T.accent : T.border }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: !addTodoSubjectId ? 'white' : T.sub }}>미분류</Text>
+              </TouchableOpacity>
+              {app.subjects.map(s => {
+                const sel = addTodoSubjectId === s.id;
+                return (
+                  <TouchableOpacity key={s.id} onPress={() => { setAddTodoSubjectId(s.id); setAddTodoSubjectLabel(s.name); setAddTodoSubjectColor(s.color); }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? s.color : s.color + '15', borderWidth: 1, borderColor: s.color }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: sel ? 'white' : s.color }}>{s.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {/* 텍스트 입력 */}
+            <TextInput
+              value={addTodoText} onChangeText={setAddTodoText}
+              placeholder="할 일 내용을 입력하세요" placeholderTextColor={T.sub}
+              style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, marginBottom: 14 }]}
+              onSubmitEditing={submitAddTodo} returnKeyType="done" autoFocus
+            />
+            {/* 기한 */}
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 6 }}>기한</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {[{ id: 'today', label: '오늘' }, { id: 'week', label: '이번주' }, { id: 'exam', label: '시험' }].map(opt => {
+                const sel = addTodoScope === opt.id;
+                return (
+                  <TouchableOpacity key={opt.id} onPress={() => setAddTodoScope(opt.id)}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {/* 시험 D-Day 선택 */}
+            {addTodoScope === 'exam' && (app.ddays || []).length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 6 }}>
+                {(app.ddays || []).map(d => {
+                  const sel = addTodoDdayId === d.id;
+                  return (
+                    <TouchableOpacity key={d.id} onPress={() => setAddTodoDdayId(sel ? null : d.id)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? T.accent : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: sel ? 'white' : T.sub }}>{d.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {/* 우선순위 */}
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 6 }}>우선순위</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: T.sub }, { id: 'low', label: '⚫ 낮음', color: T.sub }].map(opt => {
+                const sel = addTodoPriority === opt.id;
+                return (
+                  <TouchableOpacity key={opt.id} onPress={() => setAddTodoPriority(opt.id)}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? opt.color + '20' : T.surface2, borderWidth: 1, borderColor: sel ? opt.color : T.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? opt.color : T.sub }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {/* 메모 (선택) */}
+            <TouchableOpacity onPress={() => setShowAddTodoMemo(v => !v)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: showAddTodoMemo ? 8 : 14 }}>
+              <Text style={{ fontSize: 11, color: T.sub }}>📎 메모 추가 (선택) {showAddTodoMemo ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {showAddTodoMemo && (
+              <TextInput value={addTodoMemo} onChangeText={setAddTodoMemo}
+                placeholder="부가 메모" placeholderTextColor={T.sub} multiline
+                style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, minHeight: 52, textAlignVertical: 'top', marginBottom: 14 }]}
+              />
+            )}
+            {/* 반복 */}
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 6 }}>🔁 반복</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 6 }}>
+              {[{ id: 'none', label: '안 함' }, { id: 'daily', label: '매일' }, { id: 'weekday', label: '주중' }, { id: 'weekend', label: '주말' }, { id: 'custom', label: '직접선택' }].map(opt => {
+                const sel = addTodoRepeatType === opt.id;
+                return (
+                  <TouchableOpacity key={opt.id} onPress={() => setAddTodoRepeatType(opt.id)}
+                    style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                    <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {addTodoRepeatType === 'custom' && (
+              <View style={{ flexDirection: 'row', gap: 4, marginBottom: 14 }}>
+                {[{ d: 1, l: '월' }, { d: 2, l: '화' }, { d: 3, l: '수' }, { d: 4, l: '목' }, { d: 5, l: '금' }, { d: 6, l: '토' }, { d: 0, l: '일' }].map(({ d, l }) => {
+                  const sel = addTodoCustomDays.includes(d);
+                  return (
+                    <TouchableOpacity key={d} onPress={() => setAddTodoCustomDays(prev => sel ? prev.filter(x => x !== d) : [...prev, d])}
+                      style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center', backgroundColor: sel ? T.accent : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                      <Text style={{ fontSize: 11, fontWeight: sel ? '800' : '600', color: sel ? 'white' : T.sub }}>{l}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            {addTodoRepeatType !== 'none' && (
+              <Text style={{ fontSize: 10, color: T.accent, marginBottom: 10, textAlign: 'center' }}>
+                🔁 반복 설정 시 템플릿으로 저장되어 매일 자동으로 오늘 할 일에 추가됩니다
+              </Text>
+            )}
+            {/* 추가 버튼 */}
+            <TouchableOpacity onPress={submitAddTodo}
+              style={{ backgroundColor: T.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>추가</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 10, color: T.sub, textAlign: 'center', marginTop: 8 }}>추가 후 계속 입력 가능 · 완료하면 ✕ 닫기</Text>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 할일 수정 모달 */}
@@ -1354,22 +1796,25 @@ export default function FocusScreen() {
             <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>🎉</Text>
             <Text style={[S.selfRatingTitle, { color: T.text }]}>공부 완료!</Text>
             {/* 결과 정보 */}
-            {app.completedResultData?.result && (
-              <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                {app.completedResultData.result.tier && (
-                  <View style={[S.resTier, { backgroundColor: app.completedResultData.result.tier.color + '20', marginBottom: 4 }]}>
-                    <Text style={[S.resTierT, { color: app.completedResultData.result.tier.color }]}>{app.completedResultData.result.tier.label}</Text>
+            {app.completedResultData?.result && (() => {
+              const selfBonus = (resultSelfRating === 'fire' || resultSelfRating === 'perfect') ? 3 : 0;
+              const displayDensity = Math.max(56, Math.min(103, (app.completedResultData.result.density || 0) + selfBonus));
+              const displayTier = getTier(displayDensity);
+              return (
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <View style={[S.resTier, { backgroundColor: displayTier.color + '20', marginBottom: 4 }]}>
+                    <Text style={[S.resTierT, { color: displayTier.color }]}>{displayTier.label}</Text>
                   </View>
-                )}
-                <Text style={{ fontSize: 22, fontWeight: '900', color: app.completedResultData.result.tier?.color || T.accent }}>
-                  밀도 {app.completedResultData.result.density || 0}점
-                </Text>
-                <Text style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>
-                  {formatDuration(app.completedResultData.result.durationSec || 0)}
-                  {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
-                </Text>
-              </View>
-            )}
+                  <Text style={{ fontSize: 22, fontWeight: '900', color: displayTier.color }}>
+                    밀도 {displayDensity}점{selfBonus > 0 ? <Text style={{ fontSize: 14, color: displayTier.color }}> (+{selfBonus})</Text> : null}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>
+                    {formatDuration(app.completedResultData.result.durationSec || 0)}
+                    {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
+                  </Text>
+                </View>
+              );
+            })()}
             <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginBottom: 12 }}>오늘 공부 어땠나요?</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               {[

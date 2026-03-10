@@ -61,13 +61,14 @@ const TIME_ZONES = [
 ];
 
 // ─── 주간 리포트 텍스트 생성 ─────────────────────────────────────
-function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, streak, studyDays, focusStats }) {
+function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, streak, studyDays, focusStats, todoRate }) {
   const tier = getTier(avgDensity);
   const diff = weekTotal - weekPrev;
   const diffStr = diff === 0 ? '지난주와 동일' : diff > 0 ? `지난주보다 +${formatShort(diff)}` : `지난주보다 ${formatShort(Math.abs(diff))} 적음`;
   const fsl = focusStats || {};
   const fsLine = fsl.screenOnSessions ? `🔥 집중 도전: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
   const fsLine2 = fsl.screenOffSessions ? `📖 편하게 공부: ${fsl.screenOffSessions}세션` : '';
+  const todoLine = todoRate !== null && todoRate !== undefined ? `📝 이번 주 할 일 완료율: ${todoRate}%` : '';
   return `📊 열공메이트 주간 리포트
 
 ⏱️ 이번 주 공부시간: ${formatDuration(weekTotal)}
@@ -76,7 +77,7 @@ function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, streak, 
 📚 최다 과목: ${topSubject || '미지정'}
 📅 공부일수: ${studyDays}일 / 7일
 🔥 연속 공부: ${streak}일
-${fsLine ? '\n' + fsLine : ''}${fsLine2 ? '\n' + fsLine2 : ''}
+${todoLine ? '\n' + todoLine : ''}${fsLine ? '\n' + fsLine : ''}${fsLine2 ? '\n' + fsLine2 : ''}
 
 #열공멀티타이머 #공부스타그램 #수험생`;
 }
@@ -714,10 +715,14 @@ export default function StatsScreen() {
       }
     } catch {}
     // 이미지 공유 실패 시 텍스트 공유 폴백
+    const weekTodosAll = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+    const weekTodoRate = weekTodosAll.length > 0
+      ? Math.round((weekTodosAll.filter(t => t.done).length / weekTodosAll.length) * 100)
+      : null;
     const text = buildReportText({
       weekTotal, weekPrev: weekPrevTotal, topSubject,
       avgDensity: weekAvgDensity, streak: app.settings.streak, studyDays: weekStudyDays,
-      focusStats: weekFocusStats,
+      focusStats: weekFocusStats, todoRate: weekTodoRate,
     });
     try { await Share.share({ message: text }); } catch (e) {}
   };
@@ -961,23 +966,67 @@ export default function StatsScreen() {
           {renderSubjects(daySubjects, '과목 비율')}
 
           {/* ── TODO 카드 ── */}
-          {app.todos.length > 0 && (
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>📝 오늘 할 일</Text>
-                <Text style={{ fontSize: 11, color: T.sub }}>{app.todos.filter(t => t.done).length}/{app.todos.length} 완료</Text>
-              </View>
-              {app.todos.map(todo => (
-                <TouchableOpacity key={todo.id} onPress={() => app.toggleTodo(todo.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5 }}>
-                  <Text style={{ fontSize: 16, marginRight: 8 }}>{todo.done ? '✅' : '⬜'}</Text>
-                  <Text style={{ fontSize: 13, color: todo.done ? T.sub : T.text, textDecorationLine: todo.done ? 'line-through' : 'none', flex: 1 }}>
-                    {todo.text}
+          {(() => {
+            const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+            if (todayTodos.length === 0) return null;
+            const doneCnt = todayTodos.filter(t => t.done).length;
+            const pct = Math.round((doneCnt / todayTodos.length) * 100);
+            const allDone = doneCnt === todayTodos.length;
+            // 과목별 현황
+            const subjectMap = {};
+            todayTodos.forEach(t => {
+              const key = t.subjectId || '__none__';
+              if (!subjectMap[key]) subjectMap[key] = { label: t.subjectLabel || '미분류', color: t.subjectColor || T.sub, total: 0, done: 0 };
+              subjectMap[key].total++;
+              if (t.done) subjectMap[key].done++;
+            });
+            const subjKeys = Object.keys(subjectMap).filter(k => k !== '__none__');
+            if (subjectMap['__none__']) subjKeys.push('__none__');
+            return (
+              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>📝 오늘 할 일</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
+                    {doneCnt}/{todayTodos.length}{allDone ? ' 🎉' : ''}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+                </View>
+                {/* 진행률 바 */}
+                <View style={{ height: 6, backgroundColor: T.surface2, borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: allDone ? '#27AE60' : T.accent, width: `${pct}%` }} />
+                </View>
+                <Text style={{ fontSize: 10, color: T.sub, marginBottom: 8 }}>{pct}% 완료</Text>
+                {/* 과목별 현황 */}
+                {subjKeys.length > 1 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+                    {subjKeys.map(k => {
+                      const s = subjectMap[k];
+                      return (
+                        <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (s.color || T.sub) + '18', borderWidth: 1, borderColor: (s.color || T.sub) + '40' }}>
+                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: s.color || T.sub }} />
+                          <Text style={{ fontSize: 10, color: s.color || T.sub, fontWeight: '700' }}>{s.label} {s.done}/{s.total}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+                {/* 미완료 상위 3개 미리보기 */}
+                {todayTodos.filter(t => !t.done).slice(0, 3).map(t => (
+                  <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+                    {t.priority === 'high' && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#E17055' }} />}
+                    {t.priority !== 'high' && <View style={{ width: 5 }} />}
+                    <Text style={{ fontSize: 12, color: T.text, flex: 1 }} numberOfLines={1}>⬜ {t.text}</Text>
+                    {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
+                  </View>
+                ))}
+                {todayTodos.filter(t => !t.done).length > 3 && (
+                  <Text style={{ fontSize: 10, color: T.sub, marginTop: 3 }}>+ {todayTodos.filter(t => !t.done).length - 3}개 더</Text>
+                )}
+                {allDone && todayTodos.length > 0 && (
+                  <Text style={{ fontSize: 12, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>🎉 오늘 할 일 올클리어!</Text>
+                )}
+              </View>
+            );
+          })()}
 
           {/* ── 세션 리스트 ── */}
           {todaySessions.length > 0 && (
@@ -1740,6 +1789,27 @@ export default function StatsScreen() {
                     </View>
                   </View>
                 )}
+
+                {/* 이번 주 할일 완료율 */}
+                {(() => {
+                  const wTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+                  if (wTodos.length === 0) return null;
+                  const wDone = wTodos.filter(t => t.done).length;
+                  const wPct = Math.round((wDone / wTodos.length) * 100);
+                  return (
+                    <View style={[S.reportMiniCard, { backgroundColor: T.surface2, marginHorizontal: 16, marginBottom: 12 }]}>
+                      <Text style={{ fontSize: 10, color: T.sub }}>📝 이번 주 할 일 완료율</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.border, overflow: 'hidden' }}>
+                          <View style={{ height: 6, borderRadius: 3, width: `${wPct}%`, backgroundColor: wPct >= 100 ? '#27AE60' : T.accent }} />
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '900', color: wPct >= 100 ? '#27AE60' : T.accent }}>
+                          {wDone}/{wTodos.length} ({wPct}%)
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()}
 
                 {/* 투명성 리포트 */}
                 {(weekFocusStats.screenOnSessions > 0 || weekFocusStats.screenOffSessions > 0) && (

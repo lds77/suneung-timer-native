@@ -1020,14 +1020,52 @@ export function AppProvider({ children }) {
       const today = getToday();
       const mergedSettings = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
       if (td) {
+        // 새 필드 마이그레이션 (기존 todo에 없는 필드 기본값 추가)
+        const migrated = td.map(t => ({
+          ...t,
+          completedAt:  t.completedAt  ?? null,
+          subjectId:    t.subjectId    ?? null,
+          subjectLabel: t.subjectLabel ?? null,
+          subjectColor: t.subjectColor ?? null,
+          subjectIcon:  t.subjectIcon  ?? null,
+          priority:     t.priority     ?? 'normal',
+          scope:        t.scope        ?? 'today',
+          ddayId:       t.ddayId       ?? null,
+          memo:         t.memo         ?? '',
+          isTemplate:   t.isTemplate   ?? false,
+          repeatDays:   t.repeatDays   ?? null,
+          templateId:   t.templateId   ?? null,
+          createdDate:  t.createdDate  ?? null,
+        }));
+        // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
+        const todayDay = new Date().getDay();
+        const genFromTemplates = (base) => {
+          const templates = base.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
+          const toAdd = [];
+          templates.forEach(tmpl => {
+            if (!tmpl.repeatDays.includes(todayDay)) return;
+            if (base.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === today)) return;
+            toAdd.push({
+              id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
+              repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
+              subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
+              priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
+              memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
+              templateId: tmpl.id, createdDate: today,
+            });
+          });
+          return toAdd;
+        };
         if (mergedSettings.lastTodoResetDate !== today) {
-          const resetTodos = td
-            .filter(t => !t.done || t.repeat)
-            .map(t => (t.repeat && t.done) ? { ...t, done: false } : t);
-          setTodos(resetTodos);
+          const resetTodos = migrated
+            .filter(t => t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam')
+            .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
+          const generated = genFromTemplates(resetTodos);
+          setTodos(generated.length > 0 ? [...resetTodos, ...generated] : resetTodos);
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
         } else {
-          setTodos(td);
+          const generated = genFromTemplates(migrated);
+          setTodos(generated.length > 0 ? [...migrated, ...generated] : migrated);
         }
       }
       if (cuf) setCountupFavs(cuf);
@@ -1152,8 +1190,8 @@ export function AppProvider({ children }) {
     return Math.max(0, 24 * 60 - fixedMin);
   }, [weeklySchedule]);
 
-  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null }) => {
-    const density = calculateDensity({
+  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null, densityOverride = null }) => {
+    const density = densityOverride ?? calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
@@ -1219,10 +1257,77 @@ export function AppProvider({ children }) {
     if (cnt >= 8) return prev;
     return prev.map(d => d.id === id ? { ...d, isPrimary: true } : d);
   }), []);
-  const addTodo = useCallback((text) => setTodos(prev => [...prev, { id: generateId('todo_'), text, done: false, repeat: false }]), []);
-  const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t)), []);
+  // addTodo: 문자열(하위 호환) 또는 객체로 호출 가능
+  const addTodo = useCallback((textOrObj) => {
+    const isStr = typeof textOrObj === 'string';
+    const text = isStr ? textOrObj : textOrObj?.text;
+    if (!text?.trim()) return;
+    const o = isStr ? {} : (textOrObj || {});
+    setTodos(prev => [...prev, {
+      id:           generateId('todo_'),
+      text:         text.trim(),
+      done:         false,
+      completedAt:  null,
+      repeat:       false, // 하위 호환 유지
+      subjectId:    o.subjectId    ?? null,
+      subjectLabel: o.subjectLabel ?? null,
+      subjectColor: o.subjectColor ?? null,
+      subjectIcon:  o.subjectIcon  ?? null,
+      priority:     o.priority     ?? 'normal',
+      scope:        o.scope        ?? 'today',
+      ddayId:       o.ddayId       ?? null,
+      memo:         o.memo         ?? '',
+      isTemplate:   o.isTemplate   ?? false,
+      repeatDays:   o.repeatDays   ?? null,
+      templateId:   o.templateId   ?? null,
+      createdDate:  o.createdDate  ?? null,
+    }]);
+  }, []);
+  const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => {
+    if (t.id !== id) return t;
+    const done = !t.done;
+    return { ...t, done, completedAt: done ? Date.now() : null };
+  })), []);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
   const toggleTodoRepeat = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, repeat: !t.repeat } : t)), []);
+  const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
+  const generateDailyTodos = useCallback(() => {
+    const todayDay = new Date().getDay();
+    const todayStr = getToday();
+    setTodos(prev => {
+      const templates = prev.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
+      const toAdd = [];
+      templates.forEach(tmpl => {
+        if (!tmpl.repeatDays.includes(todayDay)) return;
+        if (prev.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === todayStr)) return;
+        toAdd.push({
+          id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
+          repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
+          subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
+          priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
+          memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
+          templateId: tmpl.id, createdDate: todayStr,
+        });
+      });
+      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+    });
+  }, []);
+
+  // 할일 헬퍼 함수
+  const getTodayTodos = useCallback(() =>
+    todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null)),
+  [todos]);
+  const getTodosBySubject = useCallback((subjectId) =>
+    todos.filter(t => !t.isTemplate && t.subjectId === subjectId),
+  [todos]);
+  const getTodoCompletionRate = useCallback(() => {
+    const todayT = todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+    if (todayT.length === 0) return 0;
+    return Math.round((todayT.filter(t => t.done).length / todayT.length) * 100);
+  }, [todos]);
+  const getExamTodos = useCallback((ddayId) =>
+    todos.filter(t => !t.isTemplate && t.scope === 'exam' && t.ddayId === ddayId),
+  [todos]);
   const updateSettings = useCallback((u) => setSettings(prev => ({ ...prev, ...u })), []);
 
   // 알림 설정 변경 감지
@@ -1270,7 +1375,8 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, toggleTodoRepeat, mood,
+      todos, addTodo, toggleTodo, removeTodo, toggleTodoRepeat, updateTodo, generateDailyTodos,
+      getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
       completedResultData, setCompletedResultData,
