@@ -60,7 +60,7 @@ export default function FocusScreen() {
   const subjectDefMin = school === 'elementary_lower' ? 15 : school === 'elementary_upper' ? 20 : school === 'middle' ? 30 : 45;
   const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
   const [showAdd, setShowAdd] = useState(false);
-  const [timerViewMode, setTimerViewMode] = useState('full'); // 'full' | 'mini'
+  const [timerViewMode, setTimerViewMode] = useState('default'); // 'default' | 'full' | 'mini'
   const [addType, setAddType] = useState('countdown');
   const [addMin, setAddMin] = useState(25);
   const [addSubject, setAddSubject] = useState(null);
@@ -1840,7 +1840,7 @@ export default function FocusScreen() {
 
       {/* ═══ 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showFavMgr} transparent animationType="fade">
-        <View style={S.mo}><ScrollView contentContainerStyle={S.moScroll}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.mo}><ScrollView contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>⭐ 즐겨찾기 편집</Text>
           <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({favs.length}/6) · 탭하면 삭제</Text>
           <View style={S.favMgrGrid}>{favs.map(f => (
@@ -1905,7 +1905,7 @@ export default function FocusScreen() {
 
       {/* ═══ 공부량 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showCountupFavMgr} transparent animationType="fade">
-        <View style={S.mo}><ScrollView contentContainerStyle={S.moScroll}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.mo}><ScrollView contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>📈 공부량 즐겨찾기 편집</Text>
           <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({countupFavs.length}/6) · 탭하면 삭제</Text>
           <View style={S.favMgrGrid}>{countupFavs.map(f => (
@@ -1952,7 +1952,7 @@ export default function FocusScreen() {
 
       {/* ═══ 커스텀 타이머 + 연속모드 ═══ */}
       <Modal visible={showAdd} transparent animationType="fade">
-        <View style={S.mo}><ScrollView contentContainerStyle={S.moScroll}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.mo}><ScrollView contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>커스텀 타이머</Text>
           <View style={[S.typeRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'countdown', l: '⏰ 타임어택' }, { id: 'pomodoro', l: '🍅 뽀모도로' }, { id: 'sequence', l: '📋 연속모드' }].map(m => (
@@ -2103,7 +2103,7 @@ export default function FocusScreen() {
       <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.selfRatingSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
             <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>🎉</Text>
             <Text style={[S.selfRatingTitle, { color: T.text }]}>공부 완료!</Text>
@@ -2282,12 +2282,12 @@ const S = StyleSheet.create({
   lapBigRecordT: { fontSize: 17, fontWeight: '900' },
   lapDoneBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   lapDoneBtnT: { color: 'white', fontSize: 12, fontWeight: '800' },
-  mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }, moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 30, alignItems: isTablet ? 'center' : undefined },
-  selfRatingSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, ...(isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }) },
+  mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }, moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 30 },
+  selfRatingSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
   selfRatingHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   selfRatingTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 6 },
   selfRatingBtn: { flex: 1, borderRadius: 14, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },
-  modal: { borderRadius: 20, padding: 16, borderWidth: 1, width: isTablet ? 520 : undefined }, modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
+  modal: { borderRadius: 20, padding: 16, borderWidth: 1 }, modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   favSecLabel: { fontSize: 10, fontWeight: '700', marginBottom: 6 },
   favMgrGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   favMgrChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
