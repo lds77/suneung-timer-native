@@ -13,14 +13,16 @@ import { getPlannerMessage, getTodoMessage } from '../constants/characters';
 import { getTier } from '../constants/presets';
 
 const SW = Dimensions.get('window').width;
+const isTablet = SW >= 600;
+const CONTENT_MAX_W = isTablet ? 600 : SW;
 const GAP = 8;
-const CARD_W = (SW - 32 - GAP) / 2;
-const RING_SIZE = Math.min(SW - 72, 248);
-const RING_STROKE = 14;
+const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, SW) - 32 - GAP) / 2 : (SW - 32 - GAP) / 2;
+const RING_SIZE = isTablet ? Math.min(SW * 0.38, 340) : Math.min(SW - 72, 248);
+const RING_STROKE = isTablet ? 16 : 14;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
-const RING_SIZE_FULL = Math.min(SW - 40, 300);
-const RING_STROKE_FULL = 16;
+const RING_SIZE_FULL = isTablet ? Math.min(SW * 0.5, 460) : Math.min(SW - 40, 300);
+const RING_STROKE_FULL = isTablet ? 20 : 16;
 const RING_R_FULL = (RING_SIZE_FULL - RING_STROKE_FULL) / 2;
 const RING_C_FULL = 2 * Math.PI * RING_R_FULL;
 
@@ -637,7 +639,7 @@ export default function FocusScreen() {
             </Svg>
             {/* 링 내부: 시간 + 서브 텍스트 */}
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 50, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+              <Text style={{ fontSize: isTablet ? 64 : 50, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
               {t.type === 'countdown' && (
@@ -725,7 +727,7 @@ export default function FocusScreen() {
             )}
           </Svg>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 60, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+            <Text style={{ fontSize: isTablet ? 80 : 60, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
             {t.type === 'countdown' && (
@@ -811,7 +813,7 @@ export default function FocusScreen() {
         </View>
       )}
 
-      {timerViewMode !== 'full' && <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
+      {timerViewMode !== 'full' && <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }, isTablet && { alignItems: 'center' }]}>
 
         {/* 🔥모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (
@@ -873,7 +875,7 @@ export default function FocusScreen() {
         )}
 
         {/* 헤더 */}
-        <View style={S.header}>
+        <View style={[S.header, isTablet && S.tabletBlock]}>
           <View style={S.headerLeft}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
             <View style={{ marginLeft: 8 }}><Text style={[S.title, { color: T.text }]}>열공메이트</Text>
@@ -1120,7 +1122,7 @@ export default function FocusScreen() {
           const allDone = doneCount > 0 && doneCount === todayTodos.length;
 
           return (
-            <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }]}>
+            <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && S.tabletBlock]}>
               {/* 헤더 */}
               <View style={S.todoH}>
                 <Text style={[S.todoTitle, { color: T.text }]}>✅ 해야 할 일</Text>
@@ -1346,7 +1348,7 @@ export default function FocusScreen() {
         })()}
 
         {/* ═══ 공부량 즐겨찾기 ═══ */}
-        <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }, isTablet && S.tabletBlock]}>
           <View style={S.quickHeader}>
             <Text style={[S.quickTitle, { color: T.text }]}>📈 공부량 체크 즐겨찾기 (카운트업)</Text>
             <TouchableOpacity onPress={() => setShowCountupFavMgr(true)}>
@@ -1381,7 +1383,7 @@ export default function FocusScreen() {
         </View>
 
         {/* ═══ 즐겨찾기 (고정1 + 추가5 + 기록/커스텀) ═══ */}
-        <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }, isTablet && S.tabletBlock]}>
           <View style={S.quickHeader}><Text style={[S.quickTitle, { color: T.text }]}>📋 학습법·루틴·과목 즐겨찾기 (카운트다운)</Text>
             <TouchableOpacity onPress={() => setShowFavMgr(true)}><Text style={[S.quickEdit, { color: T.accent }]}>편집</Text></TouchableOpacity></View>
           <Text style={{ fontSize: 10, color: T.sub, marginBottom: 8 }}>탭하면 타이머 시작 · 실행 중 타이머의 ☆ 탭으로 즐겨찾기 추가 · 길게 누르면 삭제</Text>
@@ -1600,7 +1602,7 @@ export default function FocusScreen() {
       <Modal visible={showAddTodoModal} transparent animationType="slide" onRequestClose={() => setShowAddTodoModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowAddTodoModal(false)} />
-          <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: T.border, padding: 20, paddingBottom: 32 }}>
+          <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: T.border, padding: 20, paddingBottom: 32, ...(isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 0 }) }}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>📝 할 일 추가</Text>
@@ -1731,7 +1733,7 @@ export default function FocusScreen() {
       <Modal visible={!!editTodoId} transparent animationType="slide" onRequestClose={() => setEditTodoId(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }]}>
+          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, flex: 1 }}>✏️ 할 일 수정</Text>
               <TouchableOpacity onPress={() => setEditTodoId(null)}><Text style={{ fontSize: 20, color: T.sub }}>✕</Text></TouchableOpacity>
@@ -2186,6 +2188,7 @@ export default function FocusScreen() {
 
 const S = StyleSheet.create({
   container: { flex: 1 }, scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
+  tabletBlock: { width: CONTENT_MAX_W },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 15, fontWeight: '800' }, headerSub: { fontSize: 9, marginTop: 1 },
@@ -2279,12 +2282,12 @@ const S = StyleSheet.create({
   lapBigRecordT: { fontSize: 17, fontWeight: '900' },
   lapDoneBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   lapDoneBtnT: { color: 'white', fontSize: 12, fontWeight: '800' },
-  mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }, moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 30 },
-  selfRatingSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
+  mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }, moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 30, alignItems: isTablet ? 'center' : undefined },
+  selfRatingSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, ...(isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }) },
   selfRatingHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   selfRatingTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 6 },
   selfRatingBtn: { flex: 1, borderRadius: 14, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },
-  modal: { borderRadius: 20, padding: 16, borderWidth: 1 }, modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
+  modal: { borderRadius: 20, padding: 16, borderWidth: 1, width: isTablet ? 520 : undefined }, modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   favSecLabel: { fontSize: 10, fontWeight: '700', marginBottom: 6 },
   favMgrGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   favMgrChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
