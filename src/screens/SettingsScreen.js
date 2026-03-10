@@ -649,7 +649,7 @@ const [ddLabel, setDdLabel] = useState('');
               </GuideSection>
 
               {/* 과목 & 할 일 */}
-              <GuideSection title="📚 과목·할 일·D-Day" color="#FDCB6E" T={T}>
+              <GuideSection title="📚 과목·D-Day" color="#FDCB6E" T={T}>
                 {'과목 탭:\n• + 버튼으로 과목을 추가하고 색상을 지정할 수 있어요\n• 과목별 총 공부 시간이 자동으로 쌓여요\n• ♡ 버튼으로 즐겨찾기 과목을 상단에 고정해요\n\nD-Day (설정 탭):\n• 수능, 시험, 목표일을 등록하면 남은 날수를 표시해요\n• 여러 개를 등록하고 대표 D-Day를 설정할 수 있어요\n• 집중탭 상단에 D-Day 카운터가 표시돼요'}
               </GuideSection>
 
