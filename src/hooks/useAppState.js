@@ -1263,25 +1263,47 @@ export function AppProvider({ children }) {
     const text = isStr ? textOrObj : textOrObj?.text;
     if (!text?.trim()) return;
     const o = isStr ? {} : (textOrObj || {});
-    setTodos(prev => [...prev, {
-      id:           generateId('todo_'),
-      text:         text.trim(),
-      done:         false,
-      completedAt:  null,
-      repeat:       false, // 하위 호환 유지
-      subjectId:    o.subjectId    ?? null,
-      subjectLabel: o.subjectLabel ?? null,
-      subjectColor: o.subjectColor ?? null,
-      subjectIcon:  o.subjectIcon  ?? null,
-      priority:     o.priority     ?? 'normal',
-      scope:        o.scope        ?? 'today',
-      ddayId:       o.ddayId       ?? null,
-      memo:         o.memo         ?? '',
-      isTemplate:   o.isTemplate   ?? false,
-      repeatDays:   o.repeatDays   ?? null,
-      templateId:   o.templateId   ?? null,
-      createdDate:  o.createdDate  ?? null,
-    }]);
+    const isTemplate = o.isTemplate ?? false;
+    const repeatDays = o.repeatDays ?? null;
+    const tmplId = generateId('todo_');
+    setTodos(prev => {
+      const newTmpl = {
+        id:           tmplId,
+        text:         text.trim(),
+        done:         false,
+        completedAt:  null,
+        repeat:       false,
+        subjectId:    o.subjectId    ?? null,
+        subjectLabel: o.subjectLabel ?? null,
+        subjectColor: o.subjectColor ?? null,
+        subjectIcon:  o.subjectIcon  ?? null,
+        priority:     o.priority     ?? 'normal',
+        scope:        o.scope        ?? 'today',
+        ddayId:       o.ddayId       ?? null,
+        memo:         o.memo         ?? '',
+        isTemplate,
+        repeatDays,
+        templateId:   o.templateId   ?? null,
+        createdDate:  o.createdDate  ?? null,
+      };
+      // 반복 템플릿이면 오늘 요일에 해당할 경우 인스턴스도 즉시 생성
+      if (isTemplate && repeatDays && repeatDays.length > 0) {
+        const todayDay = new Date().getDay();
+        const todayStr = getToday();
+        if (repeatDays.includes(todayDay)) {
+          const todayInst = {
+            id: generateId('todo_'), text: text.trim(), done: false, completedAt: null,
+            repeat: false, subjectId: o.subjectId ?? null, subjectLabel: o.subjectLabel ?? null,
+            subjectColor: o.subjectColor ?? null, subjectIcon: o.subjectIcon ?? null,
+            priority: o.priority ?? 'normal', scope: 'today', ddayId: null,
+            memo: o.memo ?? '', isTemplate: false, repeatDays: null,
+            templateId: tmplId, createdDate: todayStr,
+          };
+          return [...prev, newTmpl, todayInst];
+        }
+      }
+      return [...prev, newTmpl];
+    });
   }, []);
   const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => {
     if (t.id !== id) return t;
