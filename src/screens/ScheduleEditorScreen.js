@@ -452,11 +452,11 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     <View style={s.moveGroup}>
                       <TouchableOpacity onPress={() => handleMovePlan(p.id, -1)} disabled={idx === 0}
                         style={{ opacity: idx === 0 ? 0.3 : 1, padding: 6 }}>
-                        <Text style={{ color: T.sub, fontSize: 12 }}>▲</Text>
+                        <Text style={{ color: T.sub, fontSize: 14 }}>▲</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleMovePlan(p.id, 1)} disabled={idx === sortedPlans.length - 1}
                         style={{ opacity: idx === sortedPlans.length - 1 ? 0.3 : 1, padding: 6 }}>
-                        <Text style={{ color: T.sub, fontSize: 12 }}>▼</Text>
+                        <Text style={{ color: T.sub, fontSize: 14 }}>▼</Text>
                       </TouchableOpacity>
                     </View>
                     <TouchableOpacity onPress={() => openEditPlan(p)} style={s.editBtn}>
@@ -550,7 +550,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     {TIME_OPTIONS.map(t => (
                       <TouchableOpacity key={`s_${t}`} onPress={() => setFixedStart(t)}
                         style={[s.timeOpt, fixedStart === t && { backgroundColor: T.accent }]}>
-                        <Text style={{ fontSize: 13, color: fixedStart === t ? 'white' : T.text }}>{t}</Text>
+                        <Text style={{ fontSize: 14, color: fixedStart === t ? 'white' : T.text }}>{t}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -562,7 +562,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     {TIME_OPTIONS.map(t => (
                       <TouchableOpacity key={`e_${t}`} onPress={() => setFixedEnd(t)}
                         style={[s.timeOpt, fixedEnd === t && { backgroundColor: T.accent }]}>
-                        <Text style={{ fontSize: 13, color: fixedEnd === t ? 'white' : T.text }}>{t}</Text>
+                        <Text style={{ fontSize: 14, color: fixedEnd === t ? 'white' : T.text }}>{t}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -597,7 +597,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 {[{ id: 'subject', label: '내 과목에서 선택' }, { id: 'custom', label: '직접 입력' }].map(tab => (
                   <TouchableOpacity key={tab.id} onPress={() => setPlanTab(tab.id)}
                     style={[s.tabBtn, planTab === tab.id && { backgroundColor: T.accent }]}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: planTab === tab.id ? 'white' : T.sub }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: planTab === tab.id ? 'white' : T.sub }}>
                       {tab.label}
                     </Text>
                   </TouchableOpacity>
@@ -650,7 +650,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     {PLAN_COLORS.map(c => (
                       <TouchableOpacity key={c} onPress={() => { setPlanColor(c); Keyboard.dismiss(); }}
                         style={[s.colorDot, { backgroundColor: c }, planColor === c && s.colorDotSel]}>
-                        {planColor === c && <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>✓</Text>}
+                        {planColor === c && <Text style={{ color: 'white', fontSize: 12, fontWeight: '900' }}>✓</Text>}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -738,14 +738,14 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '900' },
   closeBtn: { paddingVertical: 6, paddingHorizontal: 12 },
-  closeText: { fontSize: 14, fontWeight: '700' },
+  closeText: { fontSize: 15, fontWeight: '700' },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center',
     margin: 16, padding: 16, borderRadius: 14, borderWidth: 1,
   },
   toggleLabel: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
-  toggleSub: { fontSize: 11 },
+  toggleSub: { fontSize: 13 },
 
   dayTabScroll: { marginBottom: 8, paddingVertical: 4 },
   dayTabContent: { paddingHorizontal: 16, gap: 6, paddingVertical: 4 },
@@ -753,13 +753,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 4, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, alignItems: 'center',
   },
-  dayTabText: { fontSize: 13, fontWeight: '700' },
+  dayTabText: { fontSize: 14, fontWeight: '700' },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3 },
 
   section: { paddingHorizontal: 16, marginBottom: 4 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  planTotal: { fontSize: 12, fontWeight: '700' },
+  planTotal: { fontSize: 14, fontWeight: '700' },
 
   fixedItem: {
     flexDirection: 'row', alignItems: 'center',
@@ -771,11 +771,11 @@ const s = StyleSheet.create({
   },
   planBar: { width: 3, height: 32, borderRadius: 2, marginRight: 10 },
   itemIcon: { fontSize: 20, marginRight: 10 },
-  itemLabel: { fontSize: 14, fontWeight: '700' },
-  itemSub: { fontSize: 11, marginTop: 1 },
+  itemLabel: { fontSize: 15, fontWeight: '700' },
+  itemSub: { fontSize: 13, marginTop: 1 },
   moveGroup: { flexDirection: 'row', marginRight: 2 },
   editBtn: { padding: 6 },
-  editText: { fontSize: 14 },
+  editText: { fontSize: 15 },
   delBtn: { padding: 6, marginLeft: 2 },
   delText: { fontSize: 20 },
 
@@ -783,19 +783,19 @@ const s = StyleSheet.create({
     paddingVertical: 12, borderRadius: 12, borderWidth: 1,
     borderStyle: 'dashed', alignItems: 'center', marginBottom: 12,
   },
-  addBtnText: { fontSize: 13, fontWeight: '700' },
+  addBtnText: { fontSize: 14, fontWeight: '700' },
 
   availRow: { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  availText: { fontSize: 13, fontWeight: '700' },
+  availText: { fontSize: 14, fontWeight: '700' },
 
   warnRow: { padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
-  warnText: { fontSize: 12, fontWeight: '600' },
+  warnText: { fontSize: 14, fontWeight: '600' },
 
   copyBtn: { marginHorizontal: 16, marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  copyBtnText: { fontSize: 13, fontWeight: '700' },
+  copyBtnText: { fontSize: 14, fontWeight: '700' },
 
   offHint: { alignItems: 'center', padding: 48 },
-  offHintText: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  offHintText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   // Sub-modal
   sheetBg: { flex: 1, backgroundColor: '#00000065', justifyContent: 'flex-end' },
@@ -808,18 +808,18 @@ const s = StyleSheet.create({
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   okBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
 
-  fieldLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
   fieldInput: {
     borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, marginBottom: 14,
+    fontSize: 15, marginBottom: 14,
   },
 
   typeChip: {
     alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 10, borderWidth: 1, gap: 3, minWidth: 60,
   },
-  typeChipText: { fontSize: 11, fontWeight: '600' },
+  typeChipText: { fontSize: 13, fontWeight: '600' },
 
   timePicker: { height: 130, borderWidth: 1, borderRadius: 10, marginBottom: 4 },
   timeOpt: { paddingVertical: 9, alignItems: 'center' },
@@ -832,7 +832,7 @@ const s = StyleSheet.create({
     padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6,
   },
   subjDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  subjName: { fontSize: 14 },
+  subjName: { fontSize: 15 },
 
   iconChip: {
     width: 40, height: 40, borderRadius: 10,
@@ -846,8 +846,8 @@ const s = StyleSheet.create({
   stepperBtn: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   stepperVal: { fontSize: 20, fontWeight: '800', minWidth: 64, textAlign: 'center' },
 
-  emptyHint: { fontSize: 12, textAlign: 'center', padding: 20 },
-  copyHint: { fontSize: 12, textAlign: 'center', marginBottom: 16, lineHeight: 18 },
+  emptyHint: { fontSize: 14, textAlign: 'center', padding: 20 },
+  copyHint: { fontSize: 14, textAlign: 'center', marginBottom: 16, lineHeight: 18 },
   copyDayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 8 },
   copyDayBtn: { paddingHorizontal: 22, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
   copyDayText: { fontSize: 15, fontWeight: '700' },

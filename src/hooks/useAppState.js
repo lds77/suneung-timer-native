@@ -100,7 +100,9 @@ export function AppProvider({ children }) {
         if (!prev.some(t => t.status === 'running')) return prev;
         return prev.map(t => {
           if (t.status !== 'running') return t;
-          const next = { ...t, elapsedSec: t.elapsedSec + 1 };
+          const wallElapsed = t.resumedAt ? Math.floor((Date.now() - t.resumedAt) / 1000) : 0;
+          const newElapsed = t.resumedAt ? (t.elapsedSecAtResume || 0) + wallElapsed : t.elapsedSec + 1;
+          const next = { ...t, elapsedSec: newElapsed };
           // 랩 스톱워치는 무한
           if (t.type === 'lap') return next;
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
@@ -138,7 +140,7 @@ export function AppProvider({ children }) {
         id: timerId, type: 'sequence', label: firstItem.label,
         subjectId: firstItem.subjectId || null, color: firstItem.color, totalSec: firstItem.totalSec,
         elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: seqStartedAt, startedAt: seqStartedAt,
-        result: null, laps: [],
+        result: null, laps: [], resumedAt: seqStartedAt, elapsedSecAtResume: 0,
         seqItems: items, seqIndex: 0, seqTotal: items.length,
         seqBreakSec: breakSec, seqPhase: 'work',
         seqName, seqIcon, seqColor, seqSessionIds: [],
@@ -386,7 +388,10 @@ export function AppProvider({ children }) {
         if (gap > 1) {
           setTimers(prev => prev.map(t => {
             if (t.status !== 'running') return t;
-            const e = t.elapsedSec + gap;
+            // wall clock 기반으로 실제 경과 시간 계산 (resumedAt 없으면 gap 방식 폴백)
+            const e = t.resumedAt
+              ? (t.elapsedSecAtResume || 0) + Math.floor((Date.now() - t.resumedAt) / 1000)
+              : t.elapsedSec + gap;
             if (t.type === 'countdown' && e >= t.totalSec) {
               const completedT = { ...t, elapsedSec: t.totalSec };
               const sessId = fireComplete(completedT, true);
@@ -402,7 +407,7 @@ export function AppProvider({ children }) {
                   tt = { ...tt, elapsedSec: leftover };
                 } else break;
               }
-              return tt;
+              return { ...tt, resumedAt: Date.now(), elapsedSecAtResume: tt.elapsedSec };
             }
             if (t.type === 'sequence') {
               let tt = { ...t, elapsedSec: e };
@@ -415,9 +420,10 @@ export function AppProvider({ children }) {
                   tt = { ...tt, elapsedSec: leftover };
                 } else break;
               }
+              if (tt.status === 'running') return { ...tt, resumedAt: Date.now(), elapsedSecAtResume: tt.elapsedSec };
               return tt;
             }
-            return { ...t, elapsedSec: e };
+            return { ...t, elapsedSec: e, resumedAt: Date.now(), elapsedSecAtResume: e };
           }));
         }
       }
@@ -506,10 +512,10 @@ export function AppProvider({ children }) {
       });
       // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300]);
-      return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0 };
+      return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0, resumedAt: Date.now(), elapsedSecAtResume: 0 };
     }
     if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-    return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0 };
+    return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0, resumedAt: Date.now(), elapsedSecAtResume: 0 };
   };
 
   // 연속모드 페이즈 전환 (pomoFlip 패턴)
@@ -541,7 +547,7 @@ export function AppProvider({ children }) {
       }
       // 쉬는시간 전환 — 알림은 예약 알림이 처리
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds };
+      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: Date.now(), elapsedSecAtResume: 0 };
     } else {
       // 쉬는시간 끝 → 다음 항목 시작
       const nextItem = t.seqItems[t.seqIndex + 1];
@@ -558,6 +564,7 @@ export function AppProvider({ children }) {
         ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
         label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
         subjectId: nextItem.subjectId || null, startedAt: advanceStartedAt, pauseCount: 0,
+        resumedAt: advanceStartedAt, elapsedSecAtResume: 0,
       };
     }
   };
@@ -629,10 +636,10 @@ export function AppProvider({ children }) {
       }
       if (seconds <= 0) return;
       const sec = Math.max(1, Math.ceil(seconds));
-      // DATE 트리거: setExactAndAllowWhileIdle → Doze 모드에서도 정확히 발동
+      // DATE 트리거: Android는 setExactAndAllowWhileIdle → Doze 모드 관통, iOS도 절대시각이 seconds보다 정확
       const trigger = Platform.OS === 'android'
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000), channelId: 'timer-complete' }
-        : { seconds: sec };
+        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000) };
       const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: customTitle || `⏰ ${label} 완료!`,
@@ -678,7 +685,7 @@ export function AppProvider({ children }) {
       const sec = Math.max(1, Math.ceil(offsetSec));
       const trigger = Platform.OS === 'android'
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000), channelId: 'timer-complete' }
-        : { seconds: sec };
+        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000) };
       try {
         const id = await Notifications.scheduleNotificationAsync({
           content: { title, body, sound: true, vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
@@ -779,7 +786,7 @@ export function AppProvider({ children }) {
       try {
         const trigger = Platform.OS === 'android'
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs), channelId: 'timer-complete' }
-          : { seconds: Math.max(1, Math.ceil((triggerMs - now) / 1000)) };
+          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs) };
         const id = await Notifications.scheduleNotificationAsync({
           content: {
             title: '📅 공부 계획 알림',
@@ -799,7 +806,7 @@ export function AppProvider({ children }) {
     // 랩타이머: 단일 제약 없이 바로 시작 (집중모드 불필요)
     if (opts.type === 'lap') {
       const startedAt = Date.now();
-      const t = { id: generateId('tmr_'), type: 'lap', label: opts.label || '타이머', subjectId: null, color: opts.color || '#6C5CE7', totalSec: 0, elapsedSec: 0, status: 'paused', pauseCount: 0, createdAt: startedAt, startedAt, pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [] };
+      const t = { id: generateId('tmr_'), type: 'lap', label: opts.label || '타이머', subjectId: null, color: opts.color || '#6C5CE7', totalSec: 0, elapsedSec: 0, status: 'paused', pauseCount: 0, createdAt: startedAt, startedAt, pomoPhase: 'work', pomoSet: 0, pomoWorkMin: 25, pomoBreakMin: 5, result: null, laps: [], resumedAt: null, elapsedSecAtResume: 0 };
       setTimers(prev => [...prev, t]);
       return t;
     }
@@ -814,7 +821,7 @@ export function AppProvider({ children }) {
         subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
         elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
         pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
-        result: null, laps: [], planId: opts.planId || null,
+        result: null, laps: [], planId: opts.planId || null, resumedAt: startedAt, elapsedSecAtResume: 0,
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(t);
@@ -854,7 +861,7 @@ export function AppProvider({ children }) {
 
   const pauseTimer = useCallback((id) => {
     cancelTimerNotif(id); // 예약 알림 취소
-    setTimers(prev => prev.map(t => t.id === id ? { ...t, status: 'paused', pauseCount: t.pauseCount + 1 } : t));
+    setTimers(prev => prev.map(t => t.id === id ? { ...t, status: 'paused', pauseCount: t.pauseCount + 1, elapsedSecAtResume: t.elapsedSec, resumedAt: null } : t));
   }, []);
   const resumeTimer = useCallback((id) => {
     // 남은 시간으로 알림 재예약
@@ -866,7 +873,7 @@ export function AppProvider({ children }) {
         scheduleAllPhaseNotifs(t);
       }
     }
-    setTimers(prev => prev.map(t => t.id === id && t.status === 'paused' ? { ...t, status: 'running' } : t));
+    setTimers(prev => prev.map(t => t.id === id && t.status === 'paused' ? { ...t, status: 'running', resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
   }, []);
 
   const stopTimer = useCallback((id) => {
@@ -894,13 +901,13 @@ export function AppProvider({ children }) {
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(restarted);
       else if (t.type === 'sequence') scheduleAllPhaseNotifs({ ...restarted, seqPhase: 'work', seqIndex: 0, totalSec: t.seqItems?.[0]?.totalSec || t.totalSec });
     }
-    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [] } : t));
+    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], resumedAt: Date.now(), elapsedSecAtResume: 0 } : t));
     showToast('start');
   }, []);
 
   const resetTimer = useCallback((id) => {
     cancelTimerNotif(id); // 예약 알림 취소
-    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'paused', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [] } : t));
+    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'paused', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], resumedAt: null, elapsedSecAtResume: 0 } : t));
   }, []);
 
   const removeTimer = useCallback((id) => {
@@ -1082,9 +1089,10 @@ export function AppProvider({ children }) {
             const addedSec = t.status === 'running' ? gap : 0;
             const newElapsed = t.elapsedSec + addedSec;
             if (t.type === 'countdown') {
-              return { ...t, elapsedSec: Math.min(newElapsed, t.totalSec), status: 'paused' };
+              const e = Math.min(newElapsed, t.totalSec);
+              return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
             }
-            return { ...t, elapsedSec: newElapsed, status: 'paused' };
+            return { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed };
           });
           setTimers(restored);
         }

@@ -16,10 +16,12 @@ export default function RunningTimersBar() {
     <View style={[styles.container, { backgroundColor: T.card, borderBottomColor: T.border }]}>
       <View style={styles.scroll}>
         {active.map(t => {
-          const display = t.type === 'free' ? t.elapsedSec
-            : t.type === 'countdown' ? Math.max(0, t.totalSec - t.elapsedSec)
-            : Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec);
-          const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? '🍅' : '☕') : t.type === 'countdown' ? '⏰' : '⏱';
+          const display = (t.type === 'free' || t.type === 'lap') ? t.elapsedSec
+            : t.type === 'pomodoro' ? Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec)
+            : Math.max(0, t.totalSec - t.elapsedSec);
+          const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? '🍅' : '☕')
+            : (t.type === 'free' || t.type === 'lap') ? '⏱'
+            : '⏰';
 
           return (
             <View key={t.id} style={[styles.chip, { backgroundColor: t.color + '18', borderColor: t.color + '40' }]}>

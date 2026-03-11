@@ -29,6 +29,9 @@ const Tab = createBottomTabNavigator();
 // 폰트 설정 데이터를 별도 파일로 분리했습니다.
 // 필요 시 FONT_MAP, FONT_FAMILY_MAP를 가져다 쓰면 됩니다.
 
+// 기본 글꼴로 복원할 때 사용하기 위해 원본 Text.render를 저장
+const _originalTextRender = Text.render;
+
 
 // ── 온보딩 (6단계) ──
 function OnboardingScreen() {
@@ -477,7 +480,7 @@ function MainApp() {
             headerShown: false,
             tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, height: 56 },
             tabBarActiveTintColor: T.accent, tabBarInactiveTintColor: T.sub,
-            tabBarLabelStyle: { fontSize: 9, fontWeight: '700', marginTop: -2 },
+            tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: -2 },
           }}>
             <Tab.Screen name="Focus" component={FocusScreen}
               options={{ tabBarLabel: '집중', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🎯</Text> }} />
@@ -540,7 +543,8 @@ function Root() {
     const loadFont = async () => {
       const fontId = app.settings.fontFamily || 'default';
       if (fontId === 'default' || !FONT_MAP[fontId]) {
-        // 시스템 폰트 또는 아직 활성화 안 된 폰트
+        // 시스템 폰트 — 커스텀 render 패치 원상복구
+        Text.render = _originalTextRender;
         Text.defaultProps = Text.defaultProps || {};
         Text.defaultProps.style = undefined;
         TextInput.defaultProps = TextInput.defaultProps || {};
@@ -622,7 +626,7 @@ const styles = StyleSheet.create({
   charGrid: { flexDirection: 'row', gap: 8, marginBottom: 24, width: '100%' },
   charCard: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 14 },
   charName: { fontSize: 12, fontWeight: '800', marginTop: 6 },
-  charDesc: { fontSize: 7, marginTop: 2, textAlign: 'center' },
+  charDesc: { fontSize: 10, marginTop: 2, textAlign: 'center' },
 
   // Step 1: 테마 색상
   accentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24, width: '100%' },

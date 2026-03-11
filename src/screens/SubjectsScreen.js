@@ -214,14 +214,14 @@ export default function SubjectsScreen() {
         <View style={S.header}>
           <Text style={[S.headerTitle, { color: T.text }]}>📚 과목</Text>
           <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
           </View>
         </View>
 
         {/* 초등: 학년 정보 */}
         {(school === 'elementary_lower' || school === 'elementary_upper') && (
           <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
               {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
             </Text>
           </View>
@@ -255,14 +255,14 @@ export default function SubjectsScreen() {
                       <View style={S.routineFlow}>
                         {routine.items.map((it, i) => (
                           <React.Fragment key={i}>
-                            <Text style={{ fontSize: 10, fontWeight: '600', color: it.color }}>{it.label}</Text>
-                            {i < routine.items.length - 1 && <Text style={{ fontSize: 9, color: T.sub }}>→</Text>}
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: it.color }}>{it.label}</Text>
+                            {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
                           </React.Fragment>
                         ))}
                       </View>
                     </View>
                     <View style={[S.timeBadge, { backgroundColor: T.accent + '12' }]}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: T.accent }}>{totalMin}분</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: T.accent }}>{totalMin}분</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -286,15 +286,15 @@ export default function SubjectsScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }}>{method.name}</Text>
-                      <Text style={{ fontSize: 11, color: T.text, marginTop: 2 }}>{method.desc}</Text>
+                      <Text style={{ fontSize: 13, color: T.text, marginTop: 2 }}>{method.desc}</Text>
                       <View style={[S.sourceBadge, { backgroundColor: method.color + '10' }]}>
-                        <Text style={{ fontSize: 8, fontWeight: '700', color: method.color }}>📎 {method.source}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: method.color }}>📎 {method.source}</Text>
                       </View>
                     </View>
                     <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub }}>{totalMin}분</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>{totalMin}분</Text>
                       <View style={[S.playBtn, { backgroundColor: method.color }]}>
-                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>▶</Text>
+                        <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>▶</Text>
                       </View>
                     </View>
                   </View>
@@ -302,9 +302,9 @@ export default function SubjectsScreen() {
                     {method.items.map((it, i) => (
                       <React.Fragment key={i}>
                         <View style={[S.methodChip, { backgroundColor: it.color + '15' }]}>
-                          <Text style={{ fontSize: 9, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
                         </View>
-                        {i < method.items.length - 1 && <Text style={{ fontSize: 9, color: T.sub }}>→</Text>}
+                        {i < method.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
                       </React.Fragment>
                     ))}
                   </View>
@@ -324,15 +324,15 @@ export default function SubjectsScreen() {
                 <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
                   <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}>
                     <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
-                      {sel && <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>✓</Text>}
+                      {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
                     </View>
                   </TouchableOpacity>
                   <View style={[S.colorBar, { backgroundColor: subj.color }]} />
-                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: T.text }}>{subj.name}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T.text }}>{subj.name}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
                   <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
                     onPress={() => startSuneungSingle(subj)}>
-                    <Text style={{ color: 'white', fontSize: 11, fontWeight: '800' }}>▶</Text>
+                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>▶</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -341,12 +341,12 @@ export default function SubjectsScreen() {
             {/* 순차 시작 바 */}
             {suneungSelected.length > 0 && (
               <View style={[S.seqBar, { backgroundColor: T.card, borderColor: T.accent }]}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 4 }}>🎯 {suneungSelected.length}과목 선택</Text>
-                <Text style={{ fontSize: 9, color: T.sub, marginBottom: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: T.text, marginBottom: 4 }}>🎯 {suneungSelected.length}과목 선택</Text>
+                <Text style={{ fontSize: 11, color: T.sub, marginBottom: 8 }}>
                   수능 순서: {suneungSelected.map(n => SUNEUNG_SUBJECTS.find(s => s.name === n)).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
                 </Text>
                 <TouchableOpacity style={[S.seqStartBtn, { backgroundColor: T.accent }]} onPress={startSuneungSequence}>
-                  <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>▶ 수능 시뮬레이션 시작</Text>
+                  <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>▶ 수능 시뮬레이션 시작</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -359,14 +359,14 @@ export default function SubjectsScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>과목별 타이머 바로 시작</Text>
               <TouchableOpacity style={[S.addBtn, { backgroundColor: T.accent }]} onPress={() => setShowAdd(true)}>
-                <Text style={{ color: 'white', fontSize: 11, fontWeight: '800' }}>+ 추가</Text>
+                <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>+ 추가</Text>
               </TouchableOpacity>
             </View>
 
             {sorted.length === 0 && (
               <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <CharacterAvatar characterId="paengi" size={40} mood="sad" />
-                <Text style={{ fontSize: 12, color: T.sub, marginTop: 6 }}>과목을 추가해보세요!</Text>
+                <Text style={{ fontSize: 14, color: T.sub, marginTop: 6 }}>과목을 추가해보세요!</Text>
               </View>
             )}
 
@@ -379,23 +379,23 @@ export default function SubjectsScreen() {
                   onLongPress={() => deleteSubject(subj)}>
                   <View style={[S.subjDot, { backgroundColor: subj.color }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>{subj.name}</Text>
-                    <Text style={{ fontSize: 9, color: T.sub }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{subj.name}</Text>
+                    <Text style={{ fontSize: 11, color: T.sub }}>
                       누적 {formatShort(subj.totalElapsedSec || 0)}{todaySec > 0 ? ` · 오늘 ${formatShort(todaySec)}` : ''}
                     </Text>
                   </View>
                   {running ? (
                     <View style={[S.runBadge, { backgroundColor: subj.color + '18' }]}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: subj.color }}>실행중</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: subj.color }}>실행중</Text>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
                         onPress={() => startCountup(subj)}>
-                        <Text style={{ fontSize: 10, fontWeight: '800', color: subj.color }}>📈 자유</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color }}>📈 자유</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
-                        <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>⏱ {defMin}분</Text>
+                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>⏱ {defMin}분</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -404,7 +404,7 @@ export default function SubjectsScreen() {
             })}
 
             {/* 빠른 추가 */}
-            <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
             <View style={S.presetWrap}>
               {SUBJECT_PRESETS.map(p => {
                 const exists = app.subjects.some(s => s.name === p.name);
@@ -412,7 +412,7 @@ export default function SubjectsScreen() {
                   <TouchableOpacity key={p.name} style={[S.presetChip, { borderColor: T.border, backgroundColor: exists ? T.surface2 : T.card }]}
                     onPress={() => !exists && app.addSubject({ name: p.name, color: p.color, character: p.character || 'toru' })} disabled={exists}>
                     <View style={[S.prDot, { backgroundColor: p.color }]} />
-                    <Text style={{ fontSize: 10, fontWeight: '600', color: exists ? T.sub : T.text }}>{p.name}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: exists ? T.sub : T.text }}>{p.name}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -430,22 +430,22 @@ export default function SubjectsScreen() {
           <Text style={[S.modalTitle, { color: T.text }]}>과목 추가</Text>
           <TextInput value={addName} onChangeText={setAddName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}
             style={[S.mInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} autoFocus />
-          <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub, marginBottom: 5 }}>색상</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 5 }}>색상</Text>
           <View style={S.colorRow}>{SUBJECT_COLORS.map(c => (
             <TouchableOpacity key={c} style={[S.colorBtn, { backgroundColor: c }, addColor === c && S.colorActive]} onPress={() => setAddColor(c)} />
           ))}</View>
-          <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub, marginBottom: 5 }}>캐릭터</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 5 }}>캐릭터</Text>
           <View style={S.charRow}>{CHARACTER_LIST.map(cId => (
             <TouchableOpacity key={cId} style={[S.charBtn, { borderColor: addChar === cId ? T.accent : T.border }]} onPress={() => setAddChar(cId)}>
               <CharacterAvatar characterId={cId} size={28} />
-              <Text style={{ fontSize: 7, fontWeight: '700', marginTop: 2, color: addChar === cId ? T.accent : T.sub }}>{CHARACTERS[cId].name}</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', marginTop: 2, color: addChar === cId ? T.accent : T.sub }}>{CHARACTERS[cId].name}</Text>
             </TouchableOpacity>
           ))}</View>
           <View style={S.mBtns}>
             <TouchableOpacity style={[S.mCancel, { borderColor: T.border }]} onPress={() => { setShowAdd(false); setAddName(''); }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: T.sub }}>취소</Text></TouchableOpacity>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: T.sub }}>취소</Text></TouchableOpacity>
             <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent }]} onPress={handleAdd}>
-              <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>추가</Text></TouchableOpacity>
+              <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>추가</Text></TouchableOpacity>
           </View>
         </View></View>
         </KeyboardAvoidingView>
@@ -467,7 +467,7 @@ const S = StyleSheet.create({
   tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
 
   queueBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
-  secLabel: { fontSize: 11, fontWeight: '700', marginBottom: 8, marginTop: 2 },
+  secLabel: { fontSize: 13, fontWeight: '700', marginBottom: 8, marginTop: 2 },
 
   // 루틴
   routineCard: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 8 },
@@ -508,7 +508,7 @@ const S = StyleSheet.create({
   mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 },
   modal: { borderRadius: 20, padding: 18, borderWidth: 1 },
   modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  mInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 },
+  mInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 12 },
   colorRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
   colorBtn: { width: 24, height: 24, borderRadius: 12 },
   colorActive: { borderWidth: 3, borderColor: 'white', elevation: 4 },

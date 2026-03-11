@@ -27,12 +27,12 @@ function GuideSection({ title, color, T, children }) {
     <View style={{ marginBottom: 10 }}>
       <TouchableOpacity onPress={() => setOpen(!open)}
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: color + '10', borderRadius: 10 }}>
-        <Text style={{ fontSize: 13, fontWeight: '900', color, flex: 1, marginRight: 8 }}>{title}</Text>
-        <Text style={{ fontSize: 12, color: T.sub }}>{open ? '▲' : '▼'}</Text>
+        <Text style={{ fontSize: 14, fontWeight: '900', color, flex: 1, marginRight: 8 }}>{title}</Text>
+        <Text style={{ fontSize: 14, color: T.sub }}>{open ? '▲' : '▼'}</Text>
       </TouchableOpacity>
       {open && (
         <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 }}>
-          <Text style={{ fontSize: 11, color: T.text, lineHeight: 18 }}>{children}</Text>
+          <Text style={{ fontSize: 13, color: T.text, lineHeight: 18 }}>{children}</Text>
         </View>
       )}
     </View>
@@ -77,7 +77,7 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onF
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <TextInput
           ref={inputRef}
-          style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: T.bg }}
+          style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: T.text, backgroundColor: T.bg }}
           value={text}
           onChangeText={(v) => { if (!v.includes('\n')) setText(v); }}
           placeholder="예: 서울대 가자!"
@@ -92,7 +92,7 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onF
           <Text style={{ color: 'white', fontWeight: '700' }}>저장</Text>
         </TouchableOpacity>
       </View>
-      <Text style={{ fontSize: 9, color: T.sub, marginTop: 4 }}>
+      <Text style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>
         {text?.trim() ? `이탈 시 "${text.trim()}" 입력해야 해제돼요` : '비워두면 기본 응원 문구가 나와요'}
       </Text>
     </>
@@ -230,7 +230,7 @@ const [ddLabel, setDdLabel] = useState('');
                   }}>
                     <CharacterAvatar characterId={cId} size={60} mood={isActive ? 'happy' : 'normal'} />
                   </View>
-                  <Text style={{ fontSize: 11, fontWeight: isActive ? '900' : '600', color: isActive ? T.accent : T.sub }}>
+                  <Text style={{ fontSize: 13, fontWeight: isActive ? '900' : '600', color: isActive ? T.accent : T.sub }}>
                     {c.name}
                   </Text>
                 </TouchableOpacity>
@@ -290,7 +290,7 @@ const [ddLabel, setDdLabel] = useState('');
                     style={[styles.schoolBtn, { flex: 1 }, sel && { backgroundColor: T.accent, borderColor: T.accent }]}
                   >
                     <Text style={{ fontSize: 12, fontWeight: sel ? '900' : '600', color: sel ? 'white' : T.text, textAlign: 'center' }}>{s.label}</Text>
-                    <Text style={{ fontSize: 9, color: sel ? 'rgba(255,255,255,0.8)' : T.sub, textAlign: 'center', marginTop: 1 }}>{s.sub}</Text>
+                    <Text style={{ fontSize: 10, color: sel ? 'rgba(255,255,255,0.8)' : T.sub, textAlign: 'center', marginTop: 1 }}>{s.sub}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -323,10 +323,10 @@ const [ddLabel, setDdLabel] = useState('');
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                 <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent }}>주간 플래너</Text>
                 <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: T.accent }}>
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: 'white' }}>추천</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>추천</Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 11, color: T.text, fontWeight: '600', lineHeight: 16 }}>
+              <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', lineHeight: 16 }}>
                 요일별 공부 계획을 미리 짜두면{'\n'}매일 자동으로 불러와서 바로 시작할 수 있어요!
               </Text>
             </View>
@@ -346,7 +346,7 @@ const [ddLabel, setDdLabel] = useState('');
               <View style={{ flex: 1 }} />
               <Text style={[styles.ddayBadge, { color: T.accent }]}>{formatDDay(dd.date)}</Text>
               <TouchableOpacity onPress={() => openEditDDay(dd)} style={{ paddingHorizontal: 6 }}>
-                <Text style={{ fontSize: 14, color: T.sub }}>✏️</Text>
+                <Text style={{ fontSize: 15, color: T.sub }}>✏️</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteDDay(dd)}>
                 <Text style={[styles.ddayDel, { color: T.red }]}>×</Text>
@@ -379,14 +379,14 @@ const [ddLabel, setDdLabel] = useState('');
           />
           {Platform.OS === 'android' && (
             <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }}>
-              <Text style={{ fontSize: 12, color: T.sub }}>
+              <Text style={{ fontSize: 14, color: T.sub }}>
                 알림이 늦게 오거나 오지 않는다면 배터리 최적화를 해제하세요.
               </Text>
               <TouchableOpacity
                 onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
                 style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: T.accent + '20', borderWidth: 1, borderColor: T.accent }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>⚡ 배터리 최적화 설정 바로가기</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>⚡ 배터리 최적화 설정 바로가기</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -406,8 +406,8 @@ const [ddLabel, setDdLabel] = useState('');
               return (
                 <TouchableOpacity key={lv.id} onPress={() => app.updateSettings({ ultraFocusLevel: lv.id })}
                   style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: sel ? (lv.id === 'exam' ? '#FF6B6B' : lv.id === 'focus' ? '#FFB74D' : '#4CAF50') : T.border, backgroundColor: sel ? (lv.id === 'exam' ? '#FF6B6B15' : lv.id === 'focus' ? '#FFB74D15' : '#4CAF5015') : 'transparent', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: sel ? T.text : T.sub }}>{lv.label}</Text>
-                  <Text style={{ fontSize: 9, color: T.sub, marginTop: 2 }}>{lv.desc}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: sel ? T.text : T.sub }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{lv.desc}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -422,7 +422,7 @@ const [ddLabel, setDdLabel] = useState('');
           </Text>
           <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>💡 문구 = 챌린지 도전 문구, 정지 = 타이머 일시정지</Text>
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
             <ChallengeInput
               initial={app.settings.challengeText}
               onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
@@ -449,7 +449,7 @@ const [ddLabel, setDdLabel] = useState('');
           />
 
           <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: T.text, marginBottom: 6 }}>테마 컬러</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 6 }}>테마 컬러</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               {[
                 { id: 'pink',   color: '#FF6B9D', label: '핑크' },
@@ -469,43 +469,49 @@ const [ddLabel, setDdLabel] = useState('');
                       borderWidth: sel ? 2.5 : 1,
                       borderColor: sel ? T.text : t.color + '60',
                     }} />
-                    <Text style={{ fontSize: 8, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{t.label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{t.label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
           <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: T.text, marginBottom: 6 }}>글꼴</Text>
-            <View style={styles.fontGrid}>
-              {[
+            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 6 }}>글꼴</Text>
+            {[
+              [
                 { id: 'default',     label: '기본', sample: '시스템 기본 글꼴', ready: true },
                 { id: 'pretendard',  label: 'Pretendard', sample: '깔끔한 고딕체', ready: true },
                 { id: 'gowunDodum',  label: '고운돋움', sample: '부드러운 느낌', ready: true },
+              ],
+              [
                 { id: 'nanumSquare', label: '나눔스퀘어', sample: '단정한 느낌', ready: true },
                 { id: 'cookieRun',   label: '쿠키런', sample: '귀여운 느낌', ready: true },
                 { id: 'maplestory',  label: '메이플스토리', sample: '재밌는 느낌', ready: true },
-              ].map(f => {
-                const sel = (app.settings.fontFamily || 'default') === f.id;
-                const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
-                const famStyle = fam ? { fontFamily: fam } : {};
-                return (
-                  <TouchableOpacity key={f.id}
-                    onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
-                    style={[styles.fontItem,
-                      sel && { borderColor: T.accent, backgroundColor: T.accent + '10' },
-                      !sel && { borderColor: T.border }]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[{ fontSize: 13, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
-                      <Text style={[{ fontSize: 10, color: T.sub, marginTop: 1 }, famStyle]}>{f.sample}</Text>
-                    </View>
-                    {sel && <Text style={{ fontSize: 14 }}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={{ fontSize: 9, color: T.sub, marginTop: 6 }}>폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
+              ],
+            ].map((row, ri) => (
+              <View key={ri} style={[styles.fontGrid, ri === 0 && { marginBottom: 6 }]}>
+                {row.map(f => {
+                  const sel = (app.settings.fontFamily || 'default') === f.id;
+                  const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
+                  const famStyle = fam ? { fontFamily: fam } : {};
+                  return (
+                    <TouchableOpacity key={f.id}
+                      onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
+                      style={[styles.fontItem,
+                        sel && { borderColor: T.accent, backgroundColor: T.accent + '10' },
+                        !sel && { borderColor: T.border }]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[{ fontSize: 12, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
+                        <Text style={[{ fontSize: 10, color: T.sub, marginTop: 1 }, famStyle]}>{f.sample}</Text>
+                      </View>
+                      {sel && <Text style={{ fontSize: 12 }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+            <Text style={{ fontSize: 11, color: T.sub, marginTop: 6 }}>폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
           </View>
         </Section>
 
@@ -539,7 +545,7 @@ const [ddLabel, setDdLabel] = useState('');
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
               <TouchableOpacity key={p.label} style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddLabel === p.label ? T.accent : T.border }}
                 onPress={() => { setDdLabel(p.label); if (p.date) setPickerSelected(p.date); }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: ddLabel === p.label ? T.accent : T.sub }}>{p.label}</Text></TouchableOpacity>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: ddLabel === p.label ? T.accent : T.sub }}>{p.label}</Text></TouchableOpacity>
             ))}</View>
             <TextInput value={ddLabel} onChangeText={setDdLabel} placeholder="이름 (예: 중간고사)" placeholderTextColor={T.sub} maxLength={15}
               style={[styles.modalInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
@@ -547,21 +553,21 @@ const [ddLabel, setDdLabel] = useState('');
             <View style={{ backgroundColor: T.surface, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: T.border, marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()-1); return d; })}><Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 8 }}>◀</Text></TouchableOpacity>
-                <Text style={{ color: T.text, fontSize: 13, fontWeight: '800' }}>{pickerStr}</Text>
+                <Text style={{ color: T.text, fontSize: 14, fontWeight: '800' }}>{pickerStr}</Text>
                 <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()+1); return d; })}><Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 8 }}>▶</Text></TouchableOpacity></View>
-              <View style={{ flexDirection: 'row', marginBottom: 2 }}>{'일월화수목금토'.split('').map(d => <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: T.sub, fontWeight: '600' }}>{d}</Text>)}</View>
+              <View style={{ flexDirection: 'row', marginBottom: 2 }}>{'일월화수목금토'.split('').map(d => <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: T.sub, fontWeight: '600' }}>{d}</Text>)}</View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{pickerCells.map((cell, i) => {
                 if (!cell) return <View key={`e${i}`} style={{ width: '14.28%', height: 32 }} />;
                 const sel = pickerSelected === cell.date, past = cell.date < today;
                 return (<TouchableOpacity key={cell.date} style={{ width: '14.28%', height: 32, alignItems: 'center', justifyContent: 'center' }} onPress={() => !past && setPickerSelected(cell.date)} disabled={past}>
                   <View style={[{ width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, sel && { backgroundColor: T.accent }, past && { opacity: 0.3 }]}>
-                    <Text style={{ fontSize: 11, fontWeight: sel ? '800' : '500', color: sel ? 'white' : T.text }}>{cell.day}</Text></View></TouchableOpacity>);
+                    <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '500', color: sel ? 'white' : T.text }}>{cell.day}</Text></View></TouchableOpacity>);
               })}</View>
             </View>
-            {pickerSelected && <Text style={{ fontSize: 10, color: T.accent, textAlign: 'center', marginBottom: 6, fontWeight: '700' }}>선택: {pickerSelected}</Text>}
+            {pickerSelected && <Text style={{ fontSize: 12, color: T.accent, textAlign: 'center', marginBottom: 6, fontWeight: '700' }}>선택: {pickerSelected}</Text>}
             {/* 날짜 직접 입력 */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Text style={{ fontSize: 10, color: T.sub }}>직접 입력:</Text>
+              <Text style={{ fontSize: 12, color: T.sub }}>직접 입력:</Text>
               <TextInput
                 placeholder="2026-06-15"
                 placeholderTextColor={T.sub}
@@ -575,16 +581,16 @@ const [ddLabel, setDdLabel] = useState('');
                     setPickerSelected(v);
                   }
                 }}
-                style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: T.text, backgroundColor: T.surface2 }}
+                style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 14, color: T.text, backgroundColor: T.surface2 }}
                 maxLength={10}
               />
             </View>
             {/* 기간 */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <Text style={{ fontSize: 11, color: T.sub }}>시험 기간</Text>
+              <Text style={{ fontSize: 13, color: T.sub }}>시험 기간</Text>
               <View style={{ flexDirection: 'row', gap: 3 }}>{[1,2,3,4,5].map(n => (
                 <TouchableOpacity key={n} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: ddDays === n ? T.accent : T.border, backgroundColor: ddDays === n ? T.accent : 'transparent' }}
-                  onPress={() => setDdDays(n)}><Text style={{ fontSize: 10, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text></TouchableOpacity>
+                  onPress={() => setDdDays(n)}><Text style={{ fontSize: 12, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text></TouchableOpacity>
               ))}</View></View>
             <View style={styles.modalBtns}>
               <TouchableOpacity style={[styles.modalCancel, { borderColor: T.border }]} onPress={() => { setShowDDayModal(false); setDdLabel(''); setPickerSelected(null); setDdDays(1); setEditingDDay(null); }}>
@@ -688,57 +694,57 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '900', marginBottom: 12 },
 
   section: { marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
 
   // 캐릭터 선택
   charGrid: { flexDirection: 'row', gap: 6 },
   charCard: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12 },
-  charName: { fontSize: 10, marginTop: 4 },
+  charName: { fontSize: 12, marginTop: 4 },
 
   // 목표
-  goalLabel: { fontSize: 10, marginBottom: 6 },
+  goalLabel: { fontSize: 12, marginBottom: 6 },
   goalRow: { flexDirection: 'row', gap: 5 },
   goalBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
-  goalBtnText: { fontSize: 10, fontWeight: '700' },
+  goalBtnText: { fontSize: 12, fontWeight: '700' },
 
   // 학교급 선택 row (목표 섹션 내)
-  schoolRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  schoolBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  schoolRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  schoolBtn: { flex: 1, paddingVertical: 4, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
 
   // 폰트 선택 그리드
   fontGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  fontItem: { width: '48%', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5 },
+  fontItem: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderRadius: 10, borderWidth: 1.5 },
 
   // D-Day
   ddayRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, borderBottomWidth: 0.5 },
   ddayStar: { padding: 2 },
-  ddayLabel: { fontSize: 13, fontWeight: '700' },
-  ddayDate: { fontSize: 10, marginTop: 1 },
-  ddayBadge: { fontSize: 11, fontWeight: '800' },
+  ddayLabel: { fontSize: 14, fontWeight: '700' },
+  ddayDate: { fontSize: 12, marginTop: 1 },
+  ddayBadge: { fontSize: 13, fontWeight: '800' },
   ddayDel: { fontSize: 18, paddingHorizontal: 4 },
   ddayAddBtn: { paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', marginTop: 6 },
-  ddayAddText: { fontSize: 12, fontWeight: '700' },
+  ddayAddText: { fontSize: 14, fontWeight: '700' },
 
   // Row
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  rowLabel: { fontSize: 13, fontWeight: '600' },
+  rowLabel: { fontSize: 14, fontWeight: '600' },
   rowRight: {},
-  rowValue: { fontSize: 13, fontWeight: '700' },
+  rowValue: { fontSize: 14, fontWeight: '700' },
 
-  hint: { fontSize: 9, marginTop: -4, marginBottom: 4 },
+  hint: { fontSize: 11, marginTop: -4, marginBottom: 4 },
 
   // 위험 버튼
   dangerBtn: { paddingVertical: 10, alignItems: 'center' },
-  dangerText: { fontSize: 13, fontWeight: '600' },
+  dangerText: { fontSize: 14, fontWeight: '600' },
 
   // 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 },
   modal: { borderRadius: 20, padding: 20, borderWidth: 1 },
   modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 10 },
+  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 10 },
   modalBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
   modalCancel: { flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  modalCancelText: { fontSize: 13, fontWeight: '600' },
+  modalCancelText: { fontSize: 14, fontWeight: '600' },
   modalConfirm: { flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center' },
-  modalConfirmText: { color: 'white', fontSize: 13, fontWeight: '800' },
+  modalConfirmText: { color: 'white', fontSize: 14, fontWeight: '800' },
 });
