@@ -92,16 +92,20 @@ export function AppProvider({ children }) {
   // 전역 집중모드 선택 대기 콜백
   const [pendingModeAction, setPendingModeAction] = useState(null);
 
-  // 1초 틱
+  // 500ms 틱 (디스플레이 lag 최소화: 1000ms 대비 절반으로 줄임, elapsedSec 변화 없으면 렌더 스킵)
   useEffect(() => {
     const id = setInterval(() => {
       // 일반 타이머 틱
       setTimers(prev => {
         if (!prev.some(t => t.status === 'running')) return prev;
-        return prev.map(t => {
+        let anyChanged = false;
+        const mapped = prev.map(t => {
           if (t.status !== 'running') return t;
           const wallElapsed = t.resumedAt ? Math.floor((Date.now() - t.resumedAt) / 1000) : 0;
           const newElapsed = t.resumedAt ? (t.elapsedSecAtResume || 0) + wallElapsed : t.elapsedSec + 1;
+          // elapsedSec 변화 없으면 스킵 (불필요한 리렌더 방지)
+          if (newElapsed === t.elapsedSec) return t;
+          anyChanged = true;
           const next = { ...t, elapsedSec: newElapsed };
           // 랩 스톱워치는 무한
           if (t.type === 'lap') return next;
@@ -120,11 +124,18 @@ export function AppProvider({ children }) {
           if (t.type === 'free') return next;
           return next;
         });
+        return anyChanged ? mapped : prev;
       });
-    }, 1000);
+    }, 500);
     return () => clearInterval(id);
   }, []);
 
+  // seqFlip 페이즈 전환 후 실제 resumedAt 기준으로 남은 알림 재예약
+  useEffect(() => {
+    if (seqRescheduleQueue.current.length === 0) return;
+    const queue = seqRescheduleQueue.current.splice(0);
+    queue.forEach(t => scheduleAllPhaseNotifs(t));
+  }, [timers]);
 
   // 연속모드 시작 (단일 sequence 타이머 생성)
   const startSequence = useCallback(({ items, breakSec = 600, seqName = '', seqIcon = '📋', seqColor = '#6C5CE7' }) => {
@@ -198,6 +209,7 @@ export function AppProvider({ children }) {
 
   const notifIdMap = useRef(new Map()); // timerId → 예약 알림 identifier
   const phaseNotifMap = useRef(new Map()); // timerId → [id1, id2, ...] 페이즈 전환 알림
+  const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
 
@@ -525,6 +537,10 @@ export function AppProvider({ children }) {
       const currentItem = t.seqItems[t.seqIndex];
       const isBreakItem = currentItem?.isBreak;
       let updatedSeqSessionIds = t.seqSessionIds || [];
+      const nextIndex = t.seqIndex + 1;
+      const isLastItem = nextIndex >= t.seqTotal;
+      // 마지막 항목이면 미리 result 계산 → densityOverride로 모달/세션 밀도 일치
+      const result = isLastItem ? calcResult(t, t.totalSec) : null;
       if (t.elapsedSec >= 300 && !isBreakItem) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
@@ -533,21 +549,22 @@ export function AppProvider({ children }) {
           durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
           exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           focusMode: mode, timerType: 'countdown', completionRatio: 1,
+          ...(result ? { densityOverride: result.density } : {}),
         });
         if (sessId) updatedSeqSessionIds = [...updatedSeqSessionIds, sessId];
       }
-      const nextIndex = t.seqIndex + 1;
-      if (nextIndex >= t.seqTotal) {
+      if (isLastItem) {
         // 마지막 항목 완료 → 전체 완료 (예약 알림이 처리, 잔여 phase notif 정리)
         if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500]);
         phaseNotifMap.current.delete(t.id);
-        const result = calcResult(t, t.totalSec);
         setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
         return { ...t, elapsedSec: 0, status: 'completed', result, seqSessionIds: updatedSeqSessionIds };
       }
       // 쉬는시간 전환 — 알림은 예약 알림이 처리
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-      return { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: Date.now(), elapsedSecAtResume: 0 };
+      const newBreakTimer = { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: Date.now(), elapsedSecAtResume: 0 };
+      seqRescheduleQueue.current.push(newBreakTimer);
+      return newBreakTimer;
     } else {
       // 쉬는시간 끝 → 다음 항목 시작
       const nextItem = t.seqItems[t.seqIndex + 1];
@@ -560,6 +577,8 @@ export function AppProvider({ children }) {
       const advanceStartedAt = Date.now();
       // 알림은 예약 알림이 처리 — fireNotif 제거(중복 방지)
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
+      // break→work 전환 시에는 재예약 하지 않음
+      // (break 시작 시점에 이미 재예약됐고, 재예약하면 break-end 알림이 취소될 수 있음)
       return {
         ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
         label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
@@ -606,7 +625,26 @@ export function AppProvider({ children }) {
       // 완료 결과 모달 트리거 (랩/시퀀스 제외)
       if (t.type !== 'sequence') {
         const result = calcResult(t, t.type === 'countdown' ? t.totalSec : t.elapsedSec);
-        setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+        const durationSec = t.type === 'countdown' ? t.totalSec : t.elapsedSec;
+        if (t.planId) {
+          const ws = weeklyScheduleRef.current;
+          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
+          if (plan) {
+            const today = getToday();
+            const prevDoneSec = sessionsRef.current
+              .filter(s => s.date === today && s.planId === t.planId)
+              .reduce((sum, s) => sum + s.durationSec, 0);
+            if (prevDoneSec + durationSec >= plan.targetMin * 60 * 0.8) {
+              const prevSessIds = sessionsRef.current
+                .filter(s => s.date === today && s.planId === t.planId)
+                .map(s => s.id);
+              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
+            }
+          }
+        } else {
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+        }
       }
       return sessId;
     }
@@ -886,7 +924,27 @@ export function AppProvider({ children }) {
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
-        setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+        if (t.planId) {
+          const ws = weeklyScheduleRef.current;
+          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
+          if (plan) {
+            const today = getToday();
+            const prevDoneSec = sessionsRef.current
+              .filter(s => s.date === today && s.planId === t.planId)
+              .reduce((sum, s) => sum + s.durationSec, 0);
+            if (prevDoneSec + t.elapsedSec >= plan.targetMin * 60 * 0.8) {
+              const prevSessIds = sessionsRef.current
+                .filter(s => s.date === today && s.planId === t.planId)
+                .map(s => s.id);
+              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
+            }
+          } else {
+            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+          }
+        } else {
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+        }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
       return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec) };

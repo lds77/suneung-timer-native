@@ -85,6 +85,7 @@ export default function FocusScreen() {
   const favs = app.favs || [];
   const [showFavMgr, setShowFavMgr] = useState(false);
   const [showCountupFavMgr, setShowCountupFavMgr] = useState(false);
+  const [favTab, setFavTab] = useState('countdown'); // 'countdown' | 'countup'
   const [lapExpanded, setLapExpanded] = useState(false);
   const [showCompletedTodos, setShowCompletedTodos] = useState(false);
   const [todoScopeFilter, setTodoScopeFilter] = useState('today');
@@ -373,7 +374,12 @@ export default function FocusScreen() {
   };
 
   const getDisplay = (t) => {
-    if (t.type === 'free' || t.type === 'lap') return t.elapsedSec;
+    if (t.type === 'free' || t.type === 'lap') {
+      if (t.status === 'running' && t.resumedAt) {
+        return (t.elapsedSecAtResume || 0) + Math.round((Date.now() - t.resumedAt) / 1000);
+      }
+      return t.elapsedSec;
+    }
     if (t.type === 'countdown') return Math.max(0, t.totalSec - t.elapsedSec);
     if (t.type === 'sequence') {
       if (t.seqPhase === 'break') return Math.max(0, t.seqBreakSec - t.elapsedSec);
@@ -1023,12 +1029,9 @@ export default function FocusScreen() {
                           ) : status.pct >= 1 ? (
                             <Text style={{ fontSize: 16 }}>✅</Text>
                           ) : status.type === 'done' ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <Text style={{ fontSize: 15 }}>✅</Text>
-                              <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
-                                <Text style={S.planPlayBtnT}>▶+</Text>
-                              </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
+                              <Text style={S.planPlayBtnT}>▶+</Text>
+                            </TouchableOpacity>
                           ) : (
                             <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
                               <Text style={S.planPlayBtnT}>{status.type === 'partial' ? '▶+' : '▶'}</Text>
@@ -1386,76 +1389,66 @@ export default function FocusScreen() {
           );
         })()}
 
-        {/* ═══ 공부량 즐겨찾기 ═══ */}
+        {/* ═══ 즐겨찾기 (탭 전환형) ═══ */}
         <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }, isTablet && S.tabletBlock]}>
-          <View style={S.quickHeader}>
-            <Text style={[S.quickTitle, { color: T.text }]}>📈 공부량 체크 즐겨찾기 (카운트업)</Text>
-            <TouchableOpacity onPress={() => setShowCountupFavMgr(true)}>
+          {/* 헤더: 탭 전환 + 편집 */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => setFavTab('countdown')}
+              style={[S.favTabBtn, { backgroundColor: favTab === 'countdown' ? T.accent : T.surface2, borderColor: favTab === 'countdown' ? T.accent : T.border }]}>
+              <Text style={[S.favTabBtnT, { color: favTab === 'countdown' ? 'white' : T.sub }]}>⏰ 카운트다운</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setFavTab('countup')}
+              style={[S.favTabBtn, { backgroundColor: favTab === 'countup' ? T.accent : T.surface2, borderColor: favTab === 'countup' ? T.accent : T.border }]}>
+              <Text style={[S.favTabBtnT, { color: favTab === 'countup' ? 'white' : T.sub }]}>⏱ 카운트업</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginLeft: 'auto' }}
+              onPress={() => favTab === 'countdown' ? setShowFavMgr(true) : setShowCountupFavMgr(true)}>
               <Text style={[S.quickEdit, { color: T.accent }]}>편집</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>탭하면 측정 시작 · 실행 중 타이머의 ☆ 탭으로 추가 · 길게 누르면 삭제</Text>
-          {[0, 1].map(row => (
-            <View key={row} style={S.favGrid}>
-              {[0, 1, 2].map(col => {
-                const fav = countupFavs[row * 3 + col];
+          {/* 즐겨찾기 1행 (3칸) */}
+          {favTab === 'countdown' ? (
+            <View style={S.favGrid}>
+              {[0, 1, 2].map(i => {
+                const fav = favs[i];
                 if (fav) return (
-                  <TouchableOpacity key={fav.id}
-                    style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]}
-                    onPress={() => runCountupFav(fav)}
-                    onLongPress={() => Alert.alert('삭제', `${fav.label}을(를) 공부량 즐겨찾기에서 삭제할까요?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => app.removeCountupFav(fav.id) }])}>
+                  <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
+                    onLongPress={() => Alert.alert('삭제', `${fav.label} 삭제?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => removeFav(fav.id) }])}>
                     <Text style={S.favCellIcon}>{fav.icon}</Text>
                     <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
                   </TouchableOpacity>
                 );
                 return (
-                  <TouchableOpacity key={`ce${row}${col}`}
-                    style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]}
-                    onPress={() => setShowCountupFavMgr(true)}>
+                  <TouchableOpacity key={`ecd${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowFavMgr(true)}>
                     <Text style={S.favCellIcon}>+</Text>
                     <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-          ))}
-        </View>
-
-        {/* ═══ 즐겨찾기 (고정1 + 추가5 + 기록/커스텀) ═══ */}
-        <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }, isTablet && S.tabletBlock]}>
-          <View style={S.quickHeader}><Text style={[S.quickTitle, { color: T.text }]}>📋 학습법·루틴·과목 즐겨찾기 (카운트다운)</Text>
-            <TouchableOpacity onPress={() => setShowFavMgr(true)}><Text style={[S.quickEdit, { color: T.accent }]}>편집</Text></TouchableOpacity></View>
-          <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>탭하면 타이머 시작 · 실행 중 타이머의 ☆ 탭으로 즐겨찾기 추가 · 길게 누르면 삭제</Text>
-          {/* 1행: 즐겨찾기 0~2 */}
-          <View style={S.favGrid}>
-            {[0, 1, 2].map(i => {
-              const fav = favs[i];
-              if (fav) return (
-                <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
-                  onLongPress={() => Alert.alert('삭제', `${fav.label} 삭제?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => removeFav(fav.id) }])}>
-                  <Text style={S.favCellIcon}>{fav.icon}</Text>
-                  <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text></TouchableOpacity>);
-              return (
-                <TouchableOpacity key={`empty${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowFavMgr(true)}>
-                  <Text style={S.favCellIcon}>+</Text>
-                  <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text></TouchableOpacity>);
-            })}
-          </View>
-          {/* 2행: 즐겨찾기 3~5 */}
-          <View style={S.favGrid}>
-            {[3, 4, 5].map(i => {
-              const fav = favs[i];
-              if (fav) return (
-                <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
-                  onLongPress={() => Alert.alert('삭제', `${fav.label} 삭제?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => removeFav(fav.id) }])}>
-                  <Text style={S.favCellIcon}>{fav.icon}</Text>
-                  <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text></TouchableOpacity>);
-              return (
-                <TouchableOpacity key={`empty${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowFavMgr(true)}>
-                  <Text style={S.favCellIcon}>+</Text>
-                  <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text></TouchableOpacity>);
-            })}
-          </View>
+          ) : (
+            <View style={S.favGrid}>
+              {[0, 1, 2].map(i => {
+                const fav = countupFavs[i];
+                if (fav) return (
+                  <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runCountupFav(fav)}
+                    onLongPress={() => Alert.alert('삭제', `${fav.label}을(를) 즐겨찾기에서 삭제할까요?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => app.removeCountupFav(fav.id) }])}>
+                    <Text style={S.favCellIcon}>{fav.icon}</Text>
+                    <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
+                  </TouchableOpacity>
+                );
+                return (
+                  <TouchableOpacity key={`ecu${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowCountupFavMgr(true)}>
+                    <Text style={S.favCellIcon}>+</Text>
+                    <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
 
@@ -1471,9 +1464,13 @@ export default function FocusScreen() {
               </TouchableOpacity>
             </View>
             {app.settings.soundId !== 'none' && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: 11, color: T.sub }}>🔈</Text>
-                <View style={[S.volTrack, { backgroundColor: T.surface2, flex: 1 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <TouchableOpacity
+                  onPress={() => app.updateSettings({ soundVolume: Math.max(10, (app.settings.soundVolume ?? 70) - 10) })}
+                  style={{ padding: 4 }}>
+                  <Text style={{ fontSize: 14 }}>🔈</Text>
+                </TouchableOpacity>
+                <View style={[S.volTrack, { backgroundColor: T.surface2 }]}>
                   {[10,20,30,40,50,60,70,80,90,100].map(v => (
                     <TouchableOpacity
                       key={v}
@@ -1482,7 +1479,11 @@ export default function FocusScreen() {
                     />
                   ))}
                 </View>
-                <Text style={{ fontSize: 11, color: T.sub }}>🔊</Text>
+                <TouchableOpacity
+                  onPress={() => app.updateSettings({ soundVolume: Math.min(100, (app.settings.soundVolume ?? 70) + 10) })}
+                  style={{ padding: 4 }}>
+                  <Text style={{ fontSize: 14 }}>🔊</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1908,7 +1909,6 @@ export default function FocusScreen() {
               { label: '3분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 180 },
               { label: '5분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 300 },
               { label: '10분 어택', icon: '⏰', type: 'countdown', color: '#6C5CE7', totalSec: 600 },
-              { label: '카운트업', icon: '⏱', type: 'lap', color: '#6C5CE7' },
             ].map(item => { const ex = favs.some(f => f.label === item.label); return (
               <TouchableOpacity key={item.label} style={[S.favAddChip, { borderColor: ex ? T.border : item.color + '60', backgroundColor: ex ? T.surface2 : item.color + '08' }]} onPress={() => !ex && addToFav(item)} disabled={ex}>
                 <Text style={S.favAddIcon}>{item.icon}</Text><Text style={[S.favAddChipT, { color: ex ? T.sub : item.color }]}>{item.label}</Text>
@@ -2121,8 +2121,8 @@ export default function FocusScreen() {
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
-            <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>🎉</Text>
-            <Text style={[S.selfRatingTitle, { color: T.text }]}>공부 완료!</Text>
+            <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>{app.completedResultData?.planSessionIds?.length ? '📅' : '🎉'}</Text>
+            <Text style={[S.selfRatingTitle, { color: T.text }]}>{app.completedResultData?.planSessionIds?.length ? '계획 달성!' : '공부 완료!'}</Text>
             {/* 결과 정보 */}
             {app.completedResultData?.result && (() => {
               const selfBonus = (resultSelfRating === 'fire' || resultSelfRating === 'perfect') ? 3 : 0;
@@ -2172,11 +2172,15 @@ export default function FocusScreen() {
               onPress={() => {
                 if (!resultSelfRating) { app.showToastCustom('자기평가를 선택해주세요!', 'paengi'); return; }
                 const data = app.completedResultData;
-                if (data?.seqSessionIds?.length) {
-                  // 연속모드: 모든 구간 세션에 자기평가 일괄 적용
-                  data.seqSessionIds.forEach(id => {
+                if (data?.planSessionIds?.length) {
+                  // 계획 완료: 모든 계획 세션에 자기평가 일괄 적용
+                  data.planSessionIds.forEach(id => {
                     app.updateSessionSelfRating(id, resultSelfRating, resultMemo.trim() || null);
                   });
+                } else if (data?.seqSessionIds?.length) {
+                  // 연속모드: 마지막 완료 세션에만 자기평가 적용 (중간 세션은 이미 밀도 계산됨)
+                  const lastSeqId = data.seqSessionIds[data.seqSessionIds.length - 1];
+                  app.updateSessionSelfRating(lastSeqId, resultSelfRating, resultMemo.trim() || null);
                 } else if (data?.sessionId) {
                   app.updateSessionSelfRating(data.sessionId, resultSelfRating, resultMemo.trim() || null);
                 }
@@ -2241,6 +2245,8 @@ const S = StyleSheet.create({
   quickSec: { borderRadius: 14, padding: 10, borderWidth: 1, marginBottom: 8 },
   quickHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   quickTitle: { fontSize: 14, fontWeight: '800' }, quickEdit: { fontSize: 12, fontWeight: '700' },
+  favTabBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  favTabBtnT: { fontSize: 12, fontWeight: '700' },
   quickBody: {},
   favGrid: { flexDirection: 'row', gap: 6, marginBottom: 6 },
   favCell: { flex: 1, borderRadius: 10, borderWidth: 1, paddingVertical: 10, minHeight: 62, alignItems: 'center', justifyContent: 'center' },
@@ -2270,8 +2276,8 @@ const S = StyleSheet.create({
   memoInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 4 },
   noiseCard: { borderRadius: 12, padding: 8, borderWidth: 1, marginBottom: 8 }, noiseRow: { flexDirection: 'row', gap: 4 },
   nb: { flex: 1, paddingHorizontal: 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' }, nbT: { fontSize: 11, fontWeight: '600' },
-  volTrack: { flexDirection: 'row', gap: 2, alignItems: 'center', paddingHorizontal: 4, paddingVertical: 4, borderRadius: 6 },
-  volDot: { width: 8, height: 8, borderRadius: 4 },
+  volTrack: { flexDirection: 'row', gap: 3, alignItems: 'center', paddingHorizontal: 6, paddingVertical: 5, borderRadius: 8 },
+  volDot: { width: 14, height: 14, borderRadius: 7 },
   addTodoSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, padding: 20, paddingBottom: 32, maxHeight: '88%' },
   todoCard: { borderRadius: 12, padding: 10, borderWidth: 1 },
   todoH: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },

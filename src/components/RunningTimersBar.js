@@ -18,8 +18,10 @@ export default function RunningTimersBar() {
         {active.map(t => {
           const display = (t.type === 'free' || t.type === 'lap') ? t.elapsedSec
             : t.type === 'pomodoro' ? Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec)
+            : t.type === 'sequence' ? Math.max(0, (t.seqPhase === 'break' ? t.seqBreakSec : t.totalSec) - t.elapsedSec)
             : Math.max(0, t.totalSec - t.elapsedSec);
           const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? '🍅' : '☕')
+            : t.type === 'sequence' ? (t.seqPhase === 'break' ? '☕' : '📋')
             : (t.type === 'free' || t.type === 'lap') ? '⏱'
             : '⏰';
 
