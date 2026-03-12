@@ -4,8 +4,12 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard,
+  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard, Dimensions,
 } from 'react-native';
+
+const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
+const TABLET_MAX_W = 680;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
@@ -798,10 +802,11 @@ const s = StyleSheet.create({
   offHintText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   // Sub-modal
-  sheetBg: { flex: 1, backgroundColor: '#00000065', justifyContent: 'flex-end' },
+  sheetBg: { flex: 1, backgroundColor: '#00000065', justifyContent: 'flex-end', alignItems: 'center' },
   sheet: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, maxHeight: '92%',
+    width: '100%', ...(isTablet && { maxWidth: TABLET_MAX_W }),
   },
   sheetTitle: { fontSize: 17, fontWeight: '900', marginBottom: 16, textAlign: 'center' },
   sheetBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },

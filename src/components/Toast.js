@@ -2,8 +2,11 @@
 // 캐릭터 토스트 메시지
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import CharacterAvatar from './CharacterAvatar';
+
+const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
 
 export default function Toast({ message, characterId, visible, colors }) {
   const T = colors;
@@ -59,7 +62,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 16,
     borderWidth: 1,
-    maxWidth: 320,
+    maxWidth: isTablet ? 480 : 320,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },

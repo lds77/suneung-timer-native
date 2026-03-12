@@ -609,7 +609,7 @@ const [ddLabel, setDdLabel] = useState('');
       <Modal visible={showGuide} transparent animationType="fade">
         <View style={{ flex: 1 }}>
           <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
-          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+          <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
             <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
