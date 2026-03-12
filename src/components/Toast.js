@@ -3,6 +3,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CharacterAvatar from './CharacterAvatar';
 
 const { width: SW } = Dimensions.get('window');
@@ -10,6 +11,7 @@ const isTablet = SW >= 600;
 
 export default function Toast({ message, characterId, visible, colors }) {
   const T = colors;
+  const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(-80)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -36,6 +38,7 @@ export default function Toast({ message, characterId, visible, colors }) {
         {
           backgroundColor: T.card,
           borderColor: T.border,
+          top: insets.top + 10,
           transform: [{ translateY }],
           opacity,
         },
@@ -53,7 +56,6 @@ export default function Toast({ message, characterId, visible, colors }) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 50,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
