@@ -478,7 +478,7 @@ function MainApp() {
         <NavigationContainer>
           <Tab.Navigator screenOptions={{
             headerShown: false,
-            tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, height: 56 },
+            tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, ...(Platform.OS === 'android' && { height: 56 }) },
             tabBarActiveTintColor: T.accent, tabBarInactiveTintColor: T.sub,
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: -2 },
           }}>
