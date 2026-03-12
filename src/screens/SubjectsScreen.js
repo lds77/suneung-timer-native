@@ -2,8 +2,12 @@
 // v23: 학습법 탭 + 고등 수능 탭
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions } from 'react-native';
 import { useApp } from '../hooks/useAppState';
+
+const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
+const TABLET_MAX_W = 680;
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
@@ -208,7 +212,7 @@ export default function SubjectsScreen() {
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={S.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}>
 
         {/* 헤더 */}
         <View style={S.header}>

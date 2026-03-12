@@ -20,6 +20,10 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 
+const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
+const TABLET_MAX_W = 680;
+
 // 가이드 섹션 컴포넌트
 function GuideSection({ title, color, T, children }) {
   const [open, setOpen] = useState(false);
@@ -206,7 +210,7 @@ const [ddLabel, setDdLabel] = useState('');
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: T.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <RunningTimersBar />
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}
         keyboardShouldPersistTaps="always" keyboardDismissMode="none">
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
 

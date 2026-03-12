@@ -19,8 +19,11 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
 
 const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
+const TABLET_MAX_W = 680;
+const CONTENT_W = isTablet ? Math.min(SW, TABLET_MAX_W) - 32 : SW - 32;
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
-const CELL = Math.floor((SW - 32 - 28 - 12) / 7);
+const CELL = Math.floor((CONTENT_W - 28 - 12) / 7);
 const dateStr = (d) => d.toISOString().slice(0, 10);
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
@@ -784,7 +787,7 @@ export default function StatsScreen() {
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={S.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}>
 
         {/* ── 헤더 ── */}
         <View style={S.header}>
