@@ -52,6 +52,81 @@ const LEVEL_LABELS = {
   university: '대학생', exam_prep: '공시생/자격증',
 };
 
+function TimeGridPicker({ value, onChange, T }) {
+  const parts = (value || '06:00').split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const isAM = h < 12;
+
+  const amHours = [6, 7, 8, 9, 10, 11];
+  const pmHours = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+
+  const handleAmpm = (wantAm) => {
+    if (wantAm === isAM) return;
+    const newH = wantAm ? 6 : 12;
+    onChange(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  };
+
+  const handleHour = (newH) => {
+    const newM = newH === 24 ? 0 : m;
+    onChange(`${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
+  };
+
+  const hourLabel = (hr) => {
+    if (hr === 24) return '자정';
+    if (hr === 12) return '12시';
+    return `${hr < 12 ? hr : hr - 12}시`;
+  };
+
+  const hours = isAM ? amHours : pmHours;
+
+  return (
+    <View style={{ marginBottom: 12 }}>
+      {/* 오전/오후 */}
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+        {[{ label: '오전', am: true }, { label: '오후', am: false }].map(({ label, am }) => (
+          <TouchableOpacity key={label} onPress={() => handleAmpm(am)}
+            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+              backgroundColor: (isAM === am) ? T.accent : T.surface2 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: (isAM === am) ? 'white' : T.sub }}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {/* 시간 그리드 */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {hours.map(hr => {
+          const sel = h === hr;
+          return (
+            <TouchableOpacity key={hr} onPress={() => handleHour(hr)}
+              style={{ width: '22%', paddingVertical: 9, borderRadius: 8, alignItems: 'center',
+                backgroundColor: sel ? T.accent : T.surface2 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? 'white' : T.text }}>
+                {hourLabel(hr)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {/* 분 선택 */}
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {[0, ...(h !== 24 ? [30] : [])].map(min => {
+          const sel = m === min;
+          return (
+            <TouchableOpacity key={min}
+              onPress={() => onChange(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`)}
+              style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+                backgroundColor: sel ? T.accent : T.surface2 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? 'white' : T.sub }}>
+                {min === 0 ? '정각 (:00)' : '30분 (:30)'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
@@ -222,7 +297,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   }, [fixedLabel, fixedStart, fixedEnd, fixedType, editingFixedId, updateDay, resetFixedForm]);
 
   const handleDeleteFixed = useCallback((id) => {
-    updateDay(day => ({ ...day, fixed: (day.fixed || []).filter(f => f.id !== id) }));
+    Alert.alert('고정 일정 삭제', '이 일정을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => updateDay(day => ({ ...day, fixed: (day.fixed || []).filter(f => f.id !== id) })) },
+    ]);
   }, [updateDay]);
 
   // ── 공부 계획 추가/수정 ──
@@ -305,10 +383,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   }, [planTab, planSubjectId, planLabel, planIcon, planColor, planTargetMin, editingPlanId, app.subjects, updateDay, resetPlanForm]);
 
   const handleDeletePlan = useCallback((id) => {
-    updateDay(day => ({
-      ...day,
-      plans: (day.plans || []).filter(p => p.id !== id).map((p, i) => ({ ...p, order: i })),
-    }));
+    Alert.alert('과목 삭제', '이 과목을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => updateDay(day => ({
+        ...day,
+        plans: (day.plans || []).filter(p => p.id !== id).map((p, i) => ({ ...p, order: i })),
+      })) },
+    ]);
   }, [updateDay]);
 
   const handleMovePlan = useCallback((id, dir) => {
@@ -412,7 +493,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       <Text style={[s.itemSub, { color: T.sub }]}>{f.start} ~ {f.end}</Text>
                     </View>
                     <TouchableOpacity onPress={() => openEditFixed(f)} style={s.editBtn}>
-                      <Text style={[s.editText, { color: T.sub }]}>✏️</Text>
+                      <Text style={[s.editText, { color: T.sub }]}>🖊️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeleteFixed(f.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
@@ -464,7 +545,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       </TouchableOpacity>
                     </View>
                     <TouchableOpacity onPress={() => openEditPlan(p)} style={s.editBtn}>
-                      <Text style={[s.editText, { color: T.sub }]}>✏️</Text>
+                      <Text style={[s.editText, { color: T.sub }]}>🖊️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeletePlan(p.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
@@ -521,57 +602,38 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
             <View style={[s.sheet, { backgroundColor: T.bg }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
-              <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {FIXED_TYPES.map(ft => {
-                    const sel = fixedType.type === ft.type;
-                    return (
-                      <TouchableOpacity key={ft.type}
-                        onPress={() => { setFixedType(ft); setFixedLabel(ft.label); }}
-                        style={[s.typeChip, {
-                          borderColor: sel ? T.accent : T.border,
-                          backgroundColor: sel ? T.accent + '18' : T.card,
-                        }]}>
-                        <Text style={{ fontSize: 18 }}>{ft.icon}</Text>
-                        <Text style={[s.typeChipText, { color: sel ? T.accent : T.text }]}>{ft.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {FIXED_TYPES.map(ft => {
+                      const sel = fixedType.type === ft.type;
+                      return (
+                        <TouchableOpacity key={ft.type}
+                          onPress={() => { setFixedType(ft); setFixedLabel(ft.label); }}
+                          style={[s.typeChip, {
+                            borderColor: sel ? T.accent : T.border,
+                            backgroundColor: sel ? T.accent + '18' : T.card,
+                          }]}>
+                          <Text style={{ fontSize: 18 }}>{ft.icon}</Text>
+                          <Text style={[s.typeChipText, { color: sel ? T.accent : T.text }]}>{ft.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                <Text style={[s.fieldLabel, { color: T.sub }]}>이름</Text>
+                <TextInput value={fixedLabel} onChangeText={setFixedLabel}
+                  style={[s.fieldInput, { borderColor: T.border, color: T.text, backgroundColor: T.card }]}
+                  placeholder="일정 이름" placeholderTextColor={T.sub} />
+
+                <Text style={[s.fieldLabel, { color: T.sub }]}>시작 시간</Text>
+                <TimeGridPicker value={fixedStart} onChange={setFixedStart} T={T} />
+
+                <Text style={[s.fieldLabel, { color: T.sub }]}>종료 시간</Text>
+                <TimeGridPicker value={fixedEnd} onChange={setFixedEnd} T={T} />
               </ScrollView>
-
-              <Text style={[s.fieldLabel, { color: T.sub }]}>이름</Text>
-              <TextInput value={fixedLabel} onChangeText={setFixedLabel}
-                style={[s.fieldInput, { borderColor: T.border, color: T.text, backgroundColor: T.card }]}
-                placeholder="일정 이름" placeholderTextColor={T.sub} />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.fieldLabel, { color: T.sub }]}>시작 시간</Text>
-                  <ScrollView style={[s.timePicker, { borderColor: T.border, backgroundColor: T.card }]}
-                    showsVerticalScrollIndicator={false}>
-                    {TIME_OPTIONS.map(t => (
-                      <TouchableOpacity key={`s_${t}`} onPress={() => setFixedStart(t)}
-                        style={[s.timeOpt, fixedStart === t && { backgroundColor: T.accent }]}>
-                        <Text style={{ fontSize: 14, color: fixedStart === t ? 'white' : T.text }}>{t}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.fieldLabel, { color: T.sub }]}>종료 시간</Text>
-                  <ScrollView style={[s.timePicker, { borderColor: T.border, backgroundColor: T.card }]}
-                    showsVerticalScrollIndicator={false}>
-                    {TIME_OPTIONS.map(t => (
-                      <TouchableOpacity key={`e_${t}`} onPress={() => setFixedEnd(t)}
-                        style={[s.timeOpt, fixedEnd === t && { backgroundColor: T.accent }]}>
-                        <Text style={{ fontSize: 14, color: fixedEnd === t ? 'white' : T.text }}>{t}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
 
               <View style={s.sheetBtnRow}>
                 <TouchableOpacity onPress={() => { setShowAddFixed(false); resetFixedForm(); }}

@@ -1144,7 +1144,10 @@ export default function FocusScreen() {
                     </View>
                   )}
                 </View>
-                <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={S.todoDelBtn}>
+                <TouchableOpacity onPress={() => Alert.alert('할 일 삭제', '이 항목을 삭제할까요?', [
+                  { text: '취소', style: 'cancel' },
+                  { text: '삭제', style: 'destructive', onPress: () => app.removeTodo(t.id) },
+                ])} style={S.todoDelBtn}>
                   <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -1784,7 +1787,7 @@ export default function FocusScreen() {
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, flex: 1 }}>✏️ 할 일 수정</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, flex: 1 }}>🖊️ 할 일 수정</Text>
               <TouchableOpacity onPress={() => setEditTodoId(null)}><Text style={{ fontSize: 20, color: T.sub }}>✕</Text></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

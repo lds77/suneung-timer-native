@@ -350,7 +350,7 @@ const [ddLabel, setDdLabel] = useState('');
               <View style={{ flex: 1 }} />
               <Text style={[styles.ddayBadge, { color: T.accent }]}>{formatDDay(dd.date)}</Text>
               <TouchableOpacity onPress={() => openEditDDay(dd)} style={{ paddingHorizontal: 6 }}>
-                <Text style={{ fontSize: 15, color: T.sub }}>✏️</Text>
+                <Text style={{ fontSize: 15, color: T.sub }}>🖊️</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteDDay(dd)}>
                 <Text style={[styles.ddayDel, { color: T.red }]}>×</Text>
@@ -426,7 +426,7 @@ const [ddLabel, setDdLabel] = useState('');
           </Text>
           <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>💡 문구 = 챌린지 도전 문구, 정지 = 타이머 일시정지</Text>
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>✏️ 나만의 챌린지 문구</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
             <ChallengeInput
               initial={app.settings.challengeText}
               onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}

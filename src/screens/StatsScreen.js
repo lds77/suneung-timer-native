@@ -1467,7 +1467,7 @@ export default function StatsScreen() {
                           >
                             <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
                             <Text style={[S.diaryMeta, { color: T.sub }]}>
-                              {subj ? subj.name : '미지정'} · {formatShort(s.durationSec)} ✏️
+                              {subj ? subj.name : '미지정'} · {formatShort(s.durationSec)} 🖊️
                             </Text>
                           </TouchableOpacity>
                         );
@@ -1640,7 +1640,7 @@ export default function StatsScreen() {
                     <Text style={{ fontSize: 14, color: T.text, fontWeight: '600', lineHeight: 18 }}>
                       "{s.memo}"
                     </Text>
-                    <Text style={{ fontSize: 11, color: T.surface2, marginTop: 4, textAlign: 'right' }}>탭하면 수정 ✏️</Text>
+                    <Text style={{ fontSize: 11, color: T.surface2, marginTop: 4, textAlign: 'right' }}>탭하면 수정 🖊️</Text>
                   </TouchableOpacity>
                 );
               })}
