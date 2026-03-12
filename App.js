@@ -373,8 +373,8 @@ function OnboardingScreen() {
             </View>
           </View>
           {pickerSelected && ddLabel.trim() ? (
-            <TouchableOpacity style={[styles.obAddBtn, { backgroundColor: T.accent + '15', borderColor: T.accent }]} onPress={addDDay}>
-              <Text style={{ color: T.accent, fontWeight: '800', fontSize: 13 }}>+ {ddLabel} ({pickerSelected}{ddDays > 1 ? ` ~ ${ddDays}일간` : ''}) 추가</Text>
+            <TouchableOpacity style={[styles.obAddBtn, { backgroundColor: T.accent, borderColor: T.accent }]} onPress={addDDay}>
+              <Text style={{ color: 'white', fontWeight: '900', fontSize: 14 }}>✓ {ddLabel} ({pickerSelected}{ddDays > 1 ? ` ~ ${ddDays}일간` : ''}) 추가하기</Text>
             </TouchableOpacity>
           ) : null}
           {app.ddays.length > 0 && (
@@ -391,8 +391,11 @@ function OnboardingScreen() {
             <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(3)}>
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(5)}>
-              <Text style={styles.obBtnT}>{app.ddays.length > 0 ? '다음 →' : '건너뛰기 →'}</Text>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => {
+              if (pickerSelected && ddLabel.trim()) addDDay();
+              setStep(5);
+            }}>
+              <Text style={styles.obBtnT}>{app.ddays.length > 0 || (pickerSelected && ddLabel.trim()) ? '다음 →' : '건너뛰기 →'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -495,6 +498,35 @@ function MainApp() {
       </SafeAreaView>
 
       <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
+
+      {/* ⏰ 정확한 알람 권한 안내 모달 (Android 12+, 최초 1회) */}
+      <Modal visible={!!app.showExactAlarmModal} transparent animationType="fade" onRequestClose={app.dismissExactAlarmModal}>
+        <View style={{ flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
+            <Text style={{ fontSize: 22, textAlign: 'center', marginBottom: 8 }}>⏰</Text>
+            <Text style={{ fontSize: 17, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 10 }}>정확한 알람 권한 필요</Text>
+            <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+              {'타이머가 정확한 시간에 알림을 보내려면\n정확한 알람 권한이 필요해요.\n\n허용하지 않으면 알림이 늦게 오거나\n오지 않을 수 있어요.'}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                app.dismissExactAlarmModal();
+                IntentLauncher.startActivityAsync(
+                  'android.settings.REQUEST_SCHEDULE_EXACT_ALARM',
+                  { data: 'package:com.yeolgong.timer' }
+                ).catch(() => {});
+              }}
+              style={{ backgroundColor: T.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>설정하기 →</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={app.dismissExactAlarmModal} style={{ paddingVertical: 10, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, color: T.sub }}>나중에 하기</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* 전역 집중모드 선택 모달 */}
       <Modal visible={!!app.pendingModeAction} transparent animationType="fade" onRequestClose={app.cancelModeSelect}>

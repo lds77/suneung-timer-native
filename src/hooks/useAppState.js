@@ -1,8 +1,7 @@
 // src/hooks/useAppState.js
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, Vibration, Alert, Platform } from 'react-native';
+import { AppState, Vibration, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import * as IntentLauncher from 'expo-intent-launcher';
 import * as Brightness from 'expo-brightness';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Audio } from 'expo-av';
@@ -91,6 +90,7 @@ export function AppProvider({ children }) {
 
   // 전역 집중모드 선택 대기 콜백
   const [pendingModeAction, setPendingModeAction] = useState(null);
+  const [showExactAlarmModal, setShowExactAlarmModal] = useState(false);
 
   // 500ms 틱 (디스플레이 lag 최소화: 1000ms 대비 절반으로 줄임, elapsedSec 변화 없으면 렌더 스킵)
   useEffect(() => {
@@ -1191,20 +1191,7 @@ export function AppProvider({ children }) {
     if (Platform.Version < 31) return; // Android 12 미만은 불필요
     if (settings.exactAlarmGuideShown) return;
     const timer = setTimeout(() => {
-      Alert.alert(
-        '⏰ 정확한 알람 권한',
-        '타이머가 백그라운드에서 정확한 시간에 알림을 보내려면 정확한 알람 권한이 필요해요.\n\n설정에서 허용해 주시면 배터리 최적화 상태에서도 알림이 제때 와요!',
-        [
-          { text: '나중에', style: 'cancel' },
-          {
-            text: '설정하기',
-            onPress: () => IntentLauncher.startActivityAsync(
-              'android.settings.REQUEST_SCHEDULE_EXACT_ALARM',
-              { data: 'package:com.yeolgong.timer' }
-            ).catch(() => {}),
-          },
-        ]
-      );
+      setShowExactAlarmModal(true);
       updateSettings({ exactAlarmGuideShown: true });
     }, 1500);
     return () => clearTimeout(timer);
@@ -1469,6 +1456,7 @@ export function AppProvider({ children }) {
       startSequence, cancelSequence,
       completedResultData, setCompletedResultData,
       pendingModeAction, requestModeSelect, resolveModeSelect, cancelModeSelect,
+      showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
