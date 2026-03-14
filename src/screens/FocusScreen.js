@@ -1727,7 +1727,7 @@ export default function FocusScreen() {
               ))}
             </View>
             <TextInput value={addTodoMemo} onChangeText={setAddTodoMemo}
-              placeholder="예) 매삼비 P.47 · 오답 · 재풀이 필요" placeholderTextColor={T.sub} multiline
+              placeholder="예) 수학 17번 · 개념 부족 · 재풀이 필요" placeholderTextColor={T.sub} multiline
               style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, minHeight: 48, textAlignVertical: 'top', marginBottom: 14 }]}
             />
             {/* 반복 */}
@@ -1859,7 +1859,7 @@ export default function FocusScreen() {
                 ))}
               </View>
               <TextInput value={editTodoMemo} onChangeText={setEditTodoMemo}
-                placeholder="예) 매삼비 P.47 · 오답 · 재풀이 필요" placeholderTextColor={T.sub} multiline
+                placeholder="예) 수학 17번 · 개념 부족 · 재풀이 필요" placeholderTextColor={T.sub} multiline
                 style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, minHeight: 48, textAlignVertical: 'top', marginBottom: 14 }]}
               />
               {/* 반복 */}
