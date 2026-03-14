@@ -690,7 +690,7 @@ const [ddLabel, setDdLabel] = useState('');
               <TouchableOpacity key={lv.id} onPress={() => { app.updateSettings({ ultraFocusLevel: lv.id }); setShowFocusPicker(false); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? lv.color + '15' : 'transparent' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? lv.color : T.text }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '500', color: sel ? lv.color : T.text }}>{lv.label}</Text>
                   <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
                 </View>
                 {sel && <Text style={{ fontSize: 16, color: lv.color }}>✓</Text>}
