@@ -155,6 +155,7 @@ export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const scrollRef = useRef(null);
+  const scrollYRef = useRef(0);
   const challengeViewRef = useRef(null);
   const kbHeightRef = useRef(0);
   useEffect(() => {
@@ -165,16 +166,15 @@ export default function SettingsScreen() {
   const handleChallengeInputFocus = useCallback(() => {
     setTimeout(() => {
       if (!challengeViewRef.current || !scrollRef.current) return;
-      challengeViewRef.current.measureLayout(
-        scrollRef.current.getScrollableNode(),
-        (_x, y, _w, h) => {
-          const screenH = Dimensions.get('window').height;
-          const kbH = kbHeightRef.current || 300;
-          const targetY = y - (screenH - kbH) + h + 54;
-          scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
-        },
-        () => {}
-      );
+      challengeViewRef.current.measure((_x, _y, _w, h, _px, pageY) => {
+        const screenH = Dimensions.get('window').height;
+        const kbH = kbHeightRef.current || 300;
+        // pageY: 현재 화면상 view 상단 Y. 키보드 위 54px에 view 하단이 오도록 스크롤
+        const delta = (pageY + h) - (screenH - kbH - 54);
+        if (delta > 0) {
+          scrollRef.current.scrollTo({ y: scrollYRef.current + delta, animated: true });
+        }
+      });
     }, 200);
   }, []);
 
@@ -265,7 +265,9 @@ const [ddLabel, setDdLabel] = useState('');
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: T.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <RunningTimersBar />
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}
-        keyboardShouldPersistTaps="always" keyboardDismissMode="none">
+        keyboardShouldPersistTaps="always" keyboardDismissMode="none"
+        onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}>
         <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
 
         {/* 캐릭터 */}
