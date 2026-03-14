@@ -400,6 +400,14 @@ export function AppProvider({ children }) {
           if (screenLockedRef.current) applyFocusBrightness();
         }
 
+        // 백그라운드 복귀 시 countdown 알림 재예약 (elapsedSec 보정 후 기존 알림이 부정확할 수 있음)
+        if (gap > 1) {
+          timersRef.current.filter(t => t.status === 'running' && t.type === 'countdown').forEach(t => {
+            const remain = getRealRemainingSec(t);
+            if (remain > 0) scheduleTimerNotif(t.id, t.label, remain);
+          });
+        }
+
         // 백그라운드 시간 보정 (모드 상관없이)
         if (gap > 1) {
           setTimers(prev => prev.map(t => {
@@ -462,7 +470,7 @@ export function AppProvider({ children }) {
       // 재개될 타이머들의 남은 시간으로 알림 재예약
       timersRef.current.filter(t => t.pausedByUltra && t.status === 'paused').forEach(t => {
         if (t.type === 'countdown') {
-          scheduleTimerNotif(t.id, t.label, t.totalSec - t.elapsedSec);
+          scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
         } else if (t.type === 'pomodoro' || t.type === 'sequence') {
           scheduleAllPhaseNotifs(t);
         }
@@ -672,6 +680,20 @@ export function AppProvider({ children }) {
         trigger: null,
       });
     } catch {}
+  };
+
+  // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함)
+  const getRealRemainingSec = (t) => {
+    const now = Date.now();
+    const realElapsedSec = t.resumedAt
+      ? (t.elapsedSecAtResume || 0) + (now - t.resumedAt) / 1000
+      : t.elapsedSec;
+    if (t.type === 'countdown') return Math.max(0, t.totalSec - realElapsedSec);
+    if (t.type === 'pomodoro') {
+      const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;
+      return Math.max(0, target - realElapsedSec);
+    }
+    return 0;
   };
 
   // 백그라운드 알림 예약 — 타이머 시작/재개 시 OS에 미리 등록
@@ -923,7 +945,7 @@ export function AppProvider({ children }) {
     const t = timersRef.current.find(t => t.id === id);
     if (t && t.status === 'paused') {
       if (t.type === 'countdown') {
-        scheduleTimerNotif(id, t.label, t.totalSec - t.elapsedSec);
+        scheduleTimerNotif(id, t.label, getRealRemainingSec(t));
       } else if (t.type === 'pomodoro' || t.type === 'sequence') {
         scheduleAllPhaseNotifs(t);
       }
@@ -1179,7 +1201,7 @@ export function AppProvider({ children }) {
           // running으로 복원된 타이머 알림 재예약
           restored.forEach(t => {
             if (t.status !== 'running') return;
-            if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec - t.elapsedSec);
+            if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
             else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(t);
           });
         }
