@@ -61,7 +61,7 @@ function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef
       setTimeout(() => {
         if (viewRef.current && scrollRef?.current) {
           viewRef.current.measureLayout(
-            scrollRef.current,
+            findNodeHandle(scrollRef.current),
             (_x, y) => { scrollRef.current.scrollTo({ y, animated: true }); },
             () => {}
           );
