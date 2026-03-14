@@ -52,20 +52,26 @@ const SCHOOL_LEVELS = [
 // 가이드 섹션 컴포넌트
 function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef }) {
   const open = openId === id;
-  const yRef = React.useRef(0);
+  const viewRef = React.useRef(null);
 
   const handlePress = () => {
     const next = open ? null : id;
     onOpen(next);
     if (next !== null) {
       setTimeout(() => {
-        scrollRef?.current?.scrollTo({ y: yRef.current, animated: true });
-      }, 50);
+        if (viewRef.current && scrollRef?.current) {
+          viewRef.current.measureLayout(
+            scrollRef.current,
+            (_x, y) => { scrollRef.current.scrollTo({ y, animated: true }); },
+            () => {}
+          );
+        }
+      }, 80);
     }
   };
 
   return (
-    <View onLayout={(e) => { yRef.current = e.nativeEvent.layout.y; }} style={{ marginBottom: 10 }}>
+    <View ref={viewRef} style={{ marginBottom: 10 }}>
       <TouchableOpacity onPress={handlePress}
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: color + '10', borderRadius: 10 }}>
         <Text style={{ fontSize: 14, fontWeight: '900', color, flex: 1, marginRight: 8 }}>{title}</Text>
