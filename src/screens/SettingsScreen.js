@@ -24,12 +24,37 @@ const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
 
+const FOCUS_LEVELS = [
+  { id: 'normal', label: '🟢 일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
+  { id: 'focus',  label: '🟡 집중',       desc: '1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.',               color: '#FFB74D' },
+  { id: 'exam',   label: '🔴 울트라집중',  desc: '10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.', color: '#FF6B6B' },
+];
+
+const THEME_COLORS = [
+  { id: 'pink',   color: '#FF6B9D', label: '핑크' },
+  { id: 'purple', color: '#6C5CE7', label: '퍼플' },
+  { id: 'blue',   color: '#4A90D9', label: '블루' },
+  { id: 'mint',   color: '#00B894', label: '민트' },
+  { id: 'navy',   color: '#2C5F9E', label: '네이비' },
+  { id: 'coral',  color: '#E07050', label: '코랄' },
+];
+
+const SCHOOL_LEVELS = [
+  { id: 'elementary_lower', label: '초등 저학년', sub: '1~3학년' },
+  { id: 'elementary_upper', label: '초등 고학년', sub: '4~6학년' },
+  { id: 'middle',           label: '중학생',      sub: '중1~3' },
+  { id: 'high',             label: '고등학생',    sub: '고1~3' },
+  { id: 'nsuneung',         label: 'N수생',       sub: '수능 재도전' },
+  { id: 'university',       label: '대학생',      sub: '대학 재학' },
+  { id: 'exam_prep',        label: '공시생/자격증', sub: '공무원·자격증' },
+];
+
 // 가이드 섹션 컴포넌트
-function GuideSection({ title, color, T, children }) {
-  const [open, setOpen] = useState(false);
+function GuideSection({ id, title, color, T, children, openId, onOpen }) {
+  const open = openId === id;
   return (
     <View style={{ marginBottom: 10 }}>
-      <TouchableOpacity onPress={() => setOpen(!open)}
+      <TouchableOpacity onPress={() => onOpen(open ? null : id)}
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: color + '10', borderRadius: 10 }}>
         <Text style={{ fontSize: 14, fontWeight: '900', color, flex: 1, marginRight: 8 }}>{title}</Text>
         <Text style={{ fontSize: 14, color: T.sub }}>{open ? '▲' : '▼'}</Text>
@@ -142,6 +167,11 @@ export default function SettingsScreen() {
   const [showDDayModal, setShowDDayModal] = useState(false);
   const [editingDDay, setEditingDDay] = useState(null); // null=추가, dd객체=수정
   const [showGuide, setShowGuide] = useState(false);
+  const [openGuideId, setOpenGuideId] = useState(null);
+  const [showGoalPicker, setShowGoalPicker] = useState(false);
+  const [showSchoolPicker, setShowSchoolPicker] = useState(false);
+  const [showFocusPicker, setShowFocusPicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
 const [ddLabel, setDdLabel] = useState('');
@@ -245,61 +275,22 @@ const [ddLabel, setDdLabel] = useState('');
 
         {/* 목표 (목표시간 + 학교급) */}
         <Section T={T} title="목표">
-          <Text style={[styles.goalLabel, { color: T.sub }]}>일일 목표 시간</Text>
-          {[DAILY_GOAL_OPTIONS.slice(0, 6), DAILY_GOAL_OPTIONS.slice(6, 12)].map((row, ri) => (
-            <View key={ri} style={[styles.goalRow, ri === 0 && { marginBottom: 5 }]}>
-              {row.map(min => (
-                <TouchableOpacity
-                  key={min}
-                  style={[
-                    styles.goalBtn,
-                    {
-                      borderColor: app.settings.dailyGoalMin === min ? T.accent : T.border,
-                      backgroundColor: app.settings.dailyGoalMin === min ? T.accent : T.card,
-                    },
-                  ]}
-                  onPress={() => app.updateSettings({ dailyGoalMin: min })}
-                >
-                  <Text style={[
-                    styles.goalBtnText,
-                    { color: app.settings.dailyGoalMin === min ? 'white' : T.sub },
-                  ]}>
-                    {min / 60}시간
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-          <Text style={[styles.goalLabel, { color: T.sub, marginTop: 8 }]}>학교급</Text>
-          {[
-            [
-              { id: 'elementary_lower', label: '초등 저학년', sub: '1~3학년' },
-              { id: 'elementary_upper', label: '초등 고학년', sub: '4~6학년' },
-              { id: 'middle', label: '중학생', sub: '중1~3' },
-              { id: 'high', label: '고등학생', sub: '고1~3' },
-            ],
-            [
-              { id: 'nsuneung', label: 'N수생', sub: '수능 재도전' },
-              { id: 'university', label: '대학생', sub: '대학 재학' },
-              { id: 'exam_prep', label: '공시생/자격증', sub: '공무원·자격증' },
-            ],
-          ].map((row, ri) => (
-            <View key={ri} style={[styles.schoolRow, ri === 0 && { marginBottom: 5 }]}>
-              {row.map(s => {
-                const sel = (app.settings.schoolLevel || 'high') === s.id;
-                return (
-                  <TouchableOpacity key={s.id} onPress={() => {
-                    app.updateSettings({ schoolLevel: s.id });
-                  }}
-                    style={[styles.schoolBtn, { flex: 1 }, sel && { backgroundColor: T.accent, borderColor: T.accent }]}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: sel ? '900' : '600', color: sel ? 'white' : T.text, textAlign: 'center' }}>{s.label}</Text>
-                    <Text style={{ fontSize: 10, color: sel ? 'rgba(255,255,255,0.8)' : T.sub, textAlign: 'center', marginTop: 1 }}>{s.sub}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))}
+          <Row T={T} label="일일 목표 시간"
+            right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{app.settings.dailyGoalMin / 60}시간</Text>
+              <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+            </View>}
+            onPress={() => setShowGoalPicker(true)}
+          />
+          <Row T={T} label="학교급"
+            right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>
+                {SCHOOL_LEVELS.find(s => s.id === (app.settings.schoolLevel || 'high'))?.label ?? '고등학생'}
+              </Text>
+              <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+            </View>}
+            onPress={() => setShowSchoolPicker(true)}
+          />
         </Section>
 
         {/* 주간 플래너 배너 */}
@@ -367,6 +358,31 @@ const [ddLabel, setDdLabel] = useState('');
           )}
         </Section>
 
+        {/* 🔥 집중 도전 모드 */}
+        <Section T={T} title="🔥 집중 도전 모드">
+          {(() => {
+            const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'focus')) || FOCUS_LEVELS[1];
+            return (
+              <Row T={T} label="잠금 강도"
+                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                </View>}
+                onPress={() => setShowFocusPicker(true)}
+              />
+            );
+          })()}
+          <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
+            <ChallengeInput
+              initial={app.settings.challengeText}
+              onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
+              onFocus={handleChallengeInputFocus}
+              T={T}
+            />
+          </View>
+        </Section>
+
         {/* 알림 */}
         <Section T={T} title="알림">
           <Row
@@ -396,47 +412,6 @@ const [ddLabel, setDdLabel] = useState('');
           )}
         </Section>
 
-        {/* 🔥 집중 도전 모드 */}
-        <Section T={T} title="🔥 집중 도전 모드">
-          <Text style={[styles.hint, { color: T.text, fontWeight: '700', marginBottom: 4 }]}>🔥모드 잠금 강도</Text>
-          <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
-            {/* desc: 문구=챌린지 도전 문구, 정지=타이머 일시정지 */}
-            {[
-              { id: 'normal', label: '🟢 일반',      desc: '알림만 전송',          color: '#4CAF50' },
-              { id: 'focus', label: '🟡 집중',      desc: '이탈 시 문구 입력',     color: '#FFB74D' },
-              { id: 'exam',  label: '🔴 울트라집중', desc: '10초 이탈 시 타이머 정지', color: '#FF6B6B' },
-            ].map(lv => {
-              const sel = (app.settings.ultraFocusLevel || 'focus') === lv.id;
-              return (
-                <TouchableOpacity key={lv.id} onPress={() => app.updateSettings({ ultraFocusLevel: lv.id })}
-                  style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: sel ? 2 : 1.5, borderColor: sel ? lv.color : T.border, backgroundColor: sel ? lv.color + '30' : 'transparent', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: sel ? lv.color : T.sub }}>{lv.label}</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 10, color: sel ? lv.color + 'CC' : T.sub, marginTop: 2 }}>{lv.desc}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <Text style={[styles.hint, { color: T.sub }]}>
-            {(app.settings.ultraFocusLevel || 'focus') === 'normal'
-              ? '🟢 앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.'
-              : (app.settings.ultraFocusLevel || 'focus') === 'focus'
-              ? '🟡 1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.'
-              : '🔴 10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.'}
-          </Text>
-          <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>
-            💡 타이머 시작 시 🔥집중 도전 / 📖편하게 공부 중 선택해요
-          </Text>
-          <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
-            <ChallengeInput
-              initial={app.settings.challengeText}
-              onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
-              onFocus={handleChallengeInputFocus}
-              T={T}
-            />
-          </View>
-        </Section>
-
 
         {/* 테마 */}
         <Section T={T} title="테마">
@@ -453,33 +428,19 @@ const [ddLabel, setDdLabel] = useState('');
             }
           />
 
-          <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 6 }}>테마 컬러</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {[
-                { id: 'pink',   color: '#FF6B9D', label: '핑크' },
-                { id: 'purple', color: '#6C5CE7', label: '퍼플' },
-                { id: 'blue',   color: '#4A90D9', label: '블루' },
-                { id: 'mint',   color: '#00B894', label: '민트' },
-                { id: 'navy',   color: '#2C5F9E', label: '네이비' },
-                { id: 'coral',  color: '#E07050', label: '코랄' },
-              ].map(t => {
-                const sel = (app.settings.accentColor || 'pink') === t.id;
-                return (
-                  <TouchableOpacity key={t.id} onPress={() => app.updateSettings({ accentColor: t.id })}
-                    style={{ alignItems: 'center', gap: 3 }}>
-                    <View style={{
-                      width: 28, height: 28, borderRadius: 14,
-                      backgroundColor: t.color,
-                      borderWidth: sel ? 2.5 : 1,
-                      borderColor: sel ? T.text : t.color + '60',
-                    }} />
-                    <Text style={{ fontSize: 11, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{t.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          {(() => {
+            const tc = THEME_COLORS.find(t => t.id === (app.settings.accentColor || 'pink')) || THEME_COLORS[0];
+            return (
+              <Row T={T} label="테마 컬러"
+                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: tc.color }} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{tc.label}</Text>
+                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                </View>}
+                onPress={() => setShowColorPicker(true)}
+              />
+            );
+          })()}
           <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 6 }}>글꼴</Text>
             {[
@@ -615,67 +576,67 @@ const [ddLabel, setDdLabel] = useState('');
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 기본 사용법 */}
-              <GuideSection title="⏰ 기본 사용법" color={T.accent} T={T}>
+              <GuideSection id="basic" title="⏰ 기본 사용법" color={T.accent} T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'열공메이트에 오신 걸 환영해요! 🎉\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 🔥 집중 도전 또는 📖 편하게 공부 중 모드를 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n💡 처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
               </GuideSection>
 
               {/* 타이머 종류 */}
-              <GuideSection title="🏷️ 타이머 4가지" color="#00B4D8" T={T}>
+              <GuideSection id="timers" title="🏷️ 타이머 4가지" color="#00B4D8" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'⏱ 카운트다운\n목표 시간을 정해놓고 카운트다운해요. 끝나면 완료 알림!\n\n♾️ 자유(카운트업)\n시간 제한 없이 올라가는 스톱워치예요. 원할 때 직접 종료해요.\n\n🍅 뽀모도로\n집중(25분) → 휴식(5분)을 자동으로 반복해요.\n설정에서 집중·휴식 시간을 자유롭게 바꿀 수 있어요.\n\n📋 연속모드\n여러 과목을 순서대로 이어서 실행해요.\n예) 수학 40분 → 영어 30분 → 국어 20분\n각 과목이 끝날 때마다 알림이 울리고 자동으로 다음으로 넘어가요.\n\n🏁 랩 스톱워치\n랩(구간) 기록을 남길 수 있는 스톱워치예요.\n문제 풀이 속도를 측정할 때 유용해요!'}
               </GuideSection>
 
               {/* 즐겨찾기 팁 */}
-              <GuideSection title="⭐ 즐겨찾기 사용법" color="#FFD700" T={T}>
+              <GuideSection id="fav" title="⭐ 즐겨찾기 사용법" color="#FFD700" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'자주 쓰는 타이머를 즐겨찾기에 저장하면 한 번의 탭으로 바로 시작할 수 있어요!\n\n저장 방법:\n• 실행 중인 타이머 이름 왼쪽 ☆ 탭 → 즐겨찾기 추가\n• 편집 버튼으로 직접 추가·수정도 가능해요\n\n관리 방법:\n• 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나와요\n• 카운트다운·뽀모도로·연속모드·랩 스톱워치 모두 저장 가능해요\n\n📌 카운트업(자유) 즐겨찾기는 하단에 별도로 표시돼요'}
               </GuideSection>
 
               {/* 집중 모드 */}
-              <GuideSection title="🔥 집중 도전 vs 📖 편하게 공부" color="#FF6B6B" T={T}>
+              <GuideSection id="focus" title="🔥 집중 도전 vs 📖 편하게 공부" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'타이머를 시작할 때 공부 방식을 선택해요.\n\n🔥 집중 도전 — 화면을 켠 채 공부\n→ 화면이 자동으로 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈 0회를 달성하면 🏆 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n📖 편하게 공부 — 화면을 꺼도 OK\n→ 화면을 꺼도 타이머가 계속 돌아가요\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 음악 들으며, 또는 부담 없이 공부하고 싶을 때 추천!'}
               </GuideSection>
 
               {/* 잠금화면 */}
-              <GuideSection title="🔒 잠금화면 & 집중 강도" color="#E17055" T={T}>
+              <GuideSection id="lock" title="🔒 잠금화면 & 집중 강도" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'🔥 집중 도전 모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 "잠금 해제" 버튼을 눌러야 앱으로 돌아올 수 있어요\n• 잠금 해제 시 "이탈" 횟수가 올라가요\n\n집중 강도 3단계 (설정에서 변경 가능):\n\n🟢 일반: 알림만 표시. 이탈해도 타이머는 계속 진행돼요.\n\n🟡 집중: 이탈해도 타이머는 계속 진행돼요.\n단, 1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n🔴 시험: 이탈하면 타이머가 즉시 일시정지돼요!\n5초 이상 자리를 비우면 챌린지 문구를 입력해야만 잠금 해제 및 타이머가 재개돼요.\n진짜 시험처럼 집중하고 싶을 때!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요 ✏️'}
               </GuideSection>
 
               {/* 오늘의 계획 */}
-              <GuideSection title="📅 오늘의 계획 & 주간 플래너" color="#00CEC9" T={T}>
+              <GuideSection id="plan" title="📅 오늘의 계획 & 주간 플래너" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'집중탭 상단 "오늘의 계획" 카드에서 그날의 공부 계획을 관리해요.\n\n주간 플래너 설정:\n① 설정 > 주간 플래너에서 요일별 계획을 만들어요\n② 각 계획에 과목·목표 시간·이모지를 설정해요\n③ 매일 해당 요일의 계획이 자동으로 불러와져요\n\n계획 타이머 사용법:\n• ▶ 버튼을 누르면 해당 과목의 카운트다운 타이머가 바로 시작돼요\n• 공부한 시간이 진행 바로 표시돼요\n• 중간에 종료했다가 다시 ▶ 누르면 이어서 시작해요! (남은 시간부터 카운트다운)\n• 목표 시간의 80% 이상 달성하면 ✅ 완료 표시\n• 100% 달성하면 버튼이 사라지고 완전 완료!\n\n💡 계획 없는 날도 탭에서 직접 추가할 수 있어요'}
               </GuideSection>
 
               {/* 집중밀도 */}
-              <GuideSection title="📊 집중밀도란?" color="#6C5CE7" T={T}>
+              <GuideSection id="density" title="📊 집중밀도란?" color="#6C5CE7" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 56~103점으로 측정해요.\n어떤 세션이든 최소 C등급이 보장돼요 😊\n\n⚠️ 5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수 구성 (최대 103점):\n• 완료 점수 (최대 40점) — 타이머 완주할수록 높아요\n  (자유모드는 학교급별 기준 시간 자동 적용)\n• 습관 점수 (최대 30점) — 일시정지를 적게 할수록 높아요\n• 지속력 보너스 (최대 15점) — 학교급에 맞는 기준으로 자동 조정\n  초등 저학년 20분 / 초등 고학년 30분 / 중등 60분 / 고등+ 90분\n• 선언 보너스 (최대 15점) — 🔥모드 이탈 0회 Verified 달성!\n• 자가평가 보너스 (0~+3점) — 🔥⚡ 선택 시 +3점 보너스\n\n등급:\nSS (100+) ✨ > S+ (93+) 🏆 > S (86+) > A (76+) > B (66+) > C (56+)\n\n💡 세션이 끝난 후 메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}
-              <GuideSection title="📈 통계 탭 활용법" color="#A29BFE" T={T}>
+              <GuideSection id="stats" title="📈 통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n📅 일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n📆 주간\n이번 주 과목별 공부 시간과 그래프를 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있어요.\n베스트 날에는 👑 왕관이 표시돼요!\n\n🗓️ 월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n🌱 잔디\n최근 6개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역도 확인 가능해요.'}
               </GuideSection>
 
               {/* 잔디 */}
-              <GuideSection title="🌱 365일 잔디" color="#4CAF50" T={T}>
+              <GuideSection id="heatmap" title="🌱 365일 잔디" color="#4CAF50" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'통계 > 잔디 탭에서 확인할 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 📖 편하게 공부한 날\n• 진한 초록 = 🔥 집중 도전한 날\n• 금색 ⭐ = 🏆 Verified 달성한 날!\n\n요약 카드에서 확인할 수 있는 것:\n• 총 공부일 수\n• 현재 연속 공부 일수 🔥\n• 역대 최장 연속 기록\n• 올해 총 공부 시간\n\n매일 칸을 채워서 풀잔디에 도전해보세요! 🌿'}
               </GuideSection>
 
               {/* 과목 & 할 일 */}
-              <GuideSection title="📚 과목·D-Day" color="#FDCB6E" T={T}>
+              <GuideSection id="subject" title="📚 과목·D-Day" color="#FDCB6E" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'과목 탭:\n• + 버튼으로 과목을 추가하고 색상을 지정할 수 있어요\n• 과목별 총 공부 시간이 자동으로 쌓여요\n• ♡ 버튼으로 즐겨찾기 과목을 상단에 고정해요\n\nD-Day (설정 탭):\n• 수능, 시험, 목표일을 등록하면 남은 날수를 표시해요\n• 여러 개를 등록하고 대표 D-Day를 설정할 수 있어요\n• 집중탭 상단에 D-Day 카운터가 표시돼요'}
               </GuideSection>
 
               {/* 스마트 할 일 */}
-              <GuideSection title="📝 스마트 할 일" color="#00B894" T={T}>
+              <GuideSection id="todo" title="📝 스마트 할 일" color="#00B894" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'집중탭 하단의 할 일 카드에서 사용해요.\n\n⚡ 빠른 추가\n• 내 과목 칩을 탭하면 과목이 미리 선택된 상태로 입력 모달이 열려요\n• [+ 직접입력] 버튼으로 과목을 직접 고를 수도 있어요\n• 추가 버튼을 눌러도 모달이 닫히지 않아 연속으로 여러 개를 빠르게 추가할 수 있어요\n\n📌 기한 설정\n• [오늘] — 오늘 완료할 할 일\n• [이번주] — 이번 주 안에 할 일\n• [시험] — 특정 D-Day(시험)에 연결된 체크리스트\n  시험 탭에서 D-Day별로 묶여 진행률 바와 함께 보여요\n\n🔴 우선순위\n• 중요(🔴) 로 설정하면 목록 상단에 빨간 점으로 표시돼요\n• 각 과목 그룹 안에서 중요 → 보통 → 낮음 → 완료 순으로 정렬돼요\n\n📎 메모\n• 부가 설명이 필요한 할 일엔 메모를 추가할 수 있어요\n• 항목을 탭하면 메모가 펼쳐져요 (📎 아이콘으로 확인 가능)\n\n🔁 반복 할 일\n• [매일], [주중], [주말], [직접선택]으로 반복 주기를 설정할 수 있어요\n• 반복 설정 시 템플릿으로 저장되어 해당 요일에 자동으로 오늘 할 일에 추가돼요\n• 할 일 카드 하단 "🔁 반복 할 일 템플릿" 섹션에서 관리할 수 있어요\n\n🎯 시험 체크리스트\n• 할 일 추가 시 기한을 [시험]으로 선택하고 D-Day를 연결하면 시험 탭에서 확인할 수 있어요\n• 시험이 7일 이내로 다가오면 집중탭에 경고 배너가 표시돼요\n• 시험이 지나면 "완료된 시험" 섹션으로 자동 이동해요\n\n💡 과목별 그룹핑\n• 같은 과목 할 일끼리 묶여 표시돼요\n• 미완료 할 일이 많은 과목이 자동으로 위로 정렬돼요\n• 완료된 항목엔 완료 시각이 함께 표시돼요 (예: 10:30)'}
               </GuideSection>
 
               {/* 알림 팁 */}
-              <GuideSection title="🔔 알림이 안 울려요?" color="#74B9FF" T={T}>
+              <GuideSection id="notif" title="🔔 알림이 안 울려요?" color="#74B9FF" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공메이트 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서\n이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (가장 중요!)\n배터리 최적화가 켜져 있으면 백그라운드에서 앱이 종료되어 알림이 오지 않을 수 있어요.\n설정 탭 > 알림 섹션 > "배터리 최적화 설정 바로가기"를 탭해서 이 앱을 "최적화 안 함"으로 설정해주세요.\n\n💡 위 설정을 완료하면 화면이 꺼진 상태에서도 정확하게 알림이 와요!'}
               </GuideSection>
 
               {/* 학습법 */}
-              <GuideSection title="🧠 학습법 — 왜 이 방법들인가요?" color="#E07050" T={T}>
+              <GuideSection id="method" title="🧠 학습법 — 왜 이 방법들인가요?" color="#E07050" T={T} openId={openGuideId} onOpen={setOpenGuideId}>
                 {'과목 탭의 학습법은 모두 연구로 검증된 방법들이에요!\n\n🎮 미션 스프린트 (15분×3)\n짧은 목표를 반복하면 동기부여가 30% 이상 높아진다는 연구 결과가 있어요. (Deterding, 2011)\n\n📖 소리+묵독\n소리 내어 읽으면 기억력이 높아지는 "프로덕션 효과"가 있어요. 묵독보다 기억이 77% 향상! (MacLeod, 2011)\n\n🔄 인터리빙\n한 과목만 계속하는 것보다 과목을 번갈아 공부하면 기억력이 43% 향상돼요. (UCLA 연구)\n\n⚡ 52-17 법칙\n550만 건의 데이터 분석 결과, 52분 집중 + 17분 휴식이 생산성이 가장 높았어요. (DeskTime)\n\n🌊 울트라디안 90\n인간의 집중력은 90분 주기로 움직여요. 90분 집중 후 충분히 쉬면 다음 사이클도 높은 집중력 유지! (Kleitman)\n\n🧊 하드 스타트\n어려운 문제를 먼저 시작하면 쉬운 걸 하는 동안에도 뇌가 무의식적으로 계속 처리해요. (Barbara Oakley, MIT)'}
               </GuideSection>
 
@@ -685,6 +646,99 @@ const [ddLabel, setDdLabel] = useState('');
               </TouchableOpacity>
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* 잠금 강도 피커 */}
+      <Modal visible={showFocusPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFocusPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
+            <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 12, color: T.sub, paddingHorizontal: 24, marginBottom: 8 }}>💡 타이머 시작 시 🔥집중 도전 모드에서 적용돼요</Text>
+          {FOCUS_LEVELS.map(lv => {
+            const sel = (app.settings.ultraFocusLevel || 'focus') === lv.id;
+            return (
+              <TouchableOpacity key={lv.id} onPress={() => { app.updateSettings({ ultraFocusLevel: lv.id }); setShowFocusPicker(false); }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? lv.color + '15' : 'transparent' }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? lv.color : T.text }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                </View>
+                {sel && <Text style={{ fontSize: 16, color: lv.color }}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
+
+      {/* 테마 컬러 피커 */}
+      <Modal visible={showColorPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowColorPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>테마 컬러</Text>
+            <TouchableOpacity onPress={() => setShowColorPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
+            {THEME_COLORS.map(tc => {
+              const sel = (app.settings.accentColor || 'pink') === tc.id;
+              return (
+                <TouchableOpacity key={tc.id} onPress={() => { app.updateSettings({ accentColor: tc.id }); setShowColorPicker(false); }}
+                  style={{ width: (SW - (isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) : 0) - 40 - 60) / 6, alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tc.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : tc.color + '60' }} />
+                  <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{tc.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 일일 목표 시간 피커 */}
+      <Modal visible={showGoalPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowGoalPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>일일 목표 시간</Text>
+            <TouchableOpacity onPress={() => setShowGoalPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          {DAILY_GOAL_OPTIONS.map(min => {
+            const sel = app.settings.dailyGoalMin === min;
+            return (
+              <TouchableOpacity key={min} onPress={() => { app.updateSettings({ dailyGoalMin: min }); setShowGoalPicker(false); }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
+                <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{min / 60}시간</Text>
+                {sel && <Text style={{ fontSize: 16, color: T.accent }}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
+
+      {/* 학교급 피커 */}
+      <Modal visible={showSchoolPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowSchoolPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>학교급</Text>
+            <TouchableOpacity onPress={() => setShowSchoolPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          {SCHOOL_LEVELS.map(s => {
+            const sel = (app.settings.schoolLevel || 'high') === s.id;
+            return (
+              <TouchableOpacity key={s.id} onPress={() => { app.updateSettings({ schoolLevel: s.id }); setShowSchoolPicker(false); }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{s.label}</Text>
+                  <Text style={{ fontSize: 12, color: sel ? T.accent + 'AA' : T.sub, marginTop: 1 }}>{s.sub}</Text>
+                </View>
+                {sel && <Text style={{ fontSize: 16, color: T.accent }}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </Modal>
 
