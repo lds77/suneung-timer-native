@@ -155,7 +155,7 @@ export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const scrollRef = useRef(null);
-  const challengeLayoutRef = useRef({ y: 0, h: 0 });
+  const challengeViewRef = useRef(null);
   const kbHeightRef = useRef(0);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => { kbHeightRef.current = e.endCoordinates.height; });
@@ -164,12 +164,17 @@ export default function SettingsScreen() {
   }, []);
   const handleChallengeInputFocus = useCallback(() => {
     setTimeout(() => {
-      if (!scrollRef.current) return;
-      const { y, h } = challengeLayoutRef.current;
-      const screenH = Dimensions.get('window').height;
-      const kbH = kbHeightRef.current || 300;
-      const targetY = y - (screenH - kbH) + h + 54;
-      scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
+      if (!challengeViewRef.current || !scrollRef.current) return;
+      challengeViewRef.current.measureLayout(
+        scrollRef.current.getScrollableNode(),
+        (_x, y, _w, h) => {
+          const screenH = Dimensions.get('window').height;
+          const kbH = kbHeightRef.current || 300;
+          const targetY = y - (screenH - kbH) + h + 54;
+          scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
+        },
+        () => {}
+      );
     }, 200);
   }, []);
 
@@ -391,7 +396,7 @@ const [ddLabel, setDdLabel] = useState('');
               />
             );
           })()}
-          <View onLayout={(e) => { challengeLayoutRef.current = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }; }} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+          <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
             <ChallengeInput
               initial={app.settings.challengeText}
