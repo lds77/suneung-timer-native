@@ -763,15 +763,15 @@ export default function StatsScreen() {
           <Text style={[S.headerTitle, { color: T.text }]}>📊 통계</Text>
           <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
-              <Pressable
+              <TouchableOpacity
                 key={t.id}
-                style={({ pressed }) => [S.tabBtn, tab === t.id && { backgroundColor: T.accent }, pressed && { opacity: 0.65 }]}
+                style={[S.tabBtn, tab === t.id && { backgroundColor: T.accent }]}
                 onPress={() => setTab(t.id)}
                 hitSlop={{ top: 8, bottom: 8, left: 3, right: 3 }}
-                android_ripple={{ color: T.accent + '30', borderless: true, radius: 20 }}
+                activeOpacity={0.7}
               >
                 <Text style={[S.tabText, { color: tab === t.id ? 'white' : T.sub }]}>{t.l}</Text>
-              </Pressable>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
