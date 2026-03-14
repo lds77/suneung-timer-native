@@ -765,12 +765,12 @@ export default function StatsScreen() {
             {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
               <Pressable
                 key={t.id}
-                style={({ pressed }) => [S.tabBtn, tab === t.id && { backgroundColor: T.card }, pressed && { opacity: 0.65 }]}
+                style={({ pressed }) => [S.tabBtn, tab === t.id && { backgroundColor: T.accent }, pressed && { opacity: 0.65 }]}
                 onPress={() => setTab(t.id)}
                 hitSlop={{ top: 8, bottom: 8, left: 3, right: 3 }}
                 android_ripple={{ color: T.accent + '30', borderless: true, radius: 20 }}
               >
-                <Text style={[S.tabText, { color: tab === t.id ? T.text : T.sub }]}>{t.l}</Text>
+                <Text style={[S.tabText, { color: tab === t.id ? 'white' : T.sub }]}>{t.l}</Text>
               </Pressable>
             ))}
           </View>
@@ -1366,9 +1366,9 @@ export default function StatsScreen() {
                         {week.map((day, di) => (
                           <TouchableOpacity
                             key={di}
-                            onPress={() => !day.isFuture && day.sec > 0 && setDayDetailDate(day.date)}
-                            activeOpacity={!day.isFuture && day.sec > 0 ? 0.6 : 1}
-                            hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
+                            onPress={() => !day.isFuture && setDayDetailDate(day.date)}
+                            activeOpacity={!day.isFuture ? 0.6 : 1}
+                            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                           >
                             <View
                               style={[
@@ -2660,7 +2660,7 @@ export default function StatsScreen() {
 }
 
 // 히트맵 셀 크기
-const HM_WEEKS = 20;
+const HM_WEEKS = 16;
 const HM_GAP   = 2;
 const HM_CELL  = Math.max(8, Math.floor((SW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS));
 
