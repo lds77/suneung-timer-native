@@ -144,7 +144,9 @@ export default function SubjectsScreen() {
   const school = app.settings.schoolLevel || 'high';
   const isHigh = school === 'high' || school === 'nsuneung';
   const [tab, setTab] = useState('subjects');
-  useFocusEffect(useCallback(() => { setTab('subjects'); }, []));
+  const [editMode, setEditMode] = useState(false);
+  const changeTab = (t) => { setTab(t); setEditMode(false); };
+  useFocusEffect(useCallback(() => { setTab('subjects'); setEditMode(false); }, []));
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState('');
   const [addColor, setAddColor] = useState(SUBJECT_COLORS[0]);
@@ -156,7 +158,11 @@ export default function SubjectsScreen() {
   const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
   const methods = STUDY_METHODS[key] || STUDY_METHODS.high;
-  const sorted = [...app.subjects].sort((a, b) => (b.totalElapsedSec || 0) - (a.totalElapsedSec || 0));
+  const sorted = [...app.subjects].sort((a, b) => {
+    if (!!b.isFavorite !== !!a.isFavorite) return b.isFavorite ? 1 : -1;
+    return (b.totalElapsedSec || 0) - (a.totalElapsedSec || 0);
+  });
+  const toggleFavorite = (subj) => app.updateSubject(subj.id, { isFavorite: !subj.isFavorite });
 
   // 탭 목록: 고등만 수능 포함
   const tabs = isHigh
@@ -235,7 +241,7 @@ export default function SubjectsScreen() {
         <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
           {tabs.map(t => (
             <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
-              onPress={() => setTab(t.id)}>
+              onPress={() => changeTab(t.id)}>
               <Text style={{ fontSize: isHigh ? 11 : 13, marginBottom: 1 }}>{t.icon}</Text>
               <Text style={{ fontSize: isHigh ? 9 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
             </TouchableOpacity>
@@ -259,7 +265,7 @@ export default function SubjectsScreen() {
                       <View style={S.routineFlow}>
                         {routine.items.map((it, i) => (
                           <React.Fragment key={i}>
-                            <Text style={{ fontSize: 12, fontWeight: '600', color: it.color }}>{it.label}</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: it.color }}>{it.label} {it.min}분</Text>
                             {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
                           </React.Fragment>
                         ))}
@@ -326,7 +332,8 @@ export default function SubjectsScreen() {
               const sel = suneungSelected.includes(subj.name);
               return (
                 <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
-                  <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}>
+                  <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
                     <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
                       {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
                     </View>
@@ -361,10 +368,27 @@ export default function SubjectsScreen() {
         {tab === 'subjects' && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>과목별 타이머 바로 시작</Text>
-              <TouchableOpacity style={[S.addBtn, { backgroundColor: T.accent }]} onPress={() => setShowAdd(true)}>
-                <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>+ 추가</Text>
-              </TouchableOpacity>
+              <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
+                {editMode ? '삭제할 과목을 선택하세요' : '과목별 타이머 바로 시작'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {sorted.length > 0 && (
+                  <TouchableOpacity
+                    style={[S.addBtn, editMode
+                      ? { backgroundColor: T.accent + '18', borderWidth: 1, borderColor: T.accent }
+                      : { backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }]}
+                    onPress={() => setEditMode(e => !e)}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: editMode ? T.accent : T.sub }}>
+                      {editMode ? '완료' : '편집'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {!editMode && (
+                  <TouchableOpacity style={[S.addBtn, { backgroundColor: T.accent }]} onPress={() => setShowAdd(true)}>
+                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>+ 추가</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {sorted.length === 0 && (
@@ -378,9 +402,11 @@ export default function SubjectsScreen() {
               const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
               const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
               return (
-                <TouchableOpacity key={subj.id} style={[S.subjCard, { backgroundColor: T.card, borderColor: running ? subj.color : T.border, borderWidth: running ? 1.5 : 1 }]}
-                  onPress={() => startSingle(subj)}
-                  onLongPress={() => deleteSubject(subj)}>
+                <TouchableOpacity key={subj.id}
+                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
+                  onPress={() => !editMode && startSingle(subj)}
+                  activeOpacity={editMode ? 1 : 0.7}
+                  disabled={editMode}>
                   <View style={[S.subjDot, { backgroundColor: subj.color }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{subj.name}</Text>
@@ -388,12 +414,23 @@ export default function SubjectsScreen() {
                       누적 {formatShort(subj.totalElapsedSec || 0)}{todaySec > 0 ? ` · 오늘 ${formatShort(todaySec)}` : ''}
                     </Text>
                   </View>
-                  {running ? (
+                  {editMode ? (
+                    <TouchableOpacity
+                      style={[S.delBtn]}
+                      onPress={() => deleteSubject(subj)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>−</Text>
+                    </TouchableOpacity>
+                  ) : running ? (
                     <View style={[S.runBadge, { backgroundColor: subj.color + '18' }]}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: subj.color }}>실행중</Text>
                     </View>
                   ) : (
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                      <TouchableOpacity onPress={() => toggleFavorite(subj)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ fontSize: 16 }}>{subj.isFavorite ? '⭐' : '☆'}</Text>
+                      </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
                         onPress={() => startCountup(subj)}>
                         <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color }}>📈 자유</Text>
@@ -504,6 +541,7 @@ const S = StyleSheet.create({
   playBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   labelBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, minWidth: 66, alignItems: 'center' },
   addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  delBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#FF4757', alignItems: 'center', justifyContent: 'center' },
   emptyCard: { borderRadius: 14, padding: 24, borderWidth: 1, alignItems: 'center', marginBottom: 10 },
   presetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   presetChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 7, borderWidth: 1 },

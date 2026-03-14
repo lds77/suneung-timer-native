@@ -14,7 +14,7 @@ import { CHARACTERS } from '../constants/characters';
 import { getTier, TIERS } from '../constants/presets';
 import { formatDuration, formatShort, formatDDay, getToday } from '../utils/format';
 import RunningTimersBar from '../components/RunningTimersBar';
-import { calcAverageDensity } from '../utils/density';
+import { calcAverageDensity, getDensityBreakdown } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -219,6 +219,9 @@ export default function StatsScreen() {
   // 메모 수정 모달
   const [editMemo, setEditMemo] = useState(null); // { sessionId, memo }
   const [editMemoText, setEditMemoText] = useState('');
+
+  // 세션 상세 모달
+  const [sessionDetail, setSessionDetail] = useState(null); // session object
 
   // 월간 탭 네비게이션
   const [monthOffset, setMonthOffset] = useState(0);
@@ -760,9 +763,15 @@ export default function StatsScreen() {
           <Text style={[S.headerTitle, { color: T.text }]}>📊 통계</Text>
           <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
-              <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card }]} onPress={() => setTab(t.id)}>
+              <Pressable
+                key={t.id}
+                style={({ pressed }) => [S.tabBtn, tab === t.id && { backgroundColor: T.card }, pressed && { opacity: 0.65 }]}
+                onPress={() => setTab(t.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 3, right: 3 }}
+                android_ripple={{ color: T.accent + '30', borderless: true, radius: 20 }}
+              >
                 <Text style={[S.tabText, { color: tab === t.id ? T.text : T.sub }]}>{t.l}</Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -1010,7 +1019,7 @@ export default function StatsScreen() {
                 const tier = getTier(sess.focusDensity || 0);
                 return (
                   <TouchableOpacity key={sess.id}
-                    onPress={() => { setEditMemo({ sessionId: sess.id, memo: sess.memo || '' }); setEditMemoText(sess.memo || ''); }}
+                    onPress={() => setSessionDetail(sess)}
                     style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}
                     activeOpacity={0.75}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -1083,13 +1092,13 @@ export default function StatsScreen() {
 
           {/* ── 주 탐색 헤더 ── */}
           <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
-            <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn}>
+            <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
               <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
             </TouchableOpacity>
             <Text style={[S.weekNavTitle, { color: T.text }]}>
               {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
             </Text>
-            <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn}>
+            <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
               <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
             </TouchableOpacity>
           </View>
@@ -1213,11 +1222,11 @@ export default function StatsScreen() {
 
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={S.monthNav}>
-              <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)}>
+              <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
                 <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
               </TouchableOpacity>
               <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
-              <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0}>
+              <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
                 <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
               </TouchableOpacity>
             </View>
@@ -1359,6 +1368,7 @@ export default function StatsScreen() {
                             key={di}
                             onPress={() => !day.isFuture && day.sec > 0 && setDayDetailDate(day.date)}
                             activeOpacity={!day.isFuture && day.sec > 0 ? 0.6 : 1}
+                            hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }}
                           >
                             <View
                               style={[
@@ -1491,7 +1501,8 @@ export default function StatsScreen() {
                   borderColor: subjPeriod === val ? T.accent : T.border,
                 }]}
                 onPress={() => setSubjPeriod(val)}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               >
                 <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
               </TouchableOpacity>
@@ -1502,16 +1513,29 @@ export default function StatsScreen() {
             <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
           ) : (<>
             {/* 요약 카드 */}
-            <View style={[S.summaryRow, { marginBottom: 12 }]}>
-              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                <Text style={[S.sLabel, { color: T.sub }]}>공부 과목</Text>
-                <Text style={[S.sVal, { color: T.text }]}>{subjectAllStats.length}개</Text>
-              </View>
-              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
-                <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(subjectAllStats.reduce((s, x) => s + x.sec, 0))}</Text>
-              </View>
-            </View>
+            {(() => {
+              const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
+              const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
+              const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
+              const avgTier = getTier(avgD);
+              return (
+                <View style={[S.summaryRow, { marginBottom: 12 }]}>
+                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                    <Text style={[S.sLabel, { color: T.sub }]}>공부 과목</Text>
+                    <Text style={[S.sVal, { color: T.text }]}>{subjectAllStats.length}개</Text>
+                  </View>
+                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                    <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
+                    <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(allSec)}</Text>
+                  </View>
+                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                    <Text style={[S.sLabel, { color: T.sub }]}>평균 밀도</Text>
+                    <Text style={[S.sVal, { color: avgTier.color }]}>{avgD > 0 ? `${avgTier.label}` : '-'}</Text>
+                    {avgD > 0 && <Text style={{ fontSize: 11, color: avgTier.color, fontWeight: '700' }}>{avgD}점</Text>}
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* 스택 비율 바 + 과목 리스트 */}
             <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1521,17 +1545,25 @@ export default function StatsScreen() {
                   <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
                 ))}
               </View>
-              {subjectAllStats.map((s, i) => (
-                <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
-                  <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                  <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
-                  <View style={S.subjListBarTrack}>
-                    <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
-                  </View>
-                  <Text style={[S.subjPct, { color: T.sub, minWidth: 32, textAlign: 'right' }]}>{s.pct}%</Text>
-                  <Text style={[S.subjTime, { color: T.text, minWidth: 50, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
-                </TouchableOpacity>
-              ))}
+              {subjectAllStats.map((s, i) => {
+                const sTier = getTier(s.avgDensity);
+                return (
+                  <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
+                    <View style={[S.subjDot, { backgroundColor: s.color }]} />
+                    <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+                    <View style={S.subjListBarTrack}>
+                      <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
+                    </View>
+                    <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
+                    {s.avgDensity > 0 && (
+                      <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
+                      </View>
+                    )}
+                    <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* 균형 지표 카드 */}
@@ -1602,7 +1634,10 @@ export default function StatsScreen() {
                 autoFocus
                 returnKeyType="done"
                 onSubmitEditing={() => {
-                  if (editMemo) app.updateSessionMemo(editMemo.sessionId, editMemoText);
+                  if (editMemo) {
+                    app.updateSessionMemo(editMemo.sessionId, editMemoText);
+                    if (sessionDetail && sessionDetail.id === editMemo.sessionId) setSessionDetail(prev => ({ ...prev, memo: editMemoText }));
+                  }
                   setEditMemo(null);
                 }}
               />
@@ -1614,7 +1649,10 @@ export default function StatsScreen() {
                 <TouchableOpacity
                   style={[S.mConfirm, { backgroundColor: T.accent, flex: 1 }]}
                   onPress={() => {
-                    if (editMemo) app.updateSessionMemo(editMemo.sessionId, editMemoText);
+                    if (editMemo) {
+                      app.updateSessionMemo(editMemo.sessionId, editMemoText);
+                      if (sessionDetail && sessionDetail.id === editMemo.sessionId) setSessionDetail(prev => ({ ...prev, memo: editMemoText }));
+                    }
                     setEditMemo(null);
                   }}
                 >
@@ -1660,6 +1698,22 @@ export default function StatsScreen() {
                   <View style={S.reportMetricItem}>
                     <Text style={[S.reportMetricVal, { color: T.text }]}>{weekStudyDays}<Text style={{ fontSize: 14 }}>/7</Text></Text>
                     <Text style={[S.reportMetricLabel, { color: T.sub }]}>공부일</Text>
+                  </View>
+                </View>
+
+                {/* 7일 공부량 바 차트 */}
+                <View style={{ paddingHorizontal: 16, marginBottom: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 52 }}>
+                    {weekData.map((d, i) => {
+                      const barH = d.sec > 0 ? Math.max(6, Math.round((d.sec / weekMax) * 36)) : 3;
+                      const goalMet = d.sec >= (app.settings.dailyGoalMin || 0) * 60 && d.sec > 0;
+                      return (
+                        <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: 52 }}>
+                          <View style={{ width: '72%', height: barH, backgroundColor: d.sec === 0 ? T.surface2 : goalMet ? T.accent : T.accent + '88', borderRadius: 3 }} />
+                          <Text style={{ fontSize: 10, color: d.isToday ? T.accent : T.sub, marginTop: 3, fontWeight: d.isToday ? '800' : '400' }}>{d.day}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
 
@@ -1795,18 +1849,38 @@ export default function StatsScreen() {
                   </View>
                   <View style={[S.reportMetricDivider, { backgroundColor: T.border }]} />
                   <View style={S.reportMetricItem}>
-                    <Text style={[S.reportMetricVal, { color: T.text }]}>{todaySessions.length}<Text style={{ fontSize: 14 }}>회</Text></Text>
-                    <Text style={[S.reportMetricLabel, { color: T.sub }]}>세션</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
-                  <View style={[S.reportMiniCard, { backgroundColor: T.surface2, flex: 1 }]}>
-                    <Text style={{ fontSize: 12, color: T.sub }}>목표 달성</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent, marginTop: 2 }}>
+                    <Text style={[S.reportMetricVal, { color: T.accent }]}>
                       {Math.min(100, Math.round(todayTotalSec / Math.max(1, app.settings.dailyGoalMin * 60) * 100))}%
                     </Text>
-                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
+                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>{formatDuration(app.settings.dailyGoalMin * 60)}</Text>
+                    <Text style={[S.reportMetricLabel, { color: T.sub }]}>목표 달성</Text>
                   </View>
+                </View>
+                {/* 미니 Gantt 타임라인 */}
+                {todaySessions.filter(s => s.startedAt).length > 0 && (() => {
+                  return (
+                    <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                      <View style={{ height: 14, position: 'relative', backgroundColor: T.surface2, borderRadius: 4, overflow: 'hidden', marginBottom: 3 }}>
+                        {[6, 12, 18].map(h => (
+                          <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 0.5, backgroundColor: T.sub + '50' }} />
+                        ))}
+                        {todaySessions.filter(s => s.startedAt).map(s => {
+                          const d = new Date(s.startedAt);
+                          const startPct = (d.getHours() * 3600 + d.getMinutes() * 60) / 86400 * 100;
+                          const durPct = Math.min(100 - startPct, (s.durationSec || 0) / 86400 * 100);
+                          const sesSubj = getSessionSubject(s, app.subjects);
+                          return <View key={s.id} style={{ position: 'absolute', left: `${startPct}%`, width: `${Math.max(0.8, durPct)}%`, height: '100%', backgroundColor: sesSubj.color, borderRadius: 2 }} />;
+                        })}
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        {['0시', '6시', '12시', '18시', '24시'].map(l => (
+                          <Text key={l} style={{ fontSize: 9, color: T.sub }}>{l}</Text>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })()}
+                <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
                   <View style={[S.reportMiniCard, { backgroundColor: '#FF7F5012', flex: 1 }]}>
                     <Text style={{ fontSize: 12, color: T.sub }}>연속 공부</Text>
                     <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50', marginTop: 2 }}>🔥 {app.settings.streak}일</Text>
@@ -1883,6 +1957,48 @@ export default function StatsScreen() {
                     <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50', marginTop: 2 }}>🔥 {app.settings.streak}일</Text>
                   </View>
                 </View>
+                {/* 이달 최고 기록일 + 요일별 패턴 */}
+                {(() => {
+                  const studiedDays = calendarData.filter(d => d && d.sec > 0);
+                  if (studiedDays.length === 0) return null;
+                  const bestDay = [...studiedDays].sort((a, b) => b.sec - a.sec)[0];
+                  const wdSecs = [0,0,0,0,0,0,0];
+                  studiedDays.forEach(d => { wdSecs[new Date(d.date).getDay()] += d.sec; });
+                  const wdMax = Math.max(...wdSecs, 1);
+                  const bestTier = getTier(bestDay.density || 0);
+                  return (
+                    <>
+                      <View style={[S.reportMiniCard, { backgroundColor: T.surface2, marginHorizontal: 16, marginBottom: 8 }]}>
+                        <Text style={{ fontSize: 12, color: T.sub }}>👑 이달 최고 기록일</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }}>
+                            {bestDay.date.slice(5).replace('-', '/')}({DAYS_KR[new Date(bestDay.date).getDay()]})
+                          </Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{formatShort(bestDay.sec)}</Text>
+                          {bestDay.density > 0 && (
+                            <View style={{ backgroundColor: bestTier.color + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 'auto' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: bestTier.color }}>{bestTier.label}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 7 }}>📅 요일별 공부량</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 52 }}>
+                          {DAYS_KR.map((label, i) => {
+                            const barH = wdSecs[i] > 0 ? Math.max(6, Math.round((wdSecs[i] / wdMax) * 36)) : 3;
+                            return (
+                              <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: 52 }}>
+                                <View style={{ width: '75%', height: barH, backgroundColor: wdSecs[i] > 0 ? T.accent : T.surface2, borderRadius: 3 }} />
+                                <Text style={{ fontSize: 10, color: T.sub, marginTop: 3, fontWeight: (i === 0 || i === 6) ? '700' : '400' }}>{label}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </>
+                  );
+                })()}
                 {monthSubjects.length > 0 && (
                   <View style={[S.reportMiniCard, { backgroundColor: T.surface2, marginHorizontal: 16, marginBottom: 12 }]}>
                     <Text style={{ fontSize: 12, color: T.sub }}>💪 최다 과목</Text>
@@ -1945,6 +2061,36 @@ export default function StatsScreen() {
                   <Text style={{ fontSize: 12, color: T.sub }}>⏱️ 올해 총 공부시간</Text>
                   <Text style={{ fontSize: 20, fontWeight: '900', color: T.accent, marginTop: 4 }}>{formatDuration(yearTotalSec)}</Text>
                 </View>
+                {/* 잔디 미니 그리드 */}
+                {(() => {
+                  const MG = 2;
+                  const MC = Math.max(6, Math.floor((SW - 40 - 32 - (HM_WEEKS - 1) * MG) / HM_WEEKS));
+                  return (
+                    <View style={{ paddingHorizontal: 16, marginBottom: 14 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub, marginBottom: 6 }}>최근 {HM_WEEKS}주</Text>
+                      <View style={{ flexDirection: 'row', gap: MG }}>
+                        {heatmap365.map((week, wi) => (
+                          <View key={wi} style={{ flexDirection: 'column', gap: MG }}>
+                            {week.map((day, di) => (
+                              <View
+                                key={di}
+                                style={{ width: MC, height: MC, borderRadius: 2, backgroundColor: getHeat365Color(day) }}
+                              />
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.accent + '99' }} />
+                        <Text style={{ fontSize: 10, color: T.sub }}>📖편하게</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#4CAF5099', marginLeft: 6 }} />
+                        <Text style={{ fontSize: 10, color: T.sub }}>🔥집중도전</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#FFD70099', marginLeft: 6 }} />
+                        <Text style={{ fontSize: 10, color: T.sub }}>🏆Verified</Text>
+                      </View>
+                    </View>
+                  );
+                })()}
                 <Text style={{ fontSize: 11, color: T.sub, textAlign: 'center', paddingBottom: 14, opacity: 0.6 }}>
                   열공메이트 · #공부스타그램 #공부잔디
                 </Text>
@@ -2104,7 +2250,7 @@ export default function StatsScreen() {
       </Modal>
 
       {/* ── 과목 상세 모달 ── */}
-      <Modal visible={!!subjDetail && !editMemo} transparent animationType="slide" onRequestClose={() => setSubjDetail(null)}>
+      <Modal visible={!!subjDetail && !editMemo && !sessionDetail} transparent animationType="slide" onRequestClose={() => setSubjDetail(null)}>
         <TouchableOpacity style={S.mo} activeOpacity={1} onPress={() => setSubjDetail(null)}>
           <TouchableOpacity style={[S.dayDetailSheet, { backgroundColor: T.bg }]} activeOpacity={1}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -2155,7 +2301,8 @@ export default function StatsScreen() {
                       const tier = getTier(sess.focusDensity || 0);
                       const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
                       return (
-                        <View key={sess.id} style={[S.sessCard, { borderLeftColor: subjDetailData.color }]}>
+                        <TouchableOpacity key={sess.id} onPress={() => setSessionDetail(sess)} activeOpacity={0.75}
+                          style={[S.sessCard, { borderLeftColor: subjDetailData.color }]}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                             <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{sess.date}</Text>
                             <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '20' }]}>
@@ -2167,7 +2314,7 @@ export default function StatsScreen() {
                             <Text style={{ fontSize: 14, color: T.text, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
                           </View>
                           {sess.memo ? <Text style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>💬 {sess.memo}</Text> : null}
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
@@ -2264,6 +2411,146 @@ export default function StatsScreen() {
                 })()}
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 세션 상세 모달 ── */}
+      <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => setSessionDetail(null)}>
+        <View style={{ flex: 1 }}>
+          <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setSessionDetail(null)} />
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+            {sessionDetail && (() => {
+              const sess = sessionDetail;
+              const subj = app.subjects.find(s => s.id === sess.subjectId);
+              const subjColor = subj ? subj.color : '#B2BEC3';
+              const tier = getTier(sess.focusDensity || 0);
+              const startH = sess.startedAt ? formatHM(sess.startedAt) : null;
+              const endH = sess.endedAt ? formatHM(sess.endedAt) : null;
+              const bd = getDensityBreakdown({
+                pausedCount: sess.pausedCount || 0,
+                totalSec: sess.durationSec || 0,
+                timerType: sess.timerType || 'free',
+                completionRatio: sess.completionRatio ?? 1,
+                pomoSets: sess.pomoSets || 0,
+                focusMode: sess.focusMode || 'screen_off',
+                exitCount: sess.exitCount || 0,
+                selfRating: sess.selfRating || null,
+                schoolLevel: app.settings.schoolLevel || 'high',
+              });
+              const bdItems = [
+                { label: '완료 점수', max: 40, val: bd.completionScore, color: '#4A90D9' },
+                { label: '습관 점수', max: 30, val: bd.habitScore,      color: '#27AE60' },
+                { label: '지속력 보너스', max: 15, val: bd.persistenceBonus, color: '#F39C12' },
+                { label: '선언 보너스', max: 15, val: bd.declarationBonus, color: '#9B59B6' },
+                { label: '자가평가 보너스', max: 3, val: bd.selfBonus, color: '#E84393' },
+              ];
+              const timerTypeLabel = { countdown: '카운트다운', free: '자유 모드', pomodoro: '뽀모도로' }[sess.timerType] || '자유 모드';
+              const focusModeLabel = sess.focusMode === 'screen_on' ? '🔥 집중 도전' : '📖 편하게 공부';
+              const selfRatingLabel = { fire: '🔥 집중됨', perfect: '⚡ 완벽', neutral: '😐 보통', tired: '😴 피곤' }[sess.selfRating] || null;
+              return (
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {/* 헤더 */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: subjColor }} />
+                      <Text style={{ fontSize: 17, fontWeight: '900', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setSessionDetail(null)} style={{ padding: 4 }}>
+                      <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 시간 정보 + 티어 */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <View>
+                      <Text style={{ fontSize: 26, fontWeight: '900', color: T.accent }}>{formatShort(sess.durationSec)}</Text>
+                      {startH && (
+                        <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>
+                          {startH}{endH ? ` ~ ${endH}` : ''}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ alignItems: 'center', gap: 4 }}>
+                      <View style={{ backgroundColor: tier.color + '20', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 6 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '900', color: tier.color }}>{tier.label}</Text>
+                      </View>
+                      <Text style={{ fontSize: 18, fontWeight: '900', color: tier.color }}>{sess.focusDensity || 0}점</Text>
+                      {sess.verified && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={{ fontSize: 13 }}>🏆</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#F1C40F' }}>Verified!</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* 세션 정보 태그들 */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    <View style={{ backgroundColor: T.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12, color: T.sub }}>⏱ {timerTypeLabel}</Text>
+                    </View>
+                    <View style={{ backgroundColor: T.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12, color: T.sub }}>{focusModeLabel}</Text>
+                    </View>
+                    {(sess.pausedCount || 0) > 0 && (
+                      <View style={{ backgroundColor: T.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 12, color: T.sub }}>⏸ 일시정지 {sess.pausedCount}회</Text>
+                      </View>
+                    )}
+                    {sess.focusMode === 'screen_on' && (sess.exitCount || 0) > 0 && (
+                      <View style={{ backgroundColor: T.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 12, color: T.sub }}>📱 이탈 {sess.exitCount}회</Text>
+                      </View>
+                    )}
+                    {selfRatingLabel && (
+                      <View style={{ backgroundColor: T.surface2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 12, color: T.sub }}>{selfRatingLabel}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* 밀도 점수 내역 */}
+                  <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 10 }}>📊 밀도 점수 내역</Text>
+                    {bdItems.map(item => (
+                      <View key={item.label} style={{ marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <Text style={{ fontSize: 12, color: T.sub }}>{item.label}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: item.val > 0 ? item.color : T.sub }}>
+                            {item.val}<Text style={{ fontWeight: '400', color: T.sub }}>/{item.max}</Text>
+                          </Text>
+                        </View>
+                        <View style={{ height: 6, backgroundColor: T.surface2, borderRadius: 3, overflow: 'hidden' }}>
+                          <View style={{ height: 6, width: `${Math.round(item.val / item.max * 100)}%`, backgroundColor: item.color, borderRadius: 3 }} />
+                        </View>
+                      </View>
+                    ))}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>합계</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: tier.color }}>{bd.total}점</Text>
+                    </View>
+                  </View>
+
+                  {/* 메모 */}
+                  <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>📝 메모</Text>
+                      <TouchableOpacity
+                        onPress={() => { setEditMemo({ sessionId: sess.id, memo: sess.memo || '' }); setEditMemoText(sess.memo || ''); }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: T.accent + '20', borderRadius: 8 }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>수정</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {sess.memo
+                      ? <Text style={{ fontSize: 14, color: T.text }}>{sess.memo}</Text>
+                      : <Text style={{ fontSize: 13, color: T.sub }}>메모 없음 · 수정을 눌러 추가하세요</Text>}
+                  </View>
+                  <View style={{ height: 24 }} />
+                </ScrollView>
+              );
+            })()}
           </View>
         </View>
       </Modal>

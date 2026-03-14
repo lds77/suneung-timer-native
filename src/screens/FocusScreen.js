@@ -1,5 +1,6 @@
 // src/screens/FocusScreen.js
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform, Vibration, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
@@ -53,6 +54,7 @@ const DEFAULT_FAVS = getSchoolDefaultFavs('high');
 
 export default function FocusScreen() {
   const app = useApp();
+  const navigation = useNavigation();
   // 🔥모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
   const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
@@ -957,7 +959,10 @@ export default function FocusScreen() {
             const dayName = ['일','월','화','수','목','금','토'][dObj.getDay()];
             return (
             <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: T.accent + '15', borderColor: T.accent + '60' }]}
-              onPress={() => Alert.alert(`📅 ${dd.label}`, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}\n\n하단 설정 탭에서 수정할 수 있어요`, [{ text: '확인' }])}>
+              onPress={() => Alert.alert(`📅 ${dd.label}`, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}`, [
+                { text: '확인' },
+                { text: '설정에서 수정', onPress: () => navigation.navigate('Settings') },
+              ])}>
               <Text style={[S.ddayCellLabel, { color: T.text }]} numberOfLines={1}>{dd.label}</Text>
               <Text style={[S.ddayCellVal, { color: T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
           })}</View>
