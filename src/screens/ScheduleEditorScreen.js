@@ -1,7 +1,7 @@
 // src/screens/ScheduleEditorScreen.js
 // 주간 플래너 편집 화면 — Modal로 SettingsScreen에서 진입
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard, Dimensions,
@@ -52,77 +52,79 @@ const LEVEL_LABELS = {
   university: '대학생', exam_prep: '공시생/자격증',
 };
 
-function TimeGridPicker({ value, onChange, T }) {
-  const parts = (value || '06:00').split(':');
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
+
+const DROPDOWN_ITEM_H = 42;
+const DROPDOWN_VISIBLE = 5;
+
+function formatTimeOpt(opt) {
+  const [h, m] = opt.split(':').map(Number);
+  if (h === 24) return '자정';
   const isAM = h < 12;
+  const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${isAM ? '오전' : '오후'} ${dh}:${String(m).padStart(2, '0')}`;
+}
 
-  const amHours = [6, 7, 8, 9, 10, 11];
-  const pmHours = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+function TimeDropdownPicker({ label, value, onChange, open, onToggle, T }) {
+  const scrollRef = useRef(null);
+  const selectedIdx = Math.max(0, TIME_OPTIONS.indexOf(value || '08:00'));
 
-  const handleAmpm = (wantAm) => {
-    if (wantAm === isAM) return;
-    const newH = wantAm ? 6 : 12;
-    onChange(`${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-  };
-
-  const handleHour = (newH) => {
-    const newM = newH === 24 ? 0 : m;
-    onChange(`${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
-  };
-
-  const hourLabel = (hr) => {
-    if (hr === 24) return '자정';
-    if (hr === 12) return '12시';
-    return `${hr < 12 ? hr : hr - 12}시`;
-  };
-
-  const hours = isAM ? amHours : pmHours;
+  useEffect(() => {
+    if (open) {
+      const offset = Math.max(0, selectedIdx - 2) * DROPDOWN_ITEM_H;
+      setTimeout(() => scrollRef.current?.scrollTo({ y: offset, animated: false }), 50);
+    }
+  }, [open]);
 
   return (
-    <View style={{ marginBottom: 12 }}>
-      {/* 오전/오후 */}
-      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-        {[{ label: '오전', am: true }, { label: '오후', am: false }].map(({ label, am }) => (
-          <TouchableOpacity key={label} onPress={() => handleAmpm(am)}
-            style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-              backgroundColor: (isAM === am) ? T.accent : T.surface2 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: (isAM === am) ? 'white' : T.sub }}>{label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {/* 시간 그리드 */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-        {hours.map(hr => {
-          const sel = h === hr;
-          return (
-            <TouchableOpacity key={hr} onPress={() => handleHour(hr)}
-              style={{ width: '22%', paddingVertical: 9, borderRadius: 8, alignItems: 'center',
-                backgroundColor: sel ? T.accent : T.surface2 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? 'white' : T.text }}>
-                {hourLabel(hr)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      {/* 분 선택 */}
-      <View style={{ flexDirection: 'row', gap: 6 }}>
-        {[0, ...(h !== 24 ? [30] : [])].map(min => {
-          const sel = m === min;
-          return (
-            <TouchableOpacity key={min}
-              onPress={() => onChange(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`)}
-              style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-                backgroundColor: sel ? T.accent : T.surface2 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? 'white' : T.sub }}>
-                {min === 0 ? '정각 (:00)' : '30분 (:30)'}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+    <View style={{ flex: 1 }}>
+      {/* 트리거 버튼 */}
+      <TouchableOpacity
+        onPress={onToggle}
+        style={{
+          borderWidth: 1.5, borderRadius: 10,
+          borderColor: open ? T.accent : T.border,
+          backgroundColor: open ? T.accent + '10' : T.card,
+          paddingHorizontal: 10, paddingVertical: 11,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        }}
+      >
+        <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>{label}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: open ? T.accent : T.text }}>
+          {formatTimeOpt(value)} <Text style={{ fontSize: 10 }}>{open ? '▲' : '▼'}</Text>
+        </Text>
+      </TouchableOpacity>
+      {/* 드롭다운 */}
+      {open && (
+        <View style={{
+          marginTop: 4, borderWidth: 1.5, borderColor: T.accent,
+          borderRadius: 10, backgroundColor: T.card, overflow: 'hidden',
+          height: DROPDOWN_ITEM_H * DROPDOWN_VISIBLE,
+        }}>
+          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
+            {TIME_OPTIONS.map(opt => {
+              const isSel = opt === value;
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => { onChange(opt); onToggle(); }}
+                  style={{
+                    height: DROPDOWN_ITEM_H, justifyContent: 'center', alignItems: 'center',
+                    backgroundColor: isSel ? T.accent + '18' : 'transparent',
+                    borderLeftWidth: isSel ? 3 : 0, borderLeftColor: T.accent,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 14, fontWeight: isSel ? '800' : '500',
+                    color: isSel ? T.accent : T.text,
+                  }}>
+                    {formatTimeOpt(opt)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
@@ -150,6 +152,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [fixedLabel, setFixedLabel] = useState('');
   const [fixedStart, setFixedStart] = useState('08:00');
   const [fixedEnd, setFixedEnd] = useState('09:00');
+  const [activeTimePicker, setActiveTimePicker] = useState(null); // 'start' | 'end' | null
 
   // 공부 계획 추가/수정 폼
   const [planTab, setPlanTab] = useState('subject'); // 'subject' | 'custom'
@@ -247,7 +250,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   // ── 고정 일정 추가/수정 ──
   const resetFixedForm = useCallback(() => {
     setFixedLabel(''); setFixedStart('08:00'); setFixedEnd('09:00');
-    setFixedType(FIXED_TYPES[0]); setEditingFixedId(null);
+    setFixedType(FIXED_TYPES[0]); setEditingFixedId(null); setActiveTimePicker(null);
   }, []);
 
   const openAddFixed = useCallback(() => {
@@ -610,7 +613,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       const sel = fixedType.type === ft.type;
                       return (
                         <TouchableOpacity key={ft.type}
-                          onPress={() => { setFixedType(ft); setFixedLabel(ft.label); }}
+                          onPress={() => { Keyboard.dismiss(); setFixedType(ft); setFixedLabel(ft.label); }}
                           style={[s.typeChip, {
                             borderColor: sel ? T.accent : T.border,
                             backgroundColor: sel ? T.accent + '18' : T.card,
@@ -628,11 +631,21 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   style={[s.fieldInput, { borderColor: T.border, color: T.text, backgroundColor: T.card }]}
                   placeholder="일정 이름" placeholderTextColor={T.sub} />
 
-                <Text style={[s.fieldLabel, { color: T.sub }]}>시작 시간</Text>
-                <TimeGridPicker value={fixedStart} onChange={setFixedStart} T={T} />
-
-                <Text style={[s.fieldLabel, { color: T.sub }]}>종료 시간</Text>
-                <TimeGridPicker value={fixedEnd} onChange={setFixedEnd} T={T} />
+                <Text style={[s.fieldLabel, { color: T.sub }]}>시간</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                  <TimeDropdownPicker
+                    label="시작" value={fixedStart} onChange={setFixedStart}
+                    open={activeTimePicker === 'start'}
+                    onToggle={() => { Keyboard.dismiss(); setActiveTimePicker(p => p === 'start' ? null : 'start'); }}
+                    T={T}
+                  />
+                  <TimeDropdownPicker
+                    label="종료" value={fixedEnd} onChange={setFixedEnd}
+                    open={activeTimePicker === 'end'}
+                    onToggle={() => { Keyboard.dismiss(); setActiveTimePicker(p => p === 'end' ? null : 'end'); }}
+                    T={T}
+                  />
+                </View>
               </ScrollView>
 
               <View style={s.sheetBtnRow}>

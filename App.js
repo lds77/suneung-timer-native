@@ -167,7 +167,7 @@ function OnboardingScreen() {
 
   const getSchoolDefaultFavs = (school) => {
     const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
-    const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏱', type: 'countdown', color: color, totalSec: min * 60 });
+    const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏰', type: 'countdown', color: color, totalSec: min * 60 });
     if (school === 'elementary') return [pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3')];
     if (school === 'middle') return [pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3')];
     if (school === 'university') return [pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3')];

@@ -28,7 +28,7 @@ const RING_C_FULL = 2 * Math.PI * RING_R_FULL;
 
 const getSchoolDefaultFavs = (school) => {
   const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
-  const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏱', type: 'countdown', color: color, totalSec: min * 60 });
+  const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏰', type: 'countdown', color: color, totalSec: min * 60 });
   if (school === 'elementary_lower') return [
     pomo(10, 5, '뽀모 10+5'), cd(15, '15분', '#5CB85C'), cd(20, '20분', '#4A90D9'), cd(25, '25분', '#9B6FC3'),
   ];
@@ -70,6 +70,9 @@ export default function FocusScreen() {
   const [expandedTodo, setExpandedTodo] = useState(null);
   const [editTodoId, setEditTodoId] = useState(null);
   const [editTodoText, setEditTodoText] = useState('');
+  const [editTodoSubjectId, setEditTodoSubjectId] = useState(null);
+  const [editTodoSubjectLabel, setEditTodoSubjectLabel] = useState(null);
+  const [editTodoSubjectColor, setEditTodoSubjectColor] = useState(null);
   const [editTodoScope, setEditTodoScope] = useState('today');
   const [editTodoPriority, setEditTodoPriority] = useState('normal');
   const [editTodoMemo, setEditTodoMemo] = useState('');
@@ -320,8 +323,18 @@ export default function FocusScreen() {
     Vibration.vibrate([0, 30]);
     setAddTodoText('');
     setAddTodoMemo('');
+    setAddTodoSubjectId(null);
+    setAddTodoSubjectLabel(null);
+    setAddTodoSubjectColor(null);
     setShowAddTodoMemo(false);
     app.showToastCustom('✅ 할 일이 저장됐어요!', 'taco');
+    setShowAddTodoModal(false);
+  };
+
+  const closeAddTodoModal = () => {
+    setAddTodoSubjectId(null);
+    setAddTodoSubjectLabel(null);
+    setAddTodoSubjectColor(null);
     setShowAddTodoModal(false);
   };
 
@@ -336,6 +349,9 @@ export default function FocusScreen() {
     }
     setEditTodoId(t.id);
     setEditTodoText(t.text || '');
+    setEditTodoSubjectId(t.subjectId || null);
+    setEditTodoSubjectLabel(t.subjectLabel || null);
+    setEditTodoSubjectColor(t.subjectColor || null);
     setEditTodoScope(t.scope || 'today');
     setEditTodoPriority(t.priority || 'normal');
     setEditTodoMemo(t.memo || '');
@@ -353,9 +369,9 @@ export default function FocusScreen() {
     app.removeTodo(editTodoId);
     app.addTodo({
       text: editTodoText.trim(),
-      subjectId: todo?.subjectId || null,
-      subjectLabel: todo?.subjectLabel || null,
-      subjectColor: todo?.subjectColor || null,
+      subjectId: editTodoSubjectId,
+      subjectLabel: editTodoSubjectLabel,
+      subjectColor: editTodoSubjectColor,
       priority: editTodoPriority,
       scope: editTodoRepeatType !== 'none' ? 'today' : editTodoScope,
       ddayId: editTodoDdayId,
@@ -857,7 +873,7 @@ export default function FocusScreen() {
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (
           <View style={[S.ultraStatus, { backgroundColor: '#FF6B6B12', borderColor: '#FF6B6B40' }]}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#FF6B6B', flex: 1 }}>
-              🔥 집중 도전 중 · {app.settings.ultraFocusLevel === 'exam' ? '🔴 시험' : app.settings.ultraFocusLevel === 'focus' ? '🟡 집중' : '🟢 일반'} · {app.ultraFocus?.exitCount > 0 ? `이탈 ${app.ultraFocus.exitCount}회` : '이탈 0회 유지 중!'}
+              🔥 집중 도전 중 · {app.settings.ultraFocusLevel === 'exam' ? '🔴 울트라집중' : app.settings.ultraFocusLevel === 'focus' ? '🟡 집중' : '🟢 일반'} · {app.ultraFocus?.exitCount > 0 ? `이탈 ${app.ultraFocus.exitCount}회` : '이탈 0회 유지 중!'}
             </Text>
             <TouchableOpacity onPress={lockScreen} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#FF6B6B20', marginRight: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1412,45 +1428,55 @@ export default function FocusScreen() {
               <Text style={[S.quickEdit, { color: T.accent }]}>편집</Text>
             </TouchableOpacity>
           </View>
-          {/* 즐겨찾기 1행 (3칸) */}
+          {/* 즐겨찾기 2행 (3칸 × 2) */}
           {favTab === 'countdown' ? (
-            <View style={S.favGrid}>
-              {[0, 1, 2].map(i => {
-                const fav = favs[i];
-                if (fav) return (
-                  <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
-                    onLongPress={() => Alert.alert('삭제', `${fav.label} 삭제?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => removeFav(fav.id) }])}>
-                    <Text style={S.favCellIcon}>{fav.icon}</Text>
-                    <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
-                  </TouchableOpacity>
-                );
-                return (
-                  <TouchableOpacity key={`ecd${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowFavMgr(true)}>
-                    <Text style={S.favCellIcon}>+</Text>
-                    <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <>
+              {[0, 1].map(row => (
+                <View key={row} style={S.favGrid}>
+                  {[0, 1, 2].map(col => {
+                    const i = row * 3 + col;
+                    const fav = favs[i];
+                    if (fav) return (
+                      <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runFav(fav)}
+                        onLongPress={() => Alert.alert('삭제', `${fav.label} 삭제?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => removeFav(fav.id) }])}>
+                        <Text style={S.favCellIcon}>{fav.icon}</Text>
+                        <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
+                      </TouchableOpacity>
+                    );
+                    return (
+                      <TouchableOpacity key={`ecd${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowFavMgr(true)}>
+                        <Text style={S.favCellIcon}>+</Text>
+                        <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </>
           ) : (
-            <View style={S.favGrid}>
-              {[0, 1, 2].map(i => {
-                const fav = countupFavs[i];
-                if (fav) return (
-                  <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runCountupFav(fav)}
-                    onLongPress={() => Alert.alert('삭제', `${fav.label}을(를) 즐겨찾기에서 삭제할까요?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => app.removeCountupFav(fav.id) }])}>
-                    <Text style={S.favCellIcon}>{fav.icon}</Text>
-                    <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
-                  </TouchableOpacity>
-                );
-                return (
-                  <TouchableOpacity key={`ecu${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowCountupFavMgr(true)}>
-                    <Text style={S.favCellIcon}>+</Text>
-                    <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <>
+              {[0, 1].map(row => (
+                <View key={row} style={S.favGrid}>
+                  {[0, 1, 2].map(col => {
+                    const i = row * 3 + col;
+                    const fav = countupFavs[i];
+                    if (fav) return (
+                      <TouchableOpacity key={fav.id} style={[S.favCell, { backgroundColor: fav.color + '12', borderColor: fav.color + '50' }]} onPress={() => runCountupFav(fav)}
+                        onLongPress={() => Alert.alert('삭제', `${fav.label}을(를) 즐겨찾기에서 삭제할까요?`, [{ text: '취소' }, { text: '삭제', style: 'destructive', onPress: () => app.removeCountupFav(fav.id) }])}>
+                        <Text style={S.favCellIcon}>{fav.icon}</Text>
+                        <Text style={[S.favCellLabel, { color: fav.color }]} numberOfLines={1}>{fav.label}</Text>
+                      </TouchableOpacity>
+                    );
+                    return (
+                      <TouchableOpacity key={`ecu${i}`} style={[S.favCell, { backgroundColor: T.surface2, borderColor: T.border, borderStyle: 'dashed' }]} onPress={() => setShowCountupFavMgr(true)}>
+                        <Text style={S.favCellIcon}>+</Text>
+                        <Text style={[S.favCellLabel, { color: T.sub }]}>추가</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </>
           )}
         </View>
 
@@ -1645,17 +1671,18 @@ export default function FocusScreen() {
       </Modal>
 
       {/* ── 할일 추가 모달 ── */}
-      <Modal visible={showAddTodoModal} transparent animationType="slide" onRequestClose={() => setShowAddTodoModal(false)}>
+      <Modal visible={showAddTodoModal} transparent animationType="slide" onRequestClose={closeAddTodoModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowAddTodoModal(false)} />
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeAddTodoModal} />
           <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>📝 할 일 추가</Text>
-              <TouchableOpacity onPress={() => setShowAddTodoModal(false)}>
+              <TouchableOpacity onPress={closeAddTodoModal}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* 과목 선택 */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>과목</Text>
@@ -1773,9 +1800,10 @@ export default function FocusScreen() {
             </View>
             {/* 저장 버튼 */}
             <TouchableOpacity onPress={submitAddTodo}
-              style={{ backgroundColor: T.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
+              style={{ backgroundColor: T.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 4 }}>
               <Text style={{ fontSize: 15, fontWeight: '800', color: 'white' }}>저장</Text>
             </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1791,6 +1819,22 @@ export default function FocusScreen() {
               <TouchableOpacity onPress={() => setEditTodoId(null)}><Text style={{ fontSize: 20, color: T.sub }}>✕</Text></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* 과목 선택 */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                <TouchableOpacity onPress={() => { setEditTodoSubjectId(null); setEditTodoSubjectLabel(null); setEditTodoSubjectColor(null); }}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: !editTodoSubjectId ? T.accent : T.surface2, borderWidth: 1, borderColor: !editTodoSubjectId ? T.accent : T.border }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: !editTodoSubjectId ? 'white' : T.sub }}>미분류</Text>
+                </TouchableOpacity>
+                {app.subjects.map(s => {
+                  const sel = editTodoSubjectId === s.id;
+                  return (
+                    <TouchableOpacity key={s.id} onPress={() => { setEditTodoSubjectId(s.id); setEditTodoSubjectLabel(s.name); setEditTodoSubjectColor(s.color); }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? s.color : s.color + '15', borderWidth: 1, borderColor: s.color }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: sel ? 'white' : s.color }}>{s.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               {/* 텍스트 입력 */}
               <TextInput
                 value={editTodoText} onChangeText={setEditTodoText}

@@ -402,29 +402,30 @@ const [ddLabel, setDdLabel] = useState('');
           <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }}>
             {/* desc: 문구=챌린지 도전 문구, 정지=타이머 일시정지 */}
             {[
-              { id: 'normal', label: '🟢 일반', desc: '알림만' },
-              { id: 'focus', label: '🟡 집중', desc: '챌린지 문구' },
-              { id: 'exam', label: '🔴 시험', desc: '정지 + 문구' },
+              { id: 'normal', label: '🟢 일반',      desc: '알림만 전송',          color: '#4CAF50' },
+              { id: 'focus', label: '🟡 집중',      desc: '이탈 시 문구 입력',     color: '#FFB74D' },
+              { id: 'exam',  label: '🔴 울트라집중', desc: '10초 이탈 시 타이머 정지', color: '#FF6B6B' },
             ].map(lv => {
               const sel = (app.settings.ultraFocusLevel || 'focus') === lv.id;
               return (
                 <TouchableOpacity key={lv.id} onPress={() => app.updateSettings({ ultraFocusLevel: lv.id })}
-                  style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: sel ? (lv.id === 'exam' ? '#FF6B6B' : lv.id === 'focus' ? '#FFB74D' : '#4CAF50') : T.border, backgroundColor: sel ? (lv.id === 'exam' ? '#FF6B6B15' : lv.id === 'focus' ? '#FFB74D15' : '#4CAF5015') : 'transparent', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: sel ? T.text : T.sub }}>{lv.label}</Text>
-                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{lv.desc}</Text>
+                  style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: sel ? 2 : 1.5, borderColor: sel ? lv.color : T.border, backgroundColor: sel ? lv.color + '30' : 'transparent', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: sel ? lv.color : T.sub }}>{lv.label}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 10, color: sel ? lv.color + 'CC' : T.sub, marginTop: 2 }}>{lv.desc}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
           <Text style={[styles.hint, { color: T.sub }]}>
-            {(app.settings.ultraFocusLevel || 'focus') === 'normal' ? '🔥모드에서 이탈 시 알림만 보내요' :
-             (app.settings.ultraFocusLevel || 'focus') === 'focus' ? '🔥모드에서 1분 이상 이탈 시 챌린지 문구 입력' :
-             '🔥모드에서 이탈 즉시 타이머 일시정지 + 챌린지 문구 입력'}
+            {(app.settings.ultraFocusLevel || 'focus') === 'normal'
+              ? '🟢 앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.'
+              : (app.settings.ultraFocusLevel || 'focus') === 'focus'
+              ? '🟡 1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.'
+              : '🔴 10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.'}
           </Text>
           <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>
             💡 타이머 시작 시 🔥집중 도전 / 📖편하게 공부 중 선택해요
           </Text>
-          <Text style={[styles.hint, { color: T.sub, marginTop: 4 }]}>💡 문구 = 챌린지 도전 문구, 정지 = 타이머 일시정지</Text>
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
             <ChallengeInput
@@ -502,7 +503,7 @@ const [ddLabel, setDdLabel] = useState('');
                     <TouchableOpacity key={f.id}
                       onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
                       style={[styles.fontItem,
-                        sel && { borderColor: T.accent, backgroundColor: T.accent + '10' },
+                        sel && { borderColor: T.accent, backgroundColor: T.accent + '28', borderWidth: 2 },
                         !sel && { borderColor: T.border }]}
                     >
                       <View style={{ flex: 1 }}>
@@ -731,7 +732,7 @@ const styles = StyleSheet.create({
 
   // Row
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  rowLabel: { fontSize: 14, fontWeight: '600' },
+  rowLabel: { fontSize: 14, fontWeight: '600', flex: 1 },
   rowRight: {},
   rowValue: { fontSize: 14, fontWeight: '700' },
 

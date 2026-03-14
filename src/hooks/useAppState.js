@@ -463,7 +463,7 @@ export function AppProvider({ children }) {
           scheduleAllPhaseNotifs(t);
         }
       });
-      setTimers(prev => prev.map(t => t.pausedByUltra && t.status === 'paused' ? { ...t, status: 'running', pausedByUltra: false } : t));
+      setTimers(prev => prev.map(t => t.pausedByUltra && t.status === 'paused' ? { ...t, status: 'running', pausedByUltra: false, resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
     }
     // 챌린지 해제 → 다시 최소밝기 + 다크모드
     applyFocusBrightness();
@@ -524,10 +524,14 @@ export function AppProvider({ children }) {
       });
       // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300]);
-      return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0, resumedAt: Date.now(), elapsedSecAtResume: 0 };
+      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
+      const workPhaseEndAt = (t.resumedAt || Date.now()) + (t.pomoWorkMin * 60 - (t.elapsedSecAtResume || 0)) * 1000;
+      return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
     }
     if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-    return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0, resumedAt: Date.now(), elapsedSecAtResume: 0 };
+    // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
+    const breakPhaseEndAt = (t.resumedAt || Date.now()) + (t.pomoBreakMin * 60 - (t.elapsedSecAtResume || 0)) * 1000;
+    return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0, resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0 };
   };
 
   // 연속모드 페이즈 전환 (pomoFlip 패턴)
@@ -562,7 +566,9 @@ export function AppProvider({ children }) {
       }
       // 쉬는시간 전환 — 알림은 예약 알림이 처리
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-      const newBreakTimer = { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: Date.now(), elapsedSecAtResume: 0 };
+      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
+      const workPhaseEndAt = (t.resumedAt || Date.now()) + (t.totalSec - (t.elapsedSecAtResume || 0)) * 1000;
+      const newBreakTimer = { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
       seqRescheduleQueue.current.push(newBreakTimer);
       return newBreakTimer;
     } else {
@@ -574,7 +580,8 @@ export function AppProvider({ children }) {
         setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: t.seqSessionIds || [] });
         return { ...t, status: 'completed', result };
       }
-      const advanceStartedAt = Date.now();
+      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
+      const breakPhaseEndAt = (t.resumedAt || Date.now()) + (t.seqBreakSec - (t.elapsedSecAtResume || 0)) * 1000;
       // 알림은 예약 알림이 처리 — fireNotif 제거(중복 방지)
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
       // break→work 전환 시에는 재예약 하지 않음
@@ -582,8 +589,8 @@ export function AppProvider({ children }) {
       return {
         ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
         label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
-        subjectId: nextItem.subjectId || null, startedAt: advanceStartedAt, pauseCount: 0,
-        resumedAt: advanceStartedAt, elapsedSecAtResume: 0,
+        subjectId: nextItem.subjectId || null, startedAt: breakPhaseEndAt, pauseCount: 0,
+        resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0,
       };
     }
   };
