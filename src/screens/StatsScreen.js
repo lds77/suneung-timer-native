@@ -250,9 +250,6 @@ export default function StatsScreen() {
   const [subjPeriod, setSubjPeriod] = useState('30d'); // '7d' | '30d' | 'all'
   const [subjDetail, setSubjDetail] = useState(null);  // subject id → 상세 시트 트리거
 
-  // 메모 탭
-  const [memoSubjectFilter, setMemoSubjectFilter] = useState('all');
-  const [memoPage, setMemoPage] = useState(1); // 1 = 최근 14일, 2 = 최근 28일, ...
 
   // 헬퍼: HH:MM 포맷
   const formatHM = (ts) => {
@@ -640,37 +637,6 @@ export default function StatsScreen() {
     return { ...stat, recentSess };
   }, [subjDetail, subjectAllStats, app.sessions, app.subjects, subjPeriod]);
 
-  // ─── 메모 탭 데이터 ──────────────────────────────────────────
-  const allMemoSessions = useMemo(() =>
-    [...app.sessions]
-      .filter(s => s.memo && s.memo.trim())
-      .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0)),
-  [app.sessions]);
-
-  const memoSubjects = useMemo(() => {
-    const seen = new Set();
-    const result = [];
-    allMemoSessions.forEach(s => {
-      const subj = getSessionSubject(s, app.subjects);
-      if (!seen.has(subj.id)) { seen.add(subj.id); result.push(subj); }
-    });
-    return result;
-  }, [allMemoSessions, app.subjects]);
-
-  const filteredMemoSessions = useMemo(() =>
-    memoSubjectFilter === 'all'
-      ? allMemoSessions
-      : allMemoSessions.filter(s => getSessionSubject(s, app.subjects).id === memoSubjectFilter),
-  [allMemoSessions, memoSubjectFilter, app.subjects]);
-
-  const visibleMemoSessions = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - memoPage * 14);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-    return filteredMemoSessions.filter(s => (s.date || '') >= cutoffStr);
-  }, [filteredMemoSessions, memoPage]);
-
-  const memoHasMore = filteredMemoSessions.length > visibleMemoSessions.length;
 
   // 과목 비율 렌더
   const renderSubjects = (data, label) => {
@@ -793,7 +759,7 @@ export default function StatsScreen() {
         <View style={S.header}>
           <Text style={[S.headerTitle, { color: T.text }]}>📊 통계</Text>
           <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
-            {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }, { id: 'memo', l: '메모' }].map(t => (
+            {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
               <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card }]} onPress={() => setTab(t.id)}>
                 <Text style={[S.tabText, { color: tab === t.id ? T.text : T.sub }]}>{t.l}</Text>
               </TouchableOpacity>
@@ -801,74 +767,76 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        {/* ── 요약 카드 ── */}
-        {tab !== 'subject' && tab !== 'memo' && <View style={S.summaryRow}>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>{tab === 'daily' ? '오늘' : tab === 'weekly' ? '이번주' : tab === 'heatmap' ? '공부일수' : viewMonthStr}</Text>
-            <Text style={[S.sVal, { color: T.accent }]}>
-              {tab === 'heatmap' ? `${totalStudyDays365}일` : formatDuration(tab === 'daily' ? todayTotalSec : tab === 'weekly' ? weekTotal : monthTotalSec)}
-            </Text>
+        {/* ── 요약 카드 (탭별 맞춤) ── */}
+        {tab !== 'subject' && (
+          <View style={S.summaryRow}>
+            {tab === 'daily' && (<>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>오늘</Text>
+                <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(todayTotalSec)}</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
+                <Text style={[S.sVal, { color: todaySessions.length > 0 ? todayTier.color : T.sub }]}>
+                  {todaySessions.length > 0 ? todayTier.label : '-'}
+                </Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
+                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+              </View>
+            </>)}
+            {tab === 'weekly' && (<>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>이번주</Text>
+                <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(weekTotal)}</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>공부일</Text>
+                <Text style={[S.sVal, { color: T.text }]}>{weekStudyDays}/7일</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
+                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+              </View>
+            </>)}
+            {tab === 'monthly' && (<>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>{viewMonthStr}</Text>
+                <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(monthTotalSec)}</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>공부일</Text>
+                <Text style={[S.sVal, { color: T.text }]}>{monthStudyDays}일</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>평균밀도</Text>
+                <Text style={[S.sVal, { color: monthAvgDensity > 0 ? getTier(monthAvgDensity).color : T.sub }]}>
+                  {monthAvgDensity > 0 ? getTier(monthAvgDensity).label : '-'}
+                </Text>
+              </View>
+            </>)}
+            {tab === 'heatmap' && (<>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>총 공부일</Text>
+                <Text style={[S.sVal, { color: T.accent }]}>{totalStudyDays365}일</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>현재연속</Text>
+                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+              </View>
+              <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <Text style={[S.sLabel, { color: T.sub }]}>최장연속</Text>
+                <Text style={[S.sVal, { color: T.text }]}>🏆{longestStreak}일</Text>
+              </View>
+            </>)}
           </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
-            <Text style={[S.sVal, { color: T.text }]}>
-              {tab === 'daily' ? todaySessions.length
-                : tab === 'weekly' ? weekData.reduce((s, d) => s + d.sessions, 0)
-                : tab === 'heatmap' ? `🔥${app.settings.streak}`
-                : calendarData.filter(Boolean).reduce((s, d) => s + d.sessions, 0)}
-              {tab !== 'heatmap' ? '회' : '일'}
-            </Text>
-          </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>{tab === 'monthly' ? '공부일' : '연속'}</Text>
-            <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>
-              {tab === 'monthly' ? `${monthStudyDays}일` : `🔥${app.settings.streak}일`}
-            </Text>
-          </View>
-        </View>}
+        )}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 일간 */}
         {/* ──────────────────────────────────────────────────── */}
         {tab === 'daily' && (<>
-
-          {/* ── 오늘 리포트 카드 버튼 ── */}
-          <TouchableOpacity
-            style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowDayReport(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={S.reportBtnIcon}>📋</Text>
-            <View>
-              <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
-            </View>
-            <Text style={S.reportBtnArrow}>→</Text>
-          </TouchableOpacity>
-
-          {/* 집중밀도 한 줄 가이드 */}
-          {!app.settings.guideDensity && todaySessions.length > 0 && (
-            <TouchableOpacity onPress={() => app.updateSettings({ guideDensity: true })}
-              style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-              <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                📊 집중밀도 = 같은 시간이라도 얼마나 집중했는지! 자세한 건 설정 &gt; 사용 가이드
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* 취약 과목 알림 */}
-          {weakSubjects.length > 0 && (
-            <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
-              <Text style={[S.weakTitle, { color: T.accent }]}>⚠️ 최근 7일간 안 한 과목</Text>
-              <View style={S.weakChips}>
-                {weakSubjects.map(s => (
-                  <View key={s.id} style={[S.weakChip, { backgroundColor: s.color + '25', borderColor: s.color + '60' }]}>
-                    <Text style={[S.weakChipT, { color: s.color }]}>{s.name}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           {/* ── 집중밀도 + 목표달성률 2열 ── */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
@@ -1068,6 +1036,44 @@ export default function StatsScreen() {
             </View>
           )}
 
+          {/* 취약 과목 알림 */}
+          {weakSubjects.length > 0 && (
+            <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
+              <Text style={[S.weakTitle, { color: T.accent }]}>⚠️ 최근 7일간 안 한 과목</Text>
+              <View style={S.weakChips}>
+                {weakSubjects.map(s => (
+                  <View key={s.id} style={[S.weakChip, { backgroundColor: s.color + '25', borderColor: s.color + '60' }]}>
+                    <Text style={[S.weakChipT, { color: s.color }]}>{s.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* ── 오늘 리포트 카드 버튼 ── */}
+          <TouchableOpacity
+            style={[S.reportBtn, { backgroundColor: T.accent }]}
+            onPress={() => setShowDayReport(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={S.reportBtnIcon}>📋</Text>
+            <View>
+              <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
+              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+            </View>
+            <Text style={S.reportBtnArrow}>→</Text>
+          </TouchableOpacity>
+
+          {/* 집중밀도 한 줄 가이드 */}
+          {!app.settings.guideDensity && todaySessions.length > 0 && (
+            <TouchableOpacity onPress={() => app.updateSettings({ guideDensity: true })}
+              style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
+              <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
+                📊 집중밀도 = 같은 시간이라도 얼마나 집중했는지! 자세한 건 설정 &gt; 사용 가이드
+              </Text>
+            </TouchableOpacity>
+          )}
+
         </>)}
 
         {/* ──────────────────────────────────────────────────── */}
@@ -1088,20 +1094,6 @@ export default function StatsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 주간 리포트 카드 버튼 */}
-          <TouchableOpacity
-            style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowReport(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={S.reportBtnIcon}>📋</Text>
-            <View>
-              <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
-            </View>
-            <Text style={S.reportBtnArrow}>→</Text>
-          </TouchableOpacity>
-
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
             {weekData.map((d, i) => (
@@ -1116,23 +1108,6 @@ export default function StatsScreen() {
                 </View>
               </TouchableOpacity>
             ))}
-          </View>
-
-          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
-            <View style={S.densityChart}>
-              {weekData.map((d, i) => {
-                const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
-                const tier = d.density > 0 ? getTier(d.density) : null;
-                return (
-                  <View key={i} style={S.densityCol}>
-                    <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-                    <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                    {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                  </View>
-                );
-              })}
-            </View>
           </View>
 
           {/* ── 시간대별 집중력 분석 ── */}
@@ -1180,27 +1155,44 @@ export default function StatsScreen() {
             )}
           </View>
 
+          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+            <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
+            <View style={S.densityChart}>
+              {weekData.map((d, i) => {
+                const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
+                const tier = d.density > 0 ? getTier(d.density) : null;
+                return (
+                  <View key={i} style={S.densityCol}>
+                    <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
+                    <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+                    {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
           {renderSubjects(weekSubjects, '주간 과목 비율')}
+
+          {/* 주간 리포트 카드 버튼 */}
+          <TouchableOpacity
+            style={[S.reportBtn, { backgroundColor: T.accent }]}
+            onPress={() => setShowReport(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={S.reportBtnIcon}>📋</Text>
+            <View>
+              <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
+              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+            </View>
+            <Text style={S.reportBtnArrow}>→</Text>
+          </TouchableOpacity>
         </>)}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 월간 */}
         {/* ──────────────────────────────────────────────────── */}
         {tab === 'monthly' && (<>
-
-          {/* ── 월간 리포트 카드 버튼 ── */}
-          <TouchableOpacity
-            style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowMonthReport(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={S.reportBtnIcon}>📋</Text>
-            <View>
-              <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
-            </View>
-            <Text style={S.reportBtnArrow}>→</Text>
-          </TouchableOpacity>
 
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={S.monthNav}>
@@ -1278,26 +1270,26 @@ export default function StatsScreen() {
             )}
           </View>
 
+          {/* ── 월간 리포트 카드 버튼 ── */}
+          <TouchableOpacity
+            style={[S.reportBtn, { backgroundColor: T.accent }]}
+            onPress={() => setShowMonthReport(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={S.reportBtnIcon}>📋</Text>
+            <View>
+              <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
+              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+            </View>
+            <Text style={S.reportBtnArrow}>→</Text>
+          </TouchableOpacity>
+
         </>)}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 잔디 (365일 히트맵) */}
         {/* ──────────────────────────────────────────────────── */}
         {tab === 'heatmap' && (<>
-
-          {/* ── 잔디 리포트 카드 버튼 ── */}
-          <TouchableOpacity
-            style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowHeatReport(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={S.reportBtnIcon}>🌱</Text>
-            <View>
-              <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-              <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
-            </View>
-            <Text style={S.reportBtnArrow}>→</Text>
-          </TouchableOpacity>
 
           {/* 잔디 한 줄 가이드 */}
           {!app.settings.guideHeatmap && (
@@ -1430,6 +1422,20 @@ export default function StatsScreen() {
               </View>
             </View>
           )}
+
+          {/* ── 잔디 리포트 카드 버튼 ── */}
+          <TouchableOpacity
+            style={[S.reportBtn, { backgroundColor: T.accent }]}
+            onPress={() => setShowHeatReport(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={S.reportBtnIcon}>🌱</Text>
+            <View>
+              <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
+              <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
+            </View>
+            <Text style={S.reportBtnArrow}>→</Text>
+          </TouchableOpacity>
 
           {/* 📓 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
@@ -1577,89 +1583,6 @@ export default function StatsScreen() {
           </>)}
         </>)}
 
-        {/* ── 메모 탭 ── */}
-        {tab === 'memo' && (() => {
-          if (allMemoSessions.length === 0) return (
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, marginTop: 4 }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>📝 공부 메모</Text>
-              <Text style={[S.emptyText, { color: T.sub, marginTop: 8, lineHeight: 20 }]}>
-                아직 메모가 없어요.{'\n'}타이머 완료 후 한줄 메모를 남겨보세요! ✏️
-              </Text>
-            </View>
-          );
-          return (
-            <>
-              {/* 과목 필터 칩 */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
-                contentContainerStyle={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity
-                  style={[S.memoChip, { borderColor: memoSubjectFilter === 'all' ? T.accent : T.border, backgroundColor: memoSubjectFilter === 'all' ? T.accent : T.surface2 }]}
-                  onPress={() => { setMemoSubjectFilter('all'); setMemoPage(1); }}>
-                  <Text style={[S.memoChipT, { color: memoSubjectFilter === 'all' ? 'white' : T.sub }]}>전체</Text>
-                </TouchableOpacity>
-                {memoSubjects.map(subj => {
-                  const sel = memoSubjectFilter === subj.id;
-                  return (
-                    <TouchableOpacity key={subj.id}
-                      style={[S.memoChip, { borderColor: sel ? subj.color : T.border, backgroundColor: sel ? subj.color : T.surface2 }]}
-                      onPress={() => { setMemoSubjectFilter(subj.id); setMemoPage(1); }}>
-                      <View style={[S.memoChipDot, { backgroundColor: sel ? 'rgba(255,255,255,0.6)' : subj.color }]} />
-                      <Text style={[S.memoChipT, { color: sel ? 'white' : T.text }]}>{subj.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              {/* 메모 개수 안내 */}
-              <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>
-                최근 {memoPage * 14}일 · {visibleMemoSessions.length}개
-                {memoSubjectFilter !== 'all' ? ' (필터 적용 중)' : ''}
-              </Text>
-
-              {visibleMemoSessions.length === 0 ? (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={[S.emptyText, { color: T.sub }]}>해당 기간에 메모가 없어요</Text>
-                </View>
-              ) : visibleMemoSessions.map(s => {
-                const subj = getSessionSubject(s, app.subjects);
-                const d = new Date((s.date || today) + 'T00:00:00');
-                const dateLabel = s.date === today ? '오늘'
-                  : `${d.getMonth() + 1}/${d.getDate()} (${DAYS_KR[d.getDay()]})`;
-                return (
-                  <TouchableOpacity key={s.id}
-                    style={[S.memoCard, { backgroundColor: T.card, borderColor: T.border, borderLeftColor: subj.color }]}
-                    onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
-                    activeOpacity={0.75}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                      <Text style={{ fontSize: 12, color: T.sub, minWidth: 56 }}>{dateLabel}</Text>
-                      <View style={[S.memoSubjBadge, { backgroundColor: subj.color + '20', borderColor: subj.color + '50' }]}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: subj.color }}>{subj.name}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: T.sub, marginLeft: 'auto' }}>{formatShort(s.durationSec)}</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, color: T.text, fontWeight: '600', lineHeight: 18 }}>
-                      "{s.memo}"
-                    </Text>
-                    <Text style={{ fontSize: 11, color: T.surface2, marginTop: 4, textAlign: 'right' }}>탭하면 수정 🖊️</Text>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* 더보기 버튼 */}
-              {memoHasMore && (
-                <TouchableOpacity
-                  style={[S.memoMoreBtn, { backgroundColor: T.surface2, borderColor: T.border }]}
-                  onPress={() => setMemoPage(p => p + 1)}
-                  activeOpacity={0.7}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>+ 더보기 (이전 2주)</Text>
-                </TouchableOpacity>
-              )}
-              {!memoHasMore && visibleMemoSessions.length > 0 && (
-                <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 4 }}>전체 메모를 표시하고 있어요</Text>
-              )}
-            </>
-          );
-        })()}
 
         {/* ── 인사이트 (오늘 세션 있을 때) ── */}
         {todaySessions.length > 0 && (
@@ -2651,11 +2574,4 @@ const S = StyleSheet.create({
   subjInsightCard: { borderRadius: 12, padding: 14, marginTop: 12, gap: 10 },
   subjInsightRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
-  // 메모 탭
-  memoChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  memoChipT: { fontSize: 14, fontWeight: '700' },
-  memoChipDot: { width: 7, height: 7, borderRadius: 4 },
-  memoCard: { borderRadius: 12, borderWidth: 1, borderLeftWidth: 4, padding: 12, marginBottom: 8 },
-  memoSubjBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
-  memoMoreBtn: { borderRadius: 10, borderWidth: 1, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 4 },
 });
