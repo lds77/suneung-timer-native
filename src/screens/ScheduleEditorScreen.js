@@ -195,17 +195,17 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
       if (!ws) {
         const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
         Alert.alert(
-          '📅 주간 플래너',
-          `${levelLabel}에 맞는 기본 시간표를 세팅할까요?`,
+          '📅 주간 플래너 시작하기',
+          `세팅 방식을 선택해주세요.\n\n🏫 기본 세팅 (추천)\n${levelLabel} 일과에 맞는 학교·식사·취침 시간이 자동으로 채워져요. 나중에 언제든 수정할 수 있어요.\n\n✏️ 직접 설정\n빈 시간표에서 고정 일정을 직접 하나씩 추가해요.`,
           [
             {
-              text: '직접 설정', onPress: () => {
+              text: '✏️ 직접 설정', onPress: () => {
                 const newWs = { enabled: true };
                 DAY_KEYS.forEach(k => { newWs[k] = emptyDay(); });
                 app.setWeeklySchedule(newWs);
               },
             },
-            { text: '세팅하기', onPress: applyDefaultTemplate, style: 'default' },
+            { text: '🏫 기본 세팅', onPress: applyDefaultTemplate, style: 'default' },
           ]
         );
       } else {
@@ -573,7 +573,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
                   Alert.alert(
                     '기본 시간표로 초기화',
-                    `${levelLabel} 기본 시간표로 초기화할까요?\n지금까지 설정한 내용은 모두 사라져요.`,
+                    `${levelLabel} 기본 시간표로 초기화할까요?\n학교·식사·취침 시간이 자동으로 세팅돼요.\n지금까지 설정한 내용은 모두 사라져요.`,
                     [
                       { text: '취소', style: 'cancel' },
                       { text: '초기화', style: 'destructive', onPress: () => {

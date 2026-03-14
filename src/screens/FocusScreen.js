@@ -1788,12 +1788,12 @@ export default function FocusScreen() {
             {/* 우선순위 */}
             <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>우선순위</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: T.sub }, { id: 'low', label: '⚫ 낮음', color: T.sub }].map(opt => {
+              {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: '#4A90D9' }, { id: 'low', label: '⚫ 낮음', color: '#8E9AAF' }].map(opt => {
                 const sel = addTodoPriority === opt.id;
                 return (
                   <TouchableOpacity key={opt.id} onPress={() => { Keyboard.dismiss(); setAddTodoPriority(opt.id); }}
-                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? opt.color + '20' : T.surface2, borderWidth: 1, borderColor: sel ? opt.color : T.border }}>
-                    <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? opt.color : T.sub }}>{opt.label}</Text>
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? opt.color + '35' : T.surface2, borderWidth: sel ? 2 : 1, borderColor: sel ? opt.color : T.border }}>
+                    <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? opt.color : opt.color + '80' }}>{opt.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1918,12 +1918,12 @@ export default function FocusScreen() {
               {/* 우선순위 */}
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>우선순위</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-                {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: T.sub }, { id: 'low', label: '⚫ 낮음', color: T.sub }].map(opt => {
+                {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: '#4A90D9' }, { id: 'low', label: '⚫ 낮음', color: '#8E9AAF' }].map(opt => {
                   const sel = editTodoPriority === opt.id;
                   return (
                     <TouchableOpacity key={opt.id} onPress={() => { Keyboard.dismiss(); setEditTodoPriority(opt.id); }}
-                      style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? opt.color + '20' : T.surface2, borderWidth: 1, borderColor: sel ? opt.color : T.border }}>
-                      <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? opt.color : T.sub }}>{opt.label}</Text>
+                      style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? opt.color + '35' : T.surface2, borderWidth: sel ? 2 : 1, borderColor: sel ? opt.color : T.border }}>
+                      <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? opt.color : opt.color + '80' }}>{opt.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
