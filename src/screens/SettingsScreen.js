@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView, findNodeHandle,
+  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView,
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -155,7 +155,7 @@ export default function SettingsScreen() {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
   const scrollRef = useRef(null);
-  const challengeViewRef = useRef(null);
+  const challengeLayoutRef = useRef({ y: 0, h: 0 });
   const kbHeightRef = useRef(0);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => { kbHeightRef.current = e.endCoordinates.height; });
@@ -164,18 +164,12 @@ export default function SettingsScreen() {
   }, []);
   const handleChallengeInputFocus = useCallback(() => {
     setTimeout(() => {
-      if (!challengeViewRef.current || !scrollRef.current) return;
-      challengeViewRef.current.measureLayout(
-        findNodeHandle(scrollRef.current),
-        (_x, y, _w, h) => {
-          const screenH = Dimensions.get('window').height;
-          const kbH = kbHeightRef.current || 300;
-          // 입력창 하단이 키보드 바로 위(+54px 여백 ≈ 1cm 추가)에 오도록 스크롤
-          const targetY = y - (screenH - kbH) + h + 54;
-          scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
-        },
-        () => {}
-      );
+      if (!scrollRef.current) return;
+      const { y, h } = challengeLayoutRef.current;
+      const screenH = Dimensions.get('window').height;
+      const kbH = kbHeightRef.current || 300;
+      const targetY = y - (screenH - kbH) + h + 54;
+      scrollRef.current.scrollTo({ y: Math.max(0, targetY), animated: true });
     }, 200);
   }, []);
 
@@ -389,7 +383,7 @@ const [ddLabel, setDdLabel] = useState('');
               />
             );
           })()}
-          <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+          <View onLayout={(e) => { challengeLayoutRef.current = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }; }} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
             <ChallengeInput
               initial={app.settings.challengeText}
