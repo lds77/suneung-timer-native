@@ -1267,7 +1267,11 @@ export function AppProvider({ children }) {
     const fixedMin = dayData.fixed.reduce((sum, f) => {
       const [sh, sm] = f.start.split(':').map(Number);
       const [eh, em] = f.end.split(':').map(Number);
-      return sum + (eh * 60 + em) - (sh * 60 + sm);
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      // 자정을 넘어가는 일정 처리 (ex: 23:00~07:00)
+      const dur = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+      return sum + dur;
     }, 0);
     return Math.max(0, 24 * 60 - fixedMin);
   }, [weeklySchedule]);

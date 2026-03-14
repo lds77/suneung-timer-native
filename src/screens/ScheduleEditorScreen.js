@@ -19,10 +19,10 @@ import { useApp } from '../hooks/useAppState';
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 
-// 30분 단위 시간 옵션 06:00 ~ 24:00
+// 30분 단위 시간 옵션 00:00 ~ 24:00 (자정 이후 새벽 시간 포함)
 const TIME_OPTIONS = (() => {
   const opts = [];
-  for (let h = 6; h <= 23; h++) {
+  for (let h = 0; h <= 23; h++) {
     opts.push(`${String(h).padStart(2, '0')}:00`);
     opts.push(`${String(h).padStart(2, '0')}:30`);
   }
@@ -229,7 +229,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
       if (!f.start || !f.end) return sum;
       const [sh, sm] = f.start.split(':').map(Number);
       const [eh, em] = f.end.split(':').map(Number);
-      return sum + (eh * 60 + em) - (sh * 60 + sm);
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      const dur = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+      return sum + dur;
     }, 0);
     return Math.max(0, 24 * 60 - fixedMin);
   }, [dayData]);
@@ -274,9 +277,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     }
     const [sh, sm] = fixedStart.split(':').map(Number);
     const [eh, em] = fixedEnd.split(':').map(Number);
-    if (eh * 60 + em <= sh * 60 + sm) {
-      Alert.alert('시간 오류', '끝 시간이 시작 시간보다 늦어야 해요.'); return;
+    if (eh * 60 + em === sh * 60 + sm) {
+      Alert.alert('시간 오류', '시작과 종료 시간이 같아요.'); return;
     }
+    // end < start 는 자정을 넘어가는 일정으로 허용 (ex: 23:00~07:00)
     if (editingFixedId) {
       updateDay(day => ({
         ...day,
@@ -493,7 +497,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     <Text style={s.itemIcon}>{f.icon}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: T.text }]}>{f.label}</Text>
-                      <Text style={[s.itemSub, { color: T.sub }]}>{f.start} ~ {f.end}</Text>
+                      <Text style={[s.itemSub, { color: T.sub }]}>{f.start} ~ {f.end}{(() => { const [sh,sm]=f.start.split(':').map(Number); const [eh,em]=f.end.split(':').map(Number); return eh*60+em < sh*60+sm ? ' (익일)' : ''; })()}</Text>
                     </View>
                     <TouchableOpacity onPress={() => openEditFixed(f)} style={s.editBtn}>
                       <Text style={[s.editText, { color: T.sub }]}>🖊️</Text>
