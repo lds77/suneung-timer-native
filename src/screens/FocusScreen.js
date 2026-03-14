@@ -1717,15 +1717,15 @@ export default function FocusScreen() {
             />
             {/* 메모 */}
             <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>📌 메모</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ gap: 5 }}>
-              {['P.', '번', '챕터', '지문', '오답', '개념 부족', '재풀이'].map(tag => (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+              {['오답', '개념 부족', '재풀이', '암기 필요', '계산 실수', '시간 초과'].map(tag => (
                 <TouchableOpacity key={tag}
                   onPress={() => setAddTodoMemo(prev => prev ? prev + ' · ' + tag : tag)}
                   style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
                   <Text style={{ fontSize: 12, color: T.sub, fontWeight: '600' }}>{tag}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
             <TextInput value={addTodoMemo} onChangeText={setAddTodoMemo}
               placeholder="예) 매삼비 P.47 · 오답 · 재풀이 필요" placeholderTextColor={T.sub} multiline
               style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, minHeight: 48, textAlignVertical: 'top', marginBottom: 14 }]}
@@ -1849,15 +1849,15 @@ export default function FocusScreen() {
               />
               {/* 메모 */}
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>📌 메모</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ gap: 5 }}>
-                {['P.', '번', '챕터', '지문', '오답', '개념 부족', '재풀이'].map(tag => (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                {['오답', '개념 부족', '재풀이', '암기 필요', '계산 실수', '시간 초과'].map(tag => (
                   <TouchableOpacity key={tag}
                     onPress={() => setEditTodoMemo(prev => prev ? prev + ' · ' + tag : tag)}
                     style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
                     <Text style={{ fontSize: 12, color: T.sub, fontWeight: '600' }}>{tag}</Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
               <TextInput value={editTodoMemo} onChangeText={setEditTodoMemo}
                 placeholder="예) 매삼비 P.47 · 오답 · 재풀이 필요" placeholderTextColor={T.sub} multiline
                 style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text, minHeight: 48, textAlignVertical: 'top', marginBottom: 14 }]}
