@@ -185,6 +185,14 @@ export default function SettingsScreen() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
+  // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
+  const prevModalOpen = useRef(false);
+  useEffect(() => {
+    const anyOpen = showGuide || showDDayModal || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showScheduleEditor;
+    if (!anyOpen && prevModalOpen.current) Keyboard.dismiss();
+    prevModalOpen.current = anyOpen;
+  }, [showGuide, showDDayModal, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showScheduleEditor]);
+
 const [ddLabel, setDdLabel] = useState('');
   const [ddDays, setDdDays] = useState(1);
   const [pickerMonth, setPickerMonth] = useState(new Date());
