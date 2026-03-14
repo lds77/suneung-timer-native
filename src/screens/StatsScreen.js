@@ -788,7 +788,7 @@ export default function StatsScreen() {
             </>)}
             {tab === 'weekly' && (<>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.sLabel, { color: T.sub }]}>이번주</Text>
+                <Text style={[S.sLabel, { color: T.sub }]}>{weekOffset === 0 ? '이번주' : weekOffset === -1 ? '지난주' : `${Math.abs(weekOffset)}주 전`}</Text>
                 <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(weekTotal)}</Text>
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -818,8 +818,8 @@ export default function StatsScreen() {
             </>)}
             {tab === 'heatmap' && (<>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.sLabel, { color: T.sub }]}>총 공부일</Text>
-                <Text style={[S.sVal, { color: T.accent }]}>{totalStudyDays365}일</Text>
+                <Text style={[S.sLabel, { color: T.sub }]}>올해 총</Text>
+                <Text style={[S.sVal, { color: T.accent }]}>{formatShort(yearTotalSec)}</Text>
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>현재연속</Text>
@@ -1110,6 +1110,23 @@ export default function StatsScreen() {
             ))}
           </View>
 
+          {/* ── 주간 플래너 달성률 ── */}
+          {weekPlanRate !== null && (
+            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
+              <Text style={{ fontSize: 18 }}>📅</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
+                </View>
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
+                  <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+                </View>
+              </View>
+              {weekPlanRate >= 100 && <Text style={{ fontSize: 18 }}>🎉</Text>}
+            </View>
+          )}
+
           {/* ── 시간대별 집중력 분석 ── */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
@@ -1301,31 +1318,6 @@ export default function StatsScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ── 잔디 요약 통계 ── */}
-          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-            <View style={S.hmStatRow}>
-              <View style={S.hmStatItem}>
-                <Text style={[S.hmStatVal, { color: T.accent }]}>{totalStudyDays365}일</Text>
-                <Text style={[S.hmStatLabel, { color: T.sub }]}>공부일</Text>
-              </View>
-              <View style={[S.hmStatDivider, { backgroundColor: T.border }]} />
-              <View style={S.hmStatItem}>
-                <Text style={[S.hmStatVal, { color: T.text }]}>🔥{app.settings.streak}일</Text>
-                <Text style={[S.hmStatLabel, { color: T.sub }]}>현재 연속</Text>
-              </View>
-              <View style={[S.hmStatDivider, { backgroundColor: T.border }]} />
-              <View style={S.hmStatItem}>
-                <Text style={[S.hmStatVal, { color: T.gold || '#F0B429' }]}>{longestStreak}일</Text>
-                <Text style={[S.hmStatLabel, { color: T.sub }]}>최장 연속</Text>
-              </View>
-              <View style={[S.hmStatDivider, { backgroundColor: T.border }]} />
-              <View style={S.hmStatItem}>
-                <Text style={[S.hmStatVal, { color: T.text }]}>{formatShort(yearTotalSec)}</Text>
-                <Text style={[S.hmStatLabel, { color: T.sub }]}>올해 총</Text>
-              </View>
-            </View>
-          </View>
-
           {/* 365일 히트맵 */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={S.hmHeader}>
@@ -1409,34 +1401,6 @@ export default function StatsScreen() {
             </Text>
           </View>
 
-          {/* 취약 과목 알림 */}
-          {weakSubjects.length > 0 && (
-            <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
-              <Text style={[S.weakTitle, { color: T.accent }]}>⚠️ 최근 7일간 안 한 과목</Text>
-              <View style={S.weakChips}>
-                {weakSubjects.map(s => (
-                  <View key={s.id} style={[S.weakChip, { backgroundColor: s.color + '25', borderColor: s.color + '60' }]}>
-                    <Text style={[S.weakChipT, { color: s.color }]}>{s.name}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* ── 잔디 리포트 카드 버튼 ── */}
-          <TouchableOpacity
-            style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowHeatReport(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={S.reportBtnIcon}>🌱</Text>
-            <View>
-              <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-              <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
-            </View>
-            <Text style={S.reportBtnArrow}>→</Text>
-          </TouchableOpacity>
-
           {/* 📓 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
             const memoed = [...app.sessions]
@@ -1484,6 +1448,34 @@ export default function StatsScreen() {
               </View>
             );
           })()}
+
+          {/* 취약 과목 알림 */}
+          {weakSubjects.length > 0 && (
+            <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
+              <Text style={[S.weakTitle, { color: T.accent }]}>⚠️ 최근 7일간 안 한 과목</Text>
+              <View style={S.weakChips}>
+                {weakSubjects.map(s => (
+                  <View key={s.id} style={[S.weakChip, { backgroundColor: s.color + '25', borderColor: s.color + '60' }]}>
+                    <Text style={[S.weakChipT, { color: s.color }]}>{s.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* ── 잔디 리포트 카드 버튼 ── */}
+          <TouchableOpacity
+            style={[S.reportBtn, { backgroundColor: T.accent }]}
+            onPress={() => setShowHeatReport(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={S.reportBtnIcon}>🌱</Text>
+            <View>
+              <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
+              <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
+            </View>
+            <Text style={S.reportBtnArrow}>→</Text>
+          </TouchableOpacity>
 
         </>)}
 
