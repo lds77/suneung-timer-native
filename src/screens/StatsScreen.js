@@ -2436,7 +2436,7 @@ export default function StatsScreen() {
                 focusMode: sess.focusMode || 'screen_off',
                 exitCount: sess.exitCount || 0,
                 selfRating: sess.selfRating || null,
-                schoolLevel: app.settings.schoolLevel || 'high',
+                schoolLevel: sess.schoolLevel || app.settings.schoolLevel || 'high',
               });
               const bdItems = [
                 { label: '완료 점수', max: 40, val: bd.completionScore, color: '#4A90D9' },
@@ -2528,7 +2528,7 @@ export default function StatsScreen() {
                     ))}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
                       <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>합계</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '900', color: tier.color }}>{bd.total}점</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: tier.color }}>{sess.focusDensity || bd.total}점</Text>
                     </View>
                   </View>
 

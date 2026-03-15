@@ -1317,6 +1317,7 @@ export function AppProvider({ children }) {
       durationSec, mode, focusDensity: density, tier: tier.id,
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
       selfRating, memo: memo.trim(), planId: planId || null,
+      schoolLevel: settingsRef.current?.schoolLevel || 'high',
     };
     setSessions(prev => [...prev, newSess]);
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
