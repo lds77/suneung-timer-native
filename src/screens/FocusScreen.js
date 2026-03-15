@@ -410,13 +410,19 @@ export default function FocusScreen() {
     return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec);
   };
   // 전체 누적 경과 (포모도로·연속모드용 — 완료된 페이즈 합산)
+  // 순수 공부 시간만 누적 (쉬는 시간 제외)
   const getTotalElapsed = (t) => {
     if (t.type === 'pomodoro') {
-      return (t.pomoSet || 0) * ((t.pomoWorkMin || 25) + (t.pomoBreakMin || 5)) * 60 + t.elapsedSec;
+      const completedWork = (t.pomoSet || 0) * (t.pomoWorkMin || 25) * 60;
+      const currentWork = t.pomoPhase === 'work' ? t.elapsedSec : 0;
+      return completedWork + currentWork;
     }
     if (t.type === 'sequence') {
-      const completedSec = (t.seqItems || []).slice(0, t.seqIndex || 0).reduce((sum, item) => sum + item.min * 60, 0);
-      return completedSec + t.elapsedSec;
+      const completedSec = (t.seqItems || []).slice(0, t.seqIndex || 0)
+        .filter(item => !item.isBreak)
+        .reduce((sum, item) => sum + item.min * 60, 0);
+      const currentWork = t.seqPhase === 'break' ? 0 : t.elapsedSec;
+      return completedSec + currentWork;
     }
     return t.elapsedSec;
   };
@@ -595,7 +601,7 @@ export default function FocusScreen() {
           </View>
         ) : (<>
           <Text testID="timer-text" style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26, fontWeight: T.timerFontWeight }]}>{formatTime(display)}</Text>
-          {t.type !== 'lap' && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(getTotalElapsed(t))}</Text>}
+          {t.type !== 'lap' && getTotalElapsed(t) > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(getTotalElapsed(t))}</Text>}
           <View style={[S.tcTrack, { backgroundColor: T.surface2 }]}><View style={[S.tcFill, { width: `${Math.min(100,progress)}%`, backgroundColor: isP ? T.sub : t.color }]} /></View>
         </>)}
         <View style={S.tcCtrls}>
@@ -705,7 +711,7 @@ export default function FocusScreen() {
               <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : 50, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
-              {t.type !== 'lap' && t.elapsedSec > 0 && (
+              {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
                 <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(getTotalElapsed(t))}</Text>
               )}
             </View>
