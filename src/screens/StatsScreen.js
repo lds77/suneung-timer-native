@@ -212,7 +212,7 @@ function GoalRing({ pct, size = 88, color, bgColor }) {
 // ═══════════════════════════════════════════════════════════════════
 export default function StatsScreen() {
   const app = useApp();
-  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const [tab, setTab] = useState('daily');
   const today = getToday();
 

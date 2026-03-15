@@ -140,7 +140,7 @@ const ELEM_GRADE_KEY = (school) => school;
 
 export default function SubjectsScreen() {
   const app = useApp();
-  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const school = app.settings.schoolLevel || 'high';
   const isHigh = school === 'high' || school === 'nsuneung';
   const [tab, setTab] = useState('subjects');

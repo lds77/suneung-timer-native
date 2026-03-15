@@ -595,20 +595,19 @@ function Root() {
         await Font.loadAsync(FONT_MAP[fontId]);
         // 전역 텍스트 렌더링을 가로채서 weight에 따라 올바른 패밀리를 지정하도록 패치
         const baseFamily = FONT_FAMILY_MAP[fontId] || FONT_FAMILY_MAP[fontId];
-        const origRender = Text.render;
+        // 항상 원본 render에서 시작 (중첩 방지), cloneElement로 props 불변성 유지
         Text.render = function (...args) {
-          const origin = origRender.call(this, ...args);
+          const origin = _originalTextRender.call(this, ...args);
           const props = origin.props;
+          // testID="timer-text" 인 텍스트는 전역 폰트 적용 건너뜀 (타이머 숫자)
+          if (props.testID === 'timer-text') return origin;
           // style 유무와 관계없이 모든 Text에 폰트 적용
-          let flat = StyleSheet.flatten(props.style) || {};
+          const flat = StyleSheet.flatten(props.style) || {};
           const w = flat.fontWeight;
-          if (w && (w === 'bold' || parseInt(w, 10) >= 700)) {
-            flat.fontFamily = baseFamily + '-Bold';
-          } else {
-            flat.fontFamily = baseFamily;
-          }
-          origin.props.style = flat;
-          return origin;
+          const family = (w && (w === 'bold' || parseInt(w, 10) >= 700))
+            ? baseFamily + '-Bold'
+            : baseFamily;
+          return React.cloneElement(origin, { style: { ...flat, fontFamily: family } });
         };
         setLoadedFont(fontId);
       } catch (e) {

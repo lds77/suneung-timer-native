@@ -45,7 +45,7 @@ const DEFAULT_SETTINGS = {
   ultraFocusLevel: 'focus', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
-  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default',
+  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'cute',
   // 가이드 플래그 (한 번 보면 다시 안 뜸)
   guideMode: false,     // 🔥/📖 모드 선택 설명
   guideDensity: false,  // 집중밀도 설명
@@ -1165,11 +1165,15 @@ export function AppProvider({ children }) {
             .filter(t => t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam')
             .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
           const generated = genFromTemplates(resetTodos);
-          setTodos(generated.length > 0 ? [...resetTodos, ...generated] : resetTodos);
+          const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
+          setTodos(finalTodos);
+          await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
         } else {
           const generated = genFromTemplates(migrated);
-          setTodos(generated.length > 0 ? [...migrated, ...generated] : migrated);
+          const finalTodos = generated.length > 0 ? [...migrated, ...generated] : migrated;
+          setTodos(finalTodos);
+          if (generated.length > 0) await saveTodos(finalTodos); // 신규 생성분만 즉시 저장
         }
       }
       if (cuf) setCountupFavs(cuf);

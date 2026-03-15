@@ -37,6 +37,7 @@ const THEME_COLORS = [
   { id: 'mint',   color: '#00B894', label: '민트' },
   { id: 'navy',   color: '#2C5F9E', label: '네이비' },
   { id: 'coral',  color: '#E07050', label: '코랄' },
+  { id: 'slate',  color: '#64748B', label: '슬레이트' },
 ];
 
 const SCHOOL_LEVELS = [
@@ -153,7 +154,7 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onF
 
 export default function SettingsScreen() {
   const app = useApp();
-  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const scrollRef = useRef(null);
   const scrollYRef = useRef(0);
   const challengeViewRef = useRef(null);
@@ -188,12 +189,14 @@ export default function SettingsScreen() {
   const [showSchoolPicker, setShowSchoolPicker] = useState(false);
   const [showFocusPicker, setShowFocusPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showStylePicker, setShowStylePicker] = useState(false);
+  const [showFontPicker, setShowFontPicker] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
   useEffect(() => {
-    const anyOpen = showGuide || showDDayModal || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showScheduleEditor;
+    const anyOpen = showGuide || showDDayModal || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showStylePicker || showFontPicker || showScheduleEditor;
     if (!anyOpen && prevModalOpen.current) Keyboard.dismiss();
     prevModalOpen.current = anyOpen;
   }, [showGuide, showDDayModal, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showScheduleEditor]);
@@ -467,44 +470,38 @@ const [ddLabel, setDdLabel] = useState('');
               />
             );
           })()}
-          <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 6 }}>글꼴</Text>
-            {[
-              [
-                { id: 'default',     label: '기본', sample: '시스템 기본 글꼴', ready: true },
-                { id: 'pretendard',  label: 'Pretendard', sample: '깔끔한 고딕체', ready: true },
-                { id: 'gowunDodum',  label: '고운돋움', sample: '부드러운 느낌', ready: true },
-              ],
-              [
-                { id: 'nanumSquare', label: '나눔스퀘어', sample: '단정한 느낌', ready: true },
-                { id: 'cookieRun',   label: '쿠키런', sample: '귀여운 느낌', ready: true },
-                { id: 'maplestory',  label: '메이플스토리', sample: '재밌는 느낌', ready: true },
-              ],
-            ].map((row, ri) => (
-              <View key={ri} style={[styles.fontGrid, ri === 0 && { marginBottom: 6 }]}>
-                {row.map(f => {
-                  const sel = (app.settings.fontFamily || 'default') === f.id;
-                  const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
-                  const famStyle = fam ? { fontFamily: fam } : {};
-                  return (
-                    <TouchableOpacity key={f.id}
-                      onPress={() => f.ready ? app.updateSettings({ fontFamily: f.id }) : app.showToastCustom('다음 업데이트에서 만나요! 🎨', 'toru')}
-                      style={[styles.fontItem,
-                        sel && { borderColor: T.accent, backgroundColor: T.accent + '28', borderWidth: 2 },
-                        !sel && { borderColor: T.border }]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[{ fontSize: 12, fontWeight: '800', color: sel ? T.accent : T.text }, famStyle]}>{f.label}</Text>
-                        <Text style={[{ fontSize: 10, color: T.sub, marginTop: 1 }, famStyle]}>{f.sample}</Text>
-                      </View>
-                      {sel && <Text style={{ fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-            <Text style={{ fontSize: 11, color: T.sub, marginTop: 6 }}>폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
-          </View>
+          {(() => {
+            const sp = app.settings.stylePreset || 'cute';
+            const spLabel = sp === 'minimal' ? '✦ 미니멀' : '🎨 귀여운';
+            return (
+              <Row T={T} label="타이머 스타일"
+                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{spLabel}</Text>
+                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                </View>}
+                onPress={() => setShowStylePicker(true)}
+              />
+            );
+          })()}
+
+          {(() => {
+            const FONTS = [
+              { id: 'default', label: '기본' }, { id: 'pretendard', label: 'Pretendard' },
+              { id: 'gowunDodum', label: '고운돋움' }, { id: 'nanumSquare', label: '나눔스퀘어' },
+              { id: 'cookieRun', label: '쿠키런' }, { id: 'maplestory', label: '메이플스토리' },
+            ];
+            const curFont = FONTS.find(f => f.id === (app.settings.fontFamily || 'default')) || FONTS[0];
+            const fam = curFont.id === 'default' ? undefined : FONT_FAMILY_MAP[curFont.id];
+            return (
+              <Row T={T} label="글꼴"
+                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent, fontFamily: fam }}>{curFont.label}</Text>
+                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                </View>}
+                onPress={() => setShowFontPicker(true)}
+              />
+            );
+          })()}
         </Section>
 
 {/* 사용 가이드 */}
@@ -690,7 +687,7 @@ const [ddLabel, setDdLabel] = useState('');
               <TouchableOpacity key={lv.id} onPress={() => { app.updateSettings({ ultraFocusLevel: lv.id }); setShowFocusPicker(false); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? lv.color + '15' : 'transparent' }}>
                 <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '500', color: sel ? lv.color : T.text }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '400', color: sel ? lv.color : T.text }}>{lv.label}</Text>
                   <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
                 </View>
                 {sel && <Text style={{ fontSize: 16, color: lv.color }}>✓</Text>}
@@ -713,13 +710,77 @@ const [ddLabel, setDdLabel] = useState('');
               const sel = (app.settings.accentColor || 'pink') === tc.id;
               return (
                 <TouchableOpacity key={tc.id} onPress={() => { app.updateSettings({ accentColor: tc.id }); setShowColorPicker(false); }}
-                  style={{ width: (SW - (isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) : 0) - 40 - 60) / 6, alignItems: 'center', gap: 6 }}>
+                  style={{ width: (SW - (isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tc.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : tc.color + '60' }} />
                   <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{tc.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
+        </View>
+      </Modal>
+
+      {/* 스타일 프리셋 피커 */}
+      <Modal visible={showStylePicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowStylePicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>타이머 스타일</Text>
+            <TouchableOpacity onPress={() => setShowStylePicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 10 }}>
+            {[
+              { id: 'cute',    label: '🎨 귀여운',  desc: '둥글고 컬러풀한 스타일' },
+              { id: 'minimal', label: '✦ 미니멀',   desc: '각지고 단정한 스타일' },
+            ].map(p => {
+              const sel = (app.settings.stylePreset || 'cute') === p.id;
+              return (
+                <TouchableOpacity key={p.id} onPress={() => { app.updateSettings({ stylePreset: p.id }); setShowStylePicker(false); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, borderWidth: sel ? 2 : 1, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '12' : 'transparent' }}>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: sel ? T.accent : T.text }}>{p.label}</Text>
+                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{p.desc}</Text>
+                  </View>
+                  {sel && <Text style={{ fontSize: 18, color: T.accent }}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 글꼴 피커 */}
+      <Modal visible={showFontPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFontPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>글꼴</Text>
+            <TouchableOpacity onPress={() => setShowFontPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
+            {[
+              { id: 'default',     label: '기본',         sample: '시스템 기본 글꼴' },
+              { id: 'pretendard',  label: 'Pretendard',   sample: '깔끔한 고딕체' },
+              { id: 'gowunDodum',  label: '고운돋움',     sample: '부드러운 느낌' },
+              { id: 'nanumSquare', label: '나눔스퀘어',   sample: '단정한 느낌' },
+              { id: 'cookieRun',   label: '쿠키런',       sample: '귀여운 느낌' },
+              { id: 'maplestory',  label: '메이플스토리', sample: '재밌는 느낌' },
+            ].map(f => {
+              const sel = (app.settings.fontFamily || 'default') === f.id;
+              const fam = f.id === 'default' ? undefined : FONT_FAMILY_MAP[f.id];
+              return (
+                <TouchableOpacity key={f.id} onPress={() => { app.updateSettings({ fontFamily: f.id }); setShowFontPicker(false); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, paddingHorizontal: 16, borderRadius: 12, borderWidth: sel ? 2 : 1, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '12' : 'transparent' }}>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: sel ? T.accent : T.text, fontFamily: fam }}>{f.label}</Text>
+                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 1, fontFamily: fam }}>{f.sample}</Text>
+                  </View>
+                  {sel && <Text style={{ fontSize: 18, color: T.accent }}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ fontSize: 11, color: T.sub, textAlign: 'center', paddingBottom: 4 }}>폰트를 변경하면 앱이 잠시 다시 로딩돼요</Text>
         </View>
       </Modal>
 

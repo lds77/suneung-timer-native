@@ -42,6 +42,11 @@ const ACCENT_COLORS = {
     bg: '#FDF5F2', t1: '#FFEAE3', t2: '#FFD5C8', t3: '#F0B8A8',
     dt1: '#281815', dt2: '#3A2420', dt3: '#48302A',
   },
+  slate:  {
+    accent: '#64748B',
+    bg: '#F8FAFC', t1: '#F1F5F9', t2: '#E2E8F0', t3: '#CBD5E1',
+    dt1: '#0F172A', dt2: '#1E293B', dt3: '#334155',
+  },
 };
 
 const FONT_SCALES = { small: 0.9, medium: 1.1, large: 1.25 };
@@ -50,8 +55,8 @@ const FONT_SCALES = { small: 0.9, medium: 1.1, large: 1.25 };
 // cardRadius: 카드/모달 borderRadius, buttonRadius: 버튼, chipRadius: 뱃지/칩
 // characterScale: 캐릭터 아바타 크기 배율
 const STYLE_PRESETS = {
-  cute:    { cardRadius: 20, buttonRadius: 14, chipRadius: 20, characterScale: 1.15 },
-  minimal: { cardRadius: 10, buttonRadius: 8,  chipRadius: 6,  characterScale: 1.0  },
+  cute:    { cardRadius: 20, buttonRadius: 14, chipRadius: 20, characterScale: 1.15, timerFontWeight: '900', ringStroke: 14, ringStrokeFull: 16 },
+  minimal: { cardRadius: 8,  buttonRadius: 6,  chipRadius: 4,  characterScale: 1.0,  timerFontWeight: '300', ringStroke: 2,  ringStrokeFull: 2  },
 };
 
 export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium', stylePreset = 'cute') => {
@@ -68,7 +73,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
       purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#636E72', fontScale: fs,
       cardRadius: sp.cardRadius, buttonRadius: sp.buttonRadius,
       chipRadius: sp.chipRadius, characterScale: sp.characterScale,
-      stylePreset,
+      timerFontWeight: sp.timerFontWeight, ringStroke: sp.ringStroke, ringStrokeFull: sp.ringStrokeFull, stylePreset,
     };
   }
   return {
@@ -79,7 +84,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
     purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#B2BEC3', fontScale: fs,
     cardRadius: sp.cardRadius, buttonRadius: sp.buttonRadius,
     chipRadius: sp.chipRadius, characterScale: sp.characterScale,
-    stylePreset,
+    timerFontWeight: sp.timerFontWeight, ringStroke: sp.ringStroke, ringStrokeFull: sp.ringStrokeFull, stylePreset,
   };
 };
 

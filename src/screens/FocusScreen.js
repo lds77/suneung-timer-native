@@ -57,7 +57,7 @@ export default function FocusScreen() {
   const navigation = useNavigation();
   // 🔥모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
   const [screenLocked, setScreenLocked] = useState(false);
-  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const school = app.settings.schoolLevel || 'high';
   const subjectDefMin = school === 'elementary_lower' ? 15 : school === 'elementary_upper' ? 20 : school === 'middle' ? 30 : 45;
   const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
@@ -493,7 +493,7 @@ export default function FocusScreen() {
     const progress = isD ? 100 : getProgress(t);
     return (
       <TouchableOpacity key={t.id} activeOpacity={0.8} onLongPress={() => handleTimerLongPress(t)}
-        style={[S.tc, { backgroundColor: isD ? (t.result?.tier?.color || T.accent) + '10' : T.card, borderColor: isD ? (t.result?.tier?.color || T.accent) + '60' : isA ? t.color : T.border, borderWidth: isA ? 1.5 : 1, width: single ? '100%' : CARD_W }]}>
+        style={[S.tc, { borderRadius: T.cardRadius, backgroundColor: isD ? (t.result?.tier?.color || T.accent) + '10' : T.card, borderColor: isD ? (t.result?.tier?.color || T.accent) + '60' : isA ? t.color : T.border, borderWidth: isA ? 1.5 : 1, width: single ? '100%' : CARD_W }]}>
         <View style={S.tcTop}><Text style={S.tcIcon}>{icon}</Text>
           {(() => {
             const isFav = t.type === 'sequence'
@@ -579,13 +579,13 @@ export default function FocusScreen() {
             )}
           </View>
         ) : (<>
-          <Text style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26 }]}>{formatTime(display)}</Text>
-          {t.type === 'countdown' && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(t.elapsedSec)}</Text>}
+          <Text testID="timer-text" style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26, fontWeight: T.timerFontWeight }]}>{formatTime(display)}</Text>
+          {(t.type === 'countdown' || t.type === 'free') && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(t.elapsedSec)}</Text>}
           <View style={[S.tcTrack, { backgroundColor: T.surface2 }]}><View style={[S.tcFill, { width: `${Math.min(100,progress)}%`, backgroundColor: isP ? T.sub : t.color }]} /></View>
         </>)}
         <View style={S.tcCtrls}>
           {isA && (<><TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.resetTimer(t.id)}><Text style={[S.tcBtnT, { color: T.text }]}>↺</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: '#E8404720', flex: 2 }]} onPress={() => app.pauseTimer(t.id)}><Text style={[S.tcBtnT, { color: '#E84047' }]}>⏸</Text></TouchableOpacity>
+            <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', flex: 2 }]} onPress={() => app.pauseTimer(t.id)}><Text style={[S.tcBtnT, { color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }]}>⏸</Text></TouchableOpacity>
             <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(t.id)}><Text style={[S.tcBtnT, { color: T.sub }]}>■</Text></TouchableOpacity></>)}
           {isP && (<><TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.resetTimer(t.id)}><Text style={[S.tcBtnT, { color: T.text }]}>↺</Text></TouchableOpacity>
             <TouchableOpacity style={[S.tcBtn, { backgroundColor: t.color, flex: 2 }]} onPress={() => app.resumeTimer(t.id)}><Text style={S.tcBtnT}>▶</Text></TouchableOpacity>
@@ -614,7 +614,7 @@ export default function FocusScreen() {
       : favs.some(f => f.label === t.label && f.type === t.type);
     return (
       <TouchableOpacity key={t.id} activeOpacity={0.95} onLongPress={() => handleTimerLongPress(t)}
-        style={{ backgroundColor: T.card, borderWidth: 1.5, borderColor: isA ? ringColor : T.border, borderRadius: 20, margin: 10, marginBottom: 4, padding: 16, paddingBottom: 14 }}>
+        style={{ backgroundColor: T.card, borderWidth: 1.5, borderColor: isA ? ringColor : T.border, borderRadius: T.cardRadius, margin: 10, marginBottom: 4, padding: 16, paddingBottom: 14 }}>
 
         {/* 상단 행: 아이콘 + 라벨 + 미니모드 토글 + 즐겨찾기 + 닫기 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -674,11 +674,11 @@ export default function FocusScreen() {
             <Svg width={RING_SIZE} height={RING_SIZE} style={{ position: 'absolute' }}>
               {/* 트랙 (배경 링) */}
               <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
-                stroke={T.surface2} strokeWidth={RING_STROKE} fill="transparent" />
+                stroke={T.surface2} strokeWidth={T.ringStroke} fill="transparent" />
               {/* 진행 링 */}
               {pct > 0 && (
                 <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
-                  stroke={isP ? T.sub : ringColor} strokeWidth={RING_STROKE} fill="transparent"
+                  stroke={isP ? T.sub : ringColor} strokeWidth={T.ringStroke} fill="transparent"
                   strokeDasharray={RING_C} strokeDashoffset={dashOffset}
                   strokeLinecap="round"
                   transform={`rotate(-90, ${RING_SIZE / 2}, ${RING_SIZE / 2})`}
@@ -687,14 +687,14 @@ export default function FocusScreen() {
             </Svg>
             {/* 링 내부: 시간 + 서브 텍스트 */}
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: isTablet ? 64 : 50, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : 50, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
               {t.type === 'countdown' && (
                 <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
               )}
               {t.type === 'free' && t.elapsedSec > 0 && (
-                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>자유 공부</Text>
+                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
               )}
             </View>
           </View>
@@ -706,8 +706,8 @@ export default function FocusScreen() {
             <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
           {t.type === 'sequence' ? (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#E84047' }}>✕ 취소</Text>
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>✕ 취소</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.stopTimer(t.id)}>
@@ -715,8 +715,8 @@ export default function FocusScreen() {
             </TouchableOpacity>
           )}
           {isA ? (
-            <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#E84047' }}>⏸ 일시정지</Text>
+            <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>⏸ 일시정지</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: ringColor, alignItems: 'center' }} onPress={() => app.resumeTimer(t.id)}>
@@ -769,10 +769,10 @@ export default function FocusScreen() {
         <View style={{ width: RING_SIZE_FULL, height: RING_SIZE_FULL, alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
           <Svg width={RING_SIZE_FULL} height={RING_SIZE_FULL} style={{ position: 'absolute' }}>
             <Circle cx={RING_SIZE_FULL / 2} cy={RING_SIZE_FULL / 2} r={RING_R_FULL}
-              stroke={T.surface2} strokeWidth={RING_STROKE_FULL} fill="transparent" />
+              stroke={T.surface2} strokeWidth={T.ringStrokeFull} fill="transparent" />
             {pct > 0 && (
               <Circle cx={RING_SIZE_FULL / 2} cy={RING_SIZE_FULL / 2} r={RING_R_FULL}
-                stroke={isP ? T.sub : ringColor} strokeWidth={RING_STROKE_FULL} fill="transparent"
+                stroke={isP ? T.sub : ringColor} strokeWidth={T.ringStrokeFull} fill="transparent"
                 strokeDasharray={RING_C_FULL} strokeDashoffset={dashOffset}
                 strokeLinecap="round"
                 transform={`rotate(-90, ${RING_SIZE_FULL / 2}, ${RING_SIZE_FULL / 2})`}
@@ -780,7 +780,7 @@ export default function FocusScreen() {
             )}
           </Svg>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: isTablet ? 80 : 60, fontWeight: '900', color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : 60, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
             {t.type === 'countdown' && (
@@ -794,8 +794,8 @@ export default function FocusScreen() {
             <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
           {t.type === 'sequence' ? (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#E84047' }}>✕ 취소</Text>
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>✕ 취소</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.stopTimer(t.id)}>
@@ -803,8 +803,8 @@ export default function FocusScreen() {
             </TouchableOpacity>
           )}
           {isA ? (
-            <TouchableOpacity style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#E84047' }}>⏸ 일시정지</Text>
+            <TouchableOpacity style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>⏸ 일시정지</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: ringColor, alignItems: 'center' }} onPress={() => app.resumeTimer(t.id)}>
@@ -834,8 +834,8 @@ export default function FocusScreen() {
         </Text>
         <TouchableOpacity
           onPress={() => isA ? app.pauseTimer(t.id) : app.resumeTimer(t.id)}
-          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: isA ? '#E8404720' : ringColor + '30' }}>
-          <Text style={{ fontSize: 15, color: isA ? '#E84047' : ringColor }}>{isA ? '⏸' : '▶'}</Text>
+          style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: isA ? (T.stylePreset === 'minimal' ? T.surface2 : '#E8404720') : ringColor + '30' }}>
+          <Text style={{ fontSize: 15, color: isA ? (T.stylePreset === 'minimal' ? T.sub : '#E84047') : ringColor }}>{isA ? '⏸' : '▶'}</Text>
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', backgroundColor: T.surface2, borderRadius: 8, padding: 2, gap: 1 }}>
           {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
@@ -1555,8 +1555,8 @@ export default function FocusScreen() {
             </View>
             <View style={S.lapMiniCtrls}>
               {lapTimer.status === 'running' ? (
-                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#E8404720' }]} onPress={() => app.pauseTimer(lapTimer.id)}>
-                  <Text style={[S.lapMiniBtnT, { color: '#E84047' }]}>⏸</Text></TouchableOpacity>
+                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720' }]} onPress={() => app.pauseTimer(lapTimer.id)}>
+                  <Text style={[S.lapMiniBtnT, { color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }]}>⏸</Text></TouchableOpacity>
               ) : (
                 <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => { app.resumeTimer(lapTimer.id); }}>
                   <Text style={S.lapMiniBtnT}>▶</Text></TouchableOpacity>

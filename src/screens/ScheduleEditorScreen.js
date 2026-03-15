@@ -131,7 +131,7 @@ function TimeDropdownPicker({ label, value, onChange, open, onToggle, T }) {
 
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const app = useApp();
-  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const todayKey = getTodayKey();
