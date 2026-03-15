@@ -584,7 +584,7 @@ export default function FocusScreen() {
           </View>
         ) : (<>
           <Text testID="timer-text" style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26, fontWeight: T.timerFontWeight }]}>{formatTime(display)}</Text>
-          {(t.type === 'countdown' || t.type === 'free') && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(t.elapsedSec)}</Text>}
+          {t.type !== 'lap' && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(t.elapsedSec)}</Text>}
           <View style={[S.tcTrack, { backgroundColor: T.surface2 }]}><View style={[S.tcFill, { width: `${Math.min(100,progress)}%`, backgroundColor: isP ? T.sub : t.color }]} /></View>
         </>)}
         <View style={S.tcCtrls}>
@@ -694,10 +694,7 @@ export default function FocusScreen() {
               <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : 50, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
-              {t.type === 'countdown' && (
-                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
-              )}
-              {t.type === 'free' && t.elapsedSec > 0 && (
+              {t.type !== 'lap' && t.elapsedSec > 0 && (
                 <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
               )}
             </View>
@@ -787,7 +784,7 @@ export default function FocusScreen() {
             <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : 60, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
-            {t.type === 'countdown' && (
+            {t.type !== 'lap' && t.elapsedSec > 0 && (
               <Text style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>경과 {formatTime(t.elapsedSec)}</Text>
             )}
           </View>
