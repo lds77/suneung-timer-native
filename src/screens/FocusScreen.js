@@ -1,5 +1,6 @@
 // src/screens/FocusScreen.js
 import React, { useState, useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform, Vibration, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,6 +56,7 @@ const DEFAULT_FAVS = getSchoolDefaultFavs('high');
 export default function FocusScreen() {
   const app = useApp();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   // 🔥모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
   const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
@@ -218,7 +220,9 @@ export default function FocusScreen() {
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderMove: (_, gs) => {
         const x = Math.max(0, Math.min(gs.dx, SLIDE_THRESHOLD));
         slideX.setValue(x);
@@ -2103,9 +2107,8 @@ export default function FocusScreen() {
       </Modal>
 
       {/* 🔒 잠금 오버레이 (🔥모드 전용) - 풀스크린 모달 */}
-      <Modal visible={screenLocked} transparent animationType="none">
-        <View style={S.lockOverlay} pointerEvents="box-none">
-          <View style={S.lockOverlayBg} pointerEvents="auto">
+      <Modal visible={screenLocked} transparent animationType="none" statusBarTranslucent>
+        <View style={[S.lockOverlayBg, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             {/* 첫 사용 한 줄 가이드 */}
             {!app.settings.guideLock && (
               <TouchableOpacity onPress={() => app.updateSettings({ guideLock: true })}
@@ -2155,7 +2158,7 @@ export default function FocusScreen() {
             )}
 
             {/* 슬라이드 해제 */}
-            <View style={S.lockSlideWrap}>
+            <View style={[S.lockSlideWrap, { bottom: Math.max(80, insets.bottom + 40) }]}>
               <Animated.Text style={[S.lockSlideHint, { opacity: slideOpacity }]}>🔓 옆으로 밀어서 잠금 해제</Animated.Text>
               <View style={[S.lockSlideTrack, { width: SLIDE_WIDTH }]}>
                 <Animated.View style={[S.lockSlideThumb, { transform: [{ translateX: slideX }] }]} {...panResponder.panHandlers}>
@@ -2163,7 +2166,6 @@ export default function FocusScreen() {
                 </Animated.View>
               </View>
             </View>
-          </View>
         </View>
       </Modal>
 
@@ -2396,14 +2398,13 @@ const S = StyleSheet.create({
   // 가이드 말풍선
   guideBubble: { borderRadius: 10, padding: 12, borderWidth: 1, marginTop: 10, width: '100%' },
   // 🔒 잠금 오버레이
-  lockOverlay: { flex: 1, zIndex: 999 },
   lockOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
   lockMsg: { fontSize: 16, fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' },
   lockTimer: { fontSize: 52, fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 },
   lockModeBadge: { fontSize: 14, fontWeight: '700', color: '#FF6B6B', marginBottom: 20 },
   lockPauseBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#FFB74D60', marginBottom: 20 },
   lockPauseBtnT: { fontSize: 14, fontWeight: '700', color: '#FFB74D' },
-  lockSlideWrap: { alignItems: 'center', position: 'absolute', bottom: 80, left: 0, right: 0 },
+  lockSlideWrap: { alignItems: 'center', position: 'absolute', left: 0, right: 0 },
   lockSlideHint: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginBottom: 14, letterSpacing: 1 },
   lockSlideTrack: { height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center' },
   lockSlideThumb: { width: 56, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
