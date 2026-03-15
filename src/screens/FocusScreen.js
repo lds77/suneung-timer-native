@@ -144,8 +144,10 @@ export default function FocusScreen() {
     if (!checkCanStart()) return;
     const realItems = seqItems.filter(it => it.label.trim());
     if (realItems.length < 2) { app.showToastCustom('2개 이상 추가하세요!', 'paengi'); return; }
-    app.startSequence({ items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown', isBreak: !!it.isBreak })), breakSec: 0, seqName: seqName.trim() || '연속모드' });
+    const seqOpts = { items: realItems.map(it => ({ label: it.isBreak ? '☕ 쉬는시간' : it.label, color: it.isBreak ? '#27AE60' : '#4A90D9', totalSec: it.min * 60, type: 'countdown', isBreak: !!it.isBreak })), breakSec: 0, seqName: seqName.trim() || '연속모드' };
+    // iOS: Modal 닫힘 애니메이션 완료 후 타이머 시작 (동시 Modal 전환 크래시 방지)
     setShowAdd(false);
+    setTimeout(() => app.startSequence(seqOpts), Platform.OS === 'ios' ? 350 : 0);
   };
   const handleSaveSeq = () => {
     if (seqItems.filter(it => it.label.trim()).length < 2 || !seqName.trim()) { app.showToastCustom('이름과 2개 이상 필요!', 'paengi'); return; }
@@ -269,8 +271,10 @@ export default function FocusScreen() {
     if (!checkCanStart()) return;
     const subj = addSubject ? app.subjects.find(s => s.id === addSubject) : null;
     const label = subj ? subj.name : (addType === 'countdown' ? `${addMin}분` : `뽀모 ${addPomoWork}+${addPomoBreak}`);
-    app.addTimer({ type: addType, label, subjectId: addSubject, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
+    const opts = { type: addType, label, subjectId: addSubject, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak };
+    // iOS: Modal 닫힘 애니메이션 완료 후 타이머 시작 (동시 Modal 전환 크래시 방지)
     setShowAdd(false);
+    setTimeout(() => app.addTimer(opts), Platform.OS === 'ios' ? 350 : 0);
   };
   const handleAddAndFav = () => {
     handleAddTimer();
@@ -372,6 +376,10 @@ export default function FocusScreen() {
     const repeatMap = { daily: [0,1,2,3,4,5,6], weekday: [1,2,3,4,5], weekend: [0,6], custom: editTodoCustomDays };
     const repeatDays = editTodoRepeatType !== 'none' ? (repeatMap[editTodoRepeatType] || null) : null;
     const todo = app.todos.find(t => t.id === editTodoId);
+    // 인스턴스 편집 시 부모 템플릿도 함께 제거 (새 템플릿 생성 또는 반복 해제 시 중복/유령 템플릿 방지)
+    if (todo?.templateId) {
+      app.removeTodo(todo.templateId);
+    }
     app.removeTodo(editTodoId);
     app.addTodo({
       text: editTodoText.trim(),
@@ -395,45 +403,54 @@ export default function FocusScreen() {
     app.showToastCustom('⏱ 하단 버튼으로 랩 기록!', 'taco');
   };
 
+  // 렌더 시점의 실제 페이즈 경과(초) — 상태 elapsedSec 대신 wall-clock 직접 계산
+  // 500ms 인터벌 + Math.floor 상태 업데이트 방식에서는 연속 렌더 간격이 500ms로 줄어
+  // 1초가 0.5초처럼 보이는 현상이 발생하므로, 렌더 시점에 항상 현재 시각 기준으로 계산
+  const getLivePhaseElapsed = (t) => {
+    if (t.status === 'running' && t.resumedAt) {
+      return (t.elapsedSecAtResume || 0) + Math.floor((Date.now() - t.resumedAt) / 1000);
+    }
+    return t.elapsedSec;
+  };
   const getDisplay = (t) => {
-    if (t.type === 'free' || t.type === 'lap') {
-      if (t.status === 'running' && t.resumedAt) {
-        return (t.elapsedSecAtResume || 0) + Math.round((Date.now() - t.resumedAt) / 1000);
-      }
-      return t.elapsedSec;
-    }
-    if (t.type === 'countdown') return Math.max(0, t.totalSec - t.elapsedSec);
+    const live = getLivePhaseElapsed(t);
+    if (t.type === 'free' || t.type === 'lap') return live;
+    if (t.type === 'countdown') return Math.max(0, t.totalSec - live);
     if (t.type === 'sequence') {
-      if (t.seqPhase === 'break') return Math.max(0, t.seqBreakSec - t.elapsedSec);
-      return Math.max(0, t.totalSec - t.elapsedSec);
+      if (t.seqPhase === 'break') return Math.max(0, t.seqBreakSec - live);
+      return Math.max(0, t.totalSec - live);
     }
-    return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec);
+    return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - live);
   };
   // 전체 누적 경과 (포모도로·연속모드용 — 완료된 페이즈 합산)
   // 순수 공부 시간만 누적 (쉬는 시간 제외)
   const getTotalElapsed = (t) => {
+    const live = getLivePhaseElapsed(t);
     if (t.type === 'pomodoro') {
       const completedWork = (t.pomoSet || 0) * (t.pomoWorkMin || 25) * 60;
-      const currentWork = t.pomoPhase === 'work' ? t.elapsedSec : 0;
+      const currentWork = t.pomoPhase === 'work' ? live : 0;
       return completedWork + currentWork;
     }
     if (t.type === 'sequence') {
-      const completedSec = (t.seqItems || []).slice(0, t.seqIndex || 0)
+      // break 중에는 seqIndex 항목까지 완료됨 (seqIndex는 break 후에야 증가)
+      const completedCount = t.seqPhase === 'break' ? (t.seqIndex || 0) + 1 : (t.seqIndex || 0);
+      const completedSec = (t.seqItems || []).slice(0, completedCount)
         .filter(item => !item.isBreak)
-        .reduce((sum, item) => sum + item.min * 60, 0);
-      const currentWork = t.seqPhase === 'break' ? 0 : t.elapsedSec;
+        .reduce((sum, item) => sum + (item.totalSec || (item.min || 0) * 60), 0);
+      const currentWork = t.seqPhase === 'break' ? 0 : live;
       return completedSec + currentWork;
     }
-    return t.elapsedSec;
+    return live;
   };
   const getProgress = (t) => {
-    if (t.type === 'free' || t.type === 'lap') return Math.min(100, (t.elapsedSec / 3600) * 100);
-    if (t.type === 'countdown') return (t.elapsedSec / Math.max(1, t.totalSec)) * 100;
+    const live = getLivePhaseElapsed(t);
+    if (t.type === 'free' || t.type === 'lap') return Math.min(100, (live / 3600) * 100);
+    if (t.type === 'countdown') return (live / Math.max(1, t.totalSec)) * 100;
     if (t.type === 'sequence') {
       const target = t.seqPhase === 'break' ? t.seqBreakSec : t.totalSec;
-      return (t.elapsedSec / Math.max(1, target)) * 100;
+      return (live / Math.max(1, target)) * 100;
     }
-    return (t.elapsedSec / Math.max(1, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60))) * 100;
+    return (live / Math.max(1, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60))) * 100;
   };
 
   // 타이머 카드 즐겨찾기 토글
@@ -887,7 +904,9 @@ export default function FocusScreen() {
         </View>
       )}
 
-      {timerViewMode !== 'full' && <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }, isTablet && { alignItems: 'center' }]}>
+      {timerViewMode !== 'full' && <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
+        {/* 태블릿: 콘텐츠 최대 폭 제한 wrapper (alignItems:'center' 대신 사용 — 자식 width 붕괴 방지) */}
+        <View style={isTablet ? { maxWidth: CONTENT_MAX_W, width: '100%', alignSelf: 'center' } : null}>
 
         {/* 🔥모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (
@@ -1560,6 +1579,7 @@ export default function FocusScreen() {
           </TouchableOpacity>
         </View>
         <View style={{ height: 30 }} />
+        </View>{/* 태블릿 wrapper 닫기 */}
       </ScrollView>}
 
       {/* ═══════════ 기록 스톱워치 하단 패널 ═══════════ */}
@@ -2282,7 +2302,7 @@ const S = StyleSheet.create({
   title: { fontSize: 15, fontWeight: '800' }, headerSub: { fontSize: 11, marginTop: 1 },
   darkBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   ddayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 6 },
-  ddayCell: { width: (SW - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
+  ddayCell: { width: (CONTENT_MAX_W - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
   ddayCellLabel: { fontSize: 11, fontWeight: '700' }, ddayCellVal: { fontSize: 11, fontWeight: '900', marginTop: 1 },
   planCard: { borderRadius: 14, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   planCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },

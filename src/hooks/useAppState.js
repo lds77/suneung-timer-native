@@ -92,7 +92,7 @@ export function AppProvider({ children }) {
   const [pendingModeAction, setPendingModeAction] = useState(null);
   const [showExactAlarmModal, setShowExactAlarmModal] = useState(false);
 
-  // 500ms 틱 (디스플레이 lag 최소화: 1000ms 대비 절반으로 줄임, elapsedSec 변화 없으면 렌더 스킵)
+  // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   useEffect(() => {
     const id = setInterval(() => {
       // 일반 타이머 틱
@@ -123,14 +123,15 @@ export function AppProvider({ children }) {
           }
           if (t.type === 'sequence') {
             const target = t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
-            if (next.elapsedSec >= target) return seqFlip(next);
+            // overshoot > 2초: bg 복귀 직후 stale 상태 (ticker 100ms 기준 정상은 ≤1초) → OS가 이미 알림 발송 → skipNotif
+            if (next.elapsedSec >= target) return seqFlip(next, next.elapsedSec - target > 2);
           }
           if (t.type === 'free') return next;
           return next;
         });
         return anyChanged ? mapped : prev;
       });
-    }, 500);
+    }, 100);
     return () => clearInterval(id);
   }, []);
 
@@ -351,6 +352,12 @@ export function AppProvider({ children }) {
           restoreBrightness();
         }
         // 📖모드는 아무것도 안 함
+
+        // 연속모드/뽀모도로: 백그라운드 진입 시 페이즈 알림 재예약
+        // break→work 전환 후 seqRescheduleQueue가 비어있는 경우 OS 알림이 누락될 수 있으므로 방어적으로 재예약
+        timersRef.current
+          .filter(t => t.status === 'running' && (t.type === 'sequence' || t.type === 'pomodoro'))
+          .forEach(t => scheduleAllPhaseNotifs(t));
       }
       else if (state === 'active') {
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
@@ -576,8 +583,21 @@ export function AppProvider({ children }) {
         setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
         return { ...t, elapsedSec: 0, status: 'completed', result, seqSessionIds: updatedSeqSessionIds };
       }
-      // 쉬는시간 전환 — 알림은 예약 알림이 처리
-      if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
+      // 쉬는시간 전환
+      if (!skipNotif && settingsRef.current.notifEnabled) {
+        Vibration.vibrate([0, 200, 100, 200]);
+        // 포그라운드: 기존 예약 phase 알림 취소 후 즉시 알림 발송 (예약 알림 취소 race condition 방지)
+        const oldPhaseIds = phaseNotifMap.current.get(t.id) || [];
+        phaseNotifMap.current.delete(t.id);
+        oldPhaseIds.forEach(pid => Notifications.cancelScheduledNotificationAsync(pid).catch(() => {}));
+        const nextItem = t.seqItems[t.seqIndex + 1];
+        if (nextItem) {
+          const nextLabel = nextItem.isBreak
+            ? `🥤 ${Math.round((nextItem.totalSec || 60) / 60)}분 휴식`
+            : nextItem.label;
+          fireNotif(`✅ ${t.label} 완료!`, `다음: ${nextLabel}`);
+        }
+      }
       // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
       const workPhaseEndAt = (t.resumedAt || Date.now()) + (t.totalSec - (t.elapsedSecAtResume || 0)) * 1000;
       const newBreakTimer = { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
@@ -594,8 +614,13 @@ export function AppProvider({ children }) {
       }
       // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
       const breakPhaseEndAt = (t.resumedAt || Date.now()) + (t.seqBreakSec - (t.elapsedSecAtResume || 0)) * 1000;
-      // 알림은 예약 알림이 처리 — fireNotif 제거(중복 방지)
-      if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
+      if (!skipNotif && settingsRef.current.notifEnabled) {
+        Vibration.vibrate([0, 200, 100, 200]);
+        // seqBreakSec > 0인 실제 쉬는시간 종료 시만 알림 (0이면 work→break에서 이미 발송)
+        if (t.seqBreakSec > 0 && nextItem) {
+          fireNotif(`▶ ${nextItem.label} 시작!`, '집중! 🔥');
+        }
+      }
       // break→work 전환 시에는 재예약 하지 않음
       // (break 시작 시점에 이미 재예약됐고, 재예약하면 break-end 알림이 취소될 수 있음)
       return {
@@ -674,7 +699,7 @@ export function AppProvider({ children }) {
     if (!settingsRef.current.notifEnabled) return;
     try {
       await Notifications.scheduleNotificationAsync({
-        content: { title, body, sound: true, vibrate: [0, 300, 100, 300],
+        content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300],
           ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
         },
         trigger: null,
@@ -715,7 +740,7 @@ export function AppProvider({ children }) {
         content: {
           title: customTitle || `⏰ ${label} 완료!`,
           body: customBody || '🎉 타이머가 끝났어요!',
-          sound: true, vibrate: [0, 500, 200, 500, 200, 500],
+          sound: 'default', vibrate: [0, 500, 200, 500, 200, 500],
           ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
         },
         trigger,
@@ -763,7 +788,7 @@ export function AppProvider({ children }) {
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt };
       try {
         const id = await Notifications.scheduleNotificationAsync({
-          content: { title, body, sound: true, vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
+          content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
           trigger,
         });
         ids.push(id);
@@ -868,7 +893,7 @@ export function AppProvider({ children }) {
           content: {
             title: '📅 공부 계획 알림',
             body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
-            sound: true,
+            sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
           },
           trigger,
@@ -1106,7 +1131,9 @@ export function AppProvider({ children }) {
   // 초기 로드
   useEffect(() => {
     (async () => {
-      await Notifications.requestPermissionsAsync();
+      await Notifications.requestPermissionsAsync({
+        ios: { allowAlert: true, allowBadge: false, allowSound: true },
+      });
       const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
       if (s) {
         // 마이그레이션

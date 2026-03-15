@@ -18,7 +18,7 @@ import { calcAverageDensity, getDensityBreakdown } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
 
-const { width: SW } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
 const CONTENT_W = isTablet ? Math.min(SW, TABLET_MAX_W) - 32 : SW - 32;
@@ -242,6 +242,9 @@ export default function StatsScreen() {
   // 날짜 클릭 상세 모달
   const [dayDetailDate, setDayDetailDate] = useState(null);
 
+  // 시간대 상세 모달
+  const [tzDetail, setTzDetail] = useState(null); // { zone, periodLabel }
+
   // 타임라인 시간대 상세 모달
   const [showTimelineModal, setShowTimelineModal] = useState(false);
 
@@ -390,20 +393,21 @@ export default function StatsScreen() {
       const totalSec = zoneSess.reduce((s, x) => s + (x.durationSec || 0), 0);
       const avgDensity = calcAverageDensity(zoneSess);
       const tier = zoneSess.length > 0 ? getTier(avgDensity) : null;
-      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length };
+      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length, sessions: zoneSess };
     });
   }, [weekData, app.sessions]);
   const bestZone = [...timeZoneAnalysis].filter(z => z.count > 0).sort((a, b) => b.avgDensity - a.avgDensity)[0];
 
   // ─── 시간대별 집중력 분석 (월간 탭 — 선택된 월) ─────────────────
   const monthTimeZoneAnalysis = useMemo(() => {
-    const recent = app.sessions.filter(s => s.date?.startsWith(viewMonthStr) && s.startedAt);
+    const monthPrefix = viewMonthStr.replace('.', '-');
+    const recent = app.sessions.filter(s => s.date?.startsWith(monthPrefix) && s.startedAt);
     return TIME_ZONES.map(zone => {
       const zoneSess = recent.filter(s => zone.hours.includes(new Date(s.startedAt).getHours()));
       const totalSec = zoneSess.reduce((s, x) => s + (x.durationSec || 0), 0);
       const avgDensity = calcAverageDensity(zoneSess);
       const tier = zoneSess.length > 0 ? getTier(avgDensity) : null;
-      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length };
+      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length, sessions: zoneSess };
     });
   }, [app.sessions, viewMonthStr]);
   const monthBestZone = [...monthTimeZoneAnalysis].filter(z => z.count > 0).sort((a, b) => b.avgDensity - a.avgDensity)[0];
@@ -1146,8 +1150,9 @@ export default function StatsScreen() {
                 {timeZoneAnalysis.map((zone, i) => {
                   const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
                   const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
+                  const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
                   return (
-                    <View key={i} style={S.tzRow}>
+                    <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
                       <Text style={[S.tzIcon]}>{zone.icon}</Text>
                       <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
                       <View style={S.tzBarWrap}>
@@ -1166,7 +1171,7 @@ export default function StatsScreen() {
                       {zone.count === 0 && (
                         <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
                 {bestZone && (
@@ -1188,11 +1193,11 @@ export default function StatsScreen() {
                 const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
                 const tier = d.density > 0 ? getTier(d.density) : null;
                 return (
-                  <View key={i} style={S.densityCol}>
+                  <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
                     <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
                     <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
                     {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -1267,7 +1272,7 @@ export default function StatsScreen() {
                   const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
                   const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
                   return (
-                    <View key={i} style={S.tzRow}>
+                    <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
                       <Text style={S.tzIcon}>{zone.icon}</Text>
                       <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
                       <View style={S.tzBarWrap}>
@@ -1281,7 +1286,7 @@ export default function StatsScreen() {
                           <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
                         </View>
                       ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
                 {monthBestZone && (
@@ -2110,8 +2115,9 @@ export default function StatsScreen() {
 
       {/* ── 타임라인 시간대 상세 모달 ── */}
       <Modal visible={showTimelineModal} transparent animationType="slide" onRequestClose={() => setShowTimelineModal(false)}>
-        <TouchableOpacity style={S.mo} activeOpacity={1} onPress={() => setShowTimelineModal(false)}>
-          <TouchableOpacity style={[S.dayDetailSheet, { backgroundColor: T.bg }]} activeOpacity={1}>
+        <View style={S.moBottom}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowTimelineModal(false)} />
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={[S.modalTitle, { color: T.text, fontSize: 16, textAlign: 'left', marginBottom: 0 }]}>⏰ 시간대별 공부 현황</Text>
@@ -2138,7 +2144,7 @@ export default function StatsScreen() {
               ))}
             </View>
             {/* 시간대별 리스트 */}
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
               {hourlyDetail.filter(h => h.sec > 0).length === 0 ? (
                 <Text style={[S.emptyText, { color: T.sub }]}>오늘 공부 기록이 없어요</Text>
               ) : (
@@ -2173,15 +2179,16 @@ export default function StatsScreen() {
               )}
               <View style={{ height: 20 }} />
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* ── 날짜 상세 모달 ── */}
       <Modal visible={!!dayDetailDate && !editMemo} transparent animationType="slide" onRequestClose={() => setDayDetailDate(null)}>
-        <TouchableOpacity style={S.mo} activeOpacity={1} onPress={() => setDayDetailDate(null)}>
-          <TouchableOpacity style={[S.dayDetailSheet, { backgroundColor: T.bg }]} activeOpacity={1}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={S.moBottom}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setDayDetailDate(null)} />
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {dayDetail && (<>
                 {/* 헤더 */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -2245,15 +2252,123 @@ export default function StatsScreen() {
                 )}
               </>)}
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 시간대 상세 모달 ── */}
+      <Modal visible={!!tzDetail} transparent animationType="slide" onRequestClose={() => setTzDetail(null)}>
+        <View style={S.moBottom}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setTzDetail(null)} />
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {tzDetail && (() => {
+                const { zone, periodLabel } = tzDetail;
+                const firstH = zone.hours[0];
+                const lastH = zone.hours[zone.hours.length - 1] + 1;
+                const hoursLabel = `${firstH}~${lastH}시`;
+                const sortedSess = [...zone.sessions].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+                const subjMap = {};
+                sortedSess.forEach(s => {
+                  const { id, name, color } = getSessionSubject(s, app.subjects);
+                  if (!subjMap[id]) subjMap[id] = { name, color, sec: 0 };
+                  subjMap[id].sec += (s.durationSec || 0);
+                });
+                const subjList = Object.values(subjMap).sort((a, b) => b.sec - a.sec);
+                const subjTotal = subjList.reduce((s, x) => s + x.sec, 0);
+                return (
+                  <>
+                    {/* 헤더 */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 22 }}>{zone.icon}</Text>
+                        <View>
+                          <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{zone.label} <Text style={{ fontSize: 13, fontWeight: '400', color: T.sub }}>{hoursLabel}</Text></Text>
+                          <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{periodLabel}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity onPress={() => setTzDetail(null)} style={{ padding: 4 }}>
+                        <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {/* 요약 3개 카드 */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                        <Text style={[S.sLabel, { color: T.sub }]}>총 시간</Text>
+                        <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(zone.totalSec)}</Text>
+                      </View>
+                      <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                        <Text style={[S.sLabel, { color: T.sub }]}>세션 수</Text>
+                        <Text style={[S.sVal, { color: T.text }]}>{zone.count}회</Text>
+                      </View>
+                      <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+                        <Text style={[S.sLabel, { color: T.sub }]}>평균 밀도</Text>
+                        <Text style={[S.sVal, { color: zone.tier ? zone.tier.color : T.sub }]}>{zone.tier ? zone.tier.label : '-'}</Text>
+                        {zone.tier && <Text style={{ fontSize: 11, color: zone.tier.color, fontWeight: '700' }}>{zone.avgDensity}점</Text>}
+                      </View>
+                    </View>
+                    {/* 과목 비율 */}
+                    {subjList.length > 0 && (
+                      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                        <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
+                        <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 10 }]}>
+                          {subjList.map((s, i) => (
+                            <View key={i} style={[S.stackSeg, { width: `${Math.max(2, Math.round((s.sec / subjTotal) * 100))}%`, backgroundColor: s.color }]} />
+                          ))}
+                        </View>
+                        {subjList.map((s, i) => (
+                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+                            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color }} />
+                            <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
+                            <Text style={{ fontSize: 12, color: T.sub }}>{Math.round((s.sec / subjTotal) * 100)}%</Text>
+                            <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    {/* 세션 리스트 */}
+                    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                      <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
+                      {sortedSess.map(sess => {
+                        const subj = app.subjects.find(s => s.id === sess.subjectId);
+                        const tier = getTier(sess.focusDensity || 0);
+                        const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
+                        const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+                        return (
+                          <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                              </View>
+                              <Text style={{ fontSize: 12, color: T.sub }}>{sess.date}  {startH}{endH ? ` ~ ${endH}` : ''}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
+                              <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
+                                <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
+                              </View>
+                              {sess.verified && <Text style={{ fontSize: 13 }}>🏆</Text>}
+                            </View>
+                            {sess.memo && <Text style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>💬 {sess.memo}</Text>}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                );
+              })()}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* ── 과목 상세 모달 ── */}
       <Modal visible={!!subjDetail && !editMemo && !sessionDetail} transparent animationType="slide" onRequestClose={() => setSubjDetail(null)}>
-        <TouchableOpacity style={S.mo} activeOpacity={1} onPress={() => setSubjDetail(null)}>
-          <TouchableOpacity style={[S.dayDetailSheet, { backgroundColor: T.bg }]} activeOpacity={1}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={S.moBottom}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSubjDetail(null)} />
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {subjDetailData && (<>
                 {/* 헤더 */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -2321,16 +2436,16 @@ export default function StatsScreen() {
                 )}
               </>)}
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* ── 목표 달성률 상세 팝업 ── */}
       <Modal visible={showGoalDetail} transparent animationType="slide" onRequestClose={() => setShowGoalDetail(false)}>
-        <View style={{ flex: 1 }}>
-          <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowGoalDetail(false)} />
+        <View style={S.moBottom}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoalDetail(false)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 헤더 */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🎯 오늘 목표 달성률</Text>
@@ -2417,8 +2532,8 @@ export default function StatsScreen() {
 
       {/* ── 세션 상세 모달 ── */}
       <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => setSessionDetail(null)}>
-        <View style={{ flex: 1 }}>
-          <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setSessionDetail(null)} />
+        <View style={S.moBottom}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSessionDetail(null)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
             {sessionDetail && (() => {
               const sess = sessionDetail;
@@ -2557,10 +2672,10 @@ export default function StatsScreen() {
 
       {/* ── 집중밀도 상세 팝업 ── */}
       <Modal visible={showDensityDetail} transparent animationType="slide" onRequestClose={() => setShowDensityDetail(false)}>
-        <View style={{ flex: 1 }}>
-          <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setShowDensityDetail(false)} />
+        <View style={S.moBottom}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDensityDetail(false)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 헤더 */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🧠 집중밀도 상세</Text>
@@ -2841,7 +2956,8 @@ const S = StyleSheet.create({
   hmStatDivider: { width: 1, height: 32, opacity: 0.3 },
 
   // 날짜 상세 모달 시트 (바텀 시트 스타일)
-  dayDetailSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '88%', padding: 20, paddingBottom: 36 },
+  dayDetailSheet: { width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '88%', padding: 20, paddingBottom: 36 },
+  moBottom: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
 
   // 과목 탭
   subjPeriodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },

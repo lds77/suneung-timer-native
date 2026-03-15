@@ -528,9 +528,9 @@ function MainApp() {
         </View>
       </Modal>
 
-      {/* 전역 집중모드 선택 모달 */}
-      <Modal visible={!!app.pendingModeAction} transparent animationType="fade" onRequestClose={app.cancelModeSelect}>
-        <View style={{ flex: 1, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지) */}
+      {!!app.pendingModeAction && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999 }}>
           <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' }}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood="happy" />
             <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 12, marginBottom: 4 }}>어떤 공부할래?</Text>
@@ -559,7 +559,7 @@ function MainApp() {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
