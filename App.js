@@ -604,10 +604,11 @@ function Root() {
           // style 유무와 관계없이 모든 Text에 폰트 적용
           const flat = StyleSheet.flatten(props.style) || {};
           const w = flat.fontWeight;
-          const family = (w && (w === 'bold' || parseInt(w, 10) >= 700))
-            ? baseFamily + '-Bold'
-            : baseFamily;
-          return React.cloneElement(origin, { style: { ...flat, fontFamily: family } });
+          const isBold = w && (w === 'bold' || parseInt(w, 10) >= 700);
+          const family = isBold ? baseFamily + '-Bold' : baseFamily;
+          // Android: fontFamily(Bold 변형) + fontWeight(700) 동시 적용 시 텍스트 사라짐
+          // Bold 폰트 파일이 weight를 이미 내포하므로 fontWeight는 normal로 정규화
+          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal' } });
         };
         setLoadedFont(fontId);
       } catch (e) {
