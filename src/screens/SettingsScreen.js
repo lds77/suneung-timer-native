@@ -392,9 +392,10 @@ const [ddLabel, setDdLabel] = useState('');
           {(() => {
             const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'focus')) || FOCUS_LEVELS[1];
             return (
-              <Row T={T} label="잠금 강도"
+              <Row key={lv.id} T={T} label="잠금 강도"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label}</Text>
+                  <Text style={{ fontSize: 13 }}>{lv.label.split(' ')[0]}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label.split(' ').slice(1).join(' ')}</Text>
                   <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowFocusPicker(true)}
