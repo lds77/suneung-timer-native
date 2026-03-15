@@ -409,6 +409,17 @@ export default function FocusScreen() {
     }
     return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec);
   };
+  // 전체 누적 경과 (포모도로·연속모드용 — 완료된 페이즈 합산)
+  const getTotalElapsed = (t) => {
+    if (t.type === 'pomodoro') {
+      return (t.pomoSet || 0) * ((t.pomoWorkMin || 25) + (t.pomoBreakMin || 5)) * 60 + t.elapsedSec;
+    }
+    if (t.type === 'sequence') {
+      const completedSec = (t.seqItems || []).slice(0, t.seqIndex || 0).reduce((sum, item) => sum + item.min * 60, 0);
+      return completedSec + t.elapsedSec;
+    }
+    return t.elapsedSec;
+  };
   const getProgress = (t) => {
     if (t.type === 'free' || t.type === 'lap') return Math.min(100, (t.elapsedSec / 3600) * 100);
     if (t.type === 'countdown') return (t.elapsedSec / Math.max(1, t.totalSec)) * 100;
@@ -584,7 +595,7 @@ export default function FocusScreen() {
           </View>
         ) : (<>
           <Text testID="timer-text" style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26, fontWeight: T.timerFontWeight }]}>{formatTime(display)}</Text>
-          {t.type !== 'lap' && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(t.elapsedSec)}</Text>}
+          {t.type !== 'lap' && t.elapsedSec > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(getTotalElapsed(t))}</Text>}
           <View style={[S.tcTrack, { backgroundColor: T.surface2 }]}><View style={[S.tcFill, { width: `${Math.min(100,progress)}%`, backgroundColor: isP ? T.sub : t.color }]} /></View>
         </>)}
         <View style={S.tcCtrls}>
@@ -695,7 +706,7 @@ export default function FocusScreen() {
                 {formatTime(display)}
               </Text>
               {t.type !== 'lap' && t.elapsedSec > 0 && (
-                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(t.elapsedSec)}</Text>
+                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(getTotalElapsed(t))}</Text>
               )}
             </View>
           </View>
@@ -784,8 +795,8 @@ export default function FocusScreen() {
             <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : 60, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
-            {t.type !== 'lap' && t.elapsedSec > 0 && (
-              <Text style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>경과 {formatTime(t.elapsedSec)}</Text>
+            {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
+              <Text style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>경과 {formatTime(getTotalElapsed(t))}</Text>
             )}
           </View>
         </View>
