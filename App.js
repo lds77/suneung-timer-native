@@ -508,19 +508,14 @@ function MainApp() {
             <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
               {'타이머가 정확한 시간에 알림을 보내려면\n정확한 알람 권한이 필요해요.\n\n허용하지 않으면 알림이 늦게 오거나\n오지 않을 수 있어요.'}
             </Text>
-
             <TouchableOpacity
               onPress={() => {
                 app.dismissExactAlarmModal();
-                IntentLauncher.startActivityAsync(
-                  'android.settings.REQUEST_SCHEDULE_EXACT_ALARM',
-                  { data: 'package:com.yeolgong.timer' }
-                ).catch(() => {});
+                IntentLauncher.startActivityAsync('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', { data: 'package:com.yeolgong.timer' }).catch(() => {});
               }}
               style={{ backgroundColor: T.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 10 }}>
               <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>설정하기 →</Text>
             </TouchableOpacity>
-
             <TouchableOpacity onPress={app.dismissExactAlarmModal} style={{ paddingVertical: 10, alignItems: 'center' }}>
               <Text style={{ fontSize: 14, color: T.sub }}>나중에 하기</Text>
             </TouchableOpacity>
@@ -566,7 +561,6 @@ function MainApp() {
 
 function Root() {
   const app = useApp();
-
   // 폰트 로딩
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [loadedFont, setLoadedFont] = useState('default');
