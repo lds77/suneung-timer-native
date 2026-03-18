@@ -2355,7 +2355,10 @@ export default function FocusScreen() {
         </ScrollView>
       ))}
       {lapTimer && (
-        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: '#6C5CE7' }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
+        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: '#6C5CE7' },
+          isLandscape ? { left: Math.ceil(winW / 2) + 1, right: 0 } :
+          isTablet ? { left: Math.max(0, (winW - contentMaxW) / 2), right: Math.max(0, (winW - contentMaxW) / 2) } : null
+        ]}>
           {/* 시간 + 컨트롤 */}
           <View style={S.lapHeader}>
             <View style={{ flex: 1 }}>
