@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Modal,
-  TextInput, ScrollView, Platform,
+  TextInput, ScrollView, Platform, Dimensions,
 } from 'react-native';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +31,9 @@ const Tab = createBottomTabNavigator();
 
 // 기본 글꼴로 복원할 때 사용하기 위해 원본 Text.render를 저장
 const _originalTextRender = Text.render;
+// 태블릿(iPad) 전용 텍스트 스케일 — 폰 대비 15% 크게
+const _isTablet = Dimensions.get('window').width >= 600;
+const _TABLET_FONT_SCALE = 1.15;
 
 
 // ── 온보딩 (6단계) ──
@@ -569,8 +572,20 @@ function Root() {
     const loadFont = async () => {
       const fontId = app.settings.fontFamily || 'default';
       if (fontId === 'default' || !FONT_MAP[fontId]) {
-        // 시스템 폰트 — 커스텀 render 패치 원상복구
-        Text.render = _originalTextRender;
+        // 시스템 폰트 — 태블릿이면 fontSize만 스케일, 아니면 원상복구
+        if (_isTablet) {
+          Text.render = function (...args) {
+            const origin = _originalTextRender.call(this, ...args);
+            const props = origin.props;
+            if (props.testID === 'timer-text') return origin;
+            if (props.testID === 'chevron') return origin;
+            const flat = StyleSheet.flatten(props.style) || {};
+            if (flat.fontFamily || !flat.fontSize) return origin;
+            return React.cloneElement(origin, { style: { ...flat, fontSize: Math.round(flat.fontSize * _TABLET_FONT_SCALE) } });
+          };
+        } else {
+          Text.render = _originalTextRender;
+        }
         Text.defaultProps = Text.defaultProps || {};
         Text.defaultProps.style = undefined;
         TextInput.defaultProps = TextInput.defaultProps || {};
@@ -595,6 +610,8 @@ function Root() {
           const props = origin.props;
           // testID="timer-text" 인 텍스트는 전역 폰트 적용 건너뜀 (타이머 숫자)
           if (props.testID === 'timer-text') return origin;
+          // testID="chevron" 인 텍스트는 전역 폰트 적용 건너뜀 (화살표 기호 — 일부 폰트에 글리프 없음)
+          if (props.testID === 'chevron') return origin;
           // style 유무와 관계없이 모든 Text에 폰트 적용
           const flat = StyleSheet.flatten(props.style) || {};
           const w = flat.fontWeight;
@@ -602,7 +619,8 @@ function Root() {
           const family = isBold ? baseFamily + '-Bold' : baseFamily;
           // Android: fontFamily(Bold 변형) + fontWeight(700) 동시 적용 시 텍스트 사라짐
           // Bold 폰트 파일이 weight를 이미 내포하므로 fontWeight는 normal로 정규화
-          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal' } });
+          const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : flat.fontSize;
+          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }) } });
         };
         setLoadedFont(fontId);
       } catch (e) {

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView,
+  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView, useWindowDimensions,
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -22,7 +22,6 @@ import ScheduleEditorScreen from './ScheduleEditorScreen';
 
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
-const TABLET_MAX_W = 680;
 
 const FOCUS_LEVELS = [
   { id: 'normal', label: '🟢 일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
@@ -153,6 +152,8 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onF
 );
 
 export default function SettingsScreen() {
+  const { width: winW } = useWindowDimensions();
+  const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const scrollRef = useRef(null);
@@ -267,7 +268,7 @@ const [ddLabel, setDdLabel] = useState('');
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: T.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <RunningTimersBar />
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}
         keyboardShouldPersistTaps="always" keyboardDismissMode="none"
         onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}>
@@ -307,7 +308,7 @@ const [ddLabel, setDdLabel] = useState('');
           <Row T={T} label="일일 목표 시간"
             right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{app.settings.dailyGoalMin / 60}시간</Text>
-              <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+              <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
             </View>}
             onPress={() => setShowGoalPicker(true)}
           />
@@ -316,7 +317,7 @@ const [ddLabel, setDdLabel] = useState('');
               <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>
                 {SCHOOL_LEVELS.find(s => s.id === (app.settings.schoolLevel || 'high'))?.label ?? '고등학생'}
               </Text>
-              <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+              <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
             </View>}
             onPress={() => setShowSchoolPicker(true)}
           />
@@ -354,7 +355,7 @@ const [ddLabel, setDdLabel] = useState('');
                 요일별 공부 계획을 미리 짜두면{'\n'}매일 자동으로 불러와서 바로 시작할 수 있어요!
               </Text>
             </View>
-            <Text style={{ fontSize: 22, color: T.accent, fontWeight: '700' }}>›</Text>
+            <Text testID="chevron" style={{ fontSize: 22, color: T.accent, fontWeight: '700' }}>›</Text>
           </View>
         </TouchableOpacity>
 
@@ -396,7 +397,7 @@ const [ddLabel, setDdLabel] = useState('');
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 13 }}>{lv.label.split(' ')[0]}</Text>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label.split(' ').slice(1).join(' ')}</Text>
-                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                  <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowFocusPicker(true)}
               />
@@ -465,7 +466,7 @@ const [ddLabel, setDdLabel] = useState('');
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: tc.color }} />
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{tc.label}</Text>
-                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                  <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowColorPicker(true)}
               />
@@ -477,8 +478,8 @@ const [ddLabel, setDdLabel] = useState('');
             return (
               <Row T={T} label="타이머 스타일"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{spLabel}</Text>
-                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent, lineHeight: 20 }}>{spLabel}</Text>
+                  <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowStylePicker(true)}
               />
@@ -497,7 +498,7 @@ const [ddLabel, setDdLabel] = useState('');
               <Row T={T} label="글꼴"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent, fontFamily: fam }}>{curFont.label}</Text>
-                  <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+                  <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowFontPicker(true)}
               />
@@ -508,7 +509,7 @@ const [ddLabel, setDdLabel] = useState('');
 {/* 사용 가이드 */}
         <Section T={T} title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>
-            <Row T={T} label="📖 사용 가이드" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="📖 사용 가이드" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
 
@@ -516,10 +517,10 @@ const [ddLabel, setDdLabel] = useState('');
         <Section T={T} title="정보">
           <Row T={T} label="버전" right={<Text style={[styles.rowValue, { color: T.sub }]}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>} />
           <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/privacy-policy.html')}>
-            <Row T={T} label="개인정보 처리방침" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="개인정보 처리방침" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL('mailto:dongsikl51@gmail.com?subject=열공메이트 피드백')}>
-            <Row T={T} label="피드백 보내기" right={<Text style={{ color: T.sub }}>→</Text>} />
+            <Row T={T} label="피드백 보내기" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
 
@@ -529,7 +530,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* D-Day 추가/수정 모달 (캘린더 피커) */}
       <Modal visible={showDDayModal} transparent animationType="fade">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={styles.modalOverlay}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
             <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? '📅 D-Day 수정' : '📅 D-Day 추가'}</Text>
             {/* 프리셋 */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
@@ -595,7 +596,7 @@ const [ddLabel, setDdLabel] = useState('');
       <Modal visible={showGuide} transparent animationType="fade">
         <View style={{ flex: 1 }}>
           <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
-          <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+          <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
             <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
             <ScrollView ref={guideScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -676,7 +677,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 잠금 강도 피커 */}
       <Modal visible={showFocusPicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFocusPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -701,7 +702,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 테마 컬러 피커 */}
       <Modal visible={showColorPicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowColorPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>테마 컬러</Text>
             <TouchableOpacity onPress={() => setShowColorPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -711,7 +712,7 @@ const [ddLabel, setDdLabel] = useState('');
               const sel = (app.settings.accentColor || 'pink') === tc.id;
               return (
                 <TouchableOpacity key={tc.id} onPress={() => { app.updateSettings({ accentColor: tc.id }); setShowColorPicker(false); }}
-                  style={{ width: (SW - (isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
+                  style={{ width: (winW - (isTablet ? (winW - tabletMaxW) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tc.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : tc.color + '60' }} />
                   <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{tc.label}</Text>
                 </TouchableOpacity>
@@ -724,7 +725,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 스타일 프리셋 피커 */}
       <Modal visible={showStylePicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowStylePicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>타이머 스타일</Text>
             <TouchableOpacity onPress={() => setShowStylePicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -753,7 +754,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 글꼴 피커 */}
       <Modal visible={showFontPicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFontPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>글꼴</Text>
             <TouchableOpacity onPress={() => setShowFontPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -788,7 +789,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 일일 목표 시간 피커 */}
       <Modal visible={showGoalPicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowGoalPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>일일 목표 시간</Text>
             <TouchableOpacity onPress={() => setShowGoalPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -809,7 +810,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* 학교급 피커 */}
       <Modal visible={showSchoolPicker} transparent animationType="slide">
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowSchoolPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, right: isTablet ? (SW - Math.min(SW, TABLET_MAX_W)) / 2 : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>학교급</Text>
             <TouchableOpacity onPress={() => setShowSchoolPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>

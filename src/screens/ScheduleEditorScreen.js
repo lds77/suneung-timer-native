@@ -442,7 +442,8 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: T.bg }}>
+      <View style={{ flex: 1, backgroundColor: isTablet ? 'rgba(0,0,0,0.5)' : T.bg }}>
+      <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: 680, width: '100%', alignSelf: 'center' }]}>
 
         {/* 헤더 */}
         <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg, paddingTop: insets.top + 12 }]}>
@@ -807,6 +808,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           </View>
         </Modal>
 
+      </View>
       </View>
     </Modal>
   );

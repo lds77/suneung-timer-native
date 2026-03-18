@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Pressable,
-  StyleSheet, Dimensions, Share, Animated, TextInput, Platform, KeyboardAvoidingView,
+  StyleSheet, Dimensions, Share, Animated, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -211,6 +211,8 @@ function GoalRing({ pct, size = 88, color, bgColor }) {
 
 // ═══════════════════════════════════════════════════════════════════
 export default function StatsScreen() {
+  const { width: winW } = useWindowDimensions();
+  const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const [tab, setTab] = useState('daily');
@@ -760,7 +762,7 @@ export default function StatsScreen() {
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
 
         {/* ── 헤더 ── */}
         <View style={S.header}>
@@ -1629,7 +1631,7 @@ export default function StatsScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={S.mo}>
           <View style={[S.moScroll]}>
-            <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }]}>
+            <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { width: 540, alignSelf: 'center', marginHorizontal: 0 }]}>
               <Text style={[S.modalTitle, { color: T.text }]}>📝 메모 수정</Text>
               <TextInput
                 value={editMemoText}
@@ -1673,9 +1675,9 @@ export default function StatsScreen() {
       {/* ── 주간 리포트 카드 모달 ── */}
       <Modal visible={showReport} transparent animationType="fade">
         <View style={S.mo}>
-          <ScrollView contentContainerStyle={S.moScroll}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
             <ViewShot ref={reportRef} options={{ format: 'png', quality: 1 }}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 {/* 리포트 헤더 - 그라디언트 느낌 */}
                 <View style={[S.reportCardHeader, { backgroundColor: T.accent }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -1829,9 +1831,9 @@ export default function StatsScreen() {
       {/* ── 오늘 리포트 카드 모달 ── */}
       <Modal visible={showDayReport} transparent animationType="fade">
         <View style={S.mo}>
-          <ScrollView contentContainerStyle={S.moScroll}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
             <ViewShot ref={dayReportRef} options={{ format: 'png', quality: 1 }}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <View style={[S.reportCardHeader, { backgroundColor: T.accent }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="happy" />
@@ -1921,9 +1923,9 @@ export default function StatsScreen() {
       {/* ── 월간 리포트 카드 모달 ── */}
       <Modal visible={showMonthReport} transparent animationType="fade">
         <View style={S.mo}>
-          <ScrollView contentContainerStyle={S.moScroll}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
             <ViewShot ref={monthReportRef} options={{ format: 'png', quality: 1 }}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <View style={[S.reportCardHeader, { backgroundColor: T.accent }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="happy" />
@@ -2034,9 +2036,9 @@ export default function StatsScreen() {
       {/* ── 잔디 리포트 카드 모달 ── */}
       <Modal visible={showHeatReport} transparent animationType="fade">
         <View style={S.mo}>
-          <ScrollView contentContainerStyle={S.moScroll}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
             <ViewShot ref={heatReportRef} options={{ format: 'png', quality: 1 }}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <View style={[S.reportCardHeader, { backgroundColor: T.accent }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="happy" />
@@ -2117,7 +2119,7 @@ export default function StatsScreen() {
       <Modal visible={showTimelineModal} transparent animationType="slide" onRequestClose={() => setShowTimelineModal(false)}>
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowTimelineModal(false)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={[S.modalTitle, { color: T.text, fontSize: 16, textAlign: 'left', marginBottom: 0 }]}>⏰ 시간대별 공부 현황</Text>
@@ -2187,7 +2189,7 @@ export default function StatsScreen() {
       <Modal visible={!!dayDetailDate && !editMemo} transparent animationType="slide" onRequestClose={() => setDayDetailDate(null)}>
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setDayDetailDate(null)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {dayDetail && (<>
                 {/* 헤더 */}
@@ -2260,7 +2262,7 @@ export default function StatsScreen() {
       <Modal visible={!!tzDetail} transparent animationType="slide" onRequestClose={() => setTzDetail(null)}>
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setTzDetail(null)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               {tzDetail && (() => {
                 const { zone, periodLabel } = tzDetail;
@@ -2367,7 +2369,7 @@ export default function StatsScreen() {
       <Modal visible={!!subjDetail && !editMemo && !sessionDetail} transparent animationType="slide" onRequestClose={() => setSubjDetail(null)}>
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSubjDetail(null)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {subjDetailData && (<>
                 {/* 헤더 */}
@@ -2444,7 +2446,7 @@ export default function StatsScreen() {
       <Modal visible={showGoalDetail} transparent animationType="slide" onRequestClose={() => setShowGoalDetail(false)}>
         <View style={S.moBottom}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoalDetail(false)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 헤더 */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -2534,7 +2536,7 @@ export default function StatsScreen() {
       <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => setSessionDetail(null)}>
         <View style={S.moBottom}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setSessionDetail(null)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {sessionDetail && (() => {
               const sess = sessionDetail;
               const subj = app.subjects.find(s => s.id === sess.subjectId);
@@ -2674,7 +2676,7 @@ export default function StatsScreen() {
       <Modal visible={showDensityDetail} transparent animationType="slide" onRequestClose={() => setShowDensityDetail(false)}>
         <View style={S.moBottom}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDensityDetail(false)} />
-          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }]}>
+          <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* 헤더 */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

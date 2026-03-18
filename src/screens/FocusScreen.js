@@ -16,7 +16,7 @@ import { getTier } from '../constants/presets';
 
 const SW = Dimensions.get('window').width;
 const isTablet = SW >= 600;
-const CONTENT_MAX_W = isTablet ? 600 : SW;
+const CONTENT_MAX_W = isTablet ? 680 : SW;
 const GAP = 8;
 const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, SW) - 32 - GAP) / 2 : (SW - 32 - GAP) / 2;
 const RING_SIZE = isTablet ? Math.min(SW * 0.38, 340) : Math.min(SW - 72, 248);
@@ -62,6 +62,7 @@ export default function FocusScreen() {
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const { width: winW, height: winH } = useWindowDimensions();
   const isLandscape = isTablet && winW > winH;
+  const contentMaxW = isTablet ? Math.round(winW * 0.83) : SW;
   const school = app.settings.schoolLevel || 'high';
   const subjectDefMin = school === 'elementary_lower' ? 15 : school === 'elementary_upper' ? 20 : school === 'middle' ? 30 : 45;
   const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
@@ -118,6 +119,18 @@ export default function FocusScreen() {
   const [memoSessionId, setMemoSessionId] = useState(null); // 연결된 세션 id
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
   const [planCardCollapsed, setPlanCardCollapsed] = useState(false);
+  const [nowStr, setNowStr] = useState(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  });
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setNowStr(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    };
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
 
 
   const countupFavs = app.countupFavs || [];
@@ -188,9 +201,11 @@ export default function FocusScreen() {
   const inlineFocusedRef = useRef(false);
 
   // ═══ 🔒 잠금 오버레이 (🔥모드 전용) ═══
-  const SLIDE_WIDTH = Dimensions.get('window').width - 80;
+  const SLIDE_WIDTH = isTablet ? Math.min(winW - 80, 360) : winW - 80;
   const THUMB_SIZE = 56;
   const SLIDE_THRESHOLD = SLIDE_WIDTH - THUMB_SIZE - 10;
+  const slideThresholdRef = useRef(SLIDE_THRESHOLD);
+  slideThresholdRef.current = SLIDE_THRESHOLD;
   const slideX = useRef(new Animated.Value(0)).current;
   const slideOpacity = useRef(new Animated.Value(1)).current;
 
@@ -260,15 +275,17 @@ export default function FocusScreen() {
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderMove: (_, gs) => {
-        const x = Math.max(0, Math.min(gs.dx, SLIDE_THRESHOLD));
+        const threshold = slideThresholdRef.current;
+        const x = Math.max(0, Math.min(gs.dx, threshold));
         slideX.setValue(x);
         // 슬라이드할수록 자물쇠 텍스트 흐려짐
-        slideOpacity.setValue(1 - (x / SLIDE_THRESHOLD) * 0.8);
+        slideOpacity.setValue(1 - (x / threshold) * 0.8);
       },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dx >= SLIDE_THRESHOLD) {
+        const threshold = slideThresholdRef.current;
+        if (gs.dx >= threshold) {
           // 잠금 해제!
-          Animated.timing(slideX, { toValue: SLIDE_THRESHOLD, duration: 100, useNativeDriver: false }).start(() => {
+          Animated.timing(slideX, { toValue: threshold, duration: 100, useNativeDriver: false }).start(() => {
             // restore brightness so UI buttons are visible after unlocking
             try { app.restoreBrightness?.(); } catch {}
             setScreenLocked(false);
@@ -923,17 +940,17 @@ export default function FocusScreen() {
 
       {/* ═══ 타이머 고정 영역: 기본 / 전체 / 미니 ═══ */}
       {nonLapActive.length > 0 && timerViewMode === 'mini' && !isLandscape && (
-        <View style={{ borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
+        <View style={[{ borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
           {renderMiniTimer(nonLapActive[0])}
         </View>
       )}
       {nonLapActive.length > 0 && timerViewMode === 'full' && !isLandscape && (
-        <View style={{ flex: 1, backgroundColor: T.bg }}>
+        <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
           {renderFullTimer(nonLapActive[0])}
         </View>
       )}
       {nonLapActive.length > 0 && timerViewMode === 'default' && !isLandscape && (
-        <View style={[S.timerFixedArea, { borderBottomColor: T.border }]}>
+        <View style={[S.timerFixedArea, { borderBottomColor: T.border }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
           {renderLargeTimer(nonLapActive[0])}
         </View>
       )}
@@ -1080,7 +1097,7 @@ export default function FocusScreen() {
               <TouchableOpacity style={S.planCardHeader} onPress={() => setPlanCardCollapsed(c => !c)}>
                 <Text style={[S.planCardTitle, { color: T.text }]}>📅 오늘의 계획</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity onPress={() => setShowScheduleEditor(true)}>
+                  <TouchableOpacity onPress={() => setShowScheduleEditor(true)} style={{ paddingVertical: 6, paddingHorizontal: 10 }}>
                     <Text style={[S.planEditBtn, { color: T.accent }]}>편집</Text>
                   </TouchableOpacity>
                   <Text style={{ color: T.sub, fontSize: 14 }}>{planCardCollapsed ? '▼' : '▲'}</Text>
@@ -1088,13 +1105,18 @@ export default function FocusScreen() {
               </TouchableOpacity>
               {!planCardCollapsed && (
                 <>
-                  {fixed.map(item => (
-                    <View key={item.id} style={S.planFixedRow}>
-                      <Text style={S.planFixedIcon}>{item.icon || '📌'}</Text>
-                      <Text style={[S.planFixedLabel, { color: T.sub }]}>{item.label}</Text>
-                      <Text style={[S.planFixedTime, { color: T.sub }]}>{item.start}–{item.end}</Text>
-                    </View>
-                  ))}
+                  {fixed.map(item => {
+                    const isCrossMidnight = item.start && item.end && item.start > item.end;
+                    const isPast = !isCrossMidnight && item.end && item.end <= nowStr;
+                    const pastStyle = isPast ? { textDecorationLine: 'line-through', opacity: 0.45 } : {};
+                    return (
+                      <View key={item.id} style={S.planFixedRow}>
+                        <Text style={[S.planFixedIcon, isPast && { opacity: 0.45 }]}>{item.icon || '📌'}</Text>
+                        <Text style={[S.planFixedLabel, { color: T.text + 'A0' }, pastStyle]}>{item.label}</Text>
+                        <Text style={[S.planFixedTime, { color: T.sub }, pastStyle]}>{item.start}–{item.end}</Text>
+                      </View>
+                    );
+                  })}
                   {fixed.length > 0 && plans.length > 0 && (
                     <View style={[S.planDivider, { backgroundColor: T.border }]} />
                   )}
@@ -1496,19 +1518,19 @@ export default function FocusScreen() {
               {renderFullTimer(nonLapActive[0])}
             </View>
           ) : (
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={S.scrollCol}>
-
-        {/* 가로모드: 미니/기본 타이머를 오른쪽 컬럼 상단에 표시 */}
+          <View style={{ flex: 1 }}>
+        {/* 가로모드: 미니/기본 타이머 상단 고정 */}
         {nonLapActive.length > 0 && timerViewMode === 'mini' && (
-          <View style={{ marginBottom: 8, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: T.border, backgroundColor: T.card }}>
+          <View style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: T.border, backgroundColor: T.card }}>
             {renderMiniTimer(nonLapActive[0])}
           </View>
         )}
         {nonLapActive.length > 0 && timerViewMode === 'default' && (
-          <View style={{ marginBottom: 8 }}>
+          <View>
             {renderLargeTimer(nonLapActive[0])}
           </View>
         )}
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={S.scrollCol}>
 
         {/* ═══ 즐겨찾기 (탭 전환형) ═══ */}
         <View style={[S.quickSec, { backgroundColor: T.card, borderColor: T.border }, isTablet && !isLandscape && S.tabletBlock]}>
@@ -1640,6 +1662,7 @@ export default function FocusScreen() {
         </View>
         <View style={{ height: 30 }} />
           </ScrollView>
+          </View>
           )}
         </View>
       ) : (
@@ -1647,7 +1670,7 @@ export default function FocusScreen() {
         <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
           onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
           contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
-          <View style={isTablet ? { maxWidth: CONTENT_MAX_W, width: '100%', alignSelf: 'center' } : null}>
+          <View style={isTablet ? { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' } : null}>
 
 
         {/* 🔥모드 상태 배너 */}
@@ -1785,7 +1808,7 @@ export default function FocusScreen() {
               <TouchableOpacity style={S.planCardHeader} onPress={() => setPlanCardCollapsed(c => !c)}>
                 <Text style={[S.planCardTitle, { color: T.text }]}>📅 오늘의 계획</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity onPress={() => setShowScheduleEditor(true)}>
+                  <TouchableOpacity onPress={() => setShowScheduleEditor(true)} style={{ paddingVertical: 6, paddingHorizontal: 10 }}>
                     <Text style={[S.planEditBtn, { color: T.accent }]}>편집</Text>
                   </TouchableOpacity>
                   <Text style={{ color: T.sub, fontSize: 14 }}>{planCardCollapsed ? '▼' : '▲'}</Text>
@@ -1793,13 +1816,18 @@ export default function FocusScreen() {
               </TouchableOpacity>
               {!planCardCollapsed && (
                 <>
-                  {fixed.map(item => (
-                    <View key={item.id} style={S.planFixedRow}>
-                      <Text style={S.planFixedIcon}>{item.icon || '📌'}</Text>
-                      <Text style={[S.planFixedLabel, { color: T.sub }]}>{item.label}</Text>
-                      <Text style={[S.planFixedTime, { color: T.sub }]}>{item.start}–{item.end}</Text>
-                    </View>
-                  ))}
+                  {fixed.map(item => {
+                    const isCrossMidnight = item.start && item.end && item.start > item.end;
+                    const isPast = !isCrossMidnight && item.end && item.end <= nowStr;
+                    const pastStyle = isPast ? { textDecorationLine: 'line-through', opacity: 0.45 } : {};
+                    return (
+                      <View key={item.id} style={S.planFixedRow}>
+                        <Text style={[S.planFixedIcon, isPast && { opacity: 0.45 }]}>{item.icon || '📌'}</Text>
+                        <Text style={[S.planFixedLabel, { color: T.text + 'A0' }, pastStyle]}>{item.label}</Text>
+                        <Text style={[S.planFixedTime, { color: T.sub }, pastStyle]}>{item.start}–{item.end}</Text>
+                      </View>
+                    );
+                  })}
                   {fixed.length > 0 && plans.length > 0 && (
                     <View style={[S.planDivider, { backgroundColor: T.border }]} />
                   )}
@@ -2327,7 +2355,7 @@ export default function FocusScreen() {
         </ScrollView>
       ))}
       {lapTimer && (
-        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: '#6C5CE7' }]}>
+        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: '#6C5CE7' }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
           {/* 시간 + 컨트롤 */}
           <View style={S.lapHeader}>
             <View style={{ flex: 1 }}>
@@ -2414,7 +2442,7 @@ export default function FocusScreen() {
       {/* ── 메모 입력 모달 ── */}
       <Modal visible={!!memoTimerId} transparent animationType="fade">
         <View style={S.mo}>
-          <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+          <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
             <Text style={[S.modalTitle, { color: T.text }]}>📝 한줄 메모</Text>
             <Text style={[{ fontSize: 13, color: T.sub, marginBottom: 8, textAlign: 'center' }]}>오늘 이 공부, 한 줄로 남겨봐요</Text>
             <TextInput
@@ -2460,7 +2488,7 @@ export default function FocusScreen() {
       <Modal visible={showAddTodoModal} transparent animationType="slide" onRequestClose={closeAddTodoModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} activeOpacity={1} onPress={closeAddTodoModal} />
-          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
+          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>📝 할 일 추가</Text>
@@ -2726,7 +2754,7 @@ export default function FocusScreen() {
 
       {/* ═══ 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showFavMgr} transparent animationType="fade">
-        <View style={S.mo}><View style={[S.moScroll, isTablet && { alignItems: 'center' }, { justifyContent: 'center', flex: 1 }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
+        <View style={S.mo}><View style={[S.moScroll, isTablet && { alignItems: 'center' }, { justifyContent: 'center', flex: 1 }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>⭐ 즐겨찾기 편집</Text>
           <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({favs.length}/6) · 탭하면 삭제</Text>
           <View style={S.favMgrGrid}>{favs.map(f => (
@@ -2754,7 +2782,7 @@ export default function FocusScreen() {
 
       {/* ═══ 공부량 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showCountupFavMgr} transparent animationType="fade">
-        <View style={S.mo}><ScrollView contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
+        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>📈 공부량 즐겨찾기 편집</Text>
           <Text style={[S.favSecLabel, { color: T.sub }]}>현재 ({countupFavs.length}/6) · 탭하면 삭제</Text>
           <View style={S.favMgrGrid}>{countupFavs.map(f => (
@@ -2801,7 +2829,7 @@ export default function FocusScreen() {
 
       {/* ═══ 커스텀 타이머 + 연속모드 ═══ */}
       <Modal visible={showAdd} transparent animationType="fade">
-        <View style={S.mo}><ScrollView contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 520 }]}>
+        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>커스텀 타이머</Text>
           <View style={[S.typeRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'countdown', l: '⏰ 타임어택' }, { id: 'pomodoro', l: '🍅 뽀모도로' }, { id: 'sequence', l: '📋 연속모드' }].map(m => (
@@ -2950,7 +2978,7 @@ export default function FocusScreen() {
       <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
+          <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
             <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 2 }}>{app.completedResultData?.planSessionIds?.length ? '📅' : '🎉'}</Text>
             <Text style={[S.selfRatingTitle, { color: T.text }]}>{app.completedResultData?.planSessionIds?.length ? '계획 달성!' : '공부 완료!'}</Text>

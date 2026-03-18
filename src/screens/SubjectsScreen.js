@@ -2,12 +2,11 @@
 // v23: 학습법 탭 + 고등 수능 탭
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions, useWindowDimensions } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
-const TABLET_MAX_W = 680;
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
@@ -139,6 +138,8 @@ const SCHOOL_LABELS = {
 const ELEM_GRADE_KEY = (school) => school;
 
 export default function SubjectsScreen() {
+  const { width: winW } = useWindowDimensions();
+  const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const school = app.settings.schoolLevel || 'high';
@@ -218,7 +219,7 @@ export default function SubjectsScreen() {
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: TABLET_MAX_W, alignSelf: 'center', width: '100%' }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
 
         {/* 헤더 */}
         <View style={S.header}>
@@ -467,7 +468,7 @@ export default function SubjectsScreen() {
       {/* 과목 추가 모달 */}
       <Modal visible={showAdd} transparent animationType="fade">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>과목 추가</Text>
           <TextInput value={addName} onChangeText={setAddName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}
             style={[S.mInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} autoFocus />
