@@ -442,7 +442,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: isTablet ? 'rgba(0,0,0,0.5)' : T.bg }}>
+      <View style={{ flex: 1, backgroundColor: isTablet ? 'rgba(0,0,0,0.5)' : T.bg }} pointerEvents="box-none">
       <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: 680, width: '100%', alignSelf: 'center' }]}>
 
         {/* 헤더 */}

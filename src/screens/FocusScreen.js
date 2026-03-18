@@ -2588,17 +2588,20 @@ export default function FocusScreen() {
                   })}
                 </View>
                 {addTodoScope === 'exam' && (app.ddays || []).length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 6 }}>
-                    {(app.ddays || []).map(d => {
-                      const sel = addTodoDdayId === d.id;
-                      return (
-                        <TouchableOpacity key={d.id} onPress={() => setAddTodoDdayId(sel ? null : d.id)}
-                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? T.accent : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: sel ? 'white' : T.sub }}>{d.label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#E17055', textAlign: 'right', marginBottom: 6 }}>📅 D-Day 연결 →</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, flexGrow: 1, justifyContent: 'flex-end' }}>
+                      {(app.ddays || []).map(d => {
+                        const sel = addTodoDdayId === d.id;
+                        return (
+                          <TouchableOpacity key={d.id} onPress={() => setAddTodoDdayId(sel ? null : d.id)}
+                            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? '#E17055' : '#E1705520', borderWidth: 1, borderColor: sel ? '#E17055' : '#E1705560' }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: sel ? 'white' : '#E17055' }}>{d.label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
                 )}
               </>
             )}
@@ -2718,17 +2721,20 @@ export default function FocusScreen() {
                     })}
                   </View>
                   {editTodoScope === 'exam' && (app.ddays || []).length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 6 }}>
-                      {(app.ddays || []).map(d => {
-                        const sel = editTodoDdayId === d.id;
-                        return (
-                          <TouchableOpacity key={d.id} onPress={() => setEditTodoDdayId(sel ? null : d.id)}
-                            style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? T.accent : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: sel ? 'white' : T.sub }}>{d.label}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#E17055', textAlign: 'right', marginBottom: 6 }}>📅 D-Day 연결 →</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 6, flexGrow: 1, justifyContent: 'flex-end' }}>
+                        {(app.ddays || []).map(d => {
+                          const sel = editTodoDdayId === d.id;
+                          return (
+                            <TouchableOpacity key={d.id} onPress={() => setEditTodoDdayId(sel ? null : d.id)}
+                              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: sel ? '#E17055' : '#E1705520', borderWidth: 1, borderColor: sel ? '#E17055' : '#E1705560' }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: sel ? 'white' : '#E17055' }}>{d.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
                   )}
                 </>
               )}

@@ -164,9 +164,10 @@ export const DEFAULT_SCHEDULES = {
   nsuneung: {
     weekday: {
       fixed: [
-        { label: '취침',     start: '23:00', end: '06:00', type: 'sleep',  icon: '😴', color: '#636E72' },
-        { label: '아침 식사', start: '06:10', end: '06:40', type: 'meal',   icon: '🍽️', color: '#FDCB6E' },
-        { label: '독서실',   start: '08:00', end: '22:00', type: 'custom', icon: '📚', color: '#B2BEC3' },
+        { label: '취침',     start: '23:00', end: '06:00', type: 'sleep', icon: '😴', color: '#636E72' },
+        { label: '아침 식사', start: '06:10', end: '06:40', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
+        { label: '점심 식사', start: '12:00', end: '12:30', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
+        { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
       ],
       plans: [
         { label: '국어', icon: '📘', color: '#E8575A', targetMin: 80 },
@@ -223,9 +224,10 @@ export const DEFAULT_SCHEDULES = {
   exam_prep: {
     weekday: {
       fixed: [
-        { label: '취침',        start: '23:30', end: '06:30', type: 'sleep',  icon: '😴', color: '#636E72' },
-        { label: '아침 식사',    start: '06:40', end: '07:30', type: 'meal',   icon: '🍽️', color: '#FDCB6E' },
-        { label: '독서실/도서관', start: '09:00', end: '22:00', type: 'custom', icon: '📚', color: '#B2BEC3' },
+        { label: '취침',     start: '23:30', end: '06:30', type: 'sleep', icon: '😴', color: '#636E72' },
+        { label: '아침 식사', start: '06:40', end: '07:30', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
+        { label: '점심 식사', start: '12:00', end: '12:30', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
+        { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: '🍽️', color: '#FDCB6E' },
       ],
       plans: [
         { label: '과목1', icon: '📘', color: '#E8575A', targetMin: 90 },
