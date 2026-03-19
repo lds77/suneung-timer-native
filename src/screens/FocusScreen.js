@@ -2359,8 +2359,8 @@ export default function FocusScreen() {
           isLandscape ? { left: Math.ceil(winW / 2) + 1, right: 0 } :
           isTablet ? { left: Math.max(0, (winW - contentMaxW) / 2), right: Math.max(0, (winW - contentMaxW) / 2) } : null
         ]}>
-          {/* 시간 + 컨트롤 */}
-          <View style={S.lapHeader}>
+          {/* 1줄: 시간 + 컨트롤 + 랩기록 */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1 }}>
               <Text style={[S.lapTitle, { color: '#6C5CE7' }]}>⏱️ 타임어택</Text>
               <Text style={[S.lapBigTime, { color: lapTimer.status === 'running' ? '#6C5CE7' : T.sub }]}>{formatTime(lapTimer.elapsedSec)}</Text>
@@ -2370,12 +2370,28 @@ export default function FocusScreen() {
                 <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720' }]} onPress={() => app.pauseTimer(lapTimer.id)}>
                   <Text style={[S.lapMiniBtnT, { color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }]}>⏸</Text></TouchableOpacity>
               ) : (
-                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => { app.resumeTimer(lapTimer.id); }}>
+                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => app.resumeTimer(lapTimer.id)}>
                   <Text style={S.lapMiniBtnT}>▶</Text></TouchableOpacity>
               )}
               <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(lapTimer.id)}>
                 <Text style={[S.lapMiniBtnT, { color: T.sub }]}>■</Text></TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={[S.lapRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? '#6C5CE7' : T.surface2 }]}
+              onPress={() => {
+                if (lapTimer.status === 'running') app.addLap(lapTimer.id);
+                else if (lapTimer.elapsedSec === 0) app.resumeTimer(lapTimer.id);
+              }}
+              activeOpacity={0.7}>
+              <Text style={[S.lapRecordBtnT, { color: lapTimer.status === 'running' ? 'white' : lapTimer.elapsedSec === 0 ? 'white' : T.sub }]}>
+                {lapTimer.status === 'running' ? '랩 기록' : lapTimer.elapsedSec === 0 ? '시작' : '일시정지'}
+              </Text>
+              {(lapTimer.laps || []).length > 0 && lapTimer.status === 'running' && (
+                <Text style={[S.lapRecordBtnSub, { color: 'rgba(255,255,255,0.8)' }]}>
+                  #{(lapTimer.laps || []).length + 1} · {formatTime(lapTimer.elapsedSec - ((lapTimer.laps || []).length > 0 ? lapTimer.laps[lapTimer.laps.length - 1].totalTime : 0))}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
           {/* 랩 목록 (접기/펼치기) */}
           {(lapTimer.laps || []).length > 0 && (
@@ -2394,23 +2410,6 @@ export default function FocusScreen() {
               ))}
             </ScrollView>
           )}
-          {/* 큰 기록/시작 버튼 */}
-          <TouchableOpacity
-            style={[S.lapBigRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? '#6C5CE7' : T.surface2 }]}
-            onPress={() => {
-              if (lapTimer.status === 'running') app.addLap(lapTimer.id);
-              else if (lapTimer.elapsedSec === 0) app.resumeTimer(lapTimer.id);
-            }}
-            activeOpacity={0.7}>
-            <Text style={[S.lapBigRecordT, { color: lapTimer.status === 'running' ? 'white' : lapTimer.elapsedSec === 0 ? 'white' : T.sub }]}>
-              {lapTimer.status === 'running' ? '⏱️ 랩 기록' : lapTimer.elapsedSec === 0 ? '▶ 타임어택 시작' : '⏸ 일시정지 중'}
-            </Text>
-            {(lapTimer.laps || []).length > 0 && lapTimer.status === 'running' && (
-              <Text style={S.lapBigRecordSub}>
-                #{(lapTimer.laps || []).length + 1} · 구간 {formatTime(lapTimer.elapsedSec - ((lapTimer.laps || []).length > 0 ? lapTimer.laps[lapTimer.laps.length - 1].totalTime : 0))}
-              </Text>
-            )}
-          </TouchableOpacity>
         </View>
       )}
 
@@ -2495,11 +2494,11 @@ export default function FocusScreen() {
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>📝 할 일 추가</Text>
-              <TouchableOpacity onPress={closeAddTodoModal}>
+              <TouchableOpacity onPress={closeAddTodoModal} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
             {/* 과목 선택 */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>과목</Text>
@@ -2636,9 +2635,9 @@ export default function FocusScreen() {
           <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, flex: 1 }}>🖊️ 할 일 수정</Text>
-              <TouchableOpacity onPress={() => setEditTodoId(null)}><Text style={{ fontSize: 20, color: T.sub }}>✕</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditTodoId(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Text style={{ fontSize: 20, color: T.sub }}>✕</Text></TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {/* 과목 선택 */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
                 <TouchableOpacity onPress={() => { setEditTodoSubjectId(null); setEditTodoSubjectLabel(null); setEditTodoSubjectColor(null); }}
@@ -3157,7 +3156,7 @@ const S = StyleSheet.create({
   todoCkM: { color: 'white', fontSize: 12, fontWeight: '800' }, todoText: { flex: 1, fontSize: 13, lineHeight: 16 }, todoDel: { fontSize: 15, paddingHorizontal: 3 },
   todoActionBtn: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   todoDelBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  lapPanel: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 2, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8 },
+  lapPanel: { position: 'absolute', bottom: 0, left: 8, right: 8, borderTopWidth: 2, borderLeftWidth: 2, borderRightWidth: 2, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.15, shadowRadius: 8 },
   lapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lapTitle: { fontSize: 13, fontWeight: '700' },
   lapBigTime: { fontSize: 32, fontWeight: '900', fontVariant: ['tabular-nums'] },
@@ -3172,6 +3171,9 @@ const S = StyleSheet.create({
   lapListTotal: { fontSize: 12, width: 50, textAlign: 'right' },
   lapBigRecordBtn: { marginTop: 8, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   lapBigRecordT: { fontSize: 17, fontWeight: '900' },
+  lapRecordBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, alignItems: 'center', minWidth: 72 },
+  lapRecordBtnT: { fontSize: 14, fontWeight: '900' },
+  lapRecordBtnSub: { fontSize: 10, fontWeight: '600', marginTop: 2 },
   lapDoneBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   lapDoneBtnT: { color: 'white', fontSize: 14, fontWeight: '800' },
   mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }, moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 30 },

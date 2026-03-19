@@ -161,23 +161,29 @@ export default function SettingsScreen() {
   const challengeViewRef = useRef(null);
   const kbHeightRef = useRef(0);
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', (e) => { kbHeightRef.current = e.endCoordinates.height; });
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const show = Keyboard.addListener(showEvent, (e) => { kbHeightRef.current = e.endCoordinates.height; });
     const hide = Keyboard.addListener('keyboardDidHide', () => { kbHeightRef.current = 0; });
     return () => { show.remove(); hide.remove(); };
   }, []);
   const handleChallengeInputFocus = useCallback(() => {
-    setTimeout(() => {
-      if (!challengeViewRef.current || !scrollRef.current) return;
-      challengeViewRef.current.measure((_x, _y, _w, h, _px, pageY) => {
+    if (!challengeViewRef.current || !scrollRef.current) return;
+    // adjustPan이 view 위치를 바꾸기 전에 즉시 측정
+    challengeViewRef.current.measure((_x, _y, _w, h, _px, pageY) => {
+      const snapPageY = pageY;
+      const snapH = h;
+      const snapScrollY = scrollYRef.current;
+      // 키보드가 완전히 올라온 후 스크롤 적용
+      setTimeout(() => {
+        if (!scrollRef.current) return;
         const screenH = Dimensions.get('window').height;
         const kbH = kbHeightRef.current || 300;
-        // pageY: 현재 화면상 view 상단 Y. 키보드 위 54px에 view 하단이 오도록 스크롤
-        const delta = (pageY + h) - (screenH - kbH - 54);
+        const delta = (snapPageY + snapH) - (screenH - kbH - 16);
         if (delta > 0) {
-          scrollRef.current.scrollTo({ y: scrollYRef.current + delta, animated: true });
+          scrollRef.current.scrollTo({ y: snapScrollY + delta, animated: true });
         }
-      });
-    }, 200);
+      }, Platform.OS === 'ios' ? 50 : 350);
+    });
   }, []);
 
   // D-Day 추가/수정 모달 (캘린더 방식)
@@ -530,7 +536,7 @@ const [ddLabel, setDdLabel] = useState('');
       {/* D-Day 추가/수정 모달 (캘린더 피커) */}
       <Modal visible={showDDayModal} transparent animationType="fade">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+        <View style={styles.modalOverlay}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 20 }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
             <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? '📅 D-Day 수정' : '📅 D-Day 추가'}</Text>
             {/* 프리셋 */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
@@ -598,7 +604,7 @@ const [ddLabel, setDdLabel] = useState('');
           <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
           <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
             <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
-            <ScrollView ref={guideScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={guideScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
 
               {/* 기본 사용법 */}
               <GuideSection id="basic" title="⏰ 기본 사용법" color={T.accent} T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>

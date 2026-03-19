@@ -143,6 +143,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [showCopy, setShowCopy] = useState(false);
 
+
   // 편집 중인 항목 ID (null = 추가 모드)
   const [editingFixedId, setEditingFixedId] = useState(null);
   const [editingPlanId, setEditingPlanId] = useState(null);
@@ -442,7 +443,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: isTablet ? 'rgba(0,0,0,0.5)' : T.bg }} pointerEvents="box-none">
+      <View style={isTablet ? { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' } : { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: 680, width: '100%', alignSelf: 'center' }]}>
 
         {/* 헤더 */}

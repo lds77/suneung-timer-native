@@ -450,7 +450,7 @@ function OnboardingScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
-                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 20, backgroundColor: T.accent }}
+                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#E84047' }}
               >
                 <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>배터리 설정 바로가기 →</Text>
               </TouchableOpacity>

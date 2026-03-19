@@ -1501,10 +1501,14 @@ export function AppProvider({ children }) {
     }
   }, [settings.notifEnabled, loading]);
 
-  // 플래너 리마인더: 앱 시작 + weeklySchedule 변경 시 재예약
+  // 플래너 리마인더: 앱 시작 + weeklySchedule 변경 시 재예약 (1.5초 디바운스 — 편집 중 Android 알림 API 과호출 방지)
+  const plannerReminderDebounceRef = useRef(null);
   useEffect(() => {
     if (loading) return;
-    schedulePlannerReminders();
+    clearTimeout(plannerReminderDebounceRef.current);
+    plannerReminderDebounceRef.current = setTimeout(() => {
+      schedulePlannerReminders();
+    }, 1500);
   }, [weeklySchedule, loading]);
 
   // 즐겨찾기 추가/제거

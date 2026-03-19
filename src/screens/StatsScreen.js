@@ -2123,7 +2123,7 @@ export default function StatsScreen() {
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={[S.modalTitle, { color: T.text, fontSize: 16, textAlign: 'left', marginBottom: 0 }]}>⏰ 시간대별 공부 현황</Text>
-              <TouchableOpacity onPress={() => setShowTimelineModal(false)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={() => setShowTimelineModal(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -2146,7 +2146,7 @@ export default function StatsScreen() {
               ))}
             </View>
             {/* 시간대별 리스트 */}
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               {hourlyDetail.filter(h => h.sec > 0).length === 0 ? (
                 <Text style={[S.emptyText, { color: T.sub }]}>오늘 공부 기록이 없어요</Text>
               ) : (
@@ -2190,15 +2190,15 @@ export default function StatsScreen() {
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setDayDetailDate(null)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* 헤더 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{dayDetail ? formatDetailDate(dayDetail.date) : ''}</Text>
+              <TouchableOpacity onPress={() => setDayDetailDate(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {dayDetail && (<>
-                {/* 헤더 */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{formatDetailDate(dayDetail.date)}</Text>
-                  <TouchableOpacity onPress={() => setDayDetailDate(null)} style={{ padding: 4 }}>
-                    <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
                 {/* 요약 3개 카드 */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                   <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
@@ -2263,36 +2263,36 @@ export default function StatsScreen() {
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setTzDetail(null)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-              {tzDetail && (() => {
-                const { zone, periodLabel } = tzDetail;
-                const firstH = zone.hours[0];
-                const lastH = zone.hours[zone.hours.length - 1] + 1;
-                const hoursLabel = `${firstH}~${lastH}시`;
-                const sortedSess = [...zone.sessions].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
-                const subjMap = {};
-                sortedSess.forEach(s => {
-                  const { id, name, color } = getSessionSubject(s, app.subjects);
-                  if (!subjMap[id]) subjMap[id] = { name, color, sec: 0 };
-                  subjMap[id].sec += (s.durationSec || 0);
-                });
-                const subjList = Object.values(subjMap).sort((a, b) => b.sec - a.sec);
-                const subjTotal = subjList.reduce((s, x) => s + x.sec, 0);
-                return (
-                  <>
-                    {/* 헤더 */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ fontSize: 22 }}>{zone.icon}</Text>
-                        <View>
-                          <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{zone.label} <Text style={{ fontSize: 13, fontWeight: '400', color: T.sub }}>{hoursLabel}</Text></Text>
-                          <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{periodLabel}</Text>
-                        </View>
+            {tzDetail && (() => {
+              const { zone, periodLabel } = tzDetail;
+              const firstH = zone.hours[0];
+              const lastH = zone.hours[zone.hours.length - 1] + 1;
+              const hoursLabel = `${firstH}~${lastH}시`;
+              const sortedSess = [...zone.sessions].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+              const subjMap = {};
+              sortedSess.forEach(s => {
+                const { id, name, color } = getSessionSubject(s, app.subjects);
+                if (!subjMap[id]) subjMap[id] = { name, color, sec: 0 };
+                subjMap[id].sec += (s.durationSec || 0);
+              });
+              const subjList = Object.values(subjMap).sort((a, b) => b.sec - a.sec);
+              const subjTotal = subjList.reduce((s, x) => s + x.sec, 0);
+              return (
+                <>
+                  {/* 헤더 */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 22 }}>{zone.icon}</Text>
+                      <View>
+                        <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{zone.label} <Text style={{ fontSize: 13, fontWeight: '400', color: T.sub }}>{hoursLabel}</Text></Text>
+                        <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{periodLabel}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => setTzDetail(null)} style={{ padding: 4 }}>
-                        <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
-                      </TouchableOpacity>
                     </View>
+                    <TouchableOpacity onPress={() => setTzDetail(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                     {/* 요약 3개 카드 */}
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                       <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
@@ -2357,10 +2357,10 @@ export default function StatsScreen() {
                         );
                       })}
                     </View>
-                  </>
+                  </ScrollView>
+                </>
                 );
               })()}
-            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2370,18 +2370,18 @@ export default function StatsScreen() {
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSubjDetail(null)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* 헤더 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {subjDetailData && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: subjDetailData.color }} />}
+                <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{subjDetailData ? subjDetailData.name : ''}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSubjDetail(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {subjDetailData && (<>
-                {/* 헤더 */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: subjDetailData.color }} />
-                    <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{subjDetailData.name}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setSubjDetail(null)} style={{ padding: 4 }}>
-                    <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
                 {/* 요약 3개 카드 */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                   <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
@@ -2447,14 +2447,14 @@ export default function StatsScreen() {
         <View style={S.moBottom}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoalDetail(false)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* 헤더 */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🎯 오늘 목표 달성률</Text>
-                <TouchableOpacity onPress={() => setShowGoalDetail(false)} style={{ padding: 4 }}>
-                  <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
-                </TouchableOpacity>
-              </View>
+            {/* 헤더 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🎯 오늘 목표 달성률</Text>
+              <TouchableOpacity onPress={() => setShowGoalDetail(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {/* 큰 링 + 시간 */}
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
                 <GoalRing
@@ -2566,18 +2566,18 @@ export default function StatsScreen() {
               const focusModeLabel = sess.focusMode === 'screen_on' ? '🔥 집중 도전' : '📖 편하게 공부';
               const selfRatingLabel = { fire: '🔥 집중됨', perfect: '⚡ 완벽', neutral: '😐 보통', tired: '😴 피곤' }[sess.selfRating] || null;
               return (
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <>
                   {/* 헤더 */}
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: subjColor }} />
                       <Text style={{ fontSize: 17, fontWeight: '900', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => setSessionDetail(null)} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => setSessionDetail(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                       <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
                     </TouchableOpacity>
                   </View>
-
+                  <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
                   {/* 시간 정보 + 티어 */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                     <View>
@@ -2665,7 +2665,8 @@ export default function StatsScreen() {
                       : <Text style={{ fontSize: 13, color: T.sub }}>메모 없음 · 수정을 눌러 추가하세요</Text>}
                   </View>
                   <View style={{ height: 24 }} />
-                </ScrollView>
+                  </ScrollView>
+                </>
               );
             })()}
           </View>
@@ -2677,14 +2678,14 @@ export default function StatsScreen() {
         <View style={S.moBottom}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDensityDetail(false)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* 헤더 */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🧠 집중밀도 상세</Text>
-                <TouchableOpacity onPress={() => setShowDensityDetail(false)} style={{ padding: 4 }}>
-                  <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
-                </TouchableOpacity>
-              </View>
+            {/* 헤더 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🧠 집중밀도 상세</Text>
+              <TouchableOpacity onPress={() => setShowDensityDetail(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {/* 큰 티어 뱃지 + 점수 */}
               <View style={{ alignItems: 'center', marginBottom: 18 }}>
                 <View style={{ backgroundColor: todayTier.color + '20', borderRadius: 24, width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
