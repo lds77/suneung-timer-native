@@ -264,8 +264,9 @@ function SubjectDonut({ data, size = 120, strokeWidth = 15, T }) {
 
 // ═══════════════════════════════════════════════════════════════════
 export default function StatsScreen() {
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const isLandscape = isTablet && winW > winH;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const [tab, setTab] = useState('daily');
@@ -740,6 +741,79 @@ export default function StatsScreen() {
     );
   };
 
+  // 날짜 상세 인라인 렌더 (랜드스케이프 마스터-디테일용)
+  const renderDayDetailInline = () => {
+    if (!dayDetail) return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+        <Text style={{ fontSize: 28, marginBottom: 12 }}>📅</Text>
+        <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center' }}>날짜를 탭하면{'\n'}상세 기록이 여기 표시됩니다</Text>
+      </View>
+    );
+    return (
+      <>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>{formatDetailDate(dayDetail.date)}</Text>
+          <TouchableOpacity onPress={() => setDayDetailDate(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={{ fontSize: 16, color: T.sub }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+            <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
+            <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
+            {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
+              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>🔥 순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}</Text>
+            )}
+          </View>
+          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+            <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
+            <Text style={[S.sVal, { color: dayDetail.tier.color }]}>
+              {dayDetail.sessions.length > 0 ? `${dayDetail.tier.label} ${dayDetail.avgDensity}점` : '-'}
+            </Text>
+          </View>
+          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
+            <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
+            <Text style={[S.sVal, { color: T.text }]}>{dayDetail.sessions.length}회</Text>
+          </View>
+        </View>
+        {dayDetail.subjects.length > 0 && renderSubjects(dayDetail.subjects, '과목 비율')}
+        {dayDetail.sessions.length > 0 && (
+          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+            <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
+            {dayDetail.sessions.map(sess => {
+              const subj = app.subjects.find(s => s.id === sess.subjectId);
+              const tier = getTier(sess.focusDensity || 0);
+              const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
+              const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+              return (
+                <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
+                    <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
+                      <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
+                    </View>
+                    {sess.verified && <Text style={{ fontSize: 13 }}>🏆</Text>}
+                  </View>
+                  {sess.memo && <Text style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>💬 {sess.memo}</Text>}
+                </View>
+              );
+            })}
+          </View>
+        )}
+        {dayDetail.sessions.length === 0 && (
+          <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
+        )}
+      </>
+    );
+  };
+
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
     const prefix = viewMonthStr.replace('.', '-');
@@ -941,7 +1015,9 @@ export default function StatsScreen() {
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 일간 */}
         {/* ──────────────────────────────────────────────────── */}
-        {tab === 'daily' && (<>
+        {tab === 'daily' && (
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flex: 1 } : {}}>
 
           {/* ── 집중밀도 + 목표달성률 2열 ── */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
@@ -1046,6 +1122,7 @@ export default function StatsScreen() {
 
           {renderSubjects(daySubjects, '과목 비율')}
 
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {/* ── TODO 카드 ── */}
           {(() => {
             const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
@@ -1184,12 +1261,15 @@ export default function StatsScreen() {
             </TouchableOpacity>
           )}
 
-        </>)}
+          </View></View>
+        )}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 주간 */}
         {/* ──────────────────────────────────────────────────── */}
-        {tab === 'weekly' && (<>
+        {tab === 'weekly' && (
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flex: 1 } : {}}>
 
           {/* ── 주 탐색 헤더 ── */}
           <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1237,6 +1317,9 @@ export default function StatsScreen() {
             </View>
           )}
 
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
+          {isLandscape ? renderDayDetailInline() : null}
+          {(!isLandscape || !dayDetailDate) && (<>
           {/* ── 시간대별 집중력 분석 ── */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
@@ -1315,12 +1398,16 @@ export default function StatsScreen() {
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
-        </>)}
+          </>)}
+          </View></View>
+        )}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 월간 */}
         {/* ──────────────────────────────────────────────────── */}
-        {tab === 'monthly' && (<>
+        {tab === 'monthly' && (
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flex: 1 } : {}}>
 
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={S.monthNav}>
@@ -1356,6 +1443,9 @@ export default function StatsScreen() {
               <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
             </View>
           </View>
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
+          {isLandscape ? renderDayDetailInline() : null}
+          {(!isLandscape || !dayDetailDate) && (<>
           {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
 
           {/* ── 시간대별 집중력 분석 (월간) ── */}
@@ -1411,13 +1501,16 @@ export default function StatsScreen() {
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
-
-        </>)}
+          </>)}
+          </View></View>
+        )}
 
         {/* ──────────────────────────────────────────────────── */}
         {/* 탭: 잔디 (365일 히트맵) */}
         {/* ──────────────────────────────────────────────────── */}
-        {tab === 'heatmap' && (<>
+        {tab === 'heatmap' && (
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flex: 1 } : {}}>
 
           {/* 잔디 한 줄 가이드 */}
           {!app.settings.guideHeatmap && (
@@ -1513,6 +1606,9 @@ export default function StatsScreen() {
             </Text>
           </View>
 
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
+          {isLandscape ? renderDayDetailInline() : null}
+          {(!isLandscape || !dayDetailDate) && (<>
           {/* 📓 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
             const memoed = [...app.sessions]
@@ -1588,8 +1684,9 @@ export default function StatsScreen() {
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
-
-        </>)}
+          </>)}
+          </View></View>
+        )}
 
         {/* ── 과목 탭 ── */}
         {tab === 'subject' && (<>
@@ -2280,8 +2377,8 @@ export default function StatsScreen() {
         </View>
       </Modal>
 
-      {/* ── 날짜 상세 모달 ── */}
-      <Modal visible={!!dayDetailDate && !editMemo} transparent animationType="slide" onRequestClose={() => setDayDetailDate(null)}>
+      {/* ── 날짜 상세 모달 (폰/세로모드만) ── */}
+      <Modal visible={!!dayDetailDate && !editMemo && !isLandscape} transparent animationType="slide" onRequestClose={() => setDayDetailDate(null)}>
         <View style={S.moBottom}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setDayDetailDate(null)} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
