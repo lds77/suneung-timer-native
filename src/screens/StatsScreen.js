@@ -870,7 +870,7 @@ export default function StatsScreen() {
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
-                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                <Text style={[S.sVal, { color: T.text }]}>🔥{app.settings.streak}일</Text>
                 {getStreakTitle(app.settings.streak) && (
                   <Text style={{ fontSize: 11, color: T.text, fontWeight: '600', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
                 )}
@@ -887,7 +887,7 @@ export default function StatsScreen() {
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
-                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                <Text style={[S.sVal, { color: T.text }]}>🔥{app.settings.streak}일</Text>
                 {getStreakTitle(app.settings.streak) && (
                   <Text style={{ fontSize: 11, color: T.text, fontWeight: '600', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
                 )}
@@ -916,7 +916,7 @@ export default function StatsScreen() {
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>현재연속</Text>
-                <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                <Text style={[S.sVal, { color: T.text }]}>🔥{app.settings.streak}일</Text>
                 {getStreakTitle(app.settings.streak) && (
                   <Text style={{ fontSize: 11, color: T.text, fontWeight: '600', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
                 )}
