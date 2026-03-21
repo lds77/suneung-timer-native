@@ -66,8 +66,8 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
 
   if (darkMode) {
     return {
-      bg: ac.dt1, card: ac.dt2, surface: ac.dt2, surface2: ac.dt3,
-      border: ac.dt3, tabBar: ac.dt1, tabBarBorder: ac.dt3,
+      bg: '#131316', card: ac.dt2, surface: ac.dt2, surface2: ac.dt3,
+      border: ac.dt3, tabBar: '#131316', tabBarBorder: ac.dt3,
       text: '#E8E8F2', sub: '#9898B0', accent: ac.accent, accentLight: ac.dt2,
       green: '#00B894', red: '#E84057', gold: '#FFD700',
       purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#636E72', fontScale: fs,
@@ -77,7 +77,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
     };
   }
   return {
-    bg: ac.bg, card: '#FFFFFF', surface: ac.t1, surface2: ac.t2,
+    bg: '#F7F7F9', card: '#FFFFFF', surface: ac.t1, surface2: ac.t2,
     border: ac.t3, tabBar: '#FFFFFF', tabBarBorder: ac.t2,
     text: '#2D2B3D', sub: '#8B8599', accent: ac.accent, accentLight: ac.t1,
     green: '#00B894', red: '#E84057', gold: '#FFD700',
