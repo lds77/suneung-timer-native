@@ -13,6 +13,7 @@ import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { formatShort, formatTime } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
+import { Ionicons } from '@expo/vector-icons';
 
 // ═══ 추천 루틴 ═══
 const ROUTINES = {
@@ -223,7 +224,10 @@ export default function SubjectsScreen() {
 
         {/* 헤더 */}
         <View style={S.header}>
-          <Text style={[S.headerTitle, { color: T.text }]}>📚 과목</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="book-outline" size={20} color={T.text} />
+            <Text style={[S.headerTitle, { color: T.text }]}>과목</Text>
+          </View>
           <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
           </View>
@@ -353,7 +357,10 @@ export default function SubjectsScreen() {
             {/* 순차 시작 바 */}
             {suneungSelected.length > 0 && (
               <View style={[S.seqBar, { backgroundColor: T.card, borderColor: T.accent }]}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: T.text, marginBottom: 4 }}>🎯 {suneungSelected.length}과목 선택</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <Ionicons name="flag-outline" size={16} color={T.accent} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{suneungSelected.length}과목 선택</Text>
+                </View>
                 <Text style={{ fontSize: 11, color: T.sub, marginBottom: 8 }}>
                   수능 순서: {suneungSelected.map(n => SUNEUNG_SUBJECTS.find(s => s.name === n)).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
                 </Text>
@@ -434,10 +441,16 @@ export default function SubjectsScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
                         onPress={() => startCountup(subj)}>
-                        <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>📈 자유</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="trending-up-outline" size={11} color={subj.color} />
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>자유</Text>
+                        </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
-                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '800', lineHeight: 18 }}>⏱ {defMin}분</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="timer-outline" size={11} color="white" />
+                          <Text style={{ color: 'white', fontSize: 12, fontWeight: '800', lineHeight: 18 }}>{defMin}분</Text>
+                        </View>
                       </TouchableOpacity>
                     </View>
                   )}

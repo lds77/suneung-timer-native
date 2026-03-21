@@ -15,6 +15,7 @@ import { getTheme } from '../constants/colors';
 import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
 import { generateId } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
+import { Ionicons } from '@expo/vector-icons';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
@@ -31,7 +32,28 @@ const TIME_OPTIONS = (() => {
 })();
 
 const PLAN_COLORS = ['#E8575A', '#4A90D9', '#5CB85C', '#F5A623', '#9B6FC3', '#E17055', '#00B894', '#6C5CE7', '#FDCB6E'];
-const PLAN_ICONS = ['📚', '📖', '📝', '📐', '📗', '📘', '📕', '🔬', '🧪', '📋', '🎯', '✏️', '🔥', '⭐'];
+const EMOJI_ICON_MAP = {
+  '😴': 'moon-outline', '🌙': 'moon-outline',
+  '🍽️': 'restaurant-outline', '🍽': 'restaurant-outline',
+  '🏫': 'school-outline', '🏢': 'business-outline',
+  '👨‍🏫': 'person-outline', '🏃': 'barbell-outline',
+  '💼': 'briefcase-outline', '🚌': 'bus-outline',
+  '✏️': 'pencil-outline', '✏': 'pencil-outline',
+  '📚': 'book-outline', '📖': 'bookmark-outline',
+  '📝': 'document-text-outline', '📐': 'calculator-outline',
+  '📗': 'globe-outline', '📘': 'book-outline', '📕': 'book-outline',
+  '🔬': 'flask-outline', '🧪': 'flask-outline',
+  '📋': 'clipboard-outline', '🎯': 'flag-outline',
+  '📌': 'pin-outline', '⭐': 'star-outline', '🔥': 'flame',
+};
+const resolveIcon = (icon) => EMOJI_ICON_MAP[icon] || icon || null;
+
+const PLAN_ICONS = [
+  'book-outline', 'bookmark-outline', 'document-text-outline', 'calculator-outline',
+  'flask-outline', 'clipboard-outline', 'pencil-outline', 'globe-outline',
+  'search-outline', 'musical-notes-outline', 'color-palette-outline', 'layers-outline',
+  'fitness-outline', 'stats-chart-outline',
+];
 
 const getTodayKey = () => {
   const d = new Date().getDay(); // 0=일, 1=월 ... 6=토
@@ -196,7 +218,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
       if (!ws) {
         const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
         Alert.alert(
-          '📅 주간 플래너 시작하기',
+          '주간 플래너 시작하기',
           `세팅 방식을 선택해주세요.\n\n🏫 기본 세팅 (추천)\n${levelLabel} 일과에 맞는 학교·식사·취침 시간이 자동으로 채워져요. 나중에 언제든 수정할 수 있어요.\n\n✏️ 직접 설정\n빈 시간표에서 고정 일정을 직접 하나씩 추가해요.`,
           [
             {
@@ -448,7 +470,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
         {/* 헤더 */}
         <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg, paddingTop: insets.top + 12 }]}>
-          <Text style={[s.headerTitle, { color: T.text }]}>📅 주간 플래너 설정</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="calendar-outline" size={18} color={T.accent} />
+            <Text style={[s.headerTitle, { color: T.text }]}>주간 플래너 설정</Text>
+          </View>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}>
             <Text style={[s.closeText, { color: T.accent }]}>닫기</Text>
           </TouchableOpacity>
@@ -496,13 +521,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 <Text style={[s.sectionTitle, { color: T.sub }]}>고정 일정</Text>
                 {sortedFixed.map(f => (
                   <View key={f.id} style={[s.fixedItem, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <Text style={s.itemIcon}>{f.icon}</Text>
+                    <Ionicons name={resolveIcon(f.icon) || 'calendar-outline'} size={18} color={T.sub} />
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: T.text }]}>{f.label}</Text>
                       <Text style={[s.itemSub, { color: T.sub }]}>{f.start} ~ {f.end}{(() => { const [sh,sm]=f.start.split(':').map(Number); const [eh,em]=f.end.split(':').map(Number); return eh*60+em < sh*60+sm ? ' (익일)' : ''; })()}</Text>
                     </View>
                     <TouchableOpacity onPress={() => openEditFixed(f)} style={s.editBtn}>
-                      <Text style={[s.editText, { color: T.sub }]}>🖊️</Text>
+                      <Ionicons name="pencil-outline" size={14} color={T.sub} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeleteFixed(f.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
@@ -538,7 +563,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 {sortedPlans.map((p, idx) => (
                   <View key={p.id} style={[s.planItem, { backgroundColor: T.card, borderColor: T.border }]}>
                     <View style={[s.planBar, { backgroundColor: p.color }]} />
-                    <Text style={s.itemIcon}>{p.icon}</Text>
+                    <Ionicons name={resolveIcon(p.icon) || 'book-outline'} size={18} color={T.sub} />
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: T.text }]}>{p.label}</Text>
                       <Text style={[s.itemSub, { color: T.sub }]}>{p.targetMin}분</Text>
@@ -554,7 +579,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       </TouchableOpacity>
                     </View>
                     <TouchableOpacity onPress={() => openEditPlan(p)} style={s.editBtn}>
-                      <Text style={[s.editText, { color: T.sub }]}>🖊️</Text>
+                      <Ionicons name="pencil-outline" size={14} color={T.sub} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDeletePlan(p.id)} style={s.delBtn}>
                       <Text style={[s.delText, { color: T.red }]}>×</Text>
@@ -624,7 +649,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                             borderColor: sel ? T.accent : T.border,
                             backgroundColor: sel ? T.accent + '18' : T.card,
                           }]}>
-                          <Text style={{ fontSize: 18 }}>{ft.icon}</Text>
+                          <Ionicons name={ft.icon} size={20} color={sel ? T.accent : T.sub} />
                           <Text style={[s.typeChipText, { color: sel ? T.accent : T.text }]}>{ft.label}</Text>
                         </TouchableOpacity>
                       );
@@ -724,7 +749,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       {PLAN_ICONS.map(ic => (
                         <TouchableOpacity key={ic} onPress={() => { setPlanIcon(ic); Keyboard.dismiss(); }}
                           style={[s.iconChip, planIcon === ic && { backgroundColor: T.accent + '20', borderColor: T.accent }]}>
-                          <Text style={{ fontSize: 20 }}>{ic}</Text>
+                          <Ionicons name={ic} size={22} color={planIcon === ic ? T.accent : T.sub} />
                         </TouchableOpacity>
                       ))}
                     </View>

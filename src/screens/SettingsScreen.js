@@ -19,6 +19,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
@@ -278,7 +279,10 @@ const [ddLabel, setDdLabel] = useState('');
         keyboardShouldPersistTaps="always" keyboardDismissMode="none"
         onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}>
-        <Text style={[styles.headerTitle, { color: T.text }]}>⚙️ 설정</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="settings-outline" size={20} color={T.text} />
+          <Text style={[styles.headerTitle, { color: T.text }]}>설정</Text>
+        </View>
 
         {/* 캐릭터 */}
         <Section T={T} title="캐릭터">
@@ -348,7 +352,7 @@ const [ddLabel, setDdLabel] = useState('');
               backgroundColor: T.accent + '25',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 26 }}>📅</Text>
+              <Ionicons name="calendar-outline" size={24} color={T.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -443,7 +447,10 @@ const [ddLabel, setDdLabel] = useState('');
                 onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
                 style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: T.accent + '20', borderWidth: 1, borderColor: T.accent }}
               >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>⚡ 배터리 최적화 설정 바로가기</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="flash-outline" size={14} color={T.accent} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>배터리 최적화 설정 바로가기</Text>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -537,7 +544,10 @@ const [ddLabel, setDdLabel] = useState('');
       <Modal visible={showDDayModal} transparent animationType="fade">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.modalOverlay}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 20 }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
-            <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? '📅 D-Day 수정' : '📅 D-Day 추가'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="calendar-outline" size={18} color={T.accent} />
+              <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? 'D-Day 수정' : 'D-Day 추가'}</Text>
+            </View>
             {/* 프리셋 */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
               <TouchableOpacity key={p.label} style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddLabel === p.label ? T.accent : T.border }}
@@ -603,7 +613,10 @@ const [ddLabel, setDdLabel] = useState('');
         <View style={{ flex: 1 }}>
           <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
           <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
-            <Text style={[styles.modalTitle, { color: T.text }]}>📖 사용 가이드</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="book-outline" size={16} color={T.accent} />
+              <Text style={[styles.modalTitle, { color: T.text }]}>사용 가이드</Text>
+            </View>
             <ScrollView ref={guideScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
 
               {/* 기본 사용법 */}
@@ -632,7 +645,7 @@ const [ddLabel, setDdLabel] = useState('');
               </GuideSection>
 
               {/* 오늘의 계획 */}
-              <GuideSection id="plan" title="📅 오늘의 계획 & 주간 플래너" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+              <GuideSection id="plan" title="오늘의 계획 & 주간 플래너" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
                 {'집중탭 상단 "오늘의 계획" 카드에서 그날의 공부 계획을 관리해요.\n\n주간 플래너 설정:\n① 설정 > 주간 플래너에서 요일별 계획을 만들어요\n② 각 계획에 과목·목표 시간·이모지를 설정해요\n③ 매일 해당 요일의 계획이 자동으로 불러와져요\n\n계획 타이머 사용법:\n• ▶ 버튼을 누르면 해당 과목의 타이머가 바로 시작돼요\n• 목표 시간의 80% 이상 달성하면 ✅ 완료 표시\n• 진행 상황은 통계 > 주간 탭에서 달성률로 확인할 수 있어요\n\n💡 계획 없는 날도 탭에서 직접 추가할 수 있어요'}
               </GuideSection>
 
@@ -642,7 +655,7 @@ const [ddLabel, setDdLabel] = useState('');
               </GuideSection>
 
               {/* 통계 */}
-              <GuideSection id="stats" title="📈 통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+              <GuideSection id="stats" title="통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
                 {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n📅 일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n📆 주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n\n🗓️ 월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n🌱 잔디\n최근 6개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n📊 과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.'}
               </GuideSection>
 

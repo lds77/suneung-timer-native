@@ -12,6 +12,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
@@ -489,13 +490,13 @@ function MainApp() {
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: -2 },
           }}>
             <Tab.Screen name="Focus" component={FocusScreen}
-              options={{ tabBarLabel: '집중', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🎯</Text> }} />
+              options={{ tabBarLabel: '집중', tabBarIcon: ({ color, size }) => <Ionicons name="timer-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Subjects" component={SubjectsScreen}
-              options={{ tabBarLabel: '과목', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📚</Text> }} />
+              options={{ tabBarLabel: '과목', tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Stats" component={StatsScreen}
-              options={{ tabBarLabel: '통계', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
+              options={{ tabBarLabel: '통계', tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Settings" component={SettingsScreen}
-              options={{ tabBarLabel: '설정', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>⚙️</Text> }} />
+              options={{ tabBarLabel: '설정', tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} /> }} />
           </Tab.Navigator>
         </NavigationContainer>
       </SafeAreaView>
@@ -614,6 +615,8 @@ function Root() {
           if (props.testID === 'chevron') return origin;
           // style 유무와 관계없이 모든 Text에 폰트 적용
           const flat = StyleSheet.flatten(props.style) || {};
+          // 이미 fontFamily가 지정된 경우 (Ionicons 등 벡터 아이콘) 건너뜀
+          if (flat.fontFamily) return origin;
           const w = flat.fontWeight;
           const isBold = w && (w === 'bold' || parseInt(w, 10) >= 700);
           const family = isBold ? baseFamily + '-Bold' : baseFamily;
