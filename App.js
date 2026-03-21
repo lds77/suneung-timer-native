@@ -652,9 +652,11 @@ function Root() {
   if (!app.settings.onboardingDone) return <OnboardingScreen />;
   // 폰트 로딩 중에는 MainApp을 언마운트하지 않고 오버레이만 씌움
   // (FocusScreen이 언마운트되면 screenLocked 상태가 초기화되어 집중모드 재잠금 버그 발생)
+  // key={loadedFont}: 폰트 로드 완료 시 MainApp 전체 재마운트 → 모든 Text 컴포넌트가
+  // 새로 렌더링되어 몽키패치된 Text.render 적용 보장. 오버레이가 가리는 동안 처리됨.
   return (
     <>
-      <MainApp />
+      <MainApp key={loadedFont} />
       {!fontsLoaded && (
         <View style={[StyleSheet.absoluteFill, styles.loading]}>
           <ActivityIndicator size="large" color="#FF6B9D" />
