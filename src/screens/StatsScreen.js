@@ -703,12 +703,29 @@ export default function StatsScreen() {
   // 과목 비율 렌더
   const renderSubjects = (data, label) => {
     if (data.length === 0) return null;
+    const sideBySide = data.length <= 4;
     return (
       <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
         <Text style={[S.secLabel, { color: T.sub }]}>{label}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <SubjectDonut data={data} T={T} />
-          <View style={{ flex: 1 }}>
+        {sideBySide ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <SubjectDonut data={data} T={T} />
+            <View style={{ flex: 1 }}>
+              {data.map((s, i) => (
+                <View key={i} style={S.subjRow}>
+                  <View style={[S.subjDot, { backgroundColor: s.color }]} />
+                  <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
+                  <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
+                  <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={{ alignItems: 'center', marginBottom: 10 }}>
+              <SubjectDonut data={data} T={T} size={130} />
+            </View>
             {data.map((s, i) => (
               <View key={i} style={S.subjRow}>
                 <View style={[S.subjDot, { backgroundColor: s.color }]} />
@@ -717,8 +734,8 @@ export default function StatsScreen() {
                 <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
               </View>
             ))}
-          </View>
-        </View>
+          </>
+        )}
       </View>
     );
   };
@@ -2384,27 +2401,44 @@ export default function StatsScreen() {
                       </View>
                     </View>
                     {/* 과목 비율 */}
-                    {subjList.length > 0 && (
-                      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                        <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <SubjectDonut
-                            data={subjList.map(s => ({ ...s, pct: Math.round((s.sec / subjTotal) * 100) }))}
-                            T={T}
-                          />
-                          <View style={{ flex: 1 }}>
-                            {subjList.map((s, i) => (
-                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
-                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.color }} />
-                                <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
-                                <Text style={{ fontSize: 12, color: T.sub }}>{Math.round((s.sec / subjTotal) * 100)}%</Text>
-                                <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                    {subjList.length > 0 && (() => {
+                      const tzSubjData = subjList.map(s => ({ ...s, pct: Math.round((s.sec / subjTotal) * 100) }));
+                      const sideBySide = subjList.length <= 4;
+                      return (
+                        <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                          <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
+                          {sideBySide ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                              <SubjectDonut data={tzSubjData} T={T} />
+                              <View style={{ flex: 1 }}>
+                                {tzSubjData.map((s, i) => (
+                                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.color }} />
+                                    <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
+                                    <Text style={{ fontSize: 12, color: T.sub }}>{s.pct}%</Text>
+                                    <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                                  </View>
+                                ))}
                               </View>
-                            ))}
-                          </View>
+                            </View>
+                          ) : (
+                            <>
+                              <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                                <SubjectDonut data={tzSubjData} T={T} size={130} />
+                              </View>
+                              {tzSubjData.map((s, i) => (
+                                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.color }} />
+                                  <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
+                                  <Text style={{ fontSize: 12, color: T.sub }}>{s.pct}%</Text>
+                                  <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                                </View>
+                              ))}
+                            </>
+                          )}
                         </View>
-                      </View>
-                    )}
+                      );
+                    })()}
                     {/* 세션 리스트 */}
                     <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
                       <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
