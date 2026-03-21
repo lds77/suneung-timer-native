@@ -70,10 +70,10 @@ export const getTodoMessage = (completedCount, allDone, characterId) => {
   }
   // 0개
   const msgs = {
-    toru:   '오늘 첫 번째 할 일을 시작해볼까? 📋',
-    paengi: '할 일이 기다리고 있어! 하나만 해보자! 🐧',
-    taco:   '목록은 준비됐어. 시작하면 돼. 📝',
-    totoru: '오늘도 하나씩 같이 해봐요~ 🌱',
+    toru:   '오늘 첫 번째 할 일을 시작해볼까?',
+    paengi: '할 일이 기다리고 있어! 하나만 해보자!',
+    taco:   '목록은 준비됐어. 시작하면 돼.',
+    totoru: '오늘도 하나씩 같이 해봐요~',
   };
   return msgs[char] || msgs.toru;
 };

@@ -952,7 +952,7 @@ export function AppProvider({ children }) {
     }
     addTimer({
       type: 'countdown',
-      label: `${plan.icon || ''} ${plan.label}`.trim(),
+      label: plan.label,
       color: plan.color,
       subjectId: plan.subjectId || null,
       totalSec: remainingSec,

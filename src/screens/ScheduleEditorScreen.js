@@ -193,7 +193,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [planTab, setPlanTab] = useState('subject'); // 'subject' | 'custom'
   const [planSubjectId, setPlanSubjectId] = useState(null);
   const [planLabel, setPlanLabel] = useState('');
-  const [planIcon, setPlanIcon] = useState('📚');
+  const [planIcon, setPlanIcon] = useState('book-outline');
   const [planColor, setPlanColor] = useState('#4A90D9');
   const [planTargetMin, setPlanTargetMin] = useState(30);
 
@@ -367,7 +367,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     } else {
       setPlanTab('custom');
       setPlanLabel(p.label || '');
-      setPlanIcon(p.icon || '📚');
+      setPlanIcon(p.icon || 'book-outline');
       setPlanColor(p.color || '#4A90D9');
     }
     setShowAddPlan(true);
@@ -381,7 +381,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         updateDay(day => ({
           ...day,
           plans: (day.plans || []).map(p => p.id === editingPlanId
-            ? { ...p, label: subj.name, icon: '📚', color: subj.color, subjectId: subj.id, targetMin: planTargetMin }
+            ? { ...p, label: subj.name, icon: 'book-outline', color: subj.color, subjectId: subj.id, targetMin: planTargetMin }
             : p
           ),
         }));
@@ -390,7 +390,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           const plans = day.plans || [];
           return {
             ...day, plans: [...plans, {
-              id: generateId('p_'), label: subj.name, icon: '📚',
+              id: generateId('p_'), label: subj.name, icon: 'book-outline',
               color: subj.color, subjectId: subj.id,
               targetMin: planTargetMin, order: plans.length,
             }],

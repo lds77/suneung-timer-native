@@ -539,16 +539,22 @@ function MainApp() {
               style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#FF6B6B15', borderWidth: 1.5, borderColor: '#FF6B6B60', marginBottom: 10 }}
               onPress={() => app.resolveModeSelect('screen_on')}
               activeOpacity={0.8}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B', marginBottom: 2 }}>🔥 화면 켜두고 집중 도전!</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Ionicons name="flash" size={15} color="#FF6B6B" />
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B' }}>화면 켜두고 집중 도전!</Text>
+              </View>
               <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 보너스에 도전해요</Text>
-              <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>⚡ 이탈 0회 시 +15점! · 다크모드 자동 전환</Text>
+              <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>이탈 0회 시 +15점! · 다크모드 자동 전환</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#4CAF5015', borderWidth: 1.5, borderColor: '#4CAF5060', marginBottom: 16 }}
               onPress={() => app.resolveModeSelect('screen_off')}
               activeOpacity={0.8}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: '#4CAF50', marginBottom: 2 }}>📖 화면 끄고 편하게 공부</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Ionicons name="book-outline" size={15} color="#4CAF50" />
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#4CAF50' }}>화면 끄고 편하게 공부</Text>
+              </View>
               <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 없이 편하게 공부해요</Text>
               <Text style={{ fontSize: 10, color: '#4CAF5099', marginTop: 2 }}>화면 꺼도 OK · 알림 없음 · 기본 점수</Text>
             </TouchableOpacity>

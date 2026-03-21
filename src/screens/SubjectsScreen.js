@@ -18,102 +18,102 @@ import { Ionicons } from '@expo/vector-icons';
 // ═══ 추천 루틴 ═══
 const ROUTINES = {
   elementary_lower: [
-    { id: 'lr1', icon: '🎒', name: '방과후 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 20 }, { label: '국어', color: '#E8575A', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
-    { id: 'lr2', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#F5A623', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
-    { id: 'lr3', icon: '📖', name: '독서 + 공부', color: '#9B6FC3', items: [{ label: '독서', color: '#9B6FC3', min: 20 }, { label: '숙제', color: '#F5A623', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
+    { id: 'lr1', icon: 'bag-outline', name: '방과후 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 20 }, { label: '국어', color: '#E8575A', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
+    { id: 'lr2', icon: 'flash-outline', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#F5A623', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
+    { id: 'lr3', icon: 'book-outline', name: '독서 + 공부', color: '#9B6FC3', items: [{ label: '독서', color: '#9B6FC3', min: 20 }, { label: '숙제', color: '#F5A623', min: 20 }, { label: '수학', color: '#4A90D9', min: 20 }], breakMin: 5 },
   ],
   elementary_upper: [
-    { id: 'ur1', icon: '🎒', name: '방과후 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#00B894', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }], breakMin: 5 },
-    { id: 'ur2', icon: '🔥', name: '집중 모드', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }, { label: '독서', color: '#E17055', min: 20 }, { label: '복습', color: '#9B6FC3', min: 20 }], breakMin: 5 },
-    { id: 'ur3', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#00B894', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }], breakMin: 5 },
-    { id: 'ur4', icon: '🏖️', name: '주말/방학', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }, { label: '사회/과학', color: '#F5A623', min: 25 }, { label: '독서', color: '#E17055', min: 20 }], breakMin: 5 },
+    { id: 'ur1', icon: 'bag-outline', name: '방과후 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#00B894', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }], breakMin: 5 },
+    { id: 'ur2', icon: 'flame-outline', name: '집중 모드', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }, { label: '독서', color: '#E17055', min: 20 }, { label: '복습', color: '#9B6FC3', min: 20 }], breakMin: 5 },
+    { id: 'ur3', icon: 'flash-outline', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#00B894', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }], breakMin: 5 },
+    { id: 'ur4', icon: 'sunny-outline', name: '주말/방학', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 25 }, { label: '수학', color: '#4A90D9', min: 25 }, { label: '영어', color: '#5CB85C', min: 25 }, { label: '사회/과학', color: '#F5A623', min: 25 }, { label: '독서', color: '#E17055', min: 20 }], breakMin: 5 },
   ],
   middle: [
-    { id: 'mr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }, { label: '영어', color: '#5CB85C', min: 30 }], breakMin: 10 },
-    { id: 'mr2', icon: '🔥', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 35 }, { label: '과학', color: '#F5A623', min: 35 }, { label: '사회', color: '#9B6FC3', min: 30 }], breakMin: 10 },
-    { id: 'mr3', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }], breakMin: 10 },
-    { id: 'mr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 30 }, { label: '과학', color: '#F5A623', min: 30 }, { label: '사회', color: '#9B6FC3', min: 30 }, { label: '역사', color: '#E17055', min: 25 }], breakMin: 10 },
+    { id: 'mr1', icon: 'book-outline', name: '평일 기본', color: '#4A90D9', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }, { label: '영어', color: '#5CB85C', min: 30 }], breakMin: 10 },
+    { id: 'mr2', icon: 'flame-outline', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 35 }, { label: '과학', color: '#F5A623', min: 35 }, { label: '사회', color: '#9B6FC3', min: 30 }], breakMin: 10 },
+    { id: 'mr3', icon: 'flash-outline', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '숙제', color: '#F5A623', min: 30 }, { label: '수학', color: '#4A90D9', min: 30 }], breakMin: 10 },
+    { id: 'mr4', icon: 'calendar-outline', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 30 }, { label: '수학', color: '#4A90D9', min: 40 }, { label: '영어', color: '#5CB85C', min: 30 }, { label: '과학', color: '#F5A623', min: 30 }, { label: '사회', color: '#9B6FC3', min: 30 }, { label: '역사', color: '#E17055', min: 25 }], breakMin: 10 },
   ],
   high: [
-    { id: 'hr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 10 },
-    { id: 'hr2', icon: '🔥', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 50 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '사회', color: '#9B6FC3', min: 50 }], breakMin: 10 },
-    { id: 'hr3', icon: '⚡', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 50 }], breakMin: 10 },
-    { id: 'hr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 60 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '한국사', color: '#E17055', min: 50 }], breakMin: 10 },
+    { id: 'hr1', icon: 'book-outline', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 10 },
+    { id: 'hr2', icon: 'flame-outline', name: '시험 집중', color: '#E17055', items: [{ label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 50 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '사회', color: '#9B6FC3', min: 50 }], breakMin: 10 },
+    { id: 'hr3', icon: 'flash-outline', name: '빠르게 끝내기', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 60 }, { label: '영어', color: '#5CB85C', min: 50 }], breakMin: 10 },
+    { id: 'hr4', icon: 'calendar-outline', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 60 }, { label: '수학', color: '#4A90D9', min: 70 }, { label: '영어', color: '#5CB85C', min: 60 }, { label: '과학', color: '#F5A623', min: 50 }, { label: '한국사', color: '#E17055', min: 50 }], breakMin: 10 },
   ],
   nsuneung: [
-    { id: 'nr1', icon: '📚', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 80 }, { label: '수학', color: '#4A90D9', min: 90 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 15 },
-    { id: 'nr2', icon: '🔥', name: '수능 올인', color: '#E17055', items: [{ label: '국어', color: '#E8575A', min: 100 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구', color: '#F5A623', min: 60 }], breakMin: 15 },
-    { id: 'nr3', icon: '⚡', name: '단과 몰입', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 120 }], breakMin: 10 },
-    { id: 'nr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 90 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구 1', color: '#F5A623', min: 70 }, { label: '탐구 2', color: '#9B6FC3', min: 60 }], breakMin: 15 },
+    { id: 'nr1', icon: 'book-outline', name: '평일 기본', color: '#4A90D9', items: [{ label: '국어', color: '#E8575A', min: 80 }, { label: '수학', color: '#4A90D9', min: 90 }, { label: '영어', color: '#5CB85C', min: 60 }], breakMin: 15 },
+    { id: 'nr2', icon: 'flame-outline', name: '수능 올인', color: '#E17055', items: [{ label: '국어', color: '#E8575A', min: 100 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구', color: '#F5A623', min: 60 }], breakMin: 15 },
+    { id: 'nr3', icon: 'flash-outline', name: '단과 몰입', color: '#F5A623', items: [{ label: '수학', color: '#4A90D9', min: 120 }], breakMin: 10 },
+    { id: 'nr4', icon: 'calendar-outline', name: '주말/휴일', color: '#E8575A', items: [{ label: '국어', color: '#E8575A', min: 90 }, { label: '수학', color: '#4A90D9', min: 120 }, { label: '영어', color: '#5CB85C', min: 80 }, { label: '탐구 1', color: '#F5A623', min: 70 }, { label: '탐구 2', color: '#9B6FC3', min: 60 }], breakMin: 15 },
   ],
   university: [
-    { id: 'unr1', icon: '🗂️', name: '평일 기본', color: '#4A90D9', items: [{ label: '전공', color: '#4A90D9', min: 60 }, { label: '전공 2', color: '#6C5CE7', min: 50 }, { label: '교양', color: '#00B894', min: 40 }], breakMin: 10 },
-    { id: 'unr2', icon: '🔥', name: '시험 기간', color: '#E17055', items: [{ label: '전공', color: '#4A90D9', min: 90 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '복습', color: '#E17055', min: 50 }], breakMin: 15 },
-    { id: 'unr3', icon: '⚡', name: '과제 집중', color: '#F5A623', items: [{ label: '과제', color: '#F5A623', min: 80 }, { label: '복습', color: '#9B6FC3', min: 30 }], breakMin: 10 },
-    { id: 'unr4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '전공', color: '#4A90D9', min: 80 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '교양', color: '#00B894', min: 50 }, { label: '복습', color: '#9B6FC3', min: 40 }], breakMin: 15 },
+    { id: 'unr1', icon: 'folder-outline', name: '평일 기본', color: '#4A90D9', items: [{ label: '전공', color: '#4A90D9', min: 60 }, { label: '전공 2', color: '#6C5CE7', min: 50 }, { label: '교양', color: '#00B894', min: 40 }], breakMin: 10 },
+    { id: 'unr2', icon: 'flame-outline', name: '시험 기간', color: '#E17055', items: [{ label: '전공', color: '#4A90D9', min: 90 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '복습', color: '#E17055', min: 50 }], breakMin: 15 },
+    { id: 'unr3', icon: 'flash-outline', name: '과제 집중', color: '#F5A623', items: [{ label: '과제', color: '#F5A623', min: 80 }, { label: '복습', color: '#9B6FC3', min: 30 }], breakMin: 10 },
+    { id: 'unr4', icon: 'calendar-outline', name: '주말/휴일', color: '#E8575A', items: [{ label: '전공', color: '#4A90D9', min: 80 }, { label: '전공 2', color: '#6C5CE7', min: 70 }, { label: '교양', color: '#00B894', min: 50 }, { label: '복습', color: '#9B6FC3', min: 40 }], breakMin: 15 },
   ],
   exam_prep: [
-    { id: 'er1', icon: '🗂️', name: '평일 기본', color: '#4A90D9', items: [{ label: '핵심 과목', color: '#4A90D9', min: 80 }, { label: '보조 과목', color: '#6C5CE7', min: 60 }, { label: '문제풀이', color: '#E17055', min: 50 }], breakMin: 10 },
-    { id: 'er2', icon: '🔥', name: '집중 학습', color: '#E17055', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 60 }], breakMin: 15 },
-    { id: 'er3', icon: '⚡', name: '문제풀이 집중', color: '#F5A623', items: [{ label: '문제풀이', color: '#E17055', min: 90 }, { label: '오답 정리', color: '#F5A623', min: 40 }], breakMin: 10 },
-    { id: 'er4', icon: '📅', name: '주말/휴일', color: '#E8575A', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 70 }, { label: '암기', color: '#00B894', min: 50 }], breakMin: 15 },
+    { id: 'er1', icon: 'folder-outline', name: '평일 기본', color: '#4A90D9', items: [{ label: '핵심 과목', color: '#4A90D9', min: 80 }, { label: '보조 과목', color: '#6C5CE7', min: 60 }, { label: '문제풀이', color: '#E17055', min: 50 }], breakMin: 10 },
+    { id: 'er2', icon: 'flame-outline', name: '집중 학습', color: '#E17055', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 60 }], breakMin: 15 },
+    { id: 'er3', icon: 'flash-outline', name: '문제풀이 집중', color: '#F5A623', items: [{ label: '문제풀이', color: '#E17055', min: 90 }, { label: '오답 정리', color: '#F5A623', min: 40 }], breakMin: 10 },
+    { id: 'er4', icon: 'calendar-outline', name: '주말/휴일', color: '#E8575A', items: [{ label: '핵심 과목', color: '#4A90D9', min: 100 }, { label: '보조 과목', color: '#6C5CE7', min: 80 }, { label: '문제풀이', color: '#E17055', min: 70 }, { label: '암기', color: '#00B894', min: 50 }], breakMin: 15 },
   ],
 };
 
-// ═══ 🧠 학습법 (과학적 근거) ═══
+// ═══ 학습법 (과학적 근거) ═══
 const STUDY_METHODS = {
   elementary_lower: [
-    { id: 'sl1', icon: '🧠', name: '두뇌 워밍업', color: '#FF6B9D',
+    { id: 'sl1', icon: 'bulb-outline', name: '두뇌 워밍업', color: '#FF6B9D',
       desc: '쉬운 과목으로 뇌를 깨운 후 어려운 과목 도전',
       source: '인지 부하 이론 · Sweller',
       items: [{ label: '쉬운 과목', color: '#5CB85C', min: 10 }, { label: '어려운 과목', color: '#E8575A', min: 20 }], breakMin: 5 },
-    { id: 'sl2', icon: '🎮', name: '미션 스프린트', color: '#4A90D9',
+    { id: 'sl2', icon: 'game-controller-outline', name: '미션 스프린트', color: '#4A90D9',
       desc: '짧은 미션 3개를 연속 클리어!',
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 15 }, { label: '미션 2', color: '#4A90D9', min: 15 }, { label: '미션 3', color: '#5CB85C', min: 15 }], breakMin: 3 },
-    { id: 'sl3', icon: '📖', name: '소리 + 묵독', color: '#9B6FC3',
+    { id: 'sl3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
       desc: '소리내어 읽으면 기억력이 2배!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 10 }, { label: '묵독', color: '#9B6FC3', min: 15 }], breakMin: 5 },
   ],
   elementary_upper: [
-    { id: 'su1', icon: '🧠', name: '두뇌 워밍업', color: '#FF6B9D',
+    { id: 'su1', icon: 'bulb-outline', name: '두뇌 워밍업', color: '#FF6B9D',
       desc: '쉬운 과목으로 뇌를 깨운 후 어려운 과목 도전',
       source: '인지 부하 이론 · Sweller',
       items: [{ label: '쉬운 과목', color: '#5CB85C', min: 15 }, { label: '어려운 과목', color: '#E8575A', min: 25 }], breakMin: 5 },
-    { id: 'su2', icon: '🎮', name: '미션 스프린트', color: '#4A90D9',
+    { id: 'su2', icon: 'game-controller-outline', name: '미션 스프린트', color: '#4A90D9',
       desc: '짧은 미션 3개를 연속 클리어!',
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 20 }, { label: '미션 2', color: '#4A90D9', min: 20 }, { label: '미션 3', color: '#5CB85C', min: 20 }], breakMin: 5 },
-    { id: 'su3', icon: '📖', name: '소리 + 묵독', color: '#9B6FC3',
+    { id: 'su3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
       desc: '소리내어 읽으면 기억력이 2배!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 15 }, { label: '묵독', color: '#9B6FC3', min: 20 }], breakMin: 5 },
   ],
   middle: [
-    { id: 'sm1', icon: '🔄', name: '인터리빙 학습', color: '#6C5CE7',
+    { id: 'sm1', icon: 'shuffle-outline', name: '인터리빙 학습', color: '#6C5CE7',
       desc: '과목을 섞으면 기억력 43% 향상!',
       source: 'UCLA · Rohrer & Taylor, 2007',
       items: [{ label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }, { label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }], breakMin: 5 },
-    { id: 'sm2', icon: '🔬', name: '40-10 법칙', color: '#00B894',
+    { id: 'sm2', icon: 'flask-outline', name: '40-10 법칙', color: '#00B894',
       desc: '상위 10% 학생의 집중 패턴',
       source: 'DeskTime 생산성 연구 (학생 버전)',
       items: [{ label: '집중', color: '#00B894', min: 40 }, { label: '완전 휴식', color: '#B2BEC3', min: 10 }], breakMin: 0 },
-    { id: 'sm3', icon: '🧪', name: '시험 루프', color: '#E17055',
+    { id: 'sm3', icon: 'repeat-outline', name: '시험 루프', color: '#E17055',
       desc: '시험 보는 행위 자체가 기억을 75% 강화',
       source: '테스트 효과 · Roediger & Karpicke, 2006',
       items: [{ label: '문제 풀기', color: '#E8575A', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }, { label: '문제 풀기', color: '#4A90D9', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }], breakMin: 5 },
   ],
   high: [
-    { id: 'sh1', icon: '⚡', name: '52-17 법칙', color: '#E17055',
+    { id: 'sh1', icon: 'flash-outline', name: '52-17 법칙', color: '#E17055',
       desc: '생산성 상위 10%의 비밀',
       source: 'DeskTime · 550만 건 작업 데이터 분석',
       items: [{ label: '집중', color: '#E17055', min: 52 }, { label: '완전 휴식', color: '#B2BEC3', min: 17 }], breakMin: 0 },
-    { id: 'sh2', icon: '🌊', name: '울트라디안 90', color: '#4A90D9',
+    { id: 'sh2', icon: 'water-outline', name: '울트라디안 90', color: '#4A90D9',
       desc: '인간의 자연적 90분 각성-휴식 주기',
       source: '수면과학자 Nathaniel Kleitman',
       items: [{ label: '깊은 집중', color: '#4A90D9', min: 90 }, { label: '완전 휴식', color: '#B2BEC3', min: 20 }], breakMin: 0 },
-    { id: 'sh3', icon: '🧊', name: '하드 스타트', color: '#6C5CE7',
+    { id: 'sh3', icon: 'snow-outline', name: '하드 스타트', color: '#6C5CE7',
       desc: '어려운 것 먼저! 뇌가 백그라운드에서 풀어줌',
       source: 'MIT · Barbara Oakley "A Mind for Numbers"',
       items: [{ label: '어려운 과목', color: '#E8575A', min: 25 }, { label: '쉬운 과목', color: '#5CB85C', min: 25 }, { label: '어려운 과목', color: '#E8575A', min: 25 }], breakMin: 5 },
@@ -174,13 +174,13 @@ export default function SubjectsScreen() {
   const startRoutine = (routine) => {
     const items = routine.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
     const ok = app.startSequence({ items, breakSec: routine.breakMin * 60, seqName: routine.name, seqIcon: routine.icon, seqColor: routine.color || items[0]?.color || '#4A90D9' });
-    if (ok) app.showToastCustom(`${routine.icon} ${routine.name} 시작!`, 'taco');
+    if (ok) app.showToastCustom(`${routine.name} 시작!`, 'taco');
   };
 
   const startMethod = (method) => {
     const items = method.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
     const ok = app.startSequence({ items, breakSec: method.breakMin * 60, seqName: method.name, seqIcon: method.icon, seqColor: method.color });
-    if (ok) app.showToastCustom(`${method.icon} ${method.name} 시작!`, 'toru');
+    if (ok) app.showToastCustom(`${method.name} 시작!`, 'toru');
   };
 
   const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
@@ -206,7 +206,7 @@ export default function SubjectsScreen() {
     if (suneungSelected.length === 0) { app.showToastCustom('과목을 선택하세요!', 'paengi'); return; }
     const ordered = suneungSelected.map(name => SUNEUNG_SUBJECTS.find(s => s.name === name)).filter(Boolean).sort((a, b) => a.order - b.order);
     const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
-    const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: '🎯', seqColor: '#E8575A' });
+    const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
     if (ok) setSuneungSelected([]);
   };
 
@@ -224,10 +224,6 @@ export default function SubjectsScreen() {
 
         {/* 헤더 */}
         <View style={S.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="book-outline" size={20} color={T.text} />
-            <Text style={[S.headerTitle, { color: T.text }]}>과목</Text>
-          </View>
           <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
           </View>
@@ -257,30 +253,34 @@ export default function SubjectsScreen() {
         {/* ═══ 탭: 추천 루틴 ═══ */}
         {tab === 'routine' && (
           <>
-            <Text style={[S.secLabel, { color: T.sub }]}>탭하면 바로 시작!</Text>
             {routines.map(routine => {
               const totalMin = routine.items.reduce((s, it) => s + it.min, 0) + (routine.items.length - 1) * routine.breakMin;
               return (
-                <TouchableOpacity key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}
-                  onPress={() => startRoutine(routine)} activeOpacity={0.7}>
+                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}>
                   <View style={S.routineTop}>
-                    <Text style={{ fontSize: 28 }}>{routine.icon}</Text>
+                    <Ionicons name={routine.icon} size={28} color={routine.color} />
                     <View style={{ flex: 1 }}>
                       <Text style={[S.routineName, { color: T.text }]}>{routine.name}</Text>
-                      <View style={S.routineFlow}>
-                        {routine.items.map((it, i) => (
-                          <React.Fragment key={i}>
-                            <Text style={{ fontSize: 12, fontWeight: '600', color: it.color }}>{it.label} {it.min}분</Text>
-                            {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
-                          </React.Fragment>
-                        ))}
-                      </View>
                     </View>
-                    <View style={[S.timeBadge, { backgroundColor: T.accent + '12' }]}>
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: T.accent }}>{totalMin}분</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: routine.color + '60' }}
+                      onPress={() => startRoutine(routine)}
+                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Ionicons name="alarm-outline" size={13} color={routine.color} />
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: routine.color }}>{totalMin}분</Text>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                  <View style={S.methodFlow}>
+                    {routine.items.map((it, i) => (
+                      <React.Fragment key={i}>
+                        <View style={[S.methodChip, { backgroundColor: it.color + '18' }]}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
+                        </View>
+                        {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
+                      </React.Fragment>
+                    ))}
+                  </View>
+                </View>
               );
             })}
           </>
@@ -293,40 +293,38 @@ export default function SubjectsScreen() {
             {methods.map(method => {
               const totalMin = method.items.reduce((s, it) => s + it.min, 0) + (method.items.length - 1) * method.breakMin;
               return (
-                <TouchableOpacity key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: method.color + '30' }]}
-                  onPress={() => startMethod(method)} activeOpacity={0.7}>
+                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }]}>
                   <View style={S.methodTop}>
                     <View style={[S.methodIconWrap, { backgroundColor: method.color + '15' }]}>
-                      <Text style={{ fontSize: 24 }}>{method.icon}</Text>
+                      <Ionicons name={method.icon} size={24} color={method.color} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }}>{method.name}</Text>
-                      <Text style={{ fontSize: 13, color: T.text, marginTop: 2 }}>{method.desc}</Text>
-                      <View style={[S.sourceBadge, { backgroundColor: method.color + '10' }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                          <Ionicons name="link-outline" size={11} color={method.color} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: method.color }}>{method.source}</Text>
-                        </View>
+                      <Text style={{ fontSize: 15, fontWeight: '900', color: T.text, marginBottom: 2 }}>{method.name}</Text>
+                      <Text style={{ fontSize: 13, color: T.sub, lineHeight: 18 }}>{method.desc}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
+                        <Ionicons name="link-outline" size={10} color={T.sub} />
+                        <Text style={{ fontSize: 11, color: T.sub }}>{method.source}</Text>
                       </View>
                     </View>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>{totalMin}분</Text>
-                      <View style={[S.playBtn, { backgroundColor: method.color }]}>
-                        <Ionicons name="caret-forward" size={14} color="white" />
-                      </View>
-                    </View>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: method.color + '60', alignSelf: 'flex-start' }}
+                      onPress={() => startMethod(method)}
+                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Ionicons name="alarm-outline" size={13} color={method.color} />
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: method.color }}>{totalMin}분</Text>
+                    </TouchableOpacity>
                   </View>
                   <View style={S.methodFlow}>
                     {method.items.map((it, i) => (
                       <React.Fragment key={i}>
-                        <View style={[S.methodChip, { backgroundColor: it.color + '15' }]}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
+                        <View style={[S.methodChip, { backgroundColor: T.surface2 }]}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.text }}>{it.label} {it.min}분</Text>
                         </View>
                         {i < method.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
                       </React.Fragment>
                     ))}
                   </View>
-                </TouchableOpacity>
+                </View>
               );
             })}
           </>
@@ -449,10 +447,10 @@ export default function SubjectsScreen() {
                           <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>자유</Text>
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
+                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]} onPress={() => startSingle(subj)}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                          <Ionicons name="timer-outline" size={11} color="white" />
-                          <Text style={{ color: 'white', fontSize: 12, fontWeight: '800', lineHeight: 18 }}>{defMin}분</Text>
+                          <Ionicons name="timer-outline" size={11} color={subj.color} />
+                          <Text style={{ color: subj.color, fontSize: 12, fontWeight: '800', lineHeight: 18 }}>{defMin}분</Text>
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -555,7 +553,6 @@ const S = StyleSheet.create({
   subjCard: { borderRadius: 10, padding: 12, borderWidth: 1, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8 },
   subjDot: { width: 4, height: 30, borderRadius: 2 },
   runBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  playBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   labelBtn: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8, borderRadius: 7, alignItems: 'center' },
   addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   delBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#FF4757', alignItems: 'center', justifyContent: 'center' },
