@@ -45,8 +45,20 @@ const EMOJI_ICON_MAP = {
   '🔬': 'flask-outline', '🧪': 'flask-outline',
   '📋': 'clipboard-outline', '🎯': 'flag-outline',
   '📌': 'pin-outline', '⭐': 'star-outline', '🔥': 'flame',
+  '⏰': 'alarm-outline', '🍅': 'nutrition-outline',
+  '🔁': 'repeat-outline', '🔄': 'refresh-outline',
+  '✨': 'star-outline', '💫': 'star-outline',
+  '📜': 'document-outline', '🌍': 'globe-outline', '🌎': 'globe-outline',
+  '🏆': 'trophy-outline', '💡': 'bulb-outline', '🎵': 'musical-notes-outline',
+  '☕': 'cafe-outline', '🚀': 'rocket-outline', '⚡': 'flash-outline',
+  '🧠': 'bulb-outline', '❤️': 'heart-outline', '🔒': 'lock-closed-outline',
 };
-const resolveIcon = (icon) => EMOJI_ICON_MAP[icon] || icon || null;
+const resolveIcon = (icon) => {
+  if (!icon) return null;
+  if (EMOJI_ICON_MAP[icon]) return EMOJI_ICON_MAP[icon];
+  if (/^[a-z0-9-]+$/.test(icon)) return icon;
+  return null;
+};
 
 const PLAN_ICONS = [
   'book-outline', 'bookmark-outline', 'document-text-outline', 'calculator-outline',

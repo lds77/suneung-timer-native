@@ -70,8 +70,19 @@ const EMOJI_ICON_MAP = {
   '📌': 'pin-outline', '⭐': 'star-outline', '🔥': 'flame',
   '⏰': 'alarm-outline', '🍅': 'nutrition-outline',
   '🔁': 'repeat-outline', '🔄': 'refresh-outline',
+  '✨': 'star-outline', '💫': 'star-outline',
+  '📜': 'document-outline', '🌍': 'globe-outline', '🌎': 'globe-outline',
+  '🏆': 'trophy-outline', '💡': 'bulb-outline', '🎵': 'musical-notes-outline',
+  '☕': 'cafe-outline', '🚀': 'rocket-outline', '⚡': 'flash-outline',
+  '🧠': 'bulb-outline', '❤️': 'heart-outline', '🔒': 'lock-closed-outline',
 };
-const resolveIcon = (icon) => EMOJI_ICON_MAP[icon] || icon || null;
+// 유효한 Ionicons 이름인지 확인 (ASCII 소문자·숫자·하이픈만)
+const resolveIcon = (icon) => {
+  if (!icon) return null;
+  if (EMOJI_ICON_MAP[icon]) return EMOJI_ICON_MAP[icon];
+  if (/^[a-z0-9-]+$/.test(icon)) return icon; // 이미 Ionicons 이름
+  return null; // 미등록 이모지 → 호출부 fallback 사용
+};
 
 // ─── 미니 캘린더 아이콘 (오늘 날짜 표시) ──────────────────────────
 function CalendarIcon({ accentColor, size = 28 }) {
