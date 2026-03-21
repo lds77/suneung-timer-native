@@ -209,6 +209,47 @@ function GoalRing({ pct, size = 88, color, bgColor }) {
   );
 }
 
+// ─── 과목 도넛 차트 컴포넌트 ──────────────────────────────────────
+function SubjectDonut({ data, size = 120, strokeWidth = 15, T }) {
+  const r = (size - strokeWidth) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const totalSec = data.reduce((s, d) => s + d.sec, 0);
+  let accumulated = 0;
+  const segments = data.map(d => {
+    const start = accumulated;
+    accumulated += d.pct;
+    return { ...d, start };
+  });
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={cx} cy={cy} r={r} stroke={T.surface2 || '#00000015'} strokeWidth={strokeWidth} fill="none" />
+        {segments.map((seg, i) => {
+          const dashLength = (seg.pct / 100) * circumference;
+          if (dashLength < 1) return null;
+          return (
+            <Circle
+              key={i}
+              cx={cx} cy={cy} r={r}
+              stroke={seg.color}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+              strokeDashoffset={circumference - (seg.start / 100) * circumference}
+              transform={`rotate(-90 ${cx} ${cy})`}
+            />
+          );
+        })}
+      </Svg>
+      <Text style={{ fontSize: 12, fontWeight: '800', color: T.text, textAlign: 'center' }}>
+        {formatShort(totalSec)}
+      </Text>
+    </View>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════
 export default function StatsScreen() {
   const { width: winW } = useWindowDimensions();
@@ -653,17 +694,19 @@ export default function StatsScreen() {
     return (
       <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
         <Text style={[S.secLabel, { color: T.sub }]}>{label}</Text>
-        <View style={[S.stackBar, { backgroundColor: T.surface2 }]}>
-          {data.map((s, i) => <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />)}
-        </View>
-        {data.map((s, i) => (
-          <View key={i} style={S.subjRow}>
-            <View style={[S.subjDot, { backgroundColor: s.color }]} />
-            <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
-            <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
-            <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <SubjectDonut data={data} T={T} />
+          <View style={{ flex: 1 }}>
+            {data.map((s, i) => (
+              <View key={i} style={S.subjRow}>
+                <View style={[S.subjDot, { backgroundColor: s.color }]} />
+                <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
+                <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
+                <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
+              </View>
+            ))}
           </View>
-        ))}
+        </View>
       </View>
     );
   };
@@ -2313,19 +2356,22 @@ export default function StatsScreen() {
                     {subjList.length > 0 && (
                       <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
                         <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                        <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 10 }]}>
-                          {subjList.map((s, i) => (
-                            <View key={i} style={[S.stackSeg, { width: `${Math.max(2, Math.round((s.sec / subjTotal) * 100))}%`, backgroundColor: s.color }]} />
-                          ))}
-                        </View>
-                        {subjList.map((s, i) => (
-                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
-                            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: s.color }} />
-                            <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
-                            <Text style={{ fontSize: 12, color: T.sub }}>{Math.round((s.sec / subjTotal) * 100)}%</Text>
-                            <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <SubjectDonut
+                            data={subjList.map(s => ({ ...s, pct: Math.round((s.sec / subjTotal) * 100) }))}
+                            T={T}
+                          />
+                          <View style={{ flex: 1 }}>
+                            {subjList.map((s, i) => (
+                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.color }} />
+                                <Text style={{ flex: 1, fontSize: 13, color: T.text }}>{s.name}</Text>
+                                <Text style={{ fontSize: 12, color: T.sub }}>{Math.round((s.sec / subjTotal) * 100)}%</Text>
+                                <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', minWidth: 46, textAlign: 'right' }}>{formatShort(s.sec)}</Text>
+                              </View>
+                            ))}
                           </View>
-                        ))}
+                        </View>
                       </View>
                     )}
                     {/* 세션 리스트 */}
