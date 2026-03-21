@@ -861,6 +861,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>오늘</Text>
                 <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(todayTotalSec)}</Text>
+                {todayAvgDensity > 0 && todayTotalSec > 0 && (
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>🔥 순공 {formatShort(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
+                )}
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
@@ -880,6 +883,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>{weekOffset === 0 ? '이번주' : weekOffset === -1 ? '지난주' : `${Math.abs(weekOffset)}주 전`}</Text>
                 <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(weekTotal)}</Text>
+                {weekAvgDensity > 0 && weekTotal > 0 && (
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>🔥 순공 {formatShort(Math.round(weekTotal * weekAvgDensity / 100))}</Text>
+                )}
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>공부일</Text>
@@ -897,6 +903,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>{viewMonthStr}</Text>
                 <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(monthTotalSec)}</Text>
+                {monthAvgDensity > 0 && monthTotalSec > 0 && (
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>🔥 순공 {formatShort(Math.round(monthTotalSec * monthAvgDensity / 100))}</Text>
+                )}
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>공부일</Text>
