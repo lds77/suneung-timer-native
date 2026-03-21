@@ -2415,7 +2415,10 @@ export default function FocusScreen() {
 
       {/* 완료된 기록 스톱워치 하단 */}
       {!lapTimer && lapDone && (
-        <View style={[S.lapPanel, S.lapPanelDone, { backgroundColor: T.card, borderColor: '#6C5CE730' }]}>
+        <View style={[S.lapPanel, S.lapPanelDone, { backgroundColor: T.card, borderColor: '#6C5CE730' },
+          isLandscape ? { left: Math.ceil(winW / 2) + 1, right: 0 } :
+          isTablet ? { left: Math.max(0, (winW - contentMaxW) / 2), right: Math.max(0, (winW - contentMaxW) / 2) } : null
+        ]}>
           <View style={S.lapHeader}>
             <View><Text style={[S.lapTitle, { color: T.sub }]}>⏱️ 기록 완료</Text>
               <Text style={[S.lapBigTime, { color: T.text }]}>{formatDuration(lapDone.elapsedSec)}</Text></View>
