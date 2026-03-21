@@ -25,9 +25,9 @@ const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
 
 const FOCUS_LEVELS = [
-  { id: 'normal', label: '🟢 일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
-  { id: 'focus',  label: '🟡 집중',       desc: '1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.',               color: '#FFB74D' },
-  { id: 'exam',   label: '🔴 울트라집중',  desc: '10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.', color: '#FF6B6B' },
+  { id: 'normal', label: '일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
+  { id: 'focus',  label: '집중',       desc: '1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.',               color: '#FFB74D' },
+  { id: 'exam',   label: '울트라집중',  desc: '10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.', color: '#FF6B6B' },
 ];
 
 const THEME_COLORS = [
@@ -85,10 +85,17 @@ function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef
   );
 }
 
-function Section({ title, children, T }) {
+function Section({ title, icon, children, T }) {
   return (
     <View style={[styles.section, { borderColor: T.border }]}>
-      <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+      {icon ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Ionicons name={icon} size={13} color={T.sub} />
+          <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+        </View>
+      ) : (
+        <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+      )}
       {children}
     </View>
   );
@@ -399,14 +406,14 @@ const [ddLabel, setDdLabel] = useState('');
         </Section>
 
         {/* 🔥 집중 도전 모드 */}
-        <Section T={T} title="🔥 집중 도전 모드">
+        <Section T={T} title="집중 도전 모드" icon="flame-outline">
           {(() => {
             const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'focus')) || FOCUS_LEVELS[1];
             return (
               <Row key={lv.id} T={T} label="잠금 강도"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 13 }}>{lv.label.split(' ')[0]}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label.split(' ').slice(1).join(' ')}</Text>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: lv.color }} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowFocusPicker(true)}
@@ -414,7 +421,10 @@ const [ddLabel, setDdLabel] = useState('');
             );
           })()}
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, marginTop: 10, marginBottom: 6 }}>🖊️ 나만의 챌린지 문구</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: 6 }}>
+              <Ionicons name="pencil-outline" size={13} color={T.text} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>나만의 챌린지 문구</Text>
+            </View>
             <ChallengeInput
               initial={app.settings.challengeText}
               onSave={(v) => { app.updateSettings({ challengeText: v }); app.showToastCustom('챌린지 문구가 저장됐어요!', 'toru'); }}
@@ -707,11 +717,14 @@ const [ddLabel, setDdLabel] = useState('');
             return (
               <TouchableOpacity key={lv.id} onPress={() => { app.updateSettings({ ultraFocusLevel: lv.id }); setShowFocusPicker(false); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? lv.color + '15' : 'transparent' }}>
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '400', color: sel ? lv.color : T.text }}>{lv.label}</Text>
-                  <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 12 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: lv.color }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '400', color: sel ? lv.color : T.text }}>{lv.label}</Text>
+                    <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                  </View>
                 </View>
-                {sel && <Text style={{ fontSize: 16, color: lv.color }}>✓</Text>}
+                {sel && <Ionicons name="checkmark" size={16} color={lv.color} />}
               </TouchableOpacity>
             );
           })}

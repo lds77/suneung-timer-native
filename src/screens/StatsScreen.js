@@ -58,10 +58,10 @@ function getInsight(sec, density, streak) {
 
 // ─── 시간대 라벨 ────────────────────────────────────────────────
 const TIME_ZONES = [
-  { label: '새벽', hours: [0,1,2,3,4,5],       icon: '🌙' },
-  { label: '오전', hours: [6,7,8,9,10,11],      icon: '🌅' },
-  { label: '오후', hours: [12,13,14,15,16,17],  icon: '☀️' },
-  { label: '저녁', hours: [18,19,20,21,22,23],  icon: '🌆' },
+  { label: '새벽', hours: [0,1,2,3,4,5],       icon: 'moon-outline' },
+  { label: '오전', hours: [6,7,8,9,10,11],      icon: 'partly-sunny-outline' },
+  { label: '오후', hours: [12,13,14,15,16,17],  icon: 'sunny-outline' },
+  { label: '저녁', hours: [18,19,20,21,22,23],  icon: 'cloudy-night-outline' },
 ];
 
 // ─── 주간 리포트 텍스트 생성 ─────────────────────────────────────
@@ -1257,7 +1257,10 @@ export default function StatsScreen() {
             return (
               <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>📝 오늘 할 일</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="checkmark-circle-outline" size={14} color={T.sub} />
+                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 할 일</Text>
+                  </View>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
                     {doneCnt}/{todayTodos.length}{allDone ? ' 🎉' : ''}
                   </Text>
@@ -1350,7 +1353,10 @@ export default function StatsScreen() {
           {/* 취약 과목 알림 */}
           {weakSubjects.length > 0 && (
             <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
-              <Text style={[S.weakTitle, { color: T.accent }]}>⚠️ 최근 7일간 안 한 과목</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <Ionicons name="warning-outline" size={14} color={T.accent} />
+                <Text style={[S.weakTitle, { color: T.accent, marginBottom: 0 }]}>최근 7일간 안 한 과목</Text>
+              </View>
               <View style={S.weakChips}>
                 {weakSubjects.map(s => (
                   <View key={s.id} style={[S.weakChip, { backgroundColor: s.color + '25', borderColor: s.color + '60' }]}>
@@ -1379,7 +1385,10 @@ export default function StatsScreen() {
                 style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: T.accent + '30', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>📝 할일에 추가하기</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="add-circle-outline" size={14} color={T.accent} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>할일에 추가하기</Text>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -1390,7 +1399,7 @@ export default function StatsScreen() {
             onPress={() => setShowDayReport(true)}
             activeOpacity={0.85}
           >
-            <Text style={S.reportBtnIcon}>📋</Text>
+            <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
               <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
@@ -1481,7 +1490,7 @@ export default function StatsScreen() {
                   const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
                   return (
                     <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                      <Text style={[S.tzIcon]}>{zone.icon}</Text>
+                      <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
                       <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
                       <View style={S.tzBarWrap}>
                         <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
@@ -1539,7 +1548,7 @@ export default function StatsScreen() {
             onPress={() => setShowReport(true)}
             activeOpacity={0.85}
           >
-            <Text style={S.reportBtnIcon}>📋</Text>
+            <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
               <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
@@ -1608,7 +1617,7 @@ export default function StatsScreen() {
                   const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
                   return (
                     <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                      <Text style={S.tzIcon}>{zone.icon}</Text>
+                      <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
                       <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
                       <View style={S.tzBarWrap}>
                         <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
@@ -1642,7 +1651,7 @@ export default function StatsScreen() {
             onPress={() => setShowMonthReport(true)}
             activeOpacity={0.85}
           >
-            <Text style={S.reportBtnIcon}>📋</Text>
+            <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
               <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
@@ -1811,7 +1820,7 @@ export default function StatsScreen() {
             onPress={() => setShowHeatReport(true)}
             activeOpacity={0.85}
           >
-            <Text style={S.reportBtnIcon}>🌱</Text>
+            <Ionicons name="leaf-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
               <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
@@ -1936,7 +1945,7 @@ export default function StatsScreen() {
                     </View>
                   </View>
                   <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
-                    <Text style={{ fontSize: 20 }}>⚠️</Text>
+                    <Ionicons name="warning-outline" size={20} color={T.sub} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
                       <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
@@ -1974,7 +1983,10 @@ export default function StatsScreen() {
         <View style={S.mo}>
           <View style={[S.moScroll]}>
             <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { width: 540, alignSelf: 'center', marginHorizontal: 0 }]}>
-              <Text style={[S.modalTitle, { color: T.text }]}>📝 메모 수정</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Ionicons name="document-text-outline" size={16} color={T.text} />
+                <Text style={[S.modalTitle, { color: T.text, marginBottom: 0 }]}>메모 수정</Text>
+              </View>
               <TextInput
                 value={editMemoText}
                 onChangeText={setEditMemoText}
@@ -2496,7 +2508,10 @@ export default function StatsScreen() {
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={[S.modalTitle, { color: T.text, fontSize: 16, textAlign: 'left', marginBottom: 0 }]}>⏰ 시간대별 공부 현황</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="time-outline" size={16} color={T.text} />
+                <Text style={[S.modalTitle, { color: T.text, fontSize: 16, textAlign: 'left', marginBottom: 0 }]}>시간대별 공부 현황</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowTimelineModal(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
@@ -2672,7 +2687,7 @@ export default function StatsScreen() {
                   {/* 헤더 */}
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize: 22 }}>{zone.icon}</Text>
+                      <Ionicons name={zone.icon} size={22} color={T.sub} />
                       <View>
                         <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>{zone.label} <Text style={{ fontSize: 13, fontWeight: '400', color: T.sub }}>{hoursLabel}</Text></Text>
                         <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{periodLabel}</Text>
@@ -3081,7 +3096,10 @@ export default function StatsScreen() {
                   {/* 메모 */}
                   <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>📝 메모</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="document-text-outline" size={13} color={T.text} />
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>메모</Text>
+                      </View>
                       <TouchableOpacity
                         onPress={() => { setEditMemo({ sessionId: sess.id, memo: sess.memo || '' }); setEditMemoText(sess.memo || ''); }}
                         style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: T.accent + '20', borderRadius: 8 }}
@@ -3139,7 +3157,10 @@ export default function StatsScreen() {
               </View>
               {/* 오늘 세션별 밀도 */}
               <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14, marginBottom: 12 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 10 }}>📋 오늘 세션별 밀도</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 }}>
+                  <Ionicons name="stats-chart-outline" size={13} color={T.text} />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>오늘 세션별 밀도</Text>
+                </View>
                 {todaySessions.length === 0 ? (
                   <Text style={{ fontSize: 13, color: T.sub }}>세션 기록이 없어요</Text>
                 ) : (

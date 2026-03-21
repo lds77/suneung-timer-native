@@ -168,8 +168,8 @@ export default function SubjectsScreen() {
 
   // 탭 목록: 고등만 수능 포함
   const tabs = isHigh
-    ? [{ id: 'subjects', icon: '📝', label: '내 과목' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'routine', icon: '📋', label: '추천 루틴' }, { id: 'suneung', icon: '🎯', label: '수능' }]
-    : [{ id: 'subjects', icon: '📝', label: '내 과목' }, { id: 'method', icon: '🧠', label: '학습법' }, { id: 'routine', icon: '📋', label: '추천 루틴' }];
+    ? [{ id: 'subjects', icon: 'list-outline', label: '내 과목' }, { id: 'method', icon: 'bulb-outline', label: '학습법' }, { id: 'routine', icon: 'clipboard-outline', label: '추천 루틴' }, { id: 'suneung', icon: 'flag-outline', label: '수능' }]
+    : [{ id: 'subjects', icon: 'list-outline', label: '내 과목' }, { id: 'method', icon: 'bulb-outline', label: '학습법' }, { id: 'routine', icon: 'clipboard-outline', label: '추천 루틴' }];
 
   const startRoutine = (routine) => {
     const items = routine.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
@@ -247,7 +247,7 @@ export default function SubjectsScreen() {
           {tabs.map(t => (
             <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
               onPress={() => changeTab(t.id)}>
-              <Text style={{ fontSize: isHigh ? 11 : 13, marginBottom: 1 }}>{t.icon}</Text>
+              <Ionicons name={t.icon} size={isHigh ? 14 : 16} color={tab === t.id ? T.text : T.sub} style={{ marginBottom: 1 }} />
               <Text style={{ fontSize: isHigh ? 9 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
             </TouchableOpacity>
           ))}
@@ -303,13 +303,16 @@ export default function SubjectsScreen() {
                       <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }}>{method.name}</Text>
                       <Text style={{ fontSize: 13, color: T.text, marginTop: 2 }}>{method.desc}</Text>
                       <View style={[S.sourceBadge, { backgroundColor: method.color + '10' }]}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: method.color }}>📎 {method.source}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="link-outline" size={11} color={method.color} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: method.color }}>{method.source}</Text>
+                        </View>
                       </View>
                     </View>
                     <View style={{ alignItems: 'center' }}>
                       <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>{totalMin}분</Text>
                       <View style={[S.playBtn, { backgroundColor: method.color }]}>
-                        <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>▶</Text>
+                        <Ionicons name="caret-forward" size={14} color="white" />
                       </View>
                     </View>
                   </View>
@@ -348,7 +351,7 @@ export default function SubjectsScreen() {
                   <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
                   <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
                     onPress={() => startSuneungSingle(subj)}>
-                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>▶</Text>
+                    <Ionicons name="caret-forward" size={13} color="white" />
                   </TouchableOpacity>
                 </View>
               );
