@@ -267,6 +267,30 @@ export default function StatsScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const isLandscape = isTablet && winW > winH;
+  const swipeStartX = useRef(null);
+  const swipeStartY = useRef(null);
+  const onSwipeStart = (e) => {
+    swipeStartX.current = e.nativeEvent.pageX;
+    swipeStartY.current = e.nativeEvent.pageY;
+  };
+  const onSwipeEndWeek = (e) => {
+    if (swipeStartX.current == null) return;
+    const dx = e.nativeEvent.pageX - swipeStartX.current;
+    const dy = Math.abs(e.nativeEvent.pageY - swipeStartY.current);
+    swipeStartX.current = null;
+    if (dy > 40 || Math.abs(dx) < 50) return;
+    if (dx < 0) setWeekOffset(p => p - 1);
+    else setWeekOffset(p => Math.min(0, p + 1));
+  };
+  const onSwipeEndMonth = (e) => {
+    if (swipeStartX.current == null) return;
+    const dx = e.nativeEvent.pageX - swipeStartX.current;
+    const dy = Math.abs(e.nativeEvent.pageY - swipeStartY.current);
+    swipeStartX.current = null;
+    if (dy > 40 || Math.abs(dx) < 50) return;
+    if (dx < 0) setMonthOffset(p => p - 1);
+    else setMonthOffset(p => Math.min(0, p + 1));
+  };
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const [tab, setTab] = useState('daily');
@@ -1268,7 +1292,8 @@ export default function StatsScreen() {
         {/* 탭: 주간 */}
         {/* ──────────────────────────────────────────────────── */}
         {tab === 'weekly' && (
-          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}
+            onTouchStart={onSwipeStart} onTouchEnd={onSwipeEndWeek}>
           <View style={isLandscape ? { flex: 1 } : {}}>
 
           {/* ── 주 탐색 헤더 ── */}
@@ -1406,7 +1431,8 @@ export default function StatsScreen() {
         {/* 탭: 월간 */}
         {/* ──────────────────────────────────────────────────── */}
         {tab === 'monthly' && (
-          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}>
+          <View style={isLandscape ? { flexDirection: 'row', gap: 10, alignItems: 'flex-start' } : {}}
+            onTouchStart={onSwipeStart} onTouchEnd={onSwipeEndMonth}>
           <View style={isLandscape ? { flex: 1 } : {}}>
 
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
