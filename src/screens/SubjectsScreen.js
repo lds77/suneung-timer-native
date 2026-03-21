@@ -434,10 +434,10 @@ export default function SubjectsScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
                         onPress={() => startCountup(subj)}>
-                        <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color }}>📈 자유</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>📈 자유</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[S.labelBtn, { backgroundColor: subj.color }]} onPress={() => startSingle(subj)}>
-                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>⏱ {defMin}분</Text>
+                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '800', lineHeight: 18 }}>⏱ {defMin}분</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -540,7 +540,7 @@ const S = StyleSheet.create({
   subjDot: { width: 4, height: 30, borderRadius: 2 },
   runBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   playBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  labelBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, minWidth: 66, alignItems: 'center' },
+  labelBtn: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8, borderRadius: 7, alignItems: 'center' },
   addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   delBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#FF4757', alignItems: 'center', justifyContent: 'center' },
   emptyCard: { borderRadius: 14, padding: 24, borderWidth: 1, alignItems: 'center', marginBottom: 10 },

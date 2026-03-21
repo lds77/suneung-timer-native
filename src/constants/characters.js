@@ -79,41 +79,43 @@ export const getTodoMessage = (completedCount, allDone, characterId) => {
 };
 
 // 플래너 달성률별 캐릭터 메시지 (rate: 0~100)
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 export const getPlannerMessage = (characterId, rate) => {
   const char = characterId || 'toru';
+  const d = DAY_LABELS[new Date().getDay()] + '요일';
+  let text;
   if (rate >= 100) {
     const msgs = {
-      toru: '📅 오늘 계획 완료! 토루가 너무 뿌듯해! 🎉💕',
-      paengi: '📅 계획 100% 달성! 완벽한 하루야 🎉',
-      taco: '📅 오늘 계획 전부 완료! 최고야 🏆',
-      totoru: '📅 계획대로 다 마쳤구나. 잘했다.',
+      toru: '계획 완료! 토루가 너무 뿌듯해! 🎉💕',
+      paengi: '계획 100% 달성! 완벽한 하루야 🎉',
+      taco: '계획 전부 완료! 최고야 🏆',
+      totoru: '계획대로 다 마쳤구나. 잘했다.',
     };
-    return msgs[char] || msgs.toru;
-  }
-  if (rate >= 70) {
+    text = msgs[char] || msgs.toru;
+  } else if (rate >= 70) {
     const msgs = {
-      toru: `📅 ${rate}% 달성! 거의 다 왔어, 조금만 더 💕`,
-      paengi: `📅 ${rate}%! 오늘 계획 거의 다 했어! 마무리하자`,
-      taco: `📅 ${rate}% 완료! 마지막 스퍼트! 🔥`,
-      totoru: `📅 ${rate}%... 끝이 보인다. 마무리하자.`,
+      toru: `${rate}% 달성! 거의 다 왔어, 조금만 더 💕`,
+      paengi: `${rate}%! 계획 거의 다 했어! 마무리하자`,
+      taco: `${rate}% 완료! 마지막 스퍼트! 🔥`,
+      totoru: `${rate}%... 끝이 보인다. 마무리하자.`,
     };
-    return msgs[char] || msgs.toru;
-  }
-  if (rate >= 30) {
+    text = msgs[char] || msgs.toru;
+  } else if (rate >= 30) {
     const msgs = {
-      toru: `📅 ${rate}% 진행 중! 잘하고 있어 💕`,
-      paengi: `📅 ${rate}% 달성! 계획대로 가고 있어`,
-      taco: `📅 ${rate}% 완료! 이 기세로! ⚡`,
-      totoru: `📅 ${rate}%. 차근차근 하고 있어.`,
+      toru: `${rate}% 진행 중! 잘하고 있어 💕`,
+      paengi: `${rate}% 달성! 계획대로 가고 있어`,
+      taco: `${rate}% 완료! 이 기세로! ⚡`,
+      totoru: `${rate}%. 차근차근 하고 있어.`,
     };
-    return msgs[char] || msgs.toru;
+    text = msgs[char] || msgs.toru;
+  } else {
+    const msgs = {
+      toru: '계획 시작해볼까? 같이 하자 💕',
+      paengi: '계획이 있어! 시작하자',
+      taco: '계획 고고! 바로 시작! 🔥',
+      totoru: '계획... 차분히 시작해보자.',
+    };
+    text = msgs[char] || msgs.toru;
   }
-  // rate < 30 (시작 전 또는 초기)
-  const msgs = {
-    toru: '📅 오늘 계획 시작해볼까? 같이 하자 💕',
-    paengi: '📅 오늘 계획이 있어! 시작하자',
-    taco: '📅 오늘 계획 고고! 바로 시작! 🔥',
-    totoru: '📅 오늘 계획... 차분히 시작해보자.',
-  };
-  return msgs[char] || msgs.toru;
+  return { day: d, text };
 };

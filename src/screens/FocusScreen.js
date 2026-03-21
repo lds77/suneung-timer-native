@@ -53,6 +53,23 @@ const getSchoolDefaultFavs = (school) => {
 };
 const DEFAULT_FAVS = getSchoolDefaultFavs('high');
 
+// ─── 미니 캘린더 아이콘 (오늘 날짜 표시) ──────────────────────────
+function CalendarIcon({ accentColor, size = 28 }) {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  return (
+    <View style={{ width: size, height: size, borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: accentColor }}>
+      <View style={{ backgroundColor: accentColor, height: size * 0.36, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: size * 0.2, color: 'white', fontWeight: '800', lineHeight: size * 0.32 }}>{month}월</Text>
+      </View>
+      <View style={{ flex: 1, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: size * 0.4, color: '#222', fontWeight: '900', lineHeight: size * 0.52 }}>{day}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function FocusScreen() {
   const app = useApp();
   const navigation = useNavigation();
@@ -1034,11 +1051,14 @@ export default function FocusScreen() {
                   ].filter(Boolean).join('  ·  ')}
                 </Text>
               )}
-              {plannerRate !== null && (
-                <Text style={{ fontSize: 12, color: T.accent, marginTop: 1, fontWeight: '600' }} numberOfLines={1}>
-                  {getPlannerMessage(app.settings.mainCharacter, plannerRate)}
-                </Text>
-              )}
+              {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4 }}>
+                    <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flex: 1 }} numberOfLines={1}>{m.text}</Text>
+                  </View>
+                ); })()}
             </View></View>
           <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}><Text>{app.settings.darkMode ? '☀️' : '🌙'}</Text></TouchableOpacity>
         </View>
@@ -1095,7 +1115,10 @@ export default function FocusScreen() {
           return (
             <View style={[S.planCard, { backgroundColor: T.card, borderColor: T.border }]}>
               <TouchableOpacity style={S.planCardHeader} onPress={() => setPlanCardCollapsed(c => !c)}>
-                <Text style={[S.planCardTitle, { color: T.text }]}>📅 오늘의 계획</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <CalendarIcon accentColor={T.accent} size={28} />
+                  <Text style={[S.planCardTitle, { color: T.text }]}>오늘의 계획</Text>
+                </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TouchableOpacity onPress={() => setShowScheduleEditor(true)} style={{ paddingVertical: 6, paddingHorizontal: 10 }}>
                     <Text style={[S.planEditBtn, { color: T.accent }]}>편집</Text>
@@ -1745,11 +1768,14 @@ export default function FocusScreen() {
                   ].filter(Boolean).join('  ·  ')}
                 </Text>
               )}
-              {plannerRate !== null && (
-                <Text style={{ fontSize: 12, color: T.accent, marginTop: 1, fontWeight: '600' }} numberOfLines={1}>
-                  {getPlannerMessage(app.settings.mainCharacter, plannerRate)}
-                </Text>
-              )}
+              {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4 }}>
+                    <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flex: 1 }} numberOfLines={1}>{m.text}</Text>
+                  </View>
+                ); })()}
             </View></View>
           <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}><Text>{app.settings.darkMode ? '☀️' : '🌙'}</Text></TouchableOpacity>
         </View>
@@ -1806,7 +1832,10 @@ export default function FocusScreen() {
           return (
             <View style={[S.planCard, { backgroundColor: T.card, borderColor: T.border }]}>
               <TouchableOpacity style={S.planCardHeader} onPress={() => setPlanCardCollapsed(c => !c)}>
-                <Text style={[S.planCardTitle, { color: T.text }]}>📅 오늘의 계획</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <CalendarIcon accentColor={T.accent} size={28} />
+                  <Text style={[S.planCardTitle, { color: T.text }]}>오늘의 계획</Text>
+                </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TouchableOpacity onPress={() => setShowScheduleEditor(true)} style={{ paddingVertical: 6, paddingHorizontal: 10 }}>
                     <Text style={[S.planEditBtn, { color: T.accent }]}>편집</Text>
