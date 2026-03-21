@@ -438,7 +438,7 @@ export function AppProvider({ children }) {
                   tt = { ...tt, elapsedSec: leftover };
                 } else break;
               }
-              return { ...tt, resumedAt: Date.now(), elapsedSecAtResume: tt.elapsedSec };
+              return tt;
             }
             if (t.type === 'sequence') {
               let tt = { ...t, elapsedSec: e };
@@ -451,10 +451,9 @@ export function AppProvider({ children }) {
                   tt = { ...tt, elapsedSec: leftover };
                 } else break;
               }
-              if (tt.status === 'running') return { ...tt, resumedAt: Date.now(), elapsedSecAtResume: tt.elapsedSec };
               return tt;
             }
-            return { ...t, elapsedSec: e, resumedAt: Date.now(), elapsedSecAtResume: e };
+            return { ...t, elapsedSec: e };
           }));
         }
       }

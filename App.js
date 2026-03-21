@@ -634,14 +634,26 @@ function Root() {
   }, [app.settings.fontFamily]);
 
   // 폰트 파일이 아직 없으면 기본으로 시작
-  if (app.loading || !fontsLoaded) return (
+  if (app.loading) return (
     <View style={styles.loading}>
       <ActivityIndicator size="large" color="#FF6B9D" />
       <Text style={styles.loadingText}>로딩 중...</Text>
     </View>
   );
   if (!app.settings.onboardingDone) return <OnboardingScreen />;
-  return <MainApp />;
+  // 폰트 로딩 중에는 MainApp을 언마운트하지 않고 오버레이만 씌움
+  // (FocusScreen이 언마운트되면 screenLocked 상태가 초기화되어 집중모드 재잠금 버그 발생)
+  return (
+    <>
+      <MainApp />
+      {!fontsLoaded && (
+        <View style={[StyleSheet.absoluteFill, styles.loading]}>
+          <ActivityIndicator size="large" color="#FF6B9D" />
+          <Text style={styles.loadingText}>로딩 중...</Text>
+        </View>
+      )}
+    </>
+  );
 }
 
 export default function App() {
