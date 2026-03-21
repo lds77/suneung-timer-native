@@ -183,6 +183,18 @@ function getSessionSubject(sess, subjects) {
   return { id: '_none', name: '미지정', color: '#B2BEC3' };
 }
 
+// ─── Streak 칭호 ─────────────────────────────────────────────────
+function getStreakTitle(streak) {
+  if (streak >= 365) return '🌌 전설';
+  if (streak >= 100) return '💎 백일의 기적';
+  if (streak >= 30)  return '👑 습관이 된 자';
+  if (streak >= 14)  return '🥈 2주 파이터';
+  if (streak >= 7)   return '🥉 일주일의 기적';
+  if (streak >= 3)   return '🔥 작심삼일 돌파!';
+  if (streak >= 1)   return '🌱 씨앗 심는 중';
+  return null;
+}
+
 // ─── 목표 달성 링 컴포넌트 ────────────────────────────────────────
 function GoalRing({ pct, size = 88, color, bgColor }) {
   const stroke = Math.round(size * 0.115);
@@ -842,6 +854,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
                 <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                {getStreakTitle(app.settings.streak) && (
+                  <Text style={{ fontSize: 10, color: T.gold || '#F0B429', fontWeight: '700', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
+                )}
               </View>
             </>)}
             {tab === 'weekly' && (<>
@@ -856,6 +871,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>연속</Text>
                 <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                {getStreakTitle(app.settings.streak) && (
+                  <Text style={{ fontSize: 10, color: T.gold || '#F0B429', fontWeight: '700', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
+                )}
               </View>
             </>)}
             {tab === 'monthly' && (<>
@@ -882,6 +900,9 @@ export default function StatsScreen() {
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>현재연속</Text>
                 <Text style={[S.sVal, { color: T.gold || '#F0B429' }]}>🔥{app.settings.streak}일</Text>
+                {getStreakTitle(app.settings.streak) && (
+                  <Text style={{ fontSize: 10, color: T.gold || '#F0B429', fontWeight: '700', marginTop: 2 }}>{getStreakTitle(app.settings.streak)}</Text>
+                )}
               </View>
               <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.sLabel, { color: T.sub }]}>최장연속</Text>
