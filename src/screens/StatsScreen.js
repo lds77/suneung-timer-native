@@ -1513,10 +1513,13 @@ export default function StatsScreen() {
                 })}
                 {bestZone && (
                   <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
-                    <Text style={{ fontSize: 13 }}>{bestZone.icon}</Text>
-                    <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text }]}>
-                      {bestZone.label}에 집중력이 가장 높아요!  {bestZone.tier?.label}
+                    <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
+                    <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
+                      {bestZone.label}에 집중력이 가장 높아요!
                     </Text>
+                    {bestZone.tier && (
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
+                    )}
                   </View>
                 )}
               </>
@@ -1635,10 +1638,13 @@ export default function StatsScreen() {
                 })}
                 {monthBestZone && (
                   <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
-                    <Text style={{ fontSize: 13 }}>{monthBestZone.icon}</Text>
-                    <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text }]}>
-                      {monthBestZone.label}에 집중력이 가장 높아요!  {monthBestZone.tier?.label}
+                    <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
+                    <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
+                      {monthBestZone.label}에 집중력이 가장 높아요!
                     </Text>
+                    {monthBestZone.tier && (
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
+                    )}
                   </View>
                 )}
               </>
@@ -3324,7 +3330,7 @@ const S = StyleSheet.create({
   tzBarWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tzBarTrack: { flex: 1, height: 7, borderRadius: 3.5, overflow: 'hidden' },
   tzBarFill: { height: '100%', borderRadius: 3.5 },
-  tzTime: { fontSize: 11, width: 30, textAlign: 'right' },
+  tzTime: { fontSize: 11, minWidth: 34, textAlign: 'right' },
   tzTierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   tzTierT: { fontSize: 11, fontWeight: '800' },
   tzEmpty: { fontSize: 11, width: 30, textAlign: 'center' },
