@@ -923,6 +923,11 @@ export default function StatsScreen() {
                 size={74} color={T.accent} bgColor={T.surface2}
               />
               <Text style={[S.sVal, { color: T.accent, fontSize: 16, marginTop: 5 }]}>{formatDuration(todayTotalSec)}</Text>
+              {todayAvgDensity > 0 && todayTotalSec > 0 && (
+                <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
+                  🔥 순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}
+                </Text>
+              )}
               <Text style={[S.sLabel, { color: T.sub, marginTop: 2 }]}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
               {todayTotalSec >= app.settings.dailyGoalMin * 60 && (
                 <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>🎉 달성!</Text>
@@ -2247,6 +2252,11 @@ export default function StatsScreen() {
                   <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
                     <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
                     <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
+                    {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>
+                        🔥 순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}
+                      </Text>
+                    )}
                   </View>
                   <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
                     <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
