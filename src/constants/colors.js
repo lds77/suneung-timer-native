@@ -49,7 +49,7 @@ const ACCENT_COLORS = {
   },
 };
 
-const FONT_SCALES = { small: 0.9, medium: 1.1, large: 1.25 };
+const FONT_SCALES = { small: 0.9, medium: 1.0, large: 1.25 };
 
 // 스타일 프리셋: cute(귀여운) / minimal(미니멀)
 // cardRadius: 카드/모달 borderRadius, buttonRadius: 버튼, chipRadius: 뱃지/칩
