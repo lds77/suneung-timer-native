@@ -138,7 +138,7 @@ const SCHOOL_LABELS = {
 };
 const ELEM_GRADE_KEY = (school) => school;
 
-export default function SubjectsScreen() {
+export default function SubjectsScreen({ navigation }) {
   const { width: winW } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
@@ -174,13 +174,13 @@ export default function SubjectsScreen() {
   const startRoutine = (routine) => {
     const items = routine.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
     const ok = app.startSequence({ items, breakSec: routine.breakMin * 60, seqName: routine.name, seqIcon: routine.icon, seqColor: routine.color || items[0]?.color || '#4A90D9' });
-    if (ok) app.showToastCustom(`${routine.name} 시작!`, 'taco');
+    if (ok) navigation.navigate('Focus');
   };
 
   const startMethod = (method) => {
     const items = method.items.map(it => ({ label: it.label, color: it.color, totalSec: it.min * 60, type: 'countdown' }));
     const ok = app.startSequence({ items, breakSec: method.breakMin * 60, seqName: method.name, seqIcon: method.icon, seqColor: method.color });
-    if (ok) app.showToastCustom(`${method.name} 시작!`, 'toru');
+    if (ok) navigation.navigate('Focus');
   };
 
   const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
@@ -506,6 +506,7 @@ export default function SubjectsScreen() {
         </View></View>
         </KeyboardAvoidingView>
       </Modal>
+
     </View>
   );
 }

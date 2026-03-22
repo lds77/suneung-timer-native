@@ -1781,13 +1781,13 @@ export default function FocusScreen() {
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE710', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE720', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
             <Ionicons name="stopwatch-outline" size={22} color="#6C5CE7" />
             <Text style={[S.favCellLabel, { color: '#6C5CE7', fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent, borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
-            <Ionicons name="settings-outline" size={22} color="white" />
-            <Text style={[S.favCellLabel, { color: 'white' }]}>커스텀 타이머</Text>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
+            <Ionicons name="settings-outline" size={22} color={T.accent} />
+            <Text style={[S.favCellLabel, { color: T.accent }]}>커스텀 타이머</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 30 }} />
@@ -2529,13 +2529,13 @@ export default function FocusScreen() {
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE710', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE720', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
             <Ionicons name="stopwatch-outline" size={22} color="#6C5CE7" />
             <Text style={[S.favCellLabel, { color: '#6C5CE7', fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent, borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
-            <Ionicons name="settings-outline" size={22} color="white" />
-            <Text style={[S.favCellLabel, { color: 'white' }]}>커스텀 타이머</Text>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
+            <Ionicons name="settings-outline" size={22} color={T.accent} />
+            <Text style={[S.favCellLabel, { color: T.accent }]}>커스텀 타이머</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 30 }} />
