@@ -1781,9 +1781,9 @@ export default function FocusScreen() {
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE720', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
-            <Ionicons name="stopwatch-outline" size={22} color="#6C5CE7" />
-            <Text style={[S.favCellLabel, { color: '#6C5CE7', fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={startLapTimer}>
+            <Ionicons name="stopwatch-outline" size={22} color={T.accent} />
+            <Text style={[S.favCellLabel, { color: T.accent, fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
             <Ionicons name="settings-outline" size={22} color={T.accent} />
@@ -2529,9 +2529,9 @@ export default function FocusScreen() {
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
-          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: '#6C5CE720', borderColor: '#6C5CE7' }]} onPress={startLapTimer}>
-            <Ionicons name="stopwatch-outline" size={22} color="#6C5CE7" />
-            <Text style={[S.favCellLabel, { color: '#6C5CE7', fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
+          <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={startLapTimer}>
+            <Ionicons name="stopwatch-outline" size={22} color={T.accent} />
+            <Text style={[S.favCellLabel, { color: T.accent, fontSize: 11, lineHeight: 11 }]}>타임어택{'\n'}스톱워치</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[S.favCell, { flex: 1, backgroundColor: T.accent + '20', borderColor: T.accent }]} onPress={() => { setShowAdd(true); setAddType('countdown'); setSeqItems([]); setSeqName(''); }}>
             <Ionicons name="settings-outline" size={22} color={T.accent} />
@@ -2543,7 +2543,7 @@ export default function FocusScreen() {
         </ScrollView>
       ))}
       {lapTimer && (
-        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: '#6C5CE7' },
+        <View style={[S.lapPanel, { backgroundColor: T.card, borderColor: T.accent },
           isLandscape ? { left: Math.ceil(winW / 2) + 1, right: 0 } :
           isTablet ? { left: Math.max(0, (winW - contentMaxW) / 2), right: Math.max(0, (winW - contentMaxW) / 2) } : null
         ]}>
@@ -2551,30 +2551,30 @@ export default function FocusScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="stopwatch-outline" size={14} color="#6C5CE7" />
-                <Text style={[S.lapTitle, { color: '#6C5CE7' }]}>타임어택</Text>
+                <Ionicons name="stopwatch-outline" size={14} color={T.accent} />
+                <Text style={[S.lapTitle, { color: T.accent }]}>타임어택</Text>
               </View>
-              <Text style={[S.lapBigTime, { color: lapTimer.status === 'running' ? '#6C5CE7' : T.sub }]}>{formatTime(lapTimer.elapsedSec)}</Text>
+              <Text style={[S.lapBigTime, { color: lapTimer.status === 'running' ? T.accent : T.sub }]}>{formatTime(lapTimer.elapsedSec)}</Text>
             </View>
             <View style={S.lapMiniCtrls}>
               {lapTimer.status === 'running' ? (
                 <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720' }]} onPress={() => app.pauseTimer(lapTimer.id)}>
                   <Text style={[S.lapMiniBtnT, { color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }]}>⏸</Text></TouchableOpacity>
               ) : (
-                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => app.resumeTimer(lapTimer.id)}>
-                  <Text style={S.lapMiniBtnT}>▶</Text></TouchableOpacity>
+                <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.accent + '25', borderWidth: 1, borderColor: T.accent }]} onPress={() => app.resumeTimer(lapTimer.id)}>
+                  <Text style={[S.lapMiniBtnT, { color: T.accent }]}>▶</Text></TouchableOpacity>
               )}
-              <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(lapTimer.id)}>
+              <TouchableOpacity style={[S.lapMiniBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }]} onPress={() => app.stopTimer(lapTimer.id)}>
                 <Text style={[S.lapMiniBtnT, { color: T.sub }]}>■</Text></TouchableOpacity>
             </View>
             <TouchableOpacity
-              style={[S.lapRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? '#6C5CE7' : T.surface2 }]}
+              style={[S.lapRecordBtn, { backgroundColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? T.accent + '25' : T.surface2, borderWidth: 1, borderColor: lapTimer.status === 'running' ? '#F5A623' : lapTimer.elapsedSec === 0 ? T.accent : T.border }]}
               onPress={() => {
                 if (lapTimer.status === 'running') app.addLap(lapTimer.id);
                 else if (lapTimer.elapsedSec === 0) app.resumeTimer(lapTimer.id);
               }}
               activeOpacity={0.7}>
-              <Text style={[S.lapRecordBtnT, { color: lapTimer.status === 'running' ? 'white' : lapTimer.elapsedSec === 0 ? 'white' : T.sub }]}>
+              <Text style={[S.lapRecordBtnT, { color: lapTimer.status === 'running' ? 'white' : lapTimer.elapsedSec === 0 ? T.accent : T.sub }]}>
                 {lapTimer.status === 'running' ? '랩 기록' : lapTimer.elapsedSec === 0 ? '시작' : '일시정지'}
               </Text>
               {(lapTimer.laps || []).length > 0 && lapTimer.status === 'running' && (
@@ -2626,8 +2626,8 @@ export default function FocusScreen() {
             </ScrollView>
           )}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-            <TouchableOpacity style={[S.lapDoneBtn, { backgroundColor: '#6C5CE7' }]} onPress={() => app.restartTimer(lapDone.id)}>
-              <Text style={S.lapDoneBtnT}>▶ 다시</Text></TouchableOpacity>
+            <TouchableOpacity style={[S.lapDoneBtn, { backgroundColor: T.accent + '25', borderWidth: 1, borderColor: T.accent }]} onPress={() => app.restartTimer(lapDone.id)}>
+              <Text style={[S.lapDoneBtnT, { color: T.accent }]}>▶ 다시</Text></TouchableOpacity>
             <TouchableOpacity style={[S.lapDoneBtn, { backgroundColor: T.surface2 }]} onPress={() => app.removeTimer(lapDone.id)}>
               <Text style={[S.lapDoneBtnT, { color: T.sub }]}>닫기</Text></TouchableOpacity>
           </View>
@@ -3097,10 +3097,10 @@ export default function FocusScreen() {
             {seqItems.length > 0 && <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginBottom: 4 }}>총 약 {seqItems.reduce((s, it) => s + it.min, 0)}분 ({seqItems.filter(it => !it.isBreak).length}개 항목)</Text>}
           </View>)}
           {addType !== 'sequence' ? (<View style={S.mBtns}>
-            <TouchableOpacity style={[S.mCancel, { borderColor: T.border }]} onPress={() => setShowAdd(false)}><Text style={[S.mCancelT, { color: T.sub }]}>취소</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent }]} onPress={handleAddTimer}><Text style={S.mConfirmT}>▶ 시작</Text></TouchableOpacity></View>
+            <TouchableOpacity style={[S.mCancel, { borderColor: T.border, backgroundColor: T.surface2 }]} onPress={() => setShowAdd(false)}><Text style={[S.mCancelT, { color: T.sub }]}>취소</Text></TouchableOpacity>
+            <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent + '25', borderWidth: 1, borderColor: T.accent }]} onPress={handleAddTimer}><Text style={[S.mConfirmT, { color: T.accent }]}>▶ 시작</Text></TouchableOpacity></View>
           ) : (<View style={{ gap: 6 }}>
-            <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent, paddingVertical: 11 }]} onPress={handleStartSeq}><Text style={S.mConfirmT}>▶ 바로 시작</Text></TouchableOpacity>
+            <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent + '25', borderWidth: 1, borderColor: T.accent, paddingVertical: 11 }]} onPress={handleStartSeq}><Text style={[S.mConfirmT, { color: T.accent }]}>▶ 바로 시작</Text></TouchableOpacity>
             <TouchableOpacity style={{ paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: T.accent, alignItems: 'center' }} onPress={handleSaveSeq}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Ionicons name="star-outline" size={13} color={T.accent} /><Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>즐겨찾기에 저장</Text></View></TouchableOpacity>
             <TouchableOpacity onPress={() => setShowAdd(false)}><Text style={{ fontSize: 14, fontWeight: '600', color: T.sub, textAlign: 'center', paddingVertical: 6 }}>취소</Text></TouchableOpacity>
           </View>)}

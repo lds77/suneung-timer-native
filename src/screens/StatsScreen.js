@@ -1,6 +1,6 @@
 // src/screens/StatsScreen.js  —  v24
 // 추가: 히트맵(365일 잔디) · 주간 리포트 카드 · 시간대별 집중력 분석 · 취약 과목 알림
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Pressable, Alert,
   StyleSheet, Dimensions, Share, Animated, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
@@ -70,17 +70,17 @@ function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, streak, 
   const diff = weekTotal - weekPrev;
   const diffStr = diff === 0 ? '지난주와 동일' : diff > 0 ? `지난주보다 +${formatShort(diff)}` : `지난주보다 ${formatShort(Math.abs(diff))} 적음`;
   const fsl = focusStats || {};
-  const fsLine = fsl.screenOnSessions ? `🔥 집중 도전: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
-  const fsLine2 = fsl.screenOffSessions ? `📖 편하게 공부: ${fsl.screenOffSessions}세션` : '';
-  const todoLine = todoRate !== null && todoRate !== undefined ? `📝 이번 주 할 일 완료율: ${todoRate}%` : '';
-  return `📊 열공메이트 주간 리포트
+  const fsLine = fsl.screenOnSessions ? `집중 도전: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
+  const fsLine2 = fsl.screenOffSessions ? `편하게 공부: ${fsl.screenOffSessions}세션` : '';
+  const todoLine = todoRate !== null && todoRate !== undefined ? `이번 주 할 일 완료율: ${todoRate}%` : '';
+  return `열공메이트 주간 리포트
 
-⏱️ 이번 주 공부시간: ${formatDuration(weekTotal)}
-📈 ${diffStr}
-🎯 집중밀도: ${tier.label} (${avgDensity}점)
-📚 최다 과목: ${topSubject || '미지정'}
-📅 공부일수: ${studyDays}일 / 7일
-🔥 연속 공부: ${streak}일
+이번 주 공부시간: ${formatDuration(weekTotal)}
+${diffStr}
+집중밀도: ${tier.label} (${avgDensity}점)
+최다 과목: ${topSubject || '미지정'}
+공부일수: ${studyDays}일 / 7일
+연속 공부: ${streak}일
 ${todoLine ? '\n' + todoLine : ''}${fsLine ? '\n' + fsLine : ''}${fsLine2 ? '\n' + fsLine2 : ''}
 
 #열공멀티타이머 #공부스타그램 #수험생`;
@@ -90,14 +90,14 @@ ${todoLine ? '\n' + todoLine : ''}${fsLine ? '\n' + fsLine : ''}${fsLine2 ? '\n'
 function buildDayReportText({ date, totalSec, goalSec, avgDensity, sessions, topSubject, streak }) {
   const tier = getTier(avgDensity);
   const pct = Math.min(100, Math.round(totalSec / Math.max(1, goalSec) * 100));
-  return `📊 열공메이트 오늘 리포트 (${date})
+  return `열공메이트 오늘 리포트 (${date})
 
-⏱️ 공부시간: ${formatDuration(totalSec)}
-🎯 목표 달성: ${pct}% (목표 ${formatDuration(goalSec)})
-💫 집중밀도: ${tier.label} ${avgDensity}점
-📚 세션: ${sessions}회
-${topSubject ? `💪 최다 과목: ${topSubject}` : ''}
-🔥 연속 공부: ${streak}일
+공부시간: ${formatDuration(totalSec)}
+목표 달성: ${pct}% (목표 ${formatDuration(goalSec)})
+집중밀도: ${tier.label} ${avgDensity}점
+세션: ${sessions}회
+${topSubject ? `최다 과목: ${topSubject}` : ''}
+연속 공부: ${streak}일
 
 #열공멀티타이머 #공부스타그램 #수험생`;
 }
@@ -105,24 +105,24 @@ ${topSubject ? `💪 최다 과목: ${topSubject}` : ''}
 // ─── 월간 리포트 텍스트 생성 ─────────────────────────────────────
 function buildMonthReportText({ monthStr, totalSec, studyDays, totalDays, avgDensity, topSubject }) {
   const tier = getTier(avgDensity);
-  return `📊 열공메이트 ${monthStr} 월간 리포트
+  return `열공메이트 ${monthStr} 월간 리포트
 
-⏱️ 총 공부시간: ${formatDuration(totalSec)}
-📅 공부일: ${studyDays}/${totalDays}일
-💫 평균 집중밀도: ${tier.label} ${avgDensity}점
-${topSubject ? `💪 최다 과목: ${topSubject}` : ''}
+총 공부시간: ${formatDuration(totalSec)}
+공부일: ${studyDays}/${totalDays}일
+평균 집중밀도: ${tier.label} ${avgDensity}점
+${topSubject ? `최다 과목: ${topSubject}` : ''}
 
 #열공멀티타이머 #공부스타그램 #월간리포트`;
 }
 
 // ─── 잔디 리포트 텍스트 생성 ─────────────────────────────────────
 function buildHeatReportText({ studyDays, streak, longestStreak, yearTotal }) {
-  return `🌱 열공메이트 공부 기록
+  return `열공메이트 공부 기록
 
-📆 공부일 (최근 6개월): ${studyDays}일
-🔥 현재 연속: ${streak}일
-🏆 최장 연속: ${longestStreak}일
-⏱️ 올해 총 공부: ${formatDuration(yearTotal)}
+공부일 (최근 6개월): ${studyDays}일
+현재 연속: ${streak}일
+최장 연속: ${longestStreak}일
+올해 총 공부: ${formatDuration(yearTotal)}
 
 #열공멀티타이머 #공부스타그램 #공부잔디`;
 }
@@ -299,6 +299,12 @@ export default function StatsScreen() {
   // 메모 수정 모달
   const [editMemo, setEditMemo] = useState(null); // { sessionId, memo }
   const [editMemoText, setEditMemoText] = useState('');
+  const [isEditingMemo, setIsEditingMemo] = useState(false);
+  useEffect(() => {
+    if (isEditingMemo) {
+      setTimeout(() => sessionDetailScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [isEditingMemo]);
 
   // 세션 상세 모달
   const [sessionDetail, setSessionDetail] = useState(null); // session object
@@ -573,22 +579,22 @@ export default function StatsScreen() {
   }, [app.sessions, today]);
   const heatmap365Max = useMemo(() => Math.max(...heatmap365.flat().map(d => d.sec), 1), [heatmap365]);
 
-  // 잔디 색상: 📖모드 = accent 계열, 🔥모드 = 초록, Verified = 골드
+  // 잔디 색상: 편하게모드 = accent 계열, 집중도전모드 = 초록, Verified = 골드
   const getHeat365Color = (day) => {
     if (day.isFuture) return 'transparent';
     if (day.sec === 0) return T.surface2;
     const r = Math.min(1, day.sec / Math.max(heatmap365Max * 0.8, 3600));
     if (day.hasVerified) {
-      // 🏆 Verified 있는 날: 골드 계열
+      // Verified 있는 날: 골드 계열
       if (r < 0.25) return '#FFD70066'; if (r < 0.5) return '#FFD70099';
       if (r < 0.75) return '#FFD700CC'; return '#FFD700';
     }
     if (day.hasScreenOn) {
-      // 🔥모드 있는 날: 초록
+      // 집중도전 있는 날: 초록
       if (r < 0.25) return '#4CAF5066'; if (r < 0.5) return '#4CAF5099';
       if (r < 0.75) return '#4CAF50CC'; return '#4CAF50';
     }
-    // 📖모드만: 기본 accent
+    // 편하게 모드만: 기본 accent
     if (r < 0.25) return T.accent + '66'; if (r < 0.5) return T.accent + '99';
     if (r < 0.75) return T.accent + 'CC'; return T.accent;
   };
@@ -841,7 +847,7 @@ export default function StatsScreen() {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
                     </View>
                     <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
                   </View>
@@ -896,6 +902,8 @@ export default function StatsScreen() {
   const dayReportRef = useRef();
   const monthReportRef = useRef();
   const heatReportRef = useRef();
+  const memoInputRef = useRef(null);
+  const sessionDetailScrollRef = useRef(null);
 
   const handleShareReport = async () => {
     try {
@@ -1116,11 +1124,11 @@ export default function StatsScreen() {
                     label="현재연속" val={`${streak}일`} valColor="#E17055"
                     sub={getStreakTitle(streak) || ' '} subColor={T.text}
                     activeVal={getStreakTitle(streak) || `${streak}일`} activeValColor={T.text}
-                    activeSub={longestStreak > streak ? `최장 ${longestStreak - streak}일 남음` : '🎉 신기록 중!'}
+                    activeSub={longestStreak > streak ? `최장 ${longestStreak - streak}일 남음` : '신기록 중!'}
                   />
                   <SCard cardKey="h_best"
                     label="최장연속" val={`${longestStreak}일`} valColor="#F5A623"
-                    sub={longestStreak > 0 && streak < longestStreak ? `현재 ${longestStreak - streak}일 남음` : longestStreak > 0 ? '🎉 신기록 중!' : ' '}
+                    sub={longestStreak > 0 && streak < longestStreak ? `현재 ${longestStreak - streak}일 남음` : longestStreak > 0 ? '신기록 중!' : ' '}
                     activeVal={longestStreak > 0 && streak < longestStreak ? `${longestStreak - streak}일 남음` : '신기록!'}
                     activeValColor={streak >= longestStreak ? UP : T.text}
                     activeSub={`현재 ${streak}일 연속`}
@@ -1167,14 +1175,11 @@ export default function StatsScreen() {
               />
               <Text style={[S.sVal, { color: T.accent, fontSize: 16, marginTop: 5 }]}>{formatDuration(todayTotalSec)}</Text>
               {todayAvgDensity > 0 && todayTotalSec > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                  <Ionicons name="flame" size={11} color="#E17055" />
-                  <Text style={{ fontSize: 12, color: T.sub }}>순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
-                </View>
+                <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
               )}
               <Text style={[S.sLabel, { color: T.sub, marginTop: 2 }]}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
               {todayTotalSec >= app.settings.dailyGoalMin * 60 && (
-                <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>🎉 달성!</Text>
+                <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>달성!</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1192,7 +1197,6 @@ export default function StatsScreen() {
                   <View style={{ height: 6, borderRadius: 3, width: `${todayPlanRate}%`, backgroundColor: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
                 </View>
               </View>
-              {todayPlanRate >= 100 && <Text style={{ fontSize: 18 }}>🎉</Text>}
             </View>
           )}
 
@@ -1269,7 +1273,7 @@ export default function StatsScreen() {
                     <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 할 일</Text>
                   </View>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
-                    {doneCnt}/{todayTodos.length}{allDone ? ' 🎉' : ''}
+                    {doneCnt}/{todayTodos.length}
                   </Text>
                 </View>
                 {/* 진행률 바 */}
@@ -1296,7 +1300,7 @@ export default function StatsScreen() {
                   <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
                     {t.priority === 'high' && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#E17055' }} />}
                     {t.priority !== 'high' && <View style={{ width: 5 }} />}
-                    <Text style={{ fontSize: 14, color: T.text, flex: 1 }} numberOfLines={1}>⬜ {t.text}</Text>
+                    <Text style={{ fontSize: 14, color: T.text, flex: 1 }} numberOfLines={1}>{t.text}</Text>
                     {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
                   </View>
                 ))}
@@ -1304,7 +1308,7 @@ export default function StatsScreen() {
                   <Text style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>+ {todayTodos.filter(t => !t.done).length - 3}개 더</Text>
                 )}
                 {allDone && todayTodos.length > 0 && (
-                  <Text style={{ fontSize: 14, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>🎉 오늘 할 일 올클리어!</Text>
+                  <Text style={{ fontSize: 14, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>오늘 할 일 올클리어!</Text>
                 )}
               </View>
             );
@@ -1327,7 +1331,7 @@ export default function StatsScreen() {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
                       </View>
                       <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
                     </View>
@@ -1384,7 +1388,7 @@ export default function StatsScreen() {
                         text: '추가하기',
                         onPress: () => {
                           weakSubjects.forEach(s => app.addTodo({ text: `${s.name} 공부하기`, subjectId: s.id, subjectLabel: s.name, subjectColor: s.color }));
-                          app.showToastCustom(`✅ ${weakSubjects.length}개 할일이 추가됐어요!`, 'taco');
+                          app.showToastCustom(`${weakSubjects.length}개 할일이 추가됐어요!`, 'taco');
                         },
                       },
                     ]
@@ -1478,7 +1482,7 @@ export default function StatsScreen() {
                   <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
                 </View>
               </View>
-              {weekPlanRate >= 100 && <Text style={{ fontSize: 18 }}>🎉</Text>}
+              {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
             </View>
           )}
 
@@ -1489,7 +1493,7 @@ export default function StatsScreen() {
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
             {timeZoneAnalysis.every(z => z.count === 0) ? (
-              <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요 📊</Text>
+              <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
             ) : (
               <>
                 {timeZoneAnalysis.map((zone, i) => {
@@ -1620,7 +1624,7 @@ export default function StatsScreen() {
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
             {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
-              <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요 📊</Text>
+              <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
             ) : (
               <>
                 {monthTimeZoneAnalysis.map((zone, i) => {
@@ -1780,7 +1784,7 @@ export default function StatsScreen() {
           </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
           {(!isLandscape || !dayDetailDate) && (<>
-          {/* 📓 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
+          {/* 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
             const memoed = [...app.sessions]
               .filter(s => s.memo && s.memo.trim())
@@ -1799,7 +1803,7 @@ export default function StatsScreen() {
             return (
               <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>📓 공부 일기</Text>
+                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
                   <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
                 </View>
                 {Object.entries(grouped).map(([date, sess]) => {
@@ -1819,7 +1823,7 @@ export default function StatsScreen() {
                           >
                             <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
                             <Text style={[S.diaryMeta, { color: T.sub }]}>
-                              {subj ? subj.name : '미지정'} · {formatShort(s.durationSec)} 🖊️
+                              {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -1995,21 +1999,21 @@ export default function StatsScreen() {
       </ScrollView>
 
       {/* ── 메모 수정 모달 ── */}
-      <Modal visible={!!editMemo} transparent animationType="fade">
+      <Modal visible={!!editMemo} transparent animationType="none" onRequestClose={() => setEditMemo(null)} onShow={() => { memoInputRef.current?.focus(); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={S.mo}>
-          <View style={[S.moScroll]}>
+          <View style={S.moScroll}>
             <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { width: 540, alignSelf: 'center', marginHorizontal: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <Ionicons name="document-text-outline" size={16} color={T.text} />
                 <Text style={[S.modalTitle, { color: T.text, marginBottom: 0 }]}>메모 수정</Text>
               </View>
               <TextInput
+                ref={memoInputRef}
                 value={editMemoText}
                 onChangeText={setEditMemoText}
                 style={[S.memoEditInput, { borderColor: T.border, backgroundColor: T.surface2, color: T.text }]}
                 maxLength={50}
-                autoFocus
                 returnKeyType="done"
                 onSubmitEditing={() => {
                   if (editMemo) {
@@ -2687,7 +2691,7 @@ export default function StatsScreen() {
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                              <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                              <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
                             </View>
                             <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
                           </View>
@@ -2826,7 +2830,7 @@ export default function StatsScreen() {
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                                <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
                               </View>
                               <Text style={{ fontSize: 12, color: T.sub }}>{sess.date}  {startH}{endH ? ` ~ ${endH}` : ''}</Text>
                             </View>
@@ -3045,9 +3049,9 @@ export default function StatsScreen() {
       </Modal>
 
       {/* ── 세션 상세 모달 ── */}
-      <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => setSessionDetail(null)}>
-        <View style={S.moBottom}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSessionDetail(null)} />
+      <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => { setSessionDetail(null); setIsEditingMemo(false); }}>
+        <KeyboardAvoidingView style={S.moBottom} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSessionDetail(null); setIsEditingMemo(false); }} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {sessionDetail && (() => {
               const sess = sessionDetail;
@@ -3084,13 +3088,13 @@ export default function StatsScreen() {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: subjColor }} />
-                      <Text style={{ fontSize: 17, fontWeight: '900', color: T.text }}>{subj ? subj.name : '미지정'}</Text>
+                      <Text style={{ fontSize: 17, fontWeight: '900', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => setSessionDetail(null)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <TouchableOpacity onPress={() => { setSessionDetail(null); setIsEditingMemo(false); }} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                       <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
                     </TouchableOpacity>
                   </View>
-                  <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+                  <ScrollView ref={sessionDetailScrollRef} style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
                   {/* 시간 정보 + 티어 */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                     <View>
@@ -3177,16 +3181,53 @@ export default function StatsScreen() {
                         <Ionicons name="document-text-outline" size={13} color={T.text} />
                         <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>메모</Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => { setEditMemo({ sessionId: sess.id, memo: sess.memo || '' }); setEditMemoText(sess.memo || ''); }}
-                        style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: T.accent + '20', borderRadius: 8 }}
-                      >
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>수정</Text>
-                      </TouchableOpacity>
+                      {!isEditingMemo && (
+                        <TouchableOpacity
+                          onPress={() => { setEditMemoText(sess.memo || ''); setIsEditingMemo(true); }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: T.accent + '20', borderRadius: 8 }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>수정</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {sess.memo
-                      ? <Text style={{ fontSize: 14, color: T.text }}>{sess.memo}</Text>
-                      : <Text style={{ fontSize: 13, color: T.sub }}>메모 없음 · 수정을 눌러 추가하세요</Text>}
+                    {isEditingMemo ? (
+                      <>
+                        <TextInput
+                          ref={memoInputRef}
+                          value={editMemoText}
+                          onChangeText={setEditMemoText}
+                          style={[S.memoEditInput, { borderColor: T.border, backgroundColor: T.surface2, color: T.text }]}
+                          maxLength={50}
+                          autoFocus
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            app.updateSessionMemo(sess.id, editMemoText);
+                            setSessionDetail(prev => ({ ...prev, memo: editMemoText }));
+                            setIsEditingMemo(false);
+                          }}
+                        />
+                        <Text style={{ fontSize: 11, color: T.sub, textAlign: 'right', marginBottom: 10 }}>{editMemoText.length}/50</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity style={[S.mCancel, { borderColor: T.border, flex: 1, marginHorizontal: 0, marginBottom: 0 }]} onPress={() => setIsEditingMemo(false)}>
+                            <Text style={[S.mCancelT, { color: T.sub }]}>취소</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[S.mConfirm, { backgroundColor: T.accent, flex: 1, marginHorizontal: 0, marginBottom: 0 }]}
+                            onPress={() => {
+                              app.updateSessionMemo(sess.id, editMemoText);
+                              setSessionDetail(prev => ({ ...prev, memo: editMemoText }));
+                              setIsEditingMemo(false);
+                            }}
+                          >
+                            <Text style={S.mConfirmT}>저장</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      sess.memo
+                        ? <Text style={{ fontSize: 14, color: T.text }}>{sess.memo}</Text>
+                        : <Text style={{ fontSize: 13, color: T.sub }}>메모 없음 · 수정을 눌러 추가하세요</Text>
+                    )}
                   </View>
                   <View style={{ height: 24 }} />
                   </ScrollView>
@@ -3194,7 +3235,7 @@ export default function StatsScreen() {
               );
             })()}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── 집중밀도 상세 팝업 ── */}

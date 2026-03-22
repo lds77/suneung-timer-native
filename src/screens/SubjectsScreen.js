@@ -186,10 +186,12 @@ export default function SubjectsScreen({ navigation }) {
   const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
 
   const startSingle = (subj) => {
-    app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
+    navigation.navigate('Focus');
+    setTimeout(() => app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id }), 350);
   };
   const startCountup = (subj) => {
-    app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id });
+    navigation.navigate('Focus');
+    setTimeout(() => app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id }), 350);
   };
   const deleteSubject = (subj) => {
     Alert.alert('과목 삭제', `'${subj.name}'을(를) 삭제할까요?`, [

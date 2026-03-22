@@ -86,7 +86,7 @@ export const getPlannerMessage = (characterId, rate) => {
   let text;
   if (rate >= 100) {
     const msgs = {
-      toru: '계획 완료! 토루가 너무 뿌듯해! 🎉💕',
+      toru: '계획 완료! 토루가 너무 뿌듯해! 🎉',
       paengi: '계획 100% 달성! 완벽한 하루야 🎉',
       taco: '계획 전부 완료! 최고야 🏆',
       totoru: '계획대로 다 마쳤구나. 잘했다.',
@@ -94,7 +94,7 @@ export const getPlannerMessage = (characterId, rate) => {
     text = msgs[char] || msgs.toru;
   } else if (rate >= 70) {
     const msgs = {
-      toru: `${rate}% 달성! 거의 다 왔어, 조금만 더 💕`,
+      toru: `${rate}% 달성! 거의 다 왔어, 조금만 더!`,
       paengi: `${rate}%! 계획 거의 다 했어! 마무리하자`,
       taco: `${rate}% 완료! 마지막 스퍼트! 🔥`,
       totoru: `${rate}%... 끝이 보인다. 마무리하자.`,
@@ -102,7 +102,7 @@ export const getPlannerMessage = (characterId, rate) => {
     text = msgs[char] || msgs.toru;
   } else if (rate >= 30) {
     const msgs = {
-      toru: `${rate}% 진행 중! 잘하고 있어 💕`,
+      toru: `${rate}% 진행 중! 잘하고 있어!`,
       paengi: `${rate}% 달성! 계획대로 가고 있어`,
       taco: `${rate}% 완료! 이 기세로! ⚡`,
       totoru: `${rate}%. 차근차근 하고 있어.`,
@@ -110,9 +110,9 @@ export const getPlannerMessage = (characterId, rate) => {
     text = msgs[char] || msgs.toru;
   } else {
     const msgs = {
-      toru: '계획 시작해볼까? 같이 하자 💕',
+      toru: '계획 시작해볼까? 같이 하자!',
       paengi: '계획이 있어! 시작하자',
-      taco: '계획 고고! 바로 시작! 🔥',
+      taco: '계획 고고! 바로 시작!',
       totoru: '계획... 차분히 시작해보자.',
     };
     text = msgs[char] || msgs.toru;
