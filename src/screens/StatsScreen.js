@@ -287,6 +287,8 @@ export default function StatsScreen() {
   const HM_CELL = useMemo(() => Math.max(8, Math.floor((winW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS)), [winW]);
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
+  const S = useMemo(() => createStyles(fs), [fs]);
   const [tab, setTab] = useState('daily');
   const today = getToday();
   const [activeCard, setActiveCard] = useState(null);
@@ -3358,171 +3360,171 @@ export default function StatsScreen() {
 const HM_WEEKS = 16;
 const HM_GAP   = 2;
 
-const S = StyleSheet.create({
+function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  headerTitle: { fontSize: 20, fontWeight: '900' },
+  headerTitle: { fontSize: Math.round(20 * fs), fontWeight: '900' },
   tabRow: { flexDirection: 'row', borderRadius: 8, padding: 2, gap: 2 },
   tabBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6 },
-  tabText: { fontSize: 12, fontWeight: '700' },
+  tabText: { fontSize: Math.round(12 * fs), fontWeight: '700' },
 
   summaryRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   summaryCard: { flex: 1, borderRadius: 12, padding: 10, borderWidth: 1, alignItems: 'center' },
-  sLabel: { fontSize: 11, fontWeight: '600' },
-  sVal: { fontSize: 15, fontWeight: '900', marginTop: 2, textAlign: 'center' },
-  sSub: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  sLabel: { fontSize: Math.round(11 * fs), fontWeight: '600' },
+  sVal: { fontSize: Math.round(15 * fs), fontWeight: '900', marginTop: 2, textAlign: 'center' },
+  sSub: { fontSize: Math.round(10 * fs), fontWeight: '600', marginTop: 2 },
 
   card: { borderRadius: 14, padding: 12, borderWidth: 1, marginBottom: 8 },
-  secLabel: { fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  secLabel: { fontSize: Math.round(12 * fs), fontWeight: '700', marginBottom: 8 },
 
   // 취약 과목
   weakCard: { borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 8 },
-  weakTitle: { fontSize: 13, fontWeight: '800', marginBottom: 6 },
+  weakTitle: { fontSize: Math.round(13 * fs), fontWeight: '800', marginBottom: 6 },
   weakChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   weakChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  weakChipT: { fontSize: 13, fontWeight: '700' },
+  weakChipT: { fontSize: Math.round(13 * fs), fontWeight: '700' },
 
   // 주간 리포트 버튼
   reportBtn: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, gap: 10, marginBottom: 8 },
-  reportBtnIcon: { fontSize: 24 },
-  reportBtnTitle: { color: 'white', fontSize: 14, fontWeight: '800' },
-  reportBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 1 },
-  reportBtnArrow: { color: 'white', fontSize: 16, marginLeft: 'auto' },
+  reportBtnIcon: { fontSize: Math.round(24 * fs) },
+  reportBtnTitle: { color: 'white', fontSize: Math.round(14 * fs), fontWeight: '800' },
+  reportBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: Math.round(12 * fs), marginTop: 1 },
+  reportBtnArrow: { color: 'white', fontSize: Math.round(16 * fs), marginLeft: 'auto' },
 
   // 리포트 카드 모달
   reportCard: { borderRadius: 20, overflow: 'hidden', borderWidth: 1 },
   reportCardHeader: { padding: 16, alignItems: 'center', gap: 4 },
-  reportCardHeaderT: { color: 'white', fontSize: 16, fontWeight: '900' },
-  reportCardHeaderSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
+  reportCardHeaderT: { color: 'white', fontSize: Math.round(16 * fs), fontWeight: '900' },
+  reportCardHeaderSub: { color: 'rgba(255,255,255,0.8)', fontSize: Math.round(13 * fs) },
   reportMetrics: { flexDirection: 'row', padding: 16, alignItems: 'center' },
   reportMetricItem: { flex: 1, alignItems: 'center', gap: 4 },
-  reportMetricVal: { fontSize: 18, fontWeight: '900' },
-  reportMetricLabel: { fontSize: 11, fontWeight: '600' },
+  reportMetricVal: { fontSize: Math.round(18 * fs), fontWeight: '900' },
+  reportMetricLabel: { fontSize: Math.round(11 * fs), fontWeight: '600' },
   reportMetricDivider: { width: 1, height: 36 },
   reportMiniCard: { borderRadius: 10, padding: 10 },
-  reportCompareLabel: { fontSize: 13, fontWeight: '600' },
-  reportCompareVal: { fontSize: 15, fontWeight: '900' },
+  reportCompareLabel: { fontSize: Math.round(13 * fs), fontWeight: '600' },
+  reportCompareVal: { fontSize: Math.round(15 * fs), fontWeight: '900' },
   reportTopSubj: { marginHorizontal: 16, marginBottom: 12 },
-  reportTopSubjLabel: { fontSize: 12, fontWeight: '700' },
-  reportTopSubjName: { fontSize: 14, fontWeight: '800' },
+  reportTopSubjLabel: { fontSize: Math.round(12 * fs), fontWeight: '700' },
+  reportTopSubjName: { fontSize: Math.round(14 * fs), fontWeight: '800' },
   reportStreak: { marginHorizontal: 16, borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, borderWidth: 1 },
-  reportStreakT: { fontSize: 14, fontWeight: '800' },
+  reportStreakT: { fontSize: Math.round(14 * fs), fontWeight: '800' },
   reportTransparency: { marginHorizontal: 16, borderRadius: 12, padding: 14, marginBottom: 16 },
-  reportTransTitle: { fontSize: 14, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
+  reportTransTitle: { fontSize: Math.round(14 * fs), fontWeight: '800', marginBottom: 10, textAlign: 'center' },
   reportTransRow: { flexDirection: 'row', justifyContent: 'space-around' },
   reportTransItem: { alignItems: 'center' },
   shareBtn: { marginHorizontal: 16, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 8 },
-  shareBtnT: { color: 'white', fontSize: 15, fontWeight: '800' },
+  shareBtnT: { color: 'white', fontSize: Math.round(15 * fs), fontWeight: '800' },
 
   // 집중도
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   tierBig: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  tierBigT: { fontSize: 20, fontWeight: '900' },
-  tierScore: { fontSize: 15, fontWeight: '800' },
-  tierMsg: { fontSize: 12, fontWeight: '600', marginTop: 1 },
+  tierBigT: { fontSize: Math.round(20 * fs), fontWeight: '900' },
+  tierScore: { fontSize: Math.round(15 * fs), fontWeight: '800' },
+  tierMsg: { fontSize: Math.round(12 * fs), fontWeight: '600', marginTop: 1 },
 
   // 바차트
   barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5, gap: 6 },
-  barDay: { width: 14, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  barDay: { width: 14, fontSize: Math.round(12 * fs), fontWeight: '700', textAlign: 'center' },
   barTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
-  barTime: { width: 35, fontSize: 12, fontWeight: '600', textAlign: 'right' },
+  barTime: { width: 35, fontSize: Math.round(12 * fs), fontWeight: '600', textAlign: 'right' },
 
   // 밀도 차트
   densityChart: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 80 },
   densityCol: { alignItems: 'center', gap: 3 },
   densityBar: { width: 16, borderRadius: 3 },
-  densityDay: { fontSize: 11, fontWeight: '700' },
-  densityTier: { fontSize: 11, fontWeight: '800' },
+  densityDay: { fontSize: Math.round(11 * fs), fontWeight: '700' },
+  densityTier: { fontSize: Math.round(11 * fs), fontWeight: '800' },
 
   // 타임라인
   tlRow: { flexDirection: 'row', alignItems: 'flex-end', height: 50, gap: 1 },
   tlCol: { flex: 1, alignItems: 'center' },
   tlBar: { width: '100%', borderRadius: 1, minWidth: 2 },
-  tlLabel: { fontSize: 11, marginTop: 2 },
+  tlLabel: { fontSize: Math.round(11 * fs), marginTop: 2 },
 
   // 시간대 분석
   tzRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
-  tzIcon: { fontSize: 15, width: 20 },
-  tzLabel: { fontSize: 12, fontWeight: '700', width: 28 },
+  tzIcon: { fontSize: Math.round(15 * fs), width: 20 },
+  tzLabel: { fontSize: Math.round(12 * fs), fontWeight: '700', width: 28 },
   tzBarWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tzBarTrack: { flex: 1, height: 7, borderRadius: 3.5, overflow: 'hidden' },
   tzBarFill: { height: '100%', borderRadius: 3.5 },
-  tzTime: { fontSize: 11, minWidth: 34, textAlign: 'right' },
+  tzTime: { fontSize: Math.round(11 * fs), minWidth: 34, textAlign: 'right' },
   tzTierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  tzTierT: { fontSize: 11, fontWeight: '800' },
-  tzEmpty: { fontSize: 11, width: 30, textAlign: 'center' },
+  tzTierT: { fontSize: Math.round(11 * fs), fontWeight: '800' },
+  tzEmpty: { fontSize: Math.round(11 * fs), width: 30, textAlign: 'center' },
   bestZoneBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, padding: 8, borderWidth: 1, marginTop: 4 },
-  bestZoneT: { fontSize: 13, fontWeight: '700' },
+  bestZoneT: { fontSize: Math.round(13 * fs), fontWeight: '700' },
 
   // 과목 비율
   stackBar: { height: 8, borderRadius: 4, flexDirection: 'row', overflow: 'hidden', marginBottom: 8 },
   stackSeg: { height: '100%' },
   subjRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
   subjDot: { width: 8, height: 8, borderRadius: 4 },
-  subjName: { flex: 1, fontSize: 13, fontWeight: '600' },
-  subjPct: { fontSize: 12 },
-  subjTime: { fontSize: 12, fontWeight: '700', width: 35, textAlign: 'right' },
+  subjName: { flex: 1, fontSize: Math.round(13 * fs), fontWeight: '600' },
+  subjPct: { fontSize: Math.round(12 * fs) },
+  subjTime: { fontSize: Math.round(12 * fs), fontWeight: '700', width: 35, textAlign: 'right' },
 
   // 월간 캘린더
   monthNav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  monthArrow: { fontSize: 15, fontWeight: '800', paddingHorizontal: 8 },
-  monthTitle: { fontSize: 15, fontWeight: '900' },
+  monthArrow: { fontSize: Math.round(15 * fs), fontWeight: '800', paddingHorizontal: 8 },
+  monthTitle: { fontSize: Math.round(15 * fs), fontWeight: '900' },
   calWeekRow: { flexDirection: 'row', marginBottom: 4 },
-  calWeekDay: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700' },
+  calWeekDay: { flex: 1, textAlign: 'center', fontSize: Math.round(11 * fs), fontWeight: '700' },
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 3 },
   calDot: { borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  calDay: { fontSize: 12, fontWeight: '700' },
-  calTime: { fontSize: 11, marginTop: 1 },
+  calDay: { fontSize: Math.round(12 * fs), fontWeight: '700' },
+  calTime: { fontSize: Math.round(11 * fs), marginTop: 1 },
 
   // 히트 범례
   heatLegend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 8 },
   heatBox: { width: 12, height: 12, borderRadius: 2 },
-  heatLegendT: { fontSize: 11, fontWeight: '600' },
+  heatLegendT: { fontSize: Math.round(11 * fs), fontWeight: '600' },
 
   // 365일 히트맵
   hmHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   hmBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  hmBadgeT: { fontSize: 13, fontWeight: '800' },
+  hmBadgeT: { fontSize: Math.round(13 * fs), fontWeight: '800' },
   hmMonthRow: { flexDirection: 'row', marginBottom: 2 },
-  hmMonthLabel: { fontSize: 11, fontWeight: '600' },
+  hmMonthLabel: { fontSize: Math.round(11 * fs), fontWeight: '600' },
   hmGrid: { flexDirection: 'row' },
   hmDayLabels: { flexDirection: 'column', gap: HM_GAP, marginRight: HM_GAP, paddingTop: 0 },
-  hmDayLabel: { fontSize: 11, fontWeight: '600', width: 14, textAlign: 'right' },
+  hmDayLabel: { fontSize: Math.round(11 * fs), fontWeight: '600', width: 14, textAlign: 'right' },
   hmCell: { borderRadius: 2 },
 
   // 인사이트
   insightCard: { borderRadius: 14, padding: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  insightText: { flex: 1, fontSize: 14, fontWeight: '600', lineHeight: 17 },
+  insightText: { flex: 1, fontSize: Math.round(14 * fs), fontWeight: '600', lineHeight: 17 },
 
   // 빈 텍스트
-  emptyText: { fontSize: 13, textAlign: 'center', paddingVertical: 8 },
+  emptyText: { fontSize: Math.round(13 * fs), textAlign: 'center', paddingVertical: 8 },
 
   // 공부 일기
   diaryGroup: { marginBottom: 10 },
-  diaryDate: { fontSize: 12, fontWeight: '800', marginBottom: 4 },
+  diaryDate: { fontSize: Math.round(12 * fs), fontWeight: '800', marginBottom: 4 },
   diaryRow: { borderLeftWidth: 3, paddingLeft: 8, marginBottom: 5, paddingVertical: 2 },
-  diaryMemo: { fontSize: 14, fontWeight: '600', lineHeight: 17 },
-  diaryMeta: { fontSize: 11, marginTop: 1 },
-  memoEditInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 4 },
-  modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 12 },
+  diaryMemo: { fontSize: Math.round(14 * fs), fontWeight: '600', lineHeight: 17 },
+  diaryMeta: { fontSize: Math.round(11 * fs), marginTop: 1 },
+  memoEditInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: Math.round(14 * fs), marginBottom: 4 },
+  modalTitle: { fontSize: Math.round(16 * fs), fontWeight: '900', textAlign: 'center', marginBottom: 12 },
 
   // 모달
   mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 },
   mCancel: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  mCancelT: { fontSize: 14, fontWeight: '600' },
+  mCancelT: { fontSize: Math.round(14 * fs), fontWeight: '600' },
   mConfirm: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  mConfirmT: { color: 'white', fontSize: 14, fontWeight: '700' },
+  mConfirmT: { color: 'white', fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   // 주간 탐색
   weekNavRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 12, borderWidth: 1, padding: 8, marginBottom: 8 },
   weekNavBtn: { padding: 8 },
-  weekNavArrow: { fontSize: 18, fontWeight: '700' },
-  weekNavTitle: { fontSize: 15, fontWeight: '800' },
+  weekNavArrow: { fontSize: Math.round(18 * fs), fontWeight: '700' },
+  weekNavTitle: { fontSize: Math.round(15 * fs), fontWeight: '800' },
 
   // 세션 카드
   sessCard: { borderLeftWidth: 4, borderLeftColor: '#ccc', paddingLeft: 10, paddingVertical: 8, marginBottom: 8, borderRadius: 4 },
@@ -3531,8 +3533,8 @@ const S = StyleSheet.create({
   // 잔디 요약 통계
   hmStatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   hmStatItem: { alignItems: 'center', flex: 1, paddingVertical: 4 },
-  hmStatVal: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
-  hmStatLabel: { fontSize: 12 },
+  hmStatVal: { fontSize: Math.round(15 * fs), fontWeight: '800', marginBottom: 2 },
+  hmStatLabel: { fontSize: Math.round(12 * fs) },
   hmStatDivider: { width: 1, height: 32, opacity: 0.3 },
 
   // 날짜 상세 모달 시트 (바텀 시트 스타일)
@@ -3542,11 +3544,11 @@ const S = StyleSheet.create({
   // 과목 탭
   subjPeriodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   subjPeriodBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1 },
-  subjPeriodBtnT: { fontSize: 14, fontWeight: '700' },
+  subjPeriodBtnT: { fontSize: Math.round(14 * fs), fontWeight: '700' },
   subjListItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 8 },
   subjListBarTrack: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.08)' },
   subjListBarFill: { height: 6, borderRadius: 3 },
   subjInsightCard: { borderRadius: 12, padding: 14, marginTop: 12, gap: 10 },
   subjInsightRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
-});
+}); }

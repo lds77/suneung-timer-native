@@ -165,6 +165,8 @@ export default function SettingsScreen() {
   const isLandscape = isTablet && winW > winH;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
+  const styles = useMemo(() => createStyles(fs), [fs]);
   const scrollRef = useRef(null);
   const scrollYRef = useRef(0);
   const challengeViewRef = useRef(null);
@@ -867,24 +869,24 @@ const [ddLabel, setDdLabel] = useState('');
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
-  headerTitle: { fontSize: 20, fontWeight: '900', marginBottom: 12 },
+  headerTitle: { fontSize: Math.round(20 * fs), fontWeight: '900', marginBottom: 12 },
 
   section: { marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: Math.round(13 * fs), fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
 
   // 캐릭터 선택
   charGrid: { flexDirection: 'row', gap: 6 },
   charCard: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12 },
-  charName: { fontSize: 12, marginTop: 4 },
+  charName: { fontSize: Math.round(12 * fs), marginTop: 4 },
 
   // 목표
-  goalLabel: { fontSize: 12, marginBottom: 6 },
+  goalLabel: { fontSize: Math.round(12 * fs), marginBottom: 6 },
   goalRow: { flexDirection: 'row', gap: 5 },
   goalBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
-  goalBtnText: { fontSize: 12, fontWeight: '700' },
+  goalBtnText: { fontSize: Math.round(12 * fs), fontWeight: '700' },
 
   // 학교급 선택 row (목표 섹션 내)
   schoolRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
@@ -897,33 +899,33 @@ const styles = StyleSheet.create({
   // D-Day
   ddayRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, borderBottomWidth: 0.5 },
   ddayStar: { padding: 2 },
-  ddayLabel: { fontSize: 14, fontWeight: '700' },
-  ddayDate: { fontSize: 12, marginTop: 1 },
-  ddayBadge: { fontSize: 13, fontWeight: '800' },
-  ddayDel: { fontSize: 18, paddingHorizontal: 4 },
+  ddayLabel: { fontSize: Math.round(14 * fs), fontWeight: '700' },
+  ddayDate: { fontSize: Math.round(12 * fs), marginTop: 1 },
+  ddayBadge: { fontSize: Math.round(13 * fs), fontWeight: '800' },
+  ddayDel: { fontSize: Math.round(18 * fs), paddingHorizontal: 4 },
   ddayAddBtn: { paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', marginTop: 6 },
-  ddayAddText: { fontSize: 14, fontWeight: '700' },
+  ddayAddText: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   // Row
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  rowLabel: { fontSize: 14, fontWeight: '600', flex: 1 },
+  rowLabel: { fontSize: Math.round(14 * fs), fontWeight: '600', flex: 1 },
   rowRight: {},
-  rowValue: { fontSize: 14, fontWeight: '700' },
+  rowValue: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
-  hint: { fontSize: 11, marginTop: -4, marginBottom: 4 },
+  hint: { fontSize: Math.round(11 * fs), marginTop: -4, marginBottom: 4 },
 
   // 위험 버튼
   dangerBtn: { paddingVertical: 10, alignItems: 'center' },
-  dangerText: { fontSize: 14, fontWeight: '600' },
+  dangerText: { fontSize: Math.round(14 * fs), fontWeight: '600' },
 
   // 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 },
   modal: { borderRadius: 20, padding: 20, borderWidth: 1 },
-  modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 10 },
+  modalTitle: { fontSize: Math.round(16 * fs), fontWeight: '900', textAlign: 'center', marginBottom: 14 },
+  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: Math.round(15 * fs), marginBottom: 10 },
   modalBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
   modalCancel: { flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  modalCancelText: { fontSize: 14, fontWeight: '600' },
+  modalCancelText: { fontSize: Math.round(14 * fs), fontWeight: '600' },
   modalConfirm: { flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center' },
-  modalConfirmText: { color: 'white', fontSize: 14, fontWeight: '800' },
-});
+  modalConfirmText: { color: 'white', fontSize: Math.round(14 * fs), fontWeight: '800' },
+}); }

@@ -1,6 +1,6 @@
 // src/screens/SubjectsScreen.js
 // v23: 학습법 탭 + 고등 수능 탭
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions, useWindowDimensions } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -144,6 +144,8 @@ export default function SubjectsScreen({ navigation }) {
   const isLandscape = isTablet && winW > winH;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
+  const S = useMemo(() => createStyles(fs), [fs]);
   const school = app.settings.schoolLevel || 'high';
   const isHigh = school === 'high' || school === 'nsuneung';
   const [tab, setTab] = useState('subjects');
@@ -518,11 +520,11 @@ export default function SubjectsScreen({ navigation }) {
   );
 }
 
-const S = StyleSheet.create({
+function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  headerTitle: { fontSize: 20, fontWeight: '900' },
+  headerTitle: { fontSize: Math.round(20 * fs), fontWeight: '900' },
   schoolBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   gradeRow: { flexDirection: 'row', borderRadius: 10, padding: 3, gap: 3, marginBottom: 8 },
   gradeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
@@ -531,12 +533,12 @@ const S = StyleSheet.create({
   tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
 
   queueBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
-  secLabel: { fontSize: 13, fontWeight: '700', marginBottom: 8, marginTop: 2 },
+  secLabel: { fontSize: Math.round(13 * fs), fontWeight: '700', marginBottom: 8, marginTop: 2 },
 
   // 루틴
   routineCard: { borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 8 },
   routineTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  routineName: { fontSize: 15, fontWeight: '900', marginBottom: 3 },
+  routineName: { fontSize: Math.round(15 * fs), fontWeight: '900', marginBottom: 3 },
   routineFlow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
   timeBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
 
@@ -571,8 +573,8 @@ const S = StyleSheet.create({
 
   mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 },
   modal: { borderRadius: 20, padding: 18, borderWidth: 1 },
-  modalTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  mInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 12 },
+  modalTitle: { fontSize: Math.round(16 * fs), fontWeight: '900', textAlign: 'center', marginBottom: 14 },
+  mInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: Math.round(15 * fs), marginBottom: 12 },
   colorRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
   colorBtn: { width: 24, height: 24, borderRadius: 12 },
   colorActive: { borderWidth: 3, borderColor: 'white', elevation: 4 },
@@ -581,4 +583,4 @@ const S = StyleSheet.create({
   mBtns: { flexDirection: 'row', gap: 8 },
   mCancel: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   mConfirm: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-});
+}); }

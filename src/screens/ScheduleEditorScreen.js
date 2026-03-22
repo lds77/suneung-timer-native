@@ -168,6 +168,8 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
+  const s = useMemo(() => createStyles(fs), [fs]);
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const todayKey = getTodayKey();
@@ -854,23 +856,23 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   );
 }
 
-const s = StyleSheet.create({
+function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12, borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 17, fontWeight: '900' },
+  headerTitle: { fontSize: Math.round(17 * fs), fontWeight: '900' },
   closeBtn: { paddingVertical: 6, paddingHorizontal: 12 },
-  closeText: { fontSize: 15, fontWeight: '700' },
+  closeText: { fontSize: Math.round(15 * fs), fontWeight: '700' },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center',
     margin: 16, padding: 16, borderRadius: 14, borderWidth: 1,
   },
-  toggleLabel: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
-  toggleSub: { fontSize: 13 },
+  toggleLabel: { fontSize: Math.round(15 * fs), fontWeight: '800', marginBottom: 2 },
+  toggleSub: { fontSize: Math.round(13 * fs) },
 
   dayTabScroll: { marginBottom: 8, paddingVertical: 4 },
   dayTabContent: { paddingHorizontal: 16, gap: 6, paddingVertical: 4 },
@@ -878,13 +880,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 4, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, alignItems: 'center',
   },
-  dayTabText: { fontSize: 14, fontWeight: '700' },
+  dayTabText: { fontSize: Math.round(14 * fs), fontWeight: '700' },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3 },
 
   section: { paddingHorizontal: 16, marginBottom: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: Math.round(13 * fs), fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  planTotal: { fontSize: 14, fontWeight: '700' },
+  planTotal: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   fixedItem: {
     flexDirection: 'row', alignItems: 'center',
@@ -895,32 +897,32 @@ const s = StyleSheet.create({
     padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8,
   },
   planBar: { width: 3, height: 32, borderRadius: 2, marginRight: 10 },
-  itemIcon: { fontSize: 20, marginRight: 10 },
-  itemLabel: { fontSize: 15, fontWeight: '700' },
-  itemSub: { fontSize: 13, marginTop: 1 },
+  itemIcon: { fontSize: Math.round(20 * fs), marginRight: 10 },
+  itemLabel: { fontSize: Math.round(15 * fs), fontWeight: '700' },
+  itemSub: { fontSize: Math.round(13 * fs), marginTop: 1 },
   moveGroup: { flexDirection: 'row', marginRight: 2 },
   editBtn: { padding: 6 },
-  editText: { fontSize: 15 },
+  editText: { fontSize: Math.round(15 * fs) },
   delBtn: { padding: 6, marginLeft: 2 },
-  delText: { fontSize: 20 },
+  delText: { fontSize: Math.round(20 * fs) },
 
   addBtn: {
     paddingVertical: 12, borderRadius: 12, borderWidth: 1,
     borderStyle: 'dashed', alignItems: 'center', marginBottom: 12,
   },
-  addBtnText: { fontSize: 14, fontWeight: '700' },
+  addBtnText: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   availRow: { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  availText: { fontSize: 14, fontWeight: '700' },
+  availText: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   warnRow: { padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
-  warnText: { fontSize: 14, fontWeight: '600' },
+  warnText: { fontSize: Math.round(14 * fs), fontWeight: '600' },
 
   copyBtn: { marginHorizontal: 16, marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  copyBtnText: { fontSize: 14, fontWeight: '700' },
+  copyBtnText: { fontSize: Math.round(14 * fs), fontWeight: '700' },
 
   offHint: { alignItems: 'center', padding: 48 },
-  offHintText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  offHintText: { fontSize: Math.round(14 * fs), textAlign: 'center', lineHeight: 20 },
 
   // Sub-modal
   sheetBg: { flex: 1, backgroundColor: '#00000065', justifyContent: 'flex-end', alignItems: 'center' },
@@ -929,23 +931,23 @@ const s = StyleSheet.create({
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, maxHeight: '92%',
     width: '100%', ...(isTablet && { maxWidth: TABLET_MAX_W }),
   },
-  sheetTitle: { fontSize: 17, fontWeight: '900', marginBottom: 16, textAlign: 'center' },
+  sheetTitle: { fontSize: Math.round(17 * fs), fontWeight: '900', marginBottom: 16, textAlign: 'center' },
   sheetBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   okBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
 
-  fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  fieldLabel: { fontSize: Math.round(14 * fs), fontWeight: '700', marginBottom: 6 },
   fieldInput: {
     borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 15, marginBottom: 14,
+    fontSize: Math.round(15 * fs), marginBottom: 14,
   },
 
   typeChip: {
     alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 10, borderWidth: 1, gap: 3, minWidth: 60,
   },
-  typeChipText: { fontSize: 13, fontWeight: '600' },
+  typeChipText: { fontSize: Math.round(13 * fs), fontWeight: '600' },
 
   timePicker: { height: 130, borderWidth: 1, borderRadius: 10, marginBottom: 4 },
   timeOpt: { paddingVertical: 9, alignItems: 'center' },
@@ -958,7 +960,7 @@ const s = StyleSheet.create({
     padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 6,
   },
   subjDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  subjName: { fontSize: 15 },
+  subjName: { fontSize: Math.round(15 * fs) },
 
   iconChip: {
     width: 40, height: 40, borderRadius: 10,
@@ -970,11 +972,11 @@ const s = StyleSheet.create({
 
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 24, justifyContent: 'center', marginBottom: 14 },
   stepperBtn: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  stepperVal: { fontSize: 20, fontWeight: '800', minWidth: 64, textAlign: 'center' },
+  stepperVal: { fontSize: Math.round(20 * fs), fontWeight: '800', minWidth: 64, textAlign: 'center' },
 
-  emptyHint: { fontSize: 14, textAlign: 'center', padding: 20 },
-  copyHint: { fontSize: 14, textAlign: 'center', marginBottom: 16, lineHeight: 18 },
+  emptyHint: { fontSize: Math.round(14 * fs), textAlign: 'center', padding: 20 },
+  copyHint: { fontSize: Math.round(14 * fs), textAlign: 'center', marginBottom: 16, lineHeight: 18 },
   copyDayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 8 },
   copyDayBtn: { paddingHorizontal: 22, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
-  copyDayText: { fontSize: 15, fontWeight: '700' },
-});
+  copyDayText: { fontSize: Math.round(15 * fs), fontWeight: '700' },
+}); }
