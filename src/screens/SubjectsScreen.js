@@ -202,15 +202,19 @@ export default function SubjectsScreen({ navigation }) {
   };
 
   const startSuneungSingle = (subj) => {
-    app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 });
+    navigation.navigate('Focus');
+    setTimeout(() => app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 }), 350);
   };
 
   const startSuneungSequence = () => {
     if (suneungSelected.length === 0) { app.showToastCustom('과목을 선택하세요!', 'paengi'); return; }
     const ordered = suneungSelected.map(name => SUNEUNG_SUBJECTS.find(s => s.name === name)).filter(Boolean).sort((a, b) => a.order - b.order);
     const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
-    const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
-    if (ok) setSuneungSelected([]);
+    navigation.navigate('Focus');
+    setTimeout(() => {
+      const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
+      if (ok) setSuneungSelected([]);
+    }, 350);
   };
 
 
