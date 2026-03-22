@@ -19,12 +19,10 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width: SW, height: SH } = Dimensions.get('window');
+const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
-const CONTENT_W = isTablet ? Math.min(SW, TABLET_MAX_W) - 32 : SW - 32;
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
-const CELL = Math.floor((CONTENT_W - 28 - 12) / 7);
 const dateStr = (d) => d.toISOString().slice(0, 10);
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
@@ -284,6 +282,9 @@ export default function StatsScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const isLandscape = isTablet && winW > winH;
+  const contentW = isTablet ? Math.min(winW, TABLET_MAX_W) - 32 : winW - 32;
+  const CELL = useMemo(() => Math.floor((contentW - 28 - 12) / 7), [contentW]);
+  const HM_CELL = useMemo(() => Math.max(8, Math.floor((winW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS)), [winW]);
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const [tab, setTab] = useState('daily');
@@ -1599,7 +1600,7 @@ export default function StatsScreen() {
                 if (!cell) return <View key={`e${i}`} style={S.calCell} />;
                 return (
                   <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                    <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
+                    <View style={[S.calDot, { width: CELL, height: CELL, backgroundColor: getHeatColor(cell.sec) }]}>
                       <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
                     </View>
                     {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
@@ -1727,7 +1728,7 @@ export default function StatsScreen() {
                 <View style={S.hmGrid}>
                   <View style={S.hmDayLabels}>
                     {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                      <Text key={i} style={[S.hmDayLabel, { color: T.sub }]}>{d}</Text>
+                      <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
                     ))}
                   </View>
                   <View style={{ flexDirection: 'row', gap: HM_GAP }}>
@@ -1744,6 +1745,8 @@ export default function StatsScreen() {
                               style={[
                                 S.hmCell,
                                 {
+                                  width: HM_CELL,
+                                  height: HM_CELL,
                                   backgroundColor: getHeat365Color(day),
                                   borderWidth: day.isToday ? 1.5 : 0,
                                   borderColor: day.isToday ? T.accent : 'transparent',
@@ -2599,7 +2602,7 @@ export default function StatsScreen() {
               ))}
             </View>
             {/* 시간대별 리스트 */}
-            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               {hourlyDetail.filter(h => h.sec > 0).length === 0 ? (
                 <Text style={[S.emptyText, { color: T.sub }]}>오늘 공부 기록이 없어요</Text>
               ) : (
@@ -2650,7 +2653,7 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {dayDetail && (<>
                 {/* 요약 3개 카드 */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
@@ -2761,7 +2764,7 @@ export default function StatsScreen() {
                       <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
                     </TouchableOpacity>
                   </View>
-                  <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                  <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                     {/* 요약 3개 카드 */}
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                       <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
@@ -2879,7 +2882,7 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {subjDetailData && (<>
                 {/* 요약 3개 카드 */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
@@ -2961,7 +2964,7 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {/* 큰 링 + 시간 */}
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
                 <GoalRing
@@ -3094,7 +3097,7 @@ export default function StatsScreen() {
                       <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
                     </TouchableOpacity>
                   </View>
-                  <ScrollView ref={sessionDetailScrollRef} style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+                  <ScrollView ref={sessionDetailScrollRef} style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
                   {/* 시간 정보 + 티어 */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                     <View>
@@ -3253,7 +3256,7 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: SH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
               {/* 큰 티어 뱃지 + 점수 */}
               <View style={{ alignItems: 'center', marginBottom: 18 }}>
                 <View style={{ backgroundColor: todayTier.color + '20', borderRadius: 24, width: 80, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
@@ -3351,10 +3354,9 @@ export default function StatsScreen() {
   );
 }
 
-// 히트맵 셀 크기
+// 히트맵 주 수 / 간격 (셀 크기는 컴포넌트 내 동적 계산)
 const HM_WEEKS = 16;
 const HM_GAP   = 2;
-const HM_CELL  = Math.max(8, Math.floor((SW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS));
 
 const S = StyleSheet.create({
   container: { flex: 1 },
@@ -3472,7 +3474,7 @@ const S = StyleSheet.create({
   calWeekDay: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700' },
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 3 },
-  calDot: { width: CELL, height: CELL, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  calDot: { borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   calDay: { fontSize: 12, fontWeight: '700' },
   calTime: { fontSize: 11, marginTop: 1 },
 
@@ -3489,8 +3491,8 @@ const S = StyleSheet.create({
   hmMonthLabel: { fontSize: 11, fontWeight: '600' },
   hmGrid: { flexDirection: 'row' },
   hmDayLabels: { flexDirection: 'column', gap: HM_GAP, marginRight: HM_GAP, paddingTop: 0 },
-  hmDayLabel: { fontSize: 11, fontWeight: '600', height: HM_CELL, lineHeight: HM_CELL, width: 14, textAlign: 'right' },
-  hmCell: { width: HM_CELL, height: HM_CELL, borderRadius: 2 },
+  hmDayLabel: { fontSize: 11, fontWeight: '600', width: 14, textAlign: 'right' },
+  hmCell: { borderRadius: 2 },
 
   // 인사이트
   insightCard: { borderRadius: 14, padding: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard, Dimensions,
+  Modal, TextInput, Switch, Alert, StyleSheet, Platform, KeyboardAvoidingView, Keyboard, Dimensions, useWindowDimensions,
 } from 'react-native';
 
 const { width: SW } = Dimensions.get('window');
@@ -164,6 +164,8 @@ function TimeDropdownPicker({ label, value, onChange, open, onToggle, T }) {
 }
 
 export default function ScheduleEditorScreen({ visible, onClose }) {
+  const { width: winW } = useWindowDimensions();
+  const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const insets = useSafeAreaInsets();
@@ -478,7 +480,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={isTablet ? { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' } : { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: 680, width: '100%', alignSelf: 'center' }]}>
+      <View style={[{ flex: 1, backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }]}>
 
         {/* 헤더 */}
         <View style={[s.header, { borderBottomColor: T.border, backgroundColor: T.bg, paddingTop: insets.top + 12 }]}>
@@ -645,7 +647,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           onRequestClose={() => { setShowAddFixed(false); resetFixedForm(); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
-            <View style={[s.sheet, { backgroundColor: T.bg }]}>
+            <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -711,7 +713,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           onRequestClose={() => { setShowAddPlan(false); resetPlanForm(); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.sheetBg}>
-            <View style={[s.sheet, { backgroundColor: T.bg }]}>
+            <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingPlanId ? '과목 수정' : '과목 추가'}</Text>
 
               {/* 탭: 내 과목 / 직접 입력 */}
@@ -811,7 +813,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         <Modal visible={showCopy} transparent animationType="slide"
           onRequestClose={() => setShowCopy(false)}>
           <View style={s.sheetBg}>
-            <View style={[s.sheet, { backgroundColor: T.bg }]}>
+            <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>요일 복사</Text>
               <Text style={[s.copyHint, { color: T.sub }]}>
                 {DAY_LABELS[DAY_KEYS.indexOf(selectedDay)]}요일의 일정과 계획을 복사할 요일을 선택하세요.

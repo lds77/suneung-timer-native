@@ -139,8 +139,9 @@ const SCHOOL_LABELS = {
 const ELEM_GRADE_KEY = (school) => school;
 
 export default function SubjectsScreen({ navigation }) {
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const isLandscape = isTablet && winW > winH;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const school = app.settings.schoolLevel || 'high';
@@ -254,11 +255,11 @@ export default function SubjectsScreen({ navigation }) {
 
         {/* ═══ 탭: 추천 루틴 ═══ */}
         {tab === 'routine' && (
-          <>
+          <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
             {routines.map(routine => {
               const totalMin = routine.items.reduce((s, it) => s + it.min, 0) + (routine.items.length - 1) * routine.breakMin;
               return (
-                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
                   <View style={S.routineTop}>
                     <Ionicons name={routine.icon} size={28} color={routine.color} />
                     <View style={{ flex: 1 }}>
@@ -285,10 +286,10 @@ export default function SubjectsScreen({ navigation }) {
                 </View>
               );
             })}
-          </>
+          </View>
         )}
 
-        {/* ═══ 탭: 🧠 학습법 ═══ */}
+        {/* ═══ 탭: 학습법 ═══ */}
         {tab === 'method' && (
           <>
             <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
