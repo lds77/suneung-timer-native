@@ -2949,7 +2949,10 @@ export default function StatsScreen() {
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🎯 오늘 목표 달성률</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="trophy-outline" size={17} color={T.text} />
+                <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>오늘 목표 달성률</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowGoalDetail(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
@@ -2965,7 +2968,10 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 14, color: T.sub, marginTop: 3 }}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
                 {todayTotalSec >= app.settings.dailyGoalMin * 60 ? (
                   <View style={{ backgroundColor: T.accent + '18', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6, marginTop: 8 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '800', color: T.accent }}>🎉 오늘 목표 달성!</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="checkmark-circle-outline" size={15} color={T.accent} />
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: T.accent }}>오늘 목표 달성!</Text>
+                    </View>
                   </View>
                 ) : (
                   <View style={{ backgroundColor: T.surface2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6, marginTop: 8 }}>
@@ -3015,11 +3021,14 @@ export default function StatsScreen() {
               </View>
               {/* 목표 시간 안내 */}
               <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 8 }}>💡 목표 달성 팁</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="bulb-outline" size={13} color={T.text} />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>목표 달성 팁</Text>
+                </View>
                 {(() => {
                   const pct = Math.min(100, Math.round(todayTotalSec / Math.max(1, app.settings.dailyGoalMin * 60) * 100));
                   const tips = pct >= 100
-                    ? ['오늘 목표를 달성했어요! 꾸준히 이어가세요', '연속 달성 기록을 이어가 보세요 🔥']
+                    ? ['오늘 목표를 달성했어요! 꾸준히 이어가세요', '연속 달성 기록을 이어가 보세요']
                     : pct >= 70
                     ? ['조금만 더! 거의 다 왔어요', '짧은 세션을 추가해 목표를 채워보세요']
                     : pct >= 40
@@ -3195,7 +3204,10 @@ export default function StatsScreen() {
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {/* 헤더 */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>🧠 집중밀도 상세</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="flash-outline" size={17} color={T.text} />
+                <Text style={[S.modalTitle, { color: T.text, fontSize: 17, textAlign: 'left', marginBottom: 0 }]}>집중밀도 상세</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowDensityDetail(false)} style={{ padding: 10 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ fontSize: 18, color: T.sub }}>✕</Text>
               </TouchableOpacity>
@@ -3250,19 +3262,22 @@ export default function StatsScreen() {
               </View>
               {/* 점수 계산 기준 */}
               <View style={{ backgroundColor: T.card, borderRadius: 14, borderWidth: 1, borderColor: T.border, padding: 14 }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 8 }}>💡 밀도 점수 기준 (최대 103점)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="bulb-outline" size={13} color={T.text} />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>밀도 점수 기준 (최대 103점)</Text>
+                </View>
                 {[
-                  { icon: '✅', label: '완료 점수 (최대 40점)', desc: '타이머 완주할수록 높아요 · 자유모드는 학교급별 기준 시간 적용' },
-                  { icon: '⏸', label: '습관 점수 (최대 30점)', desc: '일시정지를 적게 할수록 높아요' },
-                  { icon: '⏱', label: '지속력 보너스 (최대 15점)', desc: '학교급에 맞는 기준으로 자동 조정 · 내 기준 최대 시간 달성 시 +15점' },
-                  { icon: '🔥', label: '선언 보너스 (최대 15점)', desc: '🔥모드 이탈 0회 Verified +15 / 📖모드 완료율에 따라 +2~+5' },
-                  { icon: '⭐', label: '자가평가 보너스 (0~+3점)', desc: '🔥⚡ 선택 시 +3점! 😴 선택해도 패널티 없어요' },
+                  { iconName: 'checkmark-circle-outline', label: '완료 점수 (최대 40점)', desc: '타이머 완주할수록 높아요 · 자유모드는 학교급별 기준 시간 적용' },
+                  { iconName: 'pause-circle-outline', label: '습관 점수 (최대 30점)', desc: '일시정지를 적게 할수록 높아요' },
+                  { iconName: 'timer-outline', label: '지속력 보너스 (최대 15점)', desc: '학교급에 맞는 기준으로 자동 조정 · 내 기준 최대 시간 달성 시 +15점' },
+                  { iconName: 'flame-outline', label: '선언 보너스 (최대 15점)', descEl: (s) => <Text style={{ fontSize: 11, color: s }}><Ionicons name="flame-outline" size={11} color={s} />모드 이탈 0회 Verified +15 / <Ionicons name="book-outline" size={11} color={s} />모드 완료율에 따라 +2~+5</Text> },
+                  { iconName: 'star-outline', label: '자가평가 보너스 (0~+3점)', descEl: (s) => <Text style={{ fontSize: 11, color: s }}><Ionicons name="flash-outline" size={11} color={s} /> 선택 시 +3점! <Ionicons name="moon-outline" size={11} color={s} /> 선택해도 패널티 없어요</Text> },
                 ].map(item => (
                   <View key={item.label} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
+                    <Ionicons name={item.iconName} size={14} color={T.text} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 12, fontWeight: '800', color: T.text }}>{item.label}</Text>
-                      <Text style={{ fontSize: 11, color: T.sub }}>{item.desc}</Text>
+                      {item.descEl ? item.descEl(T.sub) : <Text style={{ fontSize: 11, color: T.sub }}>{item.desc}</Text>}
                     </View>
                   </View>
                 ))}
@@ -3281,7 +3296,7 @@ export default function StatsScreen() {
                   return (
                     <View style={{ marginTop: 8, padding: 8, backgroundColor: T.surface2, borderRadius: 8 }}>
                       <Text style={{ fontSize: 11, color: T.sub }}>
-                        📌 내 기준 ({info.label}) — 지속력 만점 {info.persist} · 자유모드 만점 {info.free}
+                        내 기준 ({info.label}) — 지속력 만점 {info.persist} · 자유모드 만점 {info.free}
                       </Text>
                     </View>
                   );

@@ -57,7 +57,7 @@ const DEFAULT_FAVS = getSchoolDefaultFavs('high');
 // ─── 이모지 → Ionicons 이름 변환 (기존 저장 데이터 호환) ──────────
 const EMOJI_ICON_MAP = {
   '😴': 'moon-outline', '🌙': 'moon-outline',
-  '🍽️': 'restaurant-outline', '🍽': 'restaurant-outline',
+  '🍽️': 'nutrition-outline', '🍽': 'nutrition-outline',
   '🏫': 'school-outline', '🏢': 'business-outline',
   '👨‍🏫': 'person-outline', '🏃': 'barbell-outline',
   '💼': 'briefcase-outline', '🚌': 'bus-outline',
@@ -1738,7 +1738,7 @@ export default function FocusScreen() {
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
               </View>
               <TouchableOpacity
-                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.card }]}
+                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.surface }]}
                 onPress={() => app.updateSettings({ soundId: 'none' })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Ionicons name="volume-mute-outline" size={13} color={app.settings.soundId === 'none' ? 'white' : T.text} />
@@ -1772,7 +1772,7 @@ export default function FocusScreen() {
           </View>
           <View style={S.noiseRow}>
             {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }].map(s => (
-              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.card }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
                 <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
                 <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
               </TouchableOpacity>
@@ -2486,7 +2486,7 @@ export default function FocusScreen() {
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
               </View>
               <TouchableOpacity
-                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.card }]}
+                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.surface }]}
                 onPress={() => app.updateSettings({ soundId: 'none' })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Ionicons name="volume-mute-outline" size={13} color={app.settings.soundId === 'none' ? 'white' : T.text} />
@@ -2520,7 +2520,7 @@ export default function FocusScreen() {
           </View>
           <View style={S.noiseRow}>
             {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }].map(s => (
-              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.card }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
                 <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
                 <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
               </TouchableOpacity>

@@ -610,7 +610,13 @@ function Root() {
         // 각 폰트마다 고유한 family 이름을 사용합니다. FONT_MAP의 키가 곧 alias가 됩니다.
         await Font.loadAsync(FONT_MAP[fontId]);
         // 전역 텍스트 렌더링을 가로채서 weight에 따라 올바른 패밀리를 지정하도록 패치
-        const baseFamily = FONT_FAMILY_MAP[fontId] || FONT_FAMILY_MAP[fontId];
+        const baseFamily = FONT_FAMILY_MAP[fontId];
+        // Android(Fabric)에서 cloneElement 이후 재렌더링 시 flat.fontFamily에 이전 폰트가 남음.
+        // → 우리 커스텀 폰트 family 목록을 만들어 두고, 해당 폰트는 새 폰트로 덮어씌움.
+        // → 아이콘 등 외부 폰트(Ionicons 등)는 Set에 없으므로 자동으로 건너뜀.
+        const _customFamilies = new Set(
+          Object.values(FONT_FAMILY_MAP).flatMap(f => [f, f + '-Bold'])
+        );
         // 항상 원본 render에서 시작 (중첩 방지), cloneElement로 props 불변성 유지
         Text.render = function (...args) {
           const origin = _originalTextRender.call(this, ...args);
@@ -619,10 +625,11 @@ function Root() {
           if (props.testID === 'timer-text') return origin;
           // testID="chevron" 인 텍스트는 전역 폰트 적용 건너뜀 (화살표 기호 — 일부 폰트에 글리프 없음)
           if (props.testID === 'chevron') return origin;
-          // style 유무와 관계없이 모든 Text에 폰트 적용
+          // testID="font-preview" 인 텍스트는 건너뜀 (폰트 피커 미리보기 — 자체 fontFamily 유지)
+          if (props.testID === 'font-preview') return origin;
           const flat = StyleSheet.flatten(props.style) || {};
-          // 이미 fontFamily가 지정된 경우 (Ionicons 등 벡터 아이콘) 건너뜀
-          if (flat.fontFamily) return origin;
+          // fontFamily가 있을 때: 우리 커스텀 폰트면 새 폰트로 교체, 외부 폰트(아이콘 등)면 건너뜀
+          if (flat.fontFamily && !_customFamilies.has(flat.fontFamily)) return origin;
           const w = flat.fontWeight;
           const isBold = w && (w === 'bold' || parseInt(w, 10) >= 700);
           const family = isBold ? baseFamily + '-Bold' : baseFamily;

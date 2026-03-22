@@ -515,7 +515,7 @@ const [ddLabel, setDdLabel] = useState('');
             return (
               <Row T={T} label="글꼴"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent, fontFamily: fam }}>{curFont.label}</Text>
+                  <Text testID="font-preview" style={{ fontSize: 14, fontWeight: '700', color: T.accent, fontFamily: fam }}>{curFont.label}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
                 onPress={() => setShowFontPicker(true)}
@@ -804,8 +804,8 @@ const [ddLabel, setDdLabel] = useState('');
                 <TouchableOpacity key={f.id} onPress={() => { app.updateSettings({ fontFamily: f.id }); setShowFontPicker(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, paddingHorizontal: 16, borderRadius: 12, borderWidth: sel ? 2 : 1, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '12' : 'transparent' }}>
                   <View>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: sel ? T.accent : T.text, fontFamily: fam }}>{f.label}</Text>
-                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 1, fontFamily: fam }}>{f.sample}</Text>
+                    <Text testID="font-preview" style={{ fontSize: 15, fontWeight: '700', color: sel ? T.accent : T.text, fontFamily: fam }}>{f.label}</Text>
+                    <Text testID="font-preview" style={{ fontSize: 12, color: T.sub, marginTop: 1, fontFamily: fam }}>{f.sample}</Text>
                   </View>
                   {sel && <Text style={{ fontSize: 18, color: T.accent }}>✓</Text>}
                 </TouchableOpacity>

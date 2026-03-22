@@ -34,7 +34,7 @@ const TIME_OPTIONS = (() => {
 const PLAN_COLORS = ['#E8575A', '#4A90D9', '#5CB85C', '#F5A623', '#9B6FC3', '#E17055', '#00B894', '#6C5CE7', '#FDCB6E'];
 const EMOJI_ICON_MAP = {
   '😴': 'moon-outline', '🌙': 'moon-outline',
-  '🍽️': 'restaurant-outline', '🍽': 'restaurant-outline',
+  '🍽️': 'nutrition-outline', '🍽': 'nutrition-outline',
   '🏫': 'school-outline', '🏢': 'business-outline',
   '👨‍🏫': 'person-outline', '🏃': 'barbell-outline',
   '💼': 'briefcase-outline', '🚌': 'bus-outline',
