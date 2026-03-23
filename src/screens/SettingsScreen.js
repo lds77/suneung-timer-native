@@ -24,6 +24,9 @@ import { Ionicons } from '@expo/vector-icons';
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
 
+// 모듈 레벨 스타일 참조 — SettingsScreen 렌더 시 갱신
+let _styles = null;
+
 const FOCUS_LEVELS = [
   { id: 'normal', label: '일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
   { id: 'focus',  label: '집중',       desc: '1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.',               color: '#FFB74D' },
@@ -87,14 +90,14 @@ function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef
 
 function Section({ title, icon, children, T }) {
   return (
-    <View style={[styles.section, { borderColor: T.border }]}>
+    <View style={[_styles.section, { borderColor: T.border }]}>
       {icon ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <Ionicons name={icon} size={13} color={T.sub} />
-          <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+          <Text style={[_styles.sectionTitle, { color: T.sub }]}>{title}</Text>
         </View>
       ) : (
-        <Text style={[styles.sectionTitle, { color: T.sub }]}>{title}</Text>
+        <Text style={[_styles.sectionTitle, { color: T.sub }]}>{title}</Text>
       )}
       {children}
     </View>
@@ -104,13 +107,13 @@ function Section({ title, icon, children, T }) {
 function Row({ label, right, onPress, T }) {
   return (
     <TouchableOpacity
-      style={styles.row}
+      style={_styles.row}
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <Text style={[styles.rowLabel, { color: T.text }]}>{label}</Text>
-      <View style={styles.rowRight}>{right}</View>
+      <Text style={[_styles.rowLabel, { color: T.text }]}>{label}</Text>
+      <View style={_styles.rowRight}>{right}</View>
     </TouchableOpacity>
   );
 }
@@ -167,6 +170,7 @@ export default function SettingsScreen() {
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const styles = useMemo(() => createStyles(fs), [fs]);
+  _styles = styles;
   const scrollRef = useRef(null);
   const scrollYRef = useRef(0);
   const challengeViewRef = useRef(null);

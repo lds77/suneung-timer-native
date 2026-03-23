@@ -131,6 +131,18 @@ const SUNEUNG_SUBJECTS = [
   { name: '제2외국어', min: 40, color: '#00B894', order: 7 },
 ];
 
+// 실제 수능 시간표 (2025학년도 기준)
+// 교시 · 시작 · 종료 · 쉬는시간(다음 교시까지)
+const SUNEUNG_TIMETABLE = [
+  { order: 1, period: '1교시', name: '국어',      min: 80,  start: '08:40', end: '10:00', breakMin: 30, color: '#E8575A' },
+  { order: 2, period: '2교시', name: '수학',      min: 100, start: '10:30', end: '12:10', breakMin: 60, color: '#4A90D9' },  // 점심 포함
+  { order: 3, period: '3교시', name: '영어',      min: 70,  start: '13:10', end: '14:20', breakMin: 30, color: '#5CB85C' },
+  { order: 4, period: '4교시', name: '한국사',    min: 30,  start: '14:50', end: '15:20', breakMin: 15, color: '#E17055' },
+  { order: 5, period: '4교시', name: '탐구 1',    min: 30,  start: '15:35', end: '16:05', breakMin: 2,  color: '#F5A623' },
+  { order: 6, period: '4교시', name: '탐구 2',    min: 30,  start: '16:07', end: '16:37', breakMin: 28, color: '#9B6FC3' },
+  { order: 7, period: '5교시', name: '제2외국어', min: 40,  start: '17:05', end: '17:45', breakMin: 0,  color: '#00B894' },
+];
+
 const SCHOOL_LABELS = {
   elementary_lower: '초등 저', elementary_upper: '초등 고',
   middle: '중등', high: '고등',
@@ -159,6 +171,11 @@ export default function SubjectsScreen({ navigation }) {
   // 수능 선택
   const [suneungSelected, setSuneungSelected] = useState([]);
   const toggleSuneung = (name) => setSuneungSelected(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+  const [suneungMode, setSuneungMode] = useState('timetable'); // 'timetable' | 'free'
+
+  // 주간 목표 설정 모달
+  const [goalSubj, setGoalSubj] = useState(null); // 목표 설정 대상 과목
+  const [goalInput, setGoalInput] = useState('');
 
   const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
@@ -168,6 +185,22 @@ export default function SubjectsScreen({ navigation }) {
     return (b.totalElapsedSec || 0) - (a.totalElapsedSec || 0);
   });
   const toggleFavorite = (subj) => app.updateSubject(subj.id, { isFavorite: !subj.isFavorite });
+
+  // 이번 주 과목별 공부 시간 계산
+  const weekSubjSec = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay(); // 0=일
+    const mon = new Date(now);
+    mon.setDate(mon.getDate() - ((day + 6) % 7)); // 이번 주 월요일
+    const monStr = mon.toISOString().slice(0, 10);
+    const map = {};
+    (app.sessions || []).forEach(s => {
+      if (s.date >= monStr && s.subjectId) {
+        map[s.subjectId] = (map[s.subjectId] || 0) + (s.durationSec || 0);
+      }
+    });
+    return map;
+  }, [app.sessions]);
 
   // 탭 목록: 고등만 수능 포함
   const tabs = isHigh
@@ -189,12 +222,12 @@ export default function SubjectsScreen({ navigation }) {
   const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
 
   const startSingle = (subj) => {
-    navigation.navigate('Focus');
-    setTimeout(() => app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id }), 350);
+    const t = app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
+    if (t) navigation.navigate('Focus');
   };
   const startCountup = (subj) => {
-    navigation.navigate('Focus');
-    setTimeout(() => app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id }), 350);
+    const t = app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id });
+    if (t) navigation.navigate('Focus');
   };
   const deleteSubject = (subj) => {
     Alert.alert('과목 삭제', `'${subj.name}'을(를) 삭제할까요?`, [
@@ -204,19 +237,51 @@ export default function SubjectsScreen({ navigation }) {
   };
 
   const startSuneungSingle = (subj) => {
-    navigation.navigate('Focus');
-    setTimeout(() => app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 }), 350);
+    const t = app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 });
+    if (t) navigation.navigate('Focus');
   };
 
   const startSuneungSequence = () => {
     if (suneungSelected.length === 0) { app.showToastCustom('과목을 선택하세요!', 'paengi'); return; }
     const ordered = suneungSelected.map(name => SUNEUNG_SUBJECTS.find(s => s.name === name)).filter(Boolean).sort((a, b) => a.order - b.order);
-    const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
-    navigation.navigate('Focus');
-    setTimeout(() => {
-      const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
-      if (ok) setSuneungSelected([]);
-    }, 350);
+
+    if (suneungMode === 'timetable') {
+      // 실제 시간표 모드: 교시별 실제 쉬는시간을 break 아이템으로 삽입
+      const items = [];
+      ordered.forEach((s, i) => {
+        const tt = SUNEUNG_TIMETABLE.find(t => t.name === s.name);
+        items.push({ label: `${tt?.period || ''} ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' });
+        // 마지막이 아니면 쉬는시간 삽입
+        if (i < ordered.length - 1 && tt && tt.breakMin > 0) {
+          const nextSubj = ordered[i + 1];
+          const nextTt = SUNEUNG_TIMETABLE.find(t => t.name === nextSubj.name);
+          // 현재 과목 종료 ~ 다음 과목 시작 사이 실제 쉬는시간 계산
+          let actualBreak = tt.breakMin;
+          if (tt && nextTt) {
+            const [eh, em] = tt.end.split(':').map(Number);
+            const [sh, sm] = nextTt.start.split(':').map(Number);
+            actualBreak = (sh * 60 + sm) - (eh * 60 + em);
+          }
+          if (actualBreak > 0) {
+            const breakLabel = actualBreak >= 40 ? '점심시간' : '쉬는시간';
+            items.push({ label: breakLabel, color: '#27AE60', totalSec: actualBreak * 60, type: 'countdown', isBreak: true });
+          }
+        }
+      });
+      navigation.navigate('Focus');
+      setTimeout(() => {
+        const ok = app.startSequence({ items, breakSec: 0, seqName: '수능 시뮬레이션 (실제 시간표)', seqIcon: 'flag-outline', seqColor: '#E8575A' });
+        if (ok) setSuneungSelected([]);
+      }, 350);
+    } else {
+      // 자유 모드: 기존 로직 (고정 20분 쉬는시간)
+      const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
+      navigation.navigate('Focus');
+      setTimeout(() => {
+        const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
+        if (ok) setSuneungSelected([]);
+      }, 350);
+    }
   };
 
 
@@ -342,40 +407,163 @@ export default function SubjectsScreen({ navigation }) {
         {/* ═══ 탭: 🎯 수능 (고등만) ═══ */}
         {tab === 'suneung' && isHigh && (
           <>
-            <Text style={[S.secLabel, { color: T.sub }]}>실제 수능 시험시간 · 개별 또는 순차 시작</Text>
-            {SUNEUNG_SUBJECTS.map(subj => {
-              const sel = suneungSelected.includes(subj.name);
-              return (
-                <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
-                  <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
-                    <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
-                      {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
-                    </View>
-                  </TouchableOpacity>
-                  <View style={[S.colorBar, { backgroundColor: subj.color }]} />
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T.text }}>{subj.name}</Text>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
-                  <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
-                    onPress={() => startSuneungSingle(subj)}>
-                    <Ionicons name="caret-forward" size={13} color="white" />
-                  </TouchableOpacity>
+            {/* 모드 토글 */}
+            <View style={{ flexDirection: 'row', marginBottom: 10, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: T.border }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'timetable' ? T.accent : T.surface2 }}
+                onPress={() => { setSuneungMode('timetable'); setSuneungSelected([]); }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="time-outline" size={14} color={suneungMode === 'timetable' ? 'white' : T.sub} />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'timetable' ? 'white' : T.sub }}>실제 시간표</Text>
                 </View>
-              );
-            })}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'free' ? T.accent : T.surface2 }}
+                onPress={() => { setSuneungMode('free'); setSuneungSelected([]); }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="shuffle-outline" size={14} color={suneungMode === 'free' ? 'white' : T.sub} />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'free' ? 'white' : T.sub }}>자유 선택</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {suneungMode === 'timetable' ? (
+              <>
+                {/* 실제 시간표 타임라인 */}
+                <Text style={[S.secLabel, { color: T.sub }]}>2025학년도 수능 시간표 · 실제 쉬는시간 반영</Text>
+                {SUNEUNG_TIMETABLE.map((tt, i) => {
+                  const sel = suneungSelected.includes(tt.name);
+                  const prevTt = i > 0 ? SUNEUNG_TIMETABLE[i - 1] : null;
+                  // 이전 과목과의 쉬는시간 표시
+                  let breakBefore = 0;
+                  if (prevTt) {
+                    const [eh, em] = prevTt.end.split(':').map(Number);
+                    const [sh, sm] = tt.start.split(':').map(Number);
+                    breakBefore = (sh * 60 + sm) - (eh * 60 + em);
+                  }
+                  const showBreak = breakBefore > 0 && (i === 0 || suneungSelected.includes(prevTt?.name) || sel);
+                  return (
+                    <React.Fragment key={tt.order}>
+                      {/* 쉬는시간 표시 */}
+                      {showBreak && i > 0 && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, marginBottom: 4, gap: 8 }}>
+                          <View style={{ width: 1, height: 20, backgroundColor: T.border, marginLeft: 18 }} />
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: T.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Ionicons name={breakBefore >= 40 ? 'restaurant-outline' : 'cafe-outline'} size={11} color={T.sub} />
+                            <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>
+                              {breakBefore >= 40 ? '점심' : '쉬는시간'} {breakBefore}분
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                      {/* 과목 카드 */}
+                      <TouchableOpacity
+                        style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}
+                        onPress={() => toggleSuneung(tt.name)} activeOpacity={0.7}>
+                        <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
+                          {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
+                        </View>
+                        <View style={[S.colorBar, { backgroundColor: tt.color }]} />
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{tt.name}</Text>
+                            <View style={{ backgroundColor: tt.color + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: tt.color }}>{tt.period}</Text>
+                            </View>
+                          </View>
+                          <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{tt.start} ~ {tt.end}</Text>
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{tt.min}분</Text>
+                        <TouchableOpacity style={[S.playBtnSm, { backgroundColor: tt.color }]}
+                          onPress={() => startSuneungSingle({ name: tt.name, min: tt.min, color: tt.color })}>
+                          <Ionicons name="caret-forward" size={13} color="white" />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* 전체 선택 / 해제 */}
+                <TouchableOpacity
+                  style={{ alignSelf: 'center', marginTop: 6, marginBottom: 2, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: T.surface2 }}
+                  onPress={() => {
+                    const allNames = SUNEUNG_TIMETABLE.map(t => t.name);
+                    setSuneungSelected(prev => prev.length === allNames.length ? [] : allNames);
+                  }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
+                    {suneungSelected.length === SUNEUNG_TIMETABLE.length ? '전체 해제' : '전체 선택'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* 자유 선택 모드 (기존) */}
+                <Text style={[S.secLabel, { color: T.sub }]}>과목별 시험시간 · 개별 또는 순차 시작</Text>
+                {SUNEUNG_SUBJECTS.map(subj => {
+                  const sel = suneungSelected.includes(subj.name);
+                  return (
+                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
+                      <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
+                        <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
+                          {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
+                        </View>
+                      </TouchableOpacity>
+                      <View style={[S.colorBar, { backgroundColor: subj.color }]} />
+                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T.text }}>{subj.name}</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
+                      <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
+                        onPress={() => startSuneungSingle(subj)}>
+                        <Ionicons name="caret-forward" size={13} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </>
+            )}
 
             {/* 순차 시작 바 */}
             {suneungSelected.length > 0 && (
               <View style={[S.seqBar, { backgroundColor: T.card, borderColor: T.accent }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                  <Ionicons name="flag-outline" size={16} color={T.accent} />
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{suneungSelected.length}과목 선택</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="flag-outline" size={16} color={T.accent} />
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{suneungSelected.length}과목 선택</Text>
+                  </View>
+                  {suneungMode === 'timetable' && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: T.accent + '14', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                      <Ionicons name="time-outline" size={11} color={T.accent} />
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>실제 시간표</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={{ fontSize: 11, color: T.sub, marginBottom: 8 }}>
-                  수능 순서: {suneungSelected.map(n => SUNEUNG_SUBJECTS.find(s => s.name === n)).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
+                <Text style={{ fontSize: 11, color: T.sub, marginBottom: 4 }}>
+                  {suneungSelected.map(n => (SUNEUNG_TIMETABLE.find(s => s.name === n) || SUNEUNG_SUBJECTS.find(s => s.name === n))).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
                 </Text>
+                {suneungMode === 'timetable' && (() => {
+                  // 선택된 과목의 총 시간 + 쉬는시간 계산
+                  const orderedSel = suneungSelected.map(n => SUNEUNG_TIMETABLE.find(t => t.name === n)).filter(Boolean).sort((a, b) => a.order - b.order);
+                  const studyMin = orderedSel.reduce((s, t) => s + t.min, 0);
+                  let breakMin = 0;
+                  for (let i = 0; i < orderedSel.length - 1; i++) {
+                    const [eh, em] = orderedSel[i].end.split(':').map(Number);
+                    const [sh, sm] = orderedSel[i + 1].start.split(':').map(Number);
+                    breakMin += (sh * 60 + sm) - (eh * 60 + em);
+                  }
+                  const totalMin = studyMin + breakMin;
+                  const h = Math.floor(totalMin / 60);
+                  const m = totalMin % 60;
+                  return (
+                    <Text style={{ fontSize: 11, color: T.sub, marginBottom: 6 }}>
+                      공부 {Math.floor(studyMin / 60)}시간{studyMin % 60 > 0 ? ` ${studyMin % 60}분` : ''} + 쉬는시간 {breakMin}분 = 총 {h}시간{m > 0 ? ` ${m}분` : ''}
+                    </Text>
+                  );
+                })()}
                 <TouchableOpacity style={[S.seqStartBtn, { backgroundColor: T.accent }]} onPress={startSuneungSequence}>
-                  <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>▶ 수능 시뮬레이션 시작</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="caret-forward" size={15} color="white" />
+                    <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>수능 시뮬레이션 시작</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
             )}
@@ -416,14 +604,31 @@ export default function SubjectsScreen({ navigation }) {
               </View>
             )}
 
+            {/* 주간 목표 가이드 — 과목이 있고, 아직 안 본 사용자에게만 */}
+            {sorted.length > 0 && !app.settings.subjectGoalGuideShown && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => app.updateSettings({ subjectGoalGuideShown: true })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.accent + '12', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
+                <Ionicons name="bulb-outline" size={16} color={T.accent} />
+                <Text style={{ flex: 1, fontSize: 12, color: T.text, lineHeight: 17 }}>
+                  <Text style={{ fontWeight: '800' }}>과목을 길게 누르면</Text> 주간 목표를 설정할 수 있어요!
+                </Text>
+                <Ionicons name="close" size={14} color={T.sub} />
+              </TouchableOpacity>
+            )}
+
             {sorted.map(subj => {
               const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
               const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
+              const wSec = weekSubjSec[subj.id] || 0;
+              const wGoal = subj.weeklyGoalMin ? subj.weeklyGoalMin * 60 : 0;
+              const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
               return (
                 <TouchableOpacity key={subj.id}
                   style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
-                  onPress={() => !editMode && startSingle(subj)}
-                  activeOpacity={editMode ? 1 : 0.7}
+                  onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
+                  activeOpacity={1}
                   disabled={editMode}>
                   <View style={[S.subjDot, { backgroundColor: subj.color }]} />
                   <View style={{ flex: 1 }}>
@@ -431,6 +636,19 @@ export default function SubjectsScreen({ navigation }) {
                     <Text style={{ fontSize: 11, color: T.sub }}>
                       누적 {formatShort(subj.totalElapsedSec || 0)}{todaySec > 0 ? ` · 오늘 ${formatShort(todaySec)}` : ''}
                     </Text>
+                    {wGoal > 0 && (
+                      <View style={{ marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: wPct >= 100 ? T.green : T.sub }}>
+                            주간 {formatShort(wSec)} / {subj.weeklyGoalMin >= 60 ? `${subj.weeklyGoalMin / 60}시간` : `${subj.weeklyGoalMin}분`}
+                          </Text>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: wPct >= 100 ? T.green : subj.color }}>{wPct}%</Text>
+                        </View>
+                        <View style={{ height: 4, borderRadius: 2, backgroundColor: T.border, overflow: 'hidden' }}>
+                          <View style={{ height: 4, borderRadius: 2, width: `${wPct}%`, backgroundColor: wPct >= 100 ? T.green : subj.color }} />
+                        </View>
+                      </View>
+                    )}
                   </View>
                   {editMode ? (
                     <TouchableOpacity
@@ -514,6 +732,75 @@ export default function SubjectsScreen({ navigation }) {
           </View>
         </View></View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 주간 목표 설정 모달 */}
+      <Modal visible={!!goalSubj} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 }}>
+          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: T.border }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>
+              주간 목표 설정
+            </Text>
+            {goalSubj && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 14 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: goalSubj.color }} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{goalSubj.name}</Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>이번 주 목표 시간 (시간 단위)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {[1, 2, 3, 5, 7, 10].map(h => (
+                <TouchableOpacity key={h}
+                  onPress={() => setGoalInput(String(h))}
+                  style={{ flex: 1, minWidth: 48, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+                    borderColor: goalInput === String(h) ? (goalSubj?.color || T.accent) : T.border,
+                    backgroundColor: goalInput === String(h) ? (goalSubj?.color || T.accent) + '15' : T.surface2,
+                    alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: goalInput === String(h) ? (goalSubj?.color || T.accent) : T.text }}>{h}시간</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: T.text, backgroundColor: T.surface2, textAlign: 'center', marginBottom: 12 }}
+              value={goalInput}
+              onChangeText={setGoalInput}
+              placeholder="직접 입력 (시간)"
+              placeholderTextColor={T.sub}
+              keyboardType="numeric"
+              maxLength={4}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {goalSubj?.weeklyGoalMin ? (
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: T.red, alignItems: 'center' }}
+                  onPress={() => { app.updateSubject(goalSubj.id, { weeklyGoalMin: null }); setGoalSubj(null); }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: T.red }}>목표 해제</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: T.border, alignItems: 'center' }}
+                  onPress={() => setGoalSubj(null)}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: T.sub }}>취소</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: goalSubj?.color || T.accent, alignItems: 'center' }}
+                onPress={() => {
+                  const h = parseFloat(goalInput);
+                  if (!h || h <= 0) { Alert.alert('', '1시간 이상 입력해주세요'); return; }
+                  app.updateSubject(goalSubj.id, { weeklyGoalMin: Math.round(h * 60) });
+                  setGoalSubj(null);
+                }}>
+                <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>저장</Text>
+              </TouchableOpacity>
+            </View>
+            {goalSubj?.weeklyGoalMin && (
+              <TouchableOpacity style={{ marginTop: 8, alignItems: 'center' }} onPress={() => setGoalSubj(null)}>
+                <Text style={{ fontSize: 13, color: T.sub }}>닫기</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </Modal>
 
     </View>
