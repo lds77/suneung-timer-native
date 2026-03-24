@@ -94,3 +94,29 @@ export const clearAllData = async () => {
     return false;
   }
 };
+
+// ── 백업/복원 ──
+const BACKUP_KEYS = [
+  'SETTINGS', 'SUBJECTS', 'SESSIONS', 'DDAYS', 'TODOS',
+  'DAILY_RECORDS', 'COUNTUP_FAVS', 'FAVS', 'WEEKLY_SCHEDULE',
+];
+
+export const exportBackupData = async () => {
+  const data = {};
+  for (const k of BACKUP_KEYS) {
+    const raw = await AsyncStorage.getItem(KEYS[k]);
+    if (raw !== null) data[k] = JSON.parse(raw);
+  }
+  data._meta = { version: 1, exportedAt: new Date().toISOString(), app: 'yeolgong' };
+  return data;
+};
+
+export const importBackupData = async (data) => {
+  if (!data || data._meta?.app !== 'yeolgong') throw new Error('invalid_backup');
+  for (const k of BACKUP_KEYS) {
+    if (data[k] !== undefined) {
+      await AsyncStorage.setItem(KEYS[k], JSON.stringify(data[k]));
+    }
+  }
+  return true;
+};

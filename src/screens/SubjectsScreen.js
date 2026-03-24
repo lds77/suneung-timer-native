@@ -221,13 +221,16 @@ export default function SubjectsScreen({ navigation }) {
 
   const defMin = school === 'elementary_lower' ? 20 : school === 'elementary_upper' ? 25 : school === 'middle' ? 50 : 60;
 
+  const hasActiveTimer = () => app.timers.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
   const startSingle = (subj) => {
-    const t = app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
-    if (t) navigation.navigate('Focus');
+    if (hasActiveTimer()) { app.showToastCustom('실행 중인 타이머가 있어요!', 'paengi'); return; }
+    app.addTimer({ type: 'countdown', label: subj.name, color: subj.color, totalSec: defMin * 60, subjectId: subj.id });
+    navigation.navigate('Focus');
   };
   const startCountup = (subj) => {
-    const t = app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id });
-    if (t) navigation.navigate('Focus');
+    if (hasActiveTimer()) { app.showToastCustom('실행 중인 타이머가 있어요!', 'paengi'); return; }
+    app.addTimer({ type: 'free', label: subj.name, color: subj.color, subjectId: subj.id });
+    navigation.navigate('Focus');
   };
   const deleteSubject = (subj) => {
     Alert.alert('과목 삭제', `'${subj.name}'을(를) 삭제할까요?`, [
@@ -237,8 +240,9 @@ export default function SubjectsScreen({ navigation }) {
   };
 
   const startSuneungSingle = (subj) => {
-    const t = app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 });
-    if (t) navigation.navigate('Focus');
+    if (hasActiveTimer()) { app.showToastCustom('실행 중인 타이머가 있어요!', 'paengi'); return; }
+    app.addTimer({ type: 'countdown', label: `수능 ${subj.name}`, color: subj.color, totalSec: subj.min * 60 });
+    navigation.navigate('Focus');
   };
 
   const startSuneungSequence = () => {
@@ -268,19 +272,13 @@ export default function SubjectsScreen({ navigation }) {
           }
         }
       });
-      navigation.navigate('Focus');
-      setTimeout(() => {
-        const ok = app.startSequence({ items, breakSec: 0, seqName: '수능 시뮬레이션 (실제 시간표)', seqIcon: 'flag-outline', seqColor: '#E8575A' });
-        if (ok) setSuneungSelected([]);
-      }, 350);
+      const ok = app.startSequence({ items, breakSec: 0, seqName: '수능 시뮬레이션 (실제 시간표)', seqIcon: 'flag-outline', seqColor: '#E8575A' });
+      if (ok) { navigation.navigate('Focus'); setSuneungSelected([]); }
     } else {
       // 자유 모드: 기존 로직 (고정 20분 쉬는시간)
       const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
-      navigation.navigate('Focus');
-      setTimeout(() => {
-        const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
-        if (ok) setSuneungSelected([]);
-      }, 350);
+      const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
+      if (ok) { navigation.navigate('Focus'); setSuneungSelected([]); }
     }
   };
 

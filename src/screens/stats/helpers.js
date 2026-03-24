@@ -3,7 +3,7 @@ import { getTier } from '../../constants/presets';
 import { formatDuration, formatShort } from '../../utils/format';
 
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
-export const dateStr = (d) => d.toISOString().slice(0, 10);
+export const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
 // ─── 리포트 카드 색상 헬퍼 ───

@@ -81,6 +81,8 @@ export default function StatsScreen() {
   const [showDayReport, setShowDayReport] = useState(false);
   const [showMonthReport, setShowMonthReport] = useState(false);
   const [showHeatReport, setShowHeatReport] = useState(false);
+  // 리포트 응원메시지 고정 (모달 열릴 때 1회 생성, 리렌더 시 변경 방지)
+  const [reportCheer, setReportCheer] = useState('');
 
   // 주간 탭 이전/다음 주 탐색 (0 = 이번주, -1 = 지난주, ...)
   const [weekOffset, setWeekOffset] = useState(0);
@@ -340,23 +342,20 @@ export default function StatsScreen() {
   const heatmap365Max = useMemo(() => Math.max(...heatmap365.flat().map(d => d.sec), 1), [heatmap365]);
 
   // 잔디 색상: 편하게모드 = accent 계열, 집중도전모드 = 초록, Verified = 골드
+  // 잔디 색상 — 고정 시간 기준 (30분/1시간/2시간/4시간)
+  const HEAT_STEPS = [1800, 3600, 7200, 14400]; // 30m, 1h, 2h, 4h
   const getHeat365Color = (day) => {
     if (day.isFuture) return 'transparent';
     if (day.sec === 0) return T.surface2;
-    const r = Math.min(1, day.sec / Math.max(heatmap365Max * 0.8, 3600));
+    const sec = day.sec;
+    const level = sec >= HEAT_STEPS[3] ? 3 : sec >= HEAT_STEPS[2] ? 2 : sec >= HEAT_STEPS[1] ? 1 : 0;
     if (day.hasVerified) {
-      // Verified 있는 날: 골드 계열
-      if (r < 0.25) return '#FFD70066'; if (r < 0.5) return '#FFD70099';
-      if (r < 0.75) return '#FFD700CC'; return '#FFD700';
+      return ['#FFF3C4', '#F6D55C', '#F0C030', '#E6AC00'][level];
     }
     if (day.hasScreenOn) {
-      // 집중도전 있는 날: 초록
-      if (r < 0.25) return '#4CAF5066'; if (r < 0.5) return '#4CAF5099';
-      if (r < 0.75) return '#4CAF50CC'; return '#4CAF50';
+      return ['#C8E6C9', '#66BB6A', '#388E3C', '#1B5E20'][level];
     }
-    // 편하게 모드만: 기본 accent
-    if (r < 0.25) return T.accent + '66'; if (r < 0.5) return T.accent + '99';
-    if (r < 0.75) return T.accent + 'CC'; return T.accent;
+    return [T.heat1, T.heat2, T.heat3, T.heat4][level];
   };
   const totalStudyDays365 = useMemo(() => heatmap365.flat().filter(d => d.sec > 0 && !d.isFuture).length, [heatmap365]);
 
@@ -428,6 +427,47 @@ export default function StatsScreen() {
     const thisYear = new Date().getFullYear().toString();
     const ySess = app.sessions.filter(s => s.date?.startsWith(thisYear) && (s.focusDensity || 0) > 0);
     return ySess.length > 0 ? Math.round(ySess.reduce((s, x) => s + (x.focusDensity || 0), 0) / ySess.length) : 0;
+  }, [app.sessions]);
+
+  // ─── 역대 기록 (Personal Bests) ─────────────────────────────
+  const personalBests = useMemo(() => {
+    const sessions = app.sessions || [];
+    if (sessions.length === 0) return null;
+
+    // 날짜별 집계
+    const byDate = {};
+    sessions.forEach(s => {
+      if (!s.date) return;
+      if (!byDate[s.date]) byDate[s.date] = { sec: 0, count: 0 };
+      byDate[s.date].sec += (s.durationSec || 0);
+      byDate[s.date].count++;
+    });
+
+    // 하루 최장 공부시간
+    let bestDayDate = null, bestDaySec = 0;
+    Object.entries(byDate).forEach(([date, v]) => {
+      if (v.sec > bestDaySec) { bestDaySec = v.sec; bestDayDate = date; }
+    });
+
+    // 하루 최다 세션
+    let mostSessDate = null, mostSessCount = 0;
+    Object.entries(byDate).forEach(([date, v]) => {
+      if (v.count > mostSessCount) { mostSessCount = v.count; mostSessDate = date; }
+    });
+
+    // 최장 단일 세션
+    let longestSess = null;
+    sessions.forEach(s => {
+      if ((s.durationSec || 0) > (longestSess?.durationSec || 0)) longestSess = s;
+    });
+
+    // 최고 집중밀도 세션 (최소 10분 이상)
+    let bestDensitySess = null;
+    sessions.forEach(s => {
+      if ((s.durationSec || 0) >= 600 && (s.focusDensity || 0) > (bestDensitySess?.focusDensity || 0)) bestDensitySess = s;
+    });
+
+    return { bestDayDate, bestDaySec, mostSessDate, mostSessCount, longestSess, bestDensitySess };
   }, [app.sessions]);
 
   // ─── 오늘 플래너 달성률 ──────────────────────────────────────
@@ -1168,7 +1208,7 @@ export default function StatsScreen() {
           {/* ── 오늘 리포트 카드 버튼 ── */}
           <TouchableOpacity
             style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowDayReport(true)}
+            onPress={() => { setReportCheer(getInsight(todayTotalSec, todayAvgDensity, app.settings.streak)); setShowDayReport(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="clipboard-outline" size={24} color="white" />
@@ -1320,7 +1360,7 @@ export default function StatsScreen() {
           {/* 주간 리포트 카드 버튼 */}
           <TouchableOpacity
             style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowReport(true)}
+            onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="clipboard-outline" size={24} color="white" />
@@ -1426,7 +1466,7 @@ export default function StatsScreen() {
           {/* ── 월간 리포트 카드 버튼 ── */}
           <TouchableOpacity
             style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowMonthReport(true)}
+            onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="clipboard-outline" size={24} color="white" />
@@ -1525,18 +1565,21 @@ export default function StatsScreen() {
               </View>
             </View>
 
-            {/* 범례 */}
+            {/* 범례 — 시간 기준 표시 */}
             <View style={S.heatLegend}>
-              <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-              {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
-                <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
+              <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
+              <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
+              {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
+                <React.Fragment key={i}>
+                  <View style={[S.heatBox, { backgroundColor: c }]} />
+                  <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
+                </React.Fragment>
               ))}
-              <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
             </View>
             <View style={[S.heatLegend, { marginTop: 6 }]}>
-              <View style={[S.heatBox, { backgroundColor: T.accent + '99' }]} /><Ionicons name="book-outline" size={12} color={T.sub} style={{ marginLeft: 2 }} />
-              <View style={[S.heatBox, { backgroundColor: '#4CAF5099', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color={T.sub} style={{ marginLeft: 2 }} />
-              <View style={[S.heatBox, { backgroundColor: '#FFD70099', marginLeft: 8 }]} /><Ionicons name="trophy" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>Verified</Text>
+              <View style={[S.heatBox, { backgroundColor: T.heat3 }]} /><Ionicons name="book-outline" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>편하게</Text>
+              <View style={[S.heatBox, { backgroundColor: '#388E3C', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>집중</Text>
+              <View style={[S.heatBox, { backgroundColor: '#F0C030', marginLeft: 8 }]} /><Ionicons name="trophy" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>Verified</Text>
             </View>
             <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
               잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
@@ -1597,10 +1640,99 @@ export default function StatsScreen() {
             );
           })()}
 
+          {/* ── 역대 기록 ── */}
+          {personalBests && personalBests.bestDaySec > 0 && (
+            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+                <Ionicons name="trophy-outline" size={14} color={T.accent} />
+                <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
+              </View>
+
+              {/* 2열 그리드 */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {/* 하루 최장 공부 */}
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <Ionicons name="flame" size={12} color="#E17055" />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
+                  </View>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
+                  {personalBests.bestDayDate && (
+                    <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+                      {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+                    </Text>
+                  )}
+                </View>
+
+                {/* 최장 단일 세션 */}
+                {personalBests.longestSess && (
+                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <Ionicons name="timer-outline" size={12} color="#4A90D9" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
+                    <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+                      {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
+                    </Text>
+                  </View>
+                )}
+
+                {/* 최고 집중밀도 */}
+                {personalBests.bestDensitySess && (
+                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
+                      {personalBests.bestDensitySess.focusDensity}점
+                    </Text>
+                    <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+                      {getTier(personalBests.bestDensitySess.focusDensity).label}
+                    </Text>
+                  </View>
+                )}
+
+                {/* 하루 최다 세션 */}
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
+                  </View>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
+                  {personalBests.mostSessDate && (
+                    <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+                      {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* 최장 연속 + 총 공부일 */}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="flame" size={18} color="#FF7F50" />
+                  <View>
+                    <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="calendar" size={18} color={T.accent} />
+                  <View>
+                    <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* ── 잔디 리포트 카드 버튼 ── */}
           <TouchableOpacity
             style={[S.reportBtn, { backgroundColor: T.accent }]}
-            onPress={() => setShowHeatReport(true)}
+            onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="leaf-outline" size={24} color="white" />
@@ -1949,7 +2081,7 @@ export default function StatsScreen() {
                 )}
 
                 {/* 캐릭터 응원 메시지 */}
-                <ReportFooterMessage message={getInsight(weekTotal, weekAvgDensity, app.settings.streak)} characterId={app.settings.mainCharacter} T={T} />
+                <ReportFooterMessage message={reportCheer} characterId={app.settings.mainCharacter} T={T} />
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
@@ -2053,7 +2185,7 @@ export default function StatsScreen() {
                 <SubjectProportionBar subjects={daySubjects} T={T} />
 
                 {/* 캐릭터 응원 메시지 */}
-                <ReportFooterMessage message={getInsight(todayTotalSec, todayAvgDensity, app.settings.streak)} characterId={app.settings.mainCharacter} T={T} />
+                <ReportFooterMessage message={reportCheer} characterId={app.settings.mainCharacter} T={T} />
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
@@ -2164,7 +2296,7 @@ export default function StatsScreen() {
                 <SubjectProportionBar subjects={monthSubjects} T={T} />
 
                 {/* 캐릭터 응원 메시지 */}
-                <ReportFooterMessage message={getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)} characterId={app.settings.mainCharacter} T={T} />
+                <ReportFooterMessage message={reportCheer} characterId={app.settings.mainCharacter} T={T} />
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
@@ -2242,23 +2374,24 @@ export default function StatsScreen() {
                           </View>
                         ))}
                       </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 7 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.accent + '99' }} />
-                        <Ionicons name="book-outline" size={10} color={T.sub} />
-                        <Text style={{ fontSize: 10, color: T.sub }}>편하게</Text>
-                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#4CAF5099', marginLeft: 6 }} />
-                        <Ionicons name="flame" size={10} color={T.sub} />
-                        <Text style={{ fontSize: 10, color: T.sub }}>집중도전</Text>
-                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#FFD70099', marginLeft: 6 }} />
-                        <Ionicons name="trophy" size={10} color={T.sub} />
-                        <Text style={{ fontSize: 10, color: T.sub }}>Verified</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 7, flexWrap: 'wrap' }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.surface2 }} />
+                        <Text style={{ fontSize: 9, color: T.sub }}>0</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.heat1, marginLeft: 3 }} />
+                        <Text style={{ fontSize: 9, color: T.sub }}>30분</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.heat2, marginLeft: 3 }} />
+                        <Text style={{ fontSize: 9, color: T.sub }}>1h</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.heat3, marginLeft: 3 }} />
+                        <Text style={{ fontSize: 9, color: T.sub }}>2h</Text>
+                        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: T.heat4, marginLeft: 3 }} />
+                        <Text style={{ fontSize: 9, color: T.sub }}>4h+</Text>
                       </View>
                     </View>
                   );
                 })()}
 
                 {/* 캐릭터 응원 메시지 */}
-                <ReportFooterMessage message={getInsight(yearTotalSec, 0, app.settings.streak)} characterId={app.settings.mainCharacter} T={T} />
+                <ReportFooterMessage message={reportCheer} characterId={app.settings.mainCharacter} T={T} />
 
                 <ReportWatermark T={T} tag="#공부스타그램 #공부잔디" />
               </View>

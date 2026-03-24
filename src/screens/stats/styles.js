@@ -142,7 +142,7 @@ export function createStyles(fs) { return StyleSheet.create({
   modalTitle: { fontSize: Math.round(16 * fs), fontWeight: '900', textAlign: 'center', marginBottom: 12 },
 
   mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  moScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 },
+  moScroll: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 20 },
   mCancel: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   mCancelT: { fontSize: Math.round(14 * fs), fontWeight: '600' },
   mConfirm: { marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },

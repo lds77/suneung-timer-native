@@ -438,7 +438,7 @@ export default function FocusScreen() {
     setAddTodoSubjectLabel(null);
     setAddTodoSubjectColor(null);
     setShowAddTodoMemo(false);
-    app.showToastCustom('✅ 할 일이 저장됐어요!', 'taco');
+    app.showToastCustom('할 일이 저장됐어요!', 'taco');
     setShowAddTodoModal(false);
   };
 
@@ -1337,7 +1337,7 @@ export default function FocusScreen() {
                     const todayList = app.todos.filter(x => !x.isTemplate && (x.scope === 'today' || x.scope == null));
                     const nowDone = todayList.filter(x => x.id === t.id ? true : x.done).length;
                     if (nowDone === todayList.length && todayList.length > 0) {
-                      app.showToastCustom('🎉 오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
+                      app.showToastCustom('오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
                     }
                   }
                 }}
@@ -1772,13 +1772,23 @@ export default function FocusScreen() {
               </View>
             )}
           </View>
-          <View style={S.noiseRow}>
-            {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }].map(s => (
-              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ gap: 4 }}>
+            <View style={S.noiseRow}>
+              {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }].map(s => (
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={S.noiseRow}>
+              {[{ id: 'train', icon: 'train-outline', t: '기차' }, { id: 'library', icon: 'library-outline', t: '도서관' }, { id: 'clock', icon: 'time-outline', t: '시계' }, { id: 'space', icon: 'planet-outline', t: '우주' }, { id: 'writing', icon: 'pencil-outline', t: '필기' }].map(s => (
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View></View>
 
         {/* 타임어택 / 커스텀 */}
@@ -2106,7 +2116,7 @@ export default function FocusScreen() {
                     const todayList = app.todos.filter(x => !x.isTemplate && (x.scope === 'today' || x.scope == null));
                     const nowDone = todayList.filter(x => x.id === t.id ? true : x.done).length;
                     if (nowDone === todayList.length && todayList.length > 0) {
-                      app.showToastCustom('🎉 오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
+                      app.showToastCustom('오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
                     }
                   }
                 }}
@@ -2520,13 +2530,23 @@ export default function FocusScreen() {
               </View>
             )}
           </View>
-          <View style={S.noiseRow}>
-            {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }].map(s => (
-              <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ gap: 4 }}>
+            <View style={S.noiseRow}>
+              {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }].map(s => (
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={S.noiseRow}>
+              {[{ id: 'train', icon: 'train-outline', t: '기차' }, { id: 'library', icon: 'library-outline', t: '도서관' }, { id: 'clock', icon: 'time-outline', t: '시계' }, { id: 'space', icon: 'planet-outline', t: '우주' }, { id: 'writing', icon: 'pencil-outline', t: '필기' }].map(s => (
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
+                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View></View>
 
         {/* 타임어택 / 커스텀 */}
@@ -2672,7 +2692,7 @@ export default function FocusScreen() {
                   // 세션에도 반영
                   if (memoSessionId) app.updateSessionMemo(memoSessionId, memoText.trim());
                   setMemoTimerId(null);
-                  app.showToastCustom('📝 메모 저장!', 'toru');
+                  app.showToastCustom('메모 저장!', 'toru');
                 }}
               >
                 <Text style={S.mConfirmT}>저장</Text>

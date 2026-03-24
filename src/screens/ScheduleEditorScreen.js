@@ -654,13 +654,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} keyboardShouldPersistTaps="handled">
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {FIXED_TYPES.map(ft => {
                       const sel = fixedType.type === ft.type;
                       return (
                         <TouchableOpacity key={ft.type}
-                          onPress={() => { Keyboard.dismiss(); setFixedType(ft); setFixedLabel(ft.label); }}
+                          onPress={() => { setFixedType(prev => { setFixedLabel(l => (!l || l === prev.label) ? ft.label : l); return ft; }); }}
                           style={[s.typeChip, {
                             borderColor: sel ? T.accent : T.border,
                             backgroundColor: sel ? T.accent + '18' : T.card,

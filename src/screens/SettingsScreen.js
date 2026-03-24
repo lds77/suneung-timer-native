@@ -16,6 +16,10 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
 import * as IntentLauncher from 'expo-intent-launcher';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import { exportBackupData, importBackupData } from '../utils/storage';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
@@ -104,7 +108,7 @@ function Section({ title, icon, children, T }) {
   );
 }
 
-function Row({ label, right, onPress, T }) {
+function Row({ label, sub, right, onPress, T }) {
   return (
     <TouchableOpacity
       style={_styles.row}
@@ -112,7 +116,10 @@ function Row({ label, right, onPress, T }) {
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <Text style={[_styles.rowLabel, { color: T.text }]}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[_styles.rowLabel, { color: T.text }]}>{label}</Text>
+        {sub ? <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{sub}</Text> : null}
+      </View>
       <View style={_styles.rowRight}>{right}</View>
     </TouchableOpacity>
   );
@@ -214,6 +221,7 @@ export default function SettingsScreen() {
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
 
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
@@ -466,6 +474,46 @@ const [ddLabel, setDdLabel] = useState('');
               </TouchableOpacity>
             </View>
           )}
+          <Row
+            T={T}
+            label="공부 리마인더"
+            sub="설정 시간에 공부 안 했으면 알려줘요"
+            right={
+              <Switch
+                value={app.settings.dailyReminderEnabled}
+                onValueChange={(v) => app.updateSettings({ dailyReminderEnabled: v })}
+                trackColor={{ true: T.accent }}
+                thumbColor="white"
+              />
+            }
+          />
+          {app.settings.dailyReminderEnabled && (
+            <Row T={T} label="알림 시각"
+              right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>
+                  {app.settings.dailyReminderHour > 12
+                    ? `오후 ${app.settings.dailyReminderHour - 12}시`
+                    : app.settings.dailyReminderHour === 12 ? '오후 12시' : `오전 ${app.settings.dailyReminderHour}시`}
+                  {app.settings.dailyReminderMin > 0 ? ` ${app.settings.dailyReminderMin}분` : ''}
+                </Text>
+                <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
+              </View>}
+              onPress={() => setShowReminderPicker(true)}
+            />
+          )}
+          <Row
+            T={T}
+            label="연속 끊김 위기 알림"
+            sub="5일 이상 연속 중인데 오늘 안 했으면 밤 9:30에 알림"
+            right={
+              <Switch
+                value={app.settings.streakReminderEnabled}
+                onValueChange={(v) => app.updateSettings({ streakReminderEnabled: v })}
+                trackColor={{ true: T.accent }}
+                thumbColor="white"
+              />
+            }
+          />
         </Section>
 
 
@@ -535,6 +583,58 @@ const [ddLabel, setDdLabel] = useState('');
         <Section T={T} title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Row T={T} label="사용 가이드" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
+          </TouchableOpacity>
+        </Section>
+
+        {/* 데이터 관리 */}
+        <Section T={T} title="데이터 관리" icon="folder-outline">
+          <TouchableOpacity onPress={async () => {
+            try {
+              const data = await exportBackupData();
+              const json = JSON.stringify(data, null, 2);
+              const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+              const path = `${FileSystem.cacheDirectory}yeolgong_backup_${date}.json`;
+              await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+              await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
+            } catch (e) {
+              Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+            }
+          }}>
+            <Row T={T} label="데이터 백업" sub="JSON 파일로 내보내기" right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+              if (result.canceled) return;
+              const file = result.assets?.[0];
+              if (!file) return;
+              const raw = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+              const data = JSON.parse(raw);
+              if (!data._meta || data._meta.app !== 'yeolgong') {
+                Alert.alert('복원 실패', '열공메이트 백업 파일이 아닙니다.');
+                return;
+              }
+              Alert.alert(
+                '데이터 복원',
+                `${data._meta.exportedAt?.slice(0, 10) || ''} 백업을 복원하면 현재 데이터가 덮어씌워집니다. 계속할까요?`,
+                [
+                  { text: '취소', style: 'cancel' },
+                  { text: '복원', style: 'destructive', onPress: async () => {
+                    try {
+                      await importBackupData(data);
+                      await app.reloadAllData();
+                      Alert.alert('복원 완료', '데이터가 성공적으로 복원되었습니다.');
+                    } catch {
+                      Alert.alert('복원 실패', '데이터를 복원하는 중 오류가 발생했습니다.');
+                    }
+                  }},
+                ]
+              );
+            } catch {
+              Alert.alert('복원 실패', '파일을 읽는 중 오류가 발생했습니다.');
+            }
+          }}>
+            <Row T={T} label="데이터 복원" sub="백업 파일에서 불러오기" right={<Ionicons name="cloud-download-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
         </Section>
 
@@ -861,6 +961,36 @@ const [ddLabel, setDdLabel] = useState('');
                   <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{s.label}</Text>
                   <Text style={{ fontSize: 12, color: sel ? T.accent + 'AA' : T.sub, marginTop: 1 }}>{s.sub}</Text>
                 </View>
+                {sel && <Text style={{ fontSize: 16, color: T.accent }}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
+
+      {/* 리마인더 시간 피커 */}
+      <Modal visible={showReminderPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowReminderPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>리마인더 시각</Text>
+            <TouchableOpacity onPress={() => setShowReminderPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          {[
+            { h: 17, m: 0, label: '오후 5시' },
+            { h: 18, m: 0, label: '오후 6시' },
+            { h: 19, m: 0, label: '오후 7시' },
+            { h: 20, m: 0, label: '오후 8시' },
+            { h: 20, m: 30, label: '오후 8시 30분' },
+            { h: 21, m: 0, label: '오후 9시' },
+            { h: 21, m: 30, label: '오후 9시 30분' },
+            { h: 22, m: 0, label: '오후 10시' },
+          ].map(opt => {
+            const sel = app.settings.dailyReminderHour === opt.h && app.settings.dailyReminderMin === opt.m;
+            return (
+              <TouchableOpacity key={opt.label} onPress={() => { app.updateSettings({ dailyReminderHour: opt.h, dailyReminderMin: opt.m }); setShowReminderPicker(false); }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
+                <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{opt.label}</Text>
                 {sel && <Text style={{ fontSize: 16, color: T.accent }}>✓</Text>}
               </TouchableOpacity>
             );

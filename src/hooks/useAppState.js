@@ -7,11 +7,16 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Audio } from 'expo-av';
 
 const SOUND_FILES = {
-  rain:   require('../../assets/sounds/rain.mp3'),
-  cafe:   require('../../assets/sounds/cafe.mp3'),
-  fire:   require('../../assets/sounds/fire.mp3'),
-  wave:   require('../../assets/sounds/wave.mp3'),
-  forest: require('../../assets/sounds/forest.mp3'),
+  rain:    require('../../assets/sounds/rain.mp3'),
+  cafe:    require('../../assets/sounds/cafe.mp3'),
+  fire:    require('../../assets/sounds/fire.mp3'),
+  wave:    require('../../assets/sounds/wave.mp3'),
+  forest:  require('../../assets/sounds/forest.mp3'),
+  train:   require('../../assets/sounds/train.mp3'),
+  library: require('../../assets/sounds/Library.mp3'),
+  clock:   require('../../assets/sounds/clock.mp3'),
+  space:   require('../../assets/sounds/space.mp3'),
+  writing: require('../../assets/sounds/writing.mp3'),
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, generateId } from '../utils/format';
@@ -54,6 +59,11 @@ const DEFAULT_SETTINGS = {
   exactAlarmGuideShown: false, // Android 12+ 정확한 알람 권한 안내 표시 여부
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
   lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
+  // 공부 리마인더
+  dailyReminderEnabled: false, // 매일 공부 리마인더
+  dailyReminderHour: 20,       // 리마인더 시각 (시)
+  dailyReminderMin: 0,         // 리마인더 시각 (분)
+  streakReminderEnabled: false, // 연속 끊김 위기 알림
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -217,6 +227,7 @@ export function AppProvider({ children }) {
   const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
+  const reminderNotifIds = useRef([]); // 공부 리마인더 알림 id 목록
 
   // ref: 최신 weeklySchedule / sessions (schedulePlannerReminders에서 사용)
   const weeklyScheduleRef = useRef(null);
@@ -318,9 +329,9 @@ export function AppProvider({ children }) {
     clearTimeout(pauseAllowRef.current);
     pauseAllowRef.current = setTimeout(() => {
       setUltraFocus(prev => ({ ...prev, pauseAllowed: false }));
-      showToastCustom('⏰ 쉬는 시간 끝! 다시 집중!', 'toru');
+      showToastCustom('쉬는 시간 끝! 다시 집중!', 'toru');
     }, 60000);
-    showToastCustom('⏸️ 60초간 자유시간! 빠르게 다녀와~', 'taco');
+    showToastCustom('60초간 자유시간! 빠르게 다녀와~', 'taco');
   }, []);
 
   // AppState 핸들링
@@ -347,7 +358,7 @@ export function AppProvider({ children }) {
         if (mode === 'screen_on' && hasRunning && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
           const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
-          fireNotif(`${charName}랑 같이 열공하자! 📚`, '타이머가 돌아가고 있어~');
+          fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
         }
@@ -391,8 +402,8 @@ export function AppProvider({ children }) {
               ));
             }
             if (!challenge) {
-              if (isStrict) showToastCustom('📱 이탈 감지! 타이머가 멈췄어요', 'paengi');
-              else { const m = Math.floor(awayMs / 60000); showToastCustom(m >= 1 ? `📱 ${m}분 이탈! 집중하자~` : '📱 돌아왔구나! 집중하자~', 'toru'); }
+              if (isStrict) showToastCustom('이탈 감지! 타이머가 멈췄어요', 'paengi');
+              else { const m = Math.floor(awayMs / 60000); showToastCustom(m >= 1 ? `${m}분 이탈! 집중하자~` : '돌아왔구나! 집중하자~', 'toru'); }
             }
             // 챌린지 모달이 뜨면 밝기를 원래대로 복원 (문구 입력해야 하니까)
             if (challenge) restoreBrightness();
@@ -485,7 +496,7 @@ export function AppProvider({ children }) {
     }
     // 챌린지 해제 → 다시 최소밝기 + 다크모드
     applyFocusBrightness();
-    showToastCustom('💪 다시 집중! 할 수 있어!', 'toru');
+    showToastCustom('다시 집중! 할 수 있어!', 'toru');
   }, []);
 
   // 그만하기
@@ -503,7 +514,7 @@ export function AppProvider({ children }) {
       }
       return t;
     }));
-    showToastCustom('오늘은 여기까지! 내일 다시 도전해봐요 😴', 'totoru');
+    showToastCustom('오늘은 여기까지! 내일 다시 도전해봐요', 'totoru');
   }, []);
 
   const calcResult = (t, dur) => {
@@ -594,7 +605,7 @@ export function AppProvider({ children }) {
           const nextLabel = nextItem.isBreak
             ? `🥤 ${Math.round((nextItem.totalSec || 60) / 60)}분 휴식`
             : nextItem.label;
-          fireNotif(`✅ ${t.label} 완료!`, `다음: ${nextLabel}`);
+          fireNotif(`${t.label} 완료!`, `다음: ${nextLabel}`);
         }
       }
       // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
@@ -617,7 +628,7 @@ export function AppProvider({ children }) {
         Vibration.vibrate([0, 200, 100, 200]);
         // seqBreakSec > 0인 실제 쉬는시간 종료 시만 알림 (0이면 work→break에서 이미 발송)
         if (t.seqBreakSec > 0 && nextItem) {
-          fireNotif(`▶ ${nextItem.label} 시작!`, '집중! 🔥');
+          fireNotif(`${nextItem.label} 시작!`, '집중!');
         }
       }
       // break→work 전환 시에는 재예약 하지 않음
@@ -638,21 +649,21 @@ export function AppProvider({ children }) {
     const isPerfect = mode === 'screen_on' && ufState.exitCount === 0 && !ufState.gaveUp;
     if (!skipNotif) {
       if (isPerfect && t.elapsedSec >= 300) {
-        fireNotif('🏆 퍼펙트 집중!', `${t.label} 이탈 없이 완료! Verified!`);
+        fireNotif('퍼펙트 집중!', `${t.label} 이탈 없이 완료! Verified!`);
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300, 100, 500, 200, 800]);
-        showToastCustom('🏆 이탈 0회! Verified!! 🎉', 'taco');
+        showToastCustom('이탈 0회! Verified!', 'taco');
       } else {
-        fireNotif(`⏰ ${t.label} 완료!`, '🎉');
+        fireNotif(`${t.label} 완료!`, '수고했어!');
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500, 200, 500]);
       }
     } else {
       // 백그라운드 복귀: OS가 이미 알림 보냄 → 진동+토스트만
       if (isPerfect && t.elapsedSec >= 300) {
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300, 100, 500, 200, 800]);
-        showToastCustom('🏆 이탈 0회! Verified!! 🎉', 'taco');
+        showToastCustom('이탈 0회! Verified!', 'taco');
       } else {
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500, 200, 500]);
-        showToastCustom(`⏰ ${t.label} 완료!`, 'toru');
+        showToastCustom(`${t.label} 완료!`, 'toru');
       }
     }
     if (t.type !== 'lap' && t.elapsedSec >= 300) {
@@ -737,8 +748,8 @@ export function AppProvider({ children }) {
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000) };
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: customTitle || `⏰ ${label} 완료!`,
-          body: customBody || '🎉 타이머가 끝났어요!',
+          title: customTitle || `${label} 완료!`,
+          body: customBody || '타이머가 끝났어요!',
           sound: 'default', vibrate: [0, 500, 200, 500, 200, 500],
           ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
         },
@@ -802,13 +813,13 @@ export function AppProvider({ children }) {
       let count = 0;
       while (absMs > Date.now() && count < 16) {
         if (phase === 'work') {
-          await push(absMs, `🍅 ${timer.label} 집중 완료!`, '기지개 한 번 펴자! 🙆');
+          await push(absMs, `${timer.label} 집중 완료!`, '기지개 한 번 펴자!');
           const isLong = (set + 1) % 4 === 0;
           phase = isLong ? 'longbreak' : 'break';
           set++;
           absMs += (isLong ? timer.pomoBreakMin * 2 : timer.pomoBreakMin) * 60 * 1000;
         } else {
-          await push(absMs, `🍅 ${timer.label} 휴식 끝!`, '다시 달려보자! 🔥');
+          await push(absMs, `${timer.label} 휴식 끝!`, '다시 달려보자!');
           phase = 'work';
           absMs += timer.pomoWorkMin * 60 * 1000;
         }
@@ -824,11 +835,11 @@ export function AppProvider({ children }) {
         if (phase === 'work') {
           const nextIdx = idx + 1;
           if (nextIdx >= timer.seqTotal) {
-            await push(absMs, '📋 연속 실행 완료!', '모든 과목을 끝냈어! 🎉');
+            await push(absMs, '연속 실행 완료!', '모든 과목을 끝냈어!');
             break;
           }
           if (timer.seqBreakSec > 0) {
-            await push(absMs, `✅ ${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 🥤 (${Math.round(timer.seqBreakSec / 60)}분)`);
+            await push(absMs, `${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 (${Math.round(timer.seqBreakSec / 60)}분)`);
           }
           phase = 'break';
           absMs += timer.seqBreakSec * 1000;
@@ -837,7 +848,7 @@ export function AppProvider({ children }) {
           if (idx >= timer.seqTotal) break;
           const ni = timer.seqItems[idx];
           const niSec = ni.totalSec || ((ni.min || 0) * 60);
-          await push(absMs, `▶ ${ni.label} 시작!`, '다음 과목 시작! 집중! 🔥');
+          await push(absMs, `▶ ${ni.label} 시작!`, '다음 과목 시작! 집중!');
           phase = 'work';
           absMs += niSec * 1000;
         }
@@ -890,7 +901,7 @@ export function AppProvider({ children }) {
           : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs) };
         const id = await Notifications.scheduleNotificationAsync({
           content: {
-            title: '📅 공부 계획 알림',
+            title: '공부 계획 알림',
             body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
@@ -898,6 +909,72 @@ export function AppProvider({ children }) {
           trigger,
         });
         plannerNotifIds.current.push(id);
+      } catch {}
+    }
+  }, []);
+
+  // ═══ 공부 리마인더 알림 예약 ═══
+  // 매일 설정 시각에 "오늘 아직 공부 안 했어!" + 연속 끊김 위기 알림
+  const scheduleStudyReminders = useCallback(async () => {
+    // 기존 리마인더 취소
+    for (const id of reminderNotifIds.current) {
+      try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
+    }
+    reminderNotifIds.current = [];
+
+    const s = settingsRef.current;
+    if (!s.notifEnabled) return;
+
+    const now = new Date();
+    const todayStr = getToday();
+    const hasTodaySession = sessionsRef.current.some(sess => sess.date === todayStr);
+
+    // 1) 매일 공부 리마인더
+    if (s.dailyReminderEnabled) {
+      const triggerDate = new Date();
+      triggerDate.setHours(s.dailyReminderHour, s.dailyReminderMin, 0, 0);
+      // 이미 지난 시간이면 내일로
+      if (triggerDate.getTime() <= now.getTime()) triggerDate.setDate(triggerDate.getDate() + 1);
+      // 오늘 이미 공부했고 트리거가 오늘이면 스킵 (내일로)
+      if (hasTodaySession && triggerDate.toISOString().slice(0, 10) === todayStr) {
+        triggerDate.setDate(triggerDate.getDate() + 1);
+      }
+      try {
+        const trigger = Platform.OS === 'android'
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate, channelId: 'timer-complete' }
+          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate };
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '오늘 공부 시작해볼까?',
+            body: s.streak > 0 ? `${s.streak}일 연속 공부 중! 오늘도 이어가자!` : '잠깐이라도 좋으니 시작해봐!',
+            sound: 'default',
+            ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+          },
+          trigger,
+        });
+        reminderNotifIds.current.push(id);
+      } catch {}
+    }
+
+    // 2) 연속 끊김 위기 알림 (streak >= 5일 이상이고, 오늘 아직 공부 안 했을 때)
+    if (s.streakReminderEnabled && s.streak >= 5 && !hasTodaySession) {
+      const triggerDate = new Date();
+      triggerDate.setHours(21, 30, 0, 0); // 밤 9시 30분 고정
+      if (triggerDate.getTime() <= now.getTime()) return; // 이미 지남
+      try {
+        const trigger = Platform.OS === 'android'
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate, channelId: 'timer-complete' }
+          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate };
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '연속 공부 끊길 위기!',
+            body: `${s.streak}일 연속이 오늘 끊겨요! 잠깐이라도 공부하자!`,
+            sound: 'default',
+            ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+          },
+          trigger,
+        });
+        reminderNotifIds.current.push(id);
       } catch {}
     }
   }, []);
@@ -947,7 +1024,7 @@ export function AppProvider({ children }) {
     const targetSec = plan.targetMin * 60;
     const remainingSec = Math.max(0, targetSec - doneSec);
     if (remainingSec < 60) {
-      showToastCustom('이미 목표 달성한 계획이에요! 🎉', 'toru');
+      showToastCustom('이미 목표 달성한 계획이에요!', 'toru');
       return;
     }
     addTimer({
@@ -1510,16 +1587,26 @@ export function AppProvider({ children }) {
     }, 1500);
   }, [weeklySchedule, loading]);
 
+  // 공부 리마인더: 앱 시작 + 세션/설정 변경 시 재예약
+  const studyReminderDebounceRef = useRef(null);
+  useEffect(() => {
+    if (loading) return;
+    clearTimeout(studyReminderDebounceRef.current);
+    studyReminderDebounceRef.current = setTimeout(() => {
+      scheduleStudyReminders();
+    }, 2000);
+  }, [sessions.length, settings.dailyReminderEnabled, settings.dailyReminderHour, settings.dailyReminderMin, settings.streakReminderEnabled, settings.streak, loading]);
+
   // 즐겨찾기 추가/제거
   const addFav = useCallback((fav) => {
     if (favs.length >= 6) { showToastCustom('즐겨찾기 최대 6개!', 'paengi'); return; }
     if (favs.some(f => f.label === fav.label && f.type === fav.type)) { showToastCustom('이미 있어요!', 'paengi'); return; }
     setFavs(p => [...p, { ...fav, id: `fav_${Date.now()}` }]);
-    showToastCustom(`⭐ ${fav.label} 추가!`, 'toru');
+    showToastCustom(`${fav.label} 추가!`, 'toru');
   }, [favs]);
   const removeFav = useCallback((id) => {
     setFavs(p => p.filter(f => f.id !== id));
-    showToastCustom('⭐ 즐겨찾기에서 제거됐어요', 'paengi');
+    showToastCustom('즐겨찾기에서 제거됐어요', 'paengi');
   }, []);
 
   // 공부량 즐겨찾기 추가/제거
@@ -1527,11 +1614,27 @@ export function AppProvider({ children }) {
     if (countupFavs.length >= 6) { showToastCustom('공부량 즐겨찾기 최대 6개!', 'paengi'); return; }
     if (countupFavs.some(f => f.label === fav.label)) { showToastCustom('이미 있어요!', 'paengi'); return; }
     setCountupFavs(p => [...p, { ...fav, id: `cf_${Date.now()}` }]);
-    showToastCustom(`📈 ${fav.label} 추가!`, 'toru');
+    showToastCustom(`${fav.label} 추가!`, 'toru');
   }, [countupFavs]);
   const removeCountupFav = useCallback((id) => {
     setCountupFavs(p => p.filter(f => f.id !== id));
-    showToastCustom('📈 즐겨찾기에서 제거됐어요', 'paengi');
+    showToastCustom('즐겨찾기에서 제거됐어요', 'paengi');
+  }, []);
+
+  // 백업 복원 후 전체 상태 다시 로드
+  const reloadAllData = useCallback(async () => {
+    const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([
+      loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(),
+    ]);
+    if (s) setSettings({ ...DEFAULT_SETTINGS, ...s });
+    if (subj) setSubjects(subj);
+    if (sess) setSessions(sess);
+    if (dd) setDDays(dd);
+    if (td) setTodos(td);
+    if (cuf) setCountupFavs(cuf);
+    if (fv && fv.length > 0) setFavs(fv);
+    const ws = await loadWeeklySchedule();
+    if (ws) setWeeklySchedule(ws);
   }, []);
 
   return (
@@ -1556,6 +1659,7 @@ export function AppProvider({ children }) {
       weeklySchedule, setWeeklySchedule,
       getTodaySchedule, getPlanCompletedSec, getTodayPlanRate,
       startFromPlan, getAvailableMin, getDayKey, schedulePlannerReminders,
+      reloadAllData,
     }}>
       {children}
     </AppContext.Provider>
