@@ -500,14 +500,15 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
   const { Circle } = require('react-native-svg');
 
   const screenW = Dimensions.get('window').width;
-  // 실제 FocusScreen과 동일한 링 크기
-  const RING_DEF = Math.min(screenW - 72, 248);
-  const STROKE_DEF = 14;
+  const onbTablet = screenW >= 600;
+  // 실제 FocusScreen과 동일한 링 크기 (태블릿 대응)
+  const RING_DEF = onbTablet ? Math.min(screenW * 0.38, 340) : Math.min(screenW - 72, 248);
+  const STROKE_DEF = onbTablet ? 16 : 14;
   const R_DEF = (RING_DEF - STROKE_DEF) / 2;
   const C_DEF = 2 * Math.PI * R_DEF;
 
-  const RING_FULL = Math.min(screenW - 40, 300);
-  const STROKE_FULL = 16;
+  const RING_FULL = onbTablet ? Math.min(screenW * 0.5, 460) : Math.min(screenW - 40, 300);
+  const STROKE_FULL = onbTablet ? 20 : 16;
   const R_FULL = (RING_FULL - STROKE_FULL) / 2;
   const C_FULL = 2 * Math.PI * R_FULL;
 
