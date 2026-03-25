@@ -1483,6 +1483,12 @@ export function AppProvider({ children }) {
     const repeatDays = o.repeatDays ?? null;
     const tmplId = generateId('todo_');
     setTodos(prev => {
+      // 중복 방지: 같은 텍스트+과목의 미완료 할일이 이미 있으면 건너뜀 (템플릿 제외)
+      if (!isTemplate) {
+        const trimmed = text.trim();
+        const dup = prev.some(t => !t.isTemplate && !t.done && t.text === trimmed && t.subjectId === (o.subjectId ?? null));
+        if (dup) return prev;
+      }
       const newTmpl = {
         id:           tmplId,
         text:         text.trim(),

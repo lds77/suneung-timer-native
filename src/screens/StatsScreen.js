@@ -1188,8 +1188,14 @@ export default function StatsScreen() {
                       {
                         text: '추가하기',
                         onPress: () => {
-                          weakSubjects.forEach(s => app.addTodo({ text: `${s.name} 공부하기`, subjectId: s.id, subjectLabel: s.name, subjectColor: s.color }));
-                          app.showToastCustom(`${weakSubjects.length}개 할일이 추가됐어요!`, 'taco');
+                          const existing = app.todos.filter(t => !t.isTemplate && !t.done);
+                          const toAdd = weakSubjects.filter(s => !existing.some(t => t.text === `${s.name} 공부하기` && t.subjectId === s.id));
+                          if (toAdd.length === 0) {
+                            app.showToastCustom('이미 할일에 추가되어 있어요!', 'taco');
+                          } else {
+                            toAdd.forEach(s => app.addTodo({ text: `${s.name} 공부하기`, subjectId: s.id, subjectLabel: s.name, subjectColor: s.color }));
+                            app.showToastCustom(`${toAdd.length}개 할일이 추가됐어요!`, 'taco');
+                          }
                         },
                       },
                     ]
