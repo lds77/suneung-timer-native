@@ -4,7 +4,8 @@ import {
   View, Text, ScrollView, TouchableOpacity, Modal, Pressable, Alert,
   Dimensions, Share, StyleSheet, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
-import ViewShot from 'react-native-view-shot';
+import { captureRef } from 'react-native-view-shot';
+import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { useApp } from '../hooks/useAppState';
@@ -709,7 +710,7 @@ export default function StatsScreen() {
     try {
       // 이미지 캡처 시도
       if (reportRef.current) {
-        const uri = await reportRef.current.capture();
+        const uri = await captureRef(reportRef, { format: 'png', quality: 1 });
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
           await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: '주간 리포트 공유' });
@@ -733,7 +734,7 @@ export default function StatsScreen() {
   const handleShareDayReport = async () => {
     try {
       if (dayReportRef.current) {
-        const uri = await dayReportRef.current.capture();
+        const uri = await captureRef(dayReportRef, { format: 'png', quality: 1 });
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) { await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: '오늘 리포트 공유' }); return; }
       }
@@ -749,7 +750,7 @@ export default function StatsScreen() {
   const handleShareMonthReport = async () => {
     try {
       if (monthReportRef.current) {
-        const uri = await monthReportRef.current.capture();
+        const uri = await captureRef(monthReportRef, { format: 'png', quality: 1 });
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) { await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: '월간 리포트 공유' }); return; }
       }
@@ -765,7 +766,7 @@ export default function StatsScreen() {
   const handleShareHeatReport = async () => {
     try {
       if (heatReportRef.current) {
-        const uri = await heatReportRef.current.capture();
+        const uri = await captureRef(heatReportRef, { format: 'png', quality: 1 });
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) { await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: '공부 기록 공유' }); return; }
       }
@@ -1942,10 +1943,11 @@ export default function StatsScreen() {
       </Modal>
 
       {/* ── 주간 리포트 카드 모달 ── */}
-      <Modal visible={showReport} transparent animationType="fade">
+      <Modal visible={showReport} transparent animationType="fade" onRequestClose={() => setShowReport(false)}>
         <View style={S.mo}>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
-            <ViewShot ref={reportRef} options={{ format: 'png', quality: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <View ref={reportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="bar-chart-outline" title="주간 리포트" subtitle={`${dateStr(addDays(new Date(), -6))} ~ ${today}`} characterId={app.settings.mainCharacter} />
 
@@ -2085,10 +2087,11 @@ export default function StatsScreen() {
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
-            </ViewShot>
+            </View>
 
-            {/* 공유/닫기 버튼 (캡처 영역 밖) */}
-            <View style={{ paddingHorizontal: 20, marginTop: 12, gap: 8, paddingBottom: 20 }}>
+            </ScrollView>
+            {/* 공유/닫기 버튼 */}
+            <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="share-outline" size={16} color="white" />
@@ -2099,15 +2102,16 @@ export default function StatsScreen() {
                 <Text style={S.shareBtnT}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
 
       {/* ── 오늘 리포트 카드 모달 ── */}
-      <Modal visible={showDayReport} transparent animationType="fade">
+      <Modal visible={showDayReport} transparent animationType="fade" onRequestClose={() => setShowDayReport(false)}>
         <View style={S.mo}>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
-            <ViewShot ref={dayReportRef} options={{ format: 'png', quality: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <View ref={dayReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="today-outline" title="오늘 리포트" subtitle={today} characterId={app.settings.mainCharacter} />
 
@@ -2189,8 +2193,9 @@ export default function StatsScreen() {
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
-            </ViewShot>
-            <View style={{ paddingHorizontal: 20, marginTop: 12, gap: 8, paddingBottom: 20 }}>
+            </View>
+            </ScrollView>
+            <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareDayReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="share-outline" size={16} color="white" />
@@ -2201,15 +2206,16 @@ export default function StatsScreen() {
                 <Text style={S.shareBtnT}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
 
       {/* ── 월간 리포트 카드 모달 ── */}
-      <Modal visible={showMonthReport} transparent animationType="fade">
+      <Modal visible={showMonthReport} transparent animationType="fade" onRequestClose={() => setShowMonthReport(false)}>
         <View style={S.mo}>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
-            <ViewShot ref={monthReportRef} options={{ format: 'png', quality: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <View ref={monthReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="calendar-outline" title={`${viewMonthStr} 월간 리포트`} subtitle={`공부일 ${monthStudyDays}일 / ${calendarData.filter(Boolean).length}일`} characterId={app.settings.mainCharacter} />
 
@@ -2300,8 +2306,9 @@ export default function StatsScreen() {
 
                 <ReportWatermark T={T} tag="#공부스타그램" />
               </View>
-            </ViewShot>
-            <View style={{ paddingHorizontal: 20, marginTop: 12, gap: 8, paddingBottom: 20 }}>
+            </View>
+            </ScrollView>
+            <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareMonthReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="share-outline" size={16} color="white" />
@@ -2312,15 +2319,16 @@ export default function StatsScreen() {
                 <Text style={S.shareBtnT}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
 
       {/* ── 잔디 리포트 카드 모달 ── */}
-      <Modal visible={showHeatReport} transparent animationType="fade">
+      <Modal visible={showHeatReport} transparent animationType="fade" onRequestClose={() => setShowHeatReport(false)}>
         <View style={S.mo}>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={S.moScroll}>
-            <ViewShot ref={heatReportRef} options={{ format: 'png', quality: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+            <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+            <View ref={heatReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="leaf-outline" title="공부 기록" subtitle={`${new Date().getFullYear()}년 누적`} characterId={app.settings.mainCharacter} />
 
@@ -2395,8 +2403,9 @@ export default function StatsScreen() {
 
                 <ReportWatermark T={T} tag="#공부스타그램 #공부잔디" />
               </View>
-            </ViewShot>
-            <View style={{ paddingHorizontal: 20, marginTop: 12, gap: 8, paddingBottom: 20 }}>
+            </View>
+            </ScrollView>
+            <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareHeatReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="share-outline" size={16} color="white" />
@@ -2407,7 +2416,7 @@ export default function StatsScreen() {
                 <Text style={S.shareBtnT}>닫기</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
 
