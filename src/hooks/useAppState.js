@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   soundId: 'none', soundVolume: 70, darkMode: false, notifEnabled: true,
   ultraFocusLevel: 'focus', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
+  ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
   schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'cute',
@@ -60,10 +61,10 @@ const DEFAULT_SETTINGS = {
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
   lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
   // 공부 리마인더
-  dailyReminderEnabled: false, // 매일 공부 리마인더
+  dailyReminderEnabled: true, // 매일 공부 리마인더
   dailyReminderHour: 20,       // 리마인더 시각 (시)
   dailyReminderMin: 0,         // 리마인더 시각 (분)
-  streakReminderEnabled: false, // 연속 끊김 위기 알림
+  streakReminderEnabled: true, // 연속 끊김 위기 알림
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -175,14 +176,23 @@ export function AppProvider({ children }) {
       scheduleAllPhaseNotifs(timer);
       showToast('start');
     };
-    // 모드 미선택 시 전역 모드 선택 팝업
+    // 모드 미선택 시 잠금강도별 자동 진입
     if (!focusModeRef.current) {
-      setPendingModeAction(() => startAction);
+      const level = settingsRef.current.ultraFocusLevel || 'focus';
+      if (level === 'exam') {
+        activateScreenOnMode();
+        setTimeout(startAction, 50);
+      } else if (level === 'normal') {
+        activateScreenOffMode();
+        setTimeout(startAction, 50);
+      } else {
+        setPendingModeAction(() => startAction);
+      }
     } else {
       startAction();
     }
     return true;
-  }, []);
+  }, [activateScreenOnMode, activateScreenOffMode]);
 
   const cancelSequence = useCallback(() => {
     setTimers(prev => prev.map(t => {
@@ -269,8 +279,22 @@ export function AppProvider({ children }) {
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
   const requestModeSelect = useCallback((action) => {
     if (focusModeRef.current) { action(); return; }
+    const level = settingsRef.current.ultraFocusLevel || 'focus';
+    // 울트라집중: 자동 집중모드(screen_on)
+    if (level === 'exam') {
+      activateScreenOnMode();
+      setTimeout(action, 50);
+      return;
+    }
+    // 일반: 자동 편한모드(screen_off)
+    if (level === 'normal') {
+      activateScreenOffMode();
+      setTimeout(action, 50);
+      return;
+    }
+    // 집중: 모드 선택 팝업
     setPendingModeAction(() => action);
-  }, []);
+  }, [activateScreenOnMode, activateScreenOffMode]);
 
   const resolveModeSelect = useCallback((mode) => {
     if (mode === 'screen_on') activateScreenOnMode();
@@ -1007,14 +1031,23 @@ export function AppProvider({ children }) {
       showToast('start');
     };
 
-    // 모드 미선택 시 전역 모드 선택 팝업
+    // 모드 미선택 시 잠금강도별 자동 진입
     if (!focusModeRef.current) {
-      setPendingModeAction(() => doStart);
+      const level = settingsRef.current.ultraFocusLevel || 'focus';
+      if (level === 'exam') {
+        activateScreenOnMode();
+        setTimeout(doStart, 50);
+      } else if (level === 'normal') {
+        activateScreenOffMode();
+        setTimeout(doStart, 50);
+      } else {
+        setPendingModeAction(() => doStart);
+      }
     } else {
       doStart();
     }
     return null;
-  }, []);
+  }, [activateScreenOnMode, activateScreenOffMode]);
 
   const startFromPlan = useCallback((plan) => {
     const today = getToday();
@@ -1038,6 +1071,11 @@ export function AppProvider({ children }) {
   }, [addTimer]);
 
   const pauseTimer = useCallback((id) => {
+    // 울트라집중: 일시정지 차단
+    if (settingsRef.current.ultraFocusLevel === 'exam' && focusModeRef.current === 'screen_on') {
+      showToastCustom('울트라집중 모드에서는 일시정지할 수 없어요!', 'toru');
+      return;
+    }
     cancelTimerNotif(id); // 예약 알림 취소
     setTimers(prev => prev.map(t => t.id === id ? { ...t, status: 'paused', pauseCount: t.pauseCount + 1, elapsedSecAtResume: t.elapsedSec, resumedAt: null } : t));
   }, []);
@@ -1414,6 +1452,7 @@ export function AppProvider({ children }) {
     const { getTier } = require('../constants/presets');
     const tier = getTier(density);
     const verified = fm === 'screen_on' && exitCount === 0;
+    const ultraLevel = settingsRef.current?.ultraFocusLevel || 'focus';
     const newSess = {
       id: generateId('sess_'), date: getToday(), subjectId, label: label.trim(),
       startedAt: startedAt ?? Date.now() - durationSec * 1000, endedAt: Date.now(),
@@ -1421,10 +1460,14 @@ export function AppProvider({ children }) {
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
       selfRating, memo: memo.trim(), planId: planId || null,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
+      ultraFocusLevel: fm === 'screen_on' ? ultraLevel : null,
+      timerType, completionRatio, pomoSets,
     };
     setSessions(prev => [...prev, newSess]);
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
     updateStreak();
+    // 울트라집중 스트릭 갱신
+    if (ultraLevel === 'exam' && fm === 'screen_on') updateUltraStreak();
     return newSess.id;
   }, []);
   const recordSession = recordSessionInternal;
@@ -1456,6 +1499,18 @@ export function AppProvider({ children }) {
       const today = getToday(); if (prev.lastStudyDate === today) return prev;
       const y = new Date(); y.setDate(y.getDate() - 1);
       return { ...prev, streak: (prev.lastStudyDate === y.toISOString().slice(0, 10) || !prev.lastStudyDate) ? prev.streak + 1 : 1, lastStudyDate: today };
+    });
+  }, []);
+
+  // 울트라집중 스트릭 갱신
+  const updateUltraStreak = useCallback(() => {
+    setSettings(prev => {
+      const today = getToday();
+      if (prev.ultraStreakDate === today) return prev; // 오늘 이미 갱신됨
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const yesterday = y.toISOString().slice(0, 10);
+      const newStreak = (prev.ultraStreakDate === yesterday || !prev.ultraStreakDate) ? (prev.ultraStreak || 0) + 1 : 1;
+      return { ...prev, ultraStreak: newStreak, ultraStreakBest: Math.max(newStreak, prev.ultraStreakBest || 0), ultraStreakDate: today };
     });
   }, []);
 

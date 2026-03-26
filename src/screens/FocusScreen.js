@@ -1057,10 +1057,12 @@ export default function FocusScreen() {
                 <Ionicons name="lock-closed" size={11} color="white" />
                 <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠금</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => app.allowPause?.()} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, backgroundColor: '#FF6B6BAA' }}>
-                <Ionicons name="pause" size={11} color="white" />
-                <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠깐</Text>
-              </TouchableOpacity>
+              {app.settings.ultraFocusLevel !== 'exam' && (
+                <TouchableOpacity onPress={() => app.allowPause?.()} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, backgroundColor: '#FF6B6BAA' }}>
+                  <Ionicons name="pause" size={11} color="white" />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠깐</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })()}
@@ -1836,10 +1838,12 @@ export default function FocusScreen() {
                 <Ionicons name="lock-closed" size={11} color="white" />
                 <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠금</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => app.allowPause?.()} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, backgroundColor: '#FF6B6BAA' }}>
-                <Ionicons name="pause" size={11} color="white" />
-                <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠깐</Text>
-              </TouchableOpacity>
+              {app.settings.ultraFocusLevel !== 'exam' && (
+                <TouchableOpacity onPress={() => app.allowPause?.()} style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, backgroundColor: '#FF6B6BAA' }}>
+                  <Ionicons name="pause" size={11} color="white" />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>잠깐</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })()}
@@ -3216,8 +3220,8 @@ export default function FocusScreen() {
               <Text style={[S.lockModeBadge, { marginBottom: 0 }]}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
             </View>
 
-            {/* 잠깐 쉬기 */}
-            {!app.ultraFocus?.pauseAllowed && (
+            {/* 잠깐 쉬기 — 울트라집중에서는 숨김 */}
+            {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
               <TouchableOpacity onPress={() => { app.allowPause?.(); setScreenLocked(false); }} style={S.lockPauseBtn}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="pause" size={14} color="#FFB74D" />

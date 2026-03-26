@@ -197,8 +197,9 @@ export default function StatsScreen() {
     const screenOnSessions = ws.filter(s => s.focusMode === 'screen_on').length;
     const screenOffSessions = ws.filter(s => s.focusMode === 'screen_off' || !s.focusMode).length;
     const verifiedSessions = ws.filter(s => s.verified).length;
+    const ultraSessions = ws.filter(s => s.ultraFocusLevel === 'exam').length;
     const totalExits = ws.reduce((sum, s) => sum + (s.exitCount || 0), 0);
-    return { screenOnSessions, screenOffSessions, verifiedSessions, totalExits, totalSessions: ws.length };
+    return { screenOnSessions, screenOffSessions, verifiedSessions, ultraSessions, totalExits, totalSessions: ws.length };
   }, [weekData, app.sessions]);
 
   // 일간 과목별
@@ -316,10 +317,11 @@ export default function StatsScreen() {
     const data = {};
     app.sessions.forEach(s => {
       if (!s.date) return;
-      if (!data[s.date]) data[s.date] = { sec: 0, hasScreenOn: false, hasVerified: false };
+      if (!data[s.date]) data[s.date] = { sec: 0, hasScreenOn: false, hasVerified: false, hasUltra: false };
       data[s.date].sec += (s.durationSec || 0);
       if (s.focusMode === 'screen_on') data[s.date].hasScreenOn = true;
       if (s.verified) data[s.date].hasVerified = true;
+      if (s.ultraFocusLevel === 'exam') data[s.date].hasUltra = true;
     });
     const end = new Date();
     const endDow = end.getDay();
@@ -331,9 +333,9 @@ export default function StatsScreen() {
       const week = [];
       for (let d = 0; d < 7; d++) {
         const ds = dateStr(cur);
-        const dd = data[ds] || { sec: 0, hasScreenOn: false, hasVerified: false };
+        const dd = data[ds] || { sec: 0, hasScreenOn: false, hasVerified: false, hasUltra: false };
         const isFuture = cur > end;
-        week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today, hasScreenOn: dd.hasScreenOn, hasVerified: dd.hasVerified });
+        week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today, hasScreenOn: dd.hasScreenOn, hasVerified: dd.hasVerified, hasUltra: dd.hasUltra });
         cur = addDays(cur, 1);
       }
       weeks.push(week);
@@ -350,6 +352,9 @@ export default function StatsScreen() {
     if (day.sec === 0) return T.surface2;
     const sec = day.sec;
     const level = sec >= HEAT_STEPS[3] ? 3 : sec >= HEAT_STEPS[2] ? 2 : sec >= HEAT_STEPS[1] ? 1 : 0;
+    if (day.hasUltra) {
+      return ['#FFCDD2', '#FF6B6B', '#E53935', '#B71C1C'][level];
+    }
     if (day.hasVerified) {
       return ['#FFF3C4', '#F6D55C', '#F0C030', '#E6AC00'][level];
     }
@@ -661,6 +666,12 @@ export default function StatsScreen() {
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                         <Ionicons name="trophy" size={11} color="#F5A623" />
                         <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
+                      </View>
+                    )}
+                    {sess.ultraFocusLevel === 'exam' && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <Ionicons name="flame" size={11} color="#FF6B6B" />
+                        <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
                       </View>
                     )}
                   </View>
@@ -1587,6 +1598,7 @@ export default function StatsScreen() {
               <View style={[S.heatBox, { backgroundColor: T.heat3 }]} /><Ionicons name="book-outline" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>편하게</Text>
               <View style={[S.heatBox, { backgroundColor: '#388E3C', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>집중</Text>
               <View style={[S.heatBox, { backgroundColor: '#F0C030', marginLeft: 8 }]} /><Ionicons name="trophy" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>Verified</Text>
+              <View style={[S.heatBox, { backgroundColor: '#FF6B6B', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color="#FF6B6B" style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>울트라</Text>
             </View>
             <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
               잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
@@ -2085,6 +2097,15 @@ export default function StatsScreen() {
                         <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>Verified</Text>
                       </View>
                     </View>
+                    {weekFocusStats.ultraSessions > 0 && (
+                      <View style={[S.reportMiniCard, { backgroundColor: '#FF6B6B10', flex: 1, alignItems: 'center' }]}>
+                        <Text style={{ fontSize: 22, fontWeight: '900', color: '#FF6B6B' }}>{weekFocusStats.ultraSessions}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                          <Ionicons name="flame" size={11} color="#FF6B6B" />
+                          <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>울트라</Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
 
@@ -2567,6 +2588,12 @@ export default function StatsScreen() {
                                 <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
                               </View>
                             )}
+                            {sess.ultraFocusLevel === 'exam' && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                <Ionicons name="flame" size={11} color="#FF6B6B" />
+                                <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
+                              </View>
+                            )}
                           </View>
                           {sess.memo && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
@@ -2704,6 +2731,12 @@ export default function StatsScreen() {
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                                 <Ionicons name="trophy" size={11} color="#F5A623" />
                                 <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
+                              </View>
+                            )}
+                            {sess.ultraFocusLevel === 'exam' && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                <Ionicons name="flame" size={11} color="#FF6B6B" />
+                                <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
                               </View>
                             )}
                             </View>
@@ -2977,6 +3010,12 @@ export default function StatsScreen() {
                           <Text style={{ fontSize: 12, fontWeight: '800', color: '#F1C40F' }}>Verified!</Text>
                         </View>
                       )}
+                      {sess.ultraFocusLevel === 'exam' && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="flame" size={13} color="#FF6B6B" />
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#FF6B6B' }}>울트라</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -3031,7 +3070,7 @@ export default function StatsScreen() {
                     ))}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
                       <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>합계</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '900', color: tier.color }}>{sess.focusDensity || bd.total}점</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: tier.color }}>{bd.total}점</Text>
                     </View>
                   </View>
 

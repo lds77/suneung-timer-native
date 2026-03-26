@@ -40,7 +40,7 @@ const _TABLET_FONT_SCALE = 1.15;
 // ── 온보딩 (6단계) ──
 function OnboardingScreen() {
   const app = useApp();
-  const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목, 5=30초체험
+  const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목, 5=15초체험
   const [selected, setSelected] = useState('toru');
   const [selectedAccent, setSelectedAccent] = useState('pink');
   const [selectedSchool, setSelectedSchool] = useState('high');
@@ -401,25 +401,17 @@ function OnboardingScreen() {
               ))}
             </View>
           )}
-          {/* 배터리 최적화 안내 (Android 전용) */}
-          {Platform.OS === 'android' && (
-            <View style={{ marginHorizontal: 4, marginBottom: 14, padding: 14, borderRadius: 14, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                <Ionicons name="flash-outline" size={14} color={T.accent} />
-                <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>정확한 타이머 알림을 위해</Text>
-              </View>
-              <Text style={{ fontSize: 12, color: T.sub, lineHeight: 18, marginBottom: 10 }}>
-                배터리 최적화가 켜져 있으면 알림이 늦게 오거나 오지 않을 수 있어요.{'\n'}
-                설정에서 이 앱을 <Text style={{ fontWeight: '800', color: T.text }}>'제한 없음'</Text>으로 바꿔주세요!
-              </Text>
-              <TouchableOpacity
-                onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
-                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#E84047' }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>배터리 설정 바로가기 →</Text>
-              </TouchableOpacity>
+          {/* 알림 안내 */}
+          <View style={{ marginHorizontal: 4, marginBottom: 14, padding: 14, borderRadius: 14, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Ionicons name="notifications-outline" size={14} color={T.accent} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>알림 설정 완료!</Text>
             </View>
-          )}
+            <Text style={{ fontSize: 12, color: T.sub, lineHeight: 18 }}>
+              타이머 완료 알림, 공부 리마인더가 자동으로 켜져 있어요.{'\n'}
+              알림이 오지 않으면 설정 탭 {'>'} 사용 가이드에서 확인해주세요.
+            </Text>
+          </View>
           <View style={styles.obBtnRow}>
             <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(3)}>
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
@@ -431,7 +423,7 @@ function OnboardingScreen() {
         </View>
       )}
 
-      {/* ═══ Step 5: 30초 집중 체험 ═══ */}
+      {/* ═══ Step 5: 15초 집중 체험 ═══ */}
       {step === 5 && <OnboardingTrial T={T} selected={selected} handleFinish={handleFinish} goBack={() => setStep(4)} />}
 
       </ScrollView>
@@ -439,10 +431,10 @@ function OnboardingScreen() {
   );
 }
 
-// ── 온보딩 1분 체험 컴포넌트 ──
+// ── 온보딩 15초 체험 컴포넌트 ──
 function OnboardingTrial({ T, selected, handleFinish, goBack }) {
   const app = useApp();
-  const TRIAL_SEC = 30;
+  const TRIAL_SEC = 15;
   const [phase, setPhase] = useState('ready'); // ready → running → done
   const [remain, setRemain] = useState(TRIAL_SEC);
   const [elapsed, setElapsed] = useState(0);
@@ -529,13 +521,13 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
       {phase === 'ready' && (
         <>
           <CharacterAvatar characterId={selected} size={72} mood="happy" />
-          <Text style={[styles.obTitle, { color: T.text, marginTop: 12 }]}>30초 집중 체험</Text>
+          <Text style={[styles.obTitle, { color: T.text, marginTop: 12 }]}>15초 집중 체험</Text>
           <Text style={[styles.obSub, { color: T.sub, lineHeight: 20 }]}>
             타이머가 어떻게 동작하는지{'\n'}잠깐 체험해 볼까?
           </Text>
           <View style={{ marginTop: 20, gap: 10, width: '100%', paddingHorizontal: 20 }}>
             <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent }]} onPress={startTrial}>
-              <Text style={styles.obBtnT}>30초 집중 시작</Text>
+              <Text style={styles.obBtnT}>15초 집중 시작</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={skipTrial}>
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>건너뛰기</Text>
@@ -555,7 +547,7 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 8,
                 backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border }}>
                 <Ionicons name="alarm-outline" size={16} color={T.accent} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }} numberOfLines={1}>30초 체험</Text>
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }} numberOfLines={1}>15초 체험</Text>
                 <Text style={{ fontSize: 22, fontWeight: '900', color: T.accent, fontVariant: ['tabular-nums'], minWidth: 70, textAlign: 'right' }}>
                   {timeStr}
                 </Text>
@@ -580,7 +572,7 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
                 {/* 상단 행 */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                   <Ionicons name="alarm-outline" size={15} color={T.accent} />
-                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: T.text }}>30초 체험</Text>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: T.text }}>15초 체험</Text>
                   <ViewModeTab />
                 </View>
                 {/* 원형 타이머 링 */}
@@ -625,7 +617,7 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
               {/* 라벨 + 모드 전환 */}
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8, width: '100%' }}>
                 <Ionicons name="alarm-outline" size={18} color={T.accent} />
-                <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, flex: 1, textAlign: 'center' }}>30초 체험</Text>
+                <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, flex: 1, textAlign: 'center' }}>15초 체험</Text>
                 <ViewModeTab />
               </View>
               {/* 큰 링 */}

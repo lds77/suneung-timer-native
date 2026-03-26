@@ -15,7 +15,8 @@ import { formatDDay } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
-import * as IntentLauncher from 'expo-intent-launcher';
+// IntentLauncher — 가이드에서 필요 시 복원 가능
+// import * as IntentLauncher from 'expo-intent-launcher';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -32,9 +33,9 @@ const isTablet = SW >= 600;
 let _styles = null;
 
 const FOCUS_LEVELS = [
-  { id: 'normal', label: '일반',       desc: '앱을 나가도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.',                        color: '#4CAF50' },
-  { id: 'focus',  label: '집중',       desc: '1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.',               color: '#FFB74D' },
-  { id: 'exam',   label: '울트라집중',  desc: '10초 이상 앱을 나가면 타이머가 정지돼요. 돌아올 때 챌린지 문구를 입력해야 재개할 수 있어요.', color: '#FF6B6B' },
+  { id: 'normal', label: '일반',       desc: '자동 편한모드 · 이탈 감지 없이 자유롭게 공부해요', color: '#4CAF50' },
+  { id: 'focus',  label: '집중',       desc: '모드 선택 가능 · 1분 이탈 시 챌린지 문구 입력 필요', color: '#FFB74D' },
+  { id: 'exam',   label: '울트라집중',  desc: '자동 집중모드 · 일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지', color: '#FF6B6B' },
 ];
 
 const THEME_COLORS = [
@@ -68,6 +69,28 @@ function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef
     onOpen(next);
   };
 
+  // 텍스트를 파싱해서 소제목/본문 구분 렌더링
+  const renderContent = (text) => {
+    if (typeof text !== 'string') return <Text style={{ fontSize: 13, color: T.text, lineHeight: 21 }}>{text}</Text>;
+    const blocks = text.split('\n\n');
+    return blocks.map((block, bi) => {
+      const lines = block.split('\n');
+      return (
+        <View key={bi} style={bi > 0 ? { marginTop: 12 } : {}}>
+          {lines.map((line, li) => {
+            const isSub = !line.startsWith('•') && !line.startsWith('→') && !line.startsWith('-') && li === 0 && lines.length > 1 && !line.match(/^[①②③④⑤⑥]/);
+            const isStep = line.match(/^[①②③④⑤⑥]/);
+            const isBullet = line.startsWith('•') || line.startsWith('→') || line.startsWith('-');
+            if (isStep) return <Text key={li} style={{ fontSize: 13, fontWeight: '700', color: T.accent, lineHeight: 21, marginTop: li > 0 ? 6 : 0 }}>{line}</Text>;
+            if (isSub) return <Text key={li} style={{ fontSize: 13.5, fontWeight: '800', color: T.text, lineHeight: 21, marginBottom: 2 }}>{line}</Text>;
+            if (isBullet) return <Text key={li} style={{ fontSize: 13, color: T.sub, lineHeight: 21, paddingLeft: 4 }}>{line}</Text>;
+            return <Text key={li} style={{ fontSize: 13, color: T.text, lineHeight: 21 }}>{line}</Text>;
+          })}
+        </View>
+      );
+    });
+  };
+
   return (
     <View
       onLayout={(e) => {
@@ -79,13 +102,13 @@ function GuideSection({ id, title, color, T, children, openId, onOpen, scrollRef
       style={{ marginBottom: 10 }}
     >
       <TouchableOpacity onPress={handlePress}
-        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 14, backgroundColor: T.surface2, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: color }}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: T.text, flex: 1, marginRight: 8 }}>{title}</Text>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={T.sub} />
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, backgroundColor: open ? color + '15' : T.surface2, borderRadius: open ? 0 : 10, borderTopLeftRadius: 10, borderTopRightRadius: 10, borderLeftWidth: 3, borderLeftColor: color }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: open ? color : T.text, flex: 1, marginRight: 8 }}>{title}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={open ? color : T.sub} />
       </TouchableOpacity>
       {open && (
-        <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6, backgroundColor: T.surface, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, borderLeftWidth: 3, borderLeftColor: color, marginTop: -2 }}>
-          <Text style={{ fontSize: 13, color: T.text, lineHeight: 20 }}>{children}</Text>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, backgroundColor: T.card, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, borderLeftWidth: 3, borderLeftColor: color, borderWidth: 1, borderTopWidth: 0, borderColor: T.border }}>
+          {renderContent(children)}
         </View>
       )}
     </View>
@@ -426,10 +449,25 @@ const [ddLabel, setDdLabel] = useState('');
                   <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
-                onPress={() => setShowFocusPicker(true)}
+                onPress={() => {
+                  const hasActive = app.timers?.some(t => t.status === 'running' || t.status === 'paused');
+                  if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 잠금 강도를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
+                  setShowFocusPicker(true);
+                }}
               />
             );
           })()}
+          {(app.settings.ultraStreak > 0 || app.settings.ultraStreakBest > 0) && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B10', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FF6B6B30' }}>
+                <Ionicons name="flame" size={18} color="#FF6B6B" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B6B' }}>울트라집중 {app.settings.ultraStreak || 0}일 연속</Text>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>최장 기록 {app.settings.ultraStreakBest || 0}일</Text>
+                </View>
+              </View>
+            </View>
+          )}
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: 6 }}>
               <Ionicons name="pencil-outline" size={13} color={T.text} />
@@ -448,7 +486,8 @@ const [ddLabel, setDdLabel] = useState('');
         <Section T={T} title="알림">
           <Row
             T={T}
-            label="타이머 완료 알림"
+            label="알림"
+            sub="타이머 완료, 리마인더, 연속 끊김 알림"
             right={
               <Switch
                 value={app.settings.notifEnabled}
@@ -458,62 +497,53 @@ const [ddLabel, setDdLabel] = useState('');
               />
             }
           />
-          {Platform.OS === 'android' && (
-            <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }}>
-              <Text style={{ fontSize: 14, color: T.sub }}>
-                알림이 늦게 오거나 오지 않는다면 배터리 최적화를 해제하세요.
-              </Text>
-              <TouchableOpacity
-                onPress={() => IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS)}
-                style={{ alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: T.accent + '20', borderWidth: 1, borderColor: T.accent }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="flash-outline" size={14} color={T.accent} />
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>배터리 최적화 설정 바로가기</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-          <Row
-            T={T}
-            label="공부 리마인더"
-            sub="설정 시간에 공부 안 했으면 알려줘요"
-            right={
-              <Switch
-                value={app.settings.dailyReminderEnabled}
-                onValueChange={(v) => app.updateSettings({ dailyReminderEnabled: v })}
-                trackColor={{ true: T.accent }}
-                thumbColor="white"
+          {app.settings.notifEnabled && (
+            <>
+              <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 4 }}>세부 설정</Text>
+              </View>
+              <Row
+                T={T}
+                label="공부 리마인더"
+                sub="설정 시간에 공부 안 했으면 알려줘요"
+                right={
+                  <Switch
+                    value={app.settings.dailyReminderEnabled}
+                    onValueChange={(v) => app.updateSettings({ dailyReminderEnabled: v })}
+                    trackColor={{ true: T.accent }}
+                    thumbColor="white"
+                  />
+                }
               />
-            }
-          />
-          {app.settings.dailyReminderEnabled && (
-            <Row T={T} label="알림 시각"
-              right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>
-                  {app.settings.dailyReminderHour > 12
-                    ? `오후 ${app.settings.dailyReminderHour - 12}시`
-                    : app.settings.dailyReminderHour === 12 ? '오후 12시' : `오전 ${app.settings.dailyReminderHour}시`}
-                  {app.settings.dailyReminderMin > 0 ? ` ${app.settings.dailyReminderMin}분` : ''}
-                </Text>
-                <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
-              </View>}
-              onPress={() => setShowReminderPicker(true)}
-            />
-          )}
-          <Row
-            T={T}
-            label="연속 끊김 위기 알림"
-            sub="5일 이상 연속 중인데 오늘 안 했으면 밤 9:30에 알림"
-            right={
-              <Switch
-                value={app.settings.streakReminderEnabled}
-                onValueChange={(v) => app.updateSettings({ streakReminderEnabled: v })}
-                trackColor={{ true: T.accent }}
-                thumbColor="white"
+              {app.settings.dailyReminderEnabled && (
+                <Row T={T} label="알림 시각"
+                  right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>
+                      {app.settings.dailyReminderHour > 12
+                        ? `오후 ${app.settings.dailyReminderHour - 12}시`
+                        : app.settings.dailyReminderHour === 12 ? '오후 12시' : `오전 ${app.settings.dailyReminderHour}시`}
+                      {app.settings.dailyReminderMin > 0 ? ` ${app.settings.dailyReminderMin}분` : ''}
+                    </Text>
+                    <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
+                  </View>}
+                  onPress={() => setShowReminderPicker(true)}
+                />
+              )}
+              <Row
+                T={T}
+                label="연속 끊김 위기 알림"
+                sub="5일 이상 연속 중인데 오늘 안 했으면 밤 9:30에 알림"
+                right={
+                  <Switch
+                    value={app.settings.streakReminderEnabled}
+                    onValueChange={(v) => app.updateSettings({ streakReminderEnabled: v })}
+                    trackColor={{ true: T.accent }}
+                    thumbColor="white"
+                  />
+                }
               />
-            }
-          />
+            </>
+          )}
         </Section>
 
 
@@ -788,7 +818,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 알림 팁 */}
               <GuideSection id="notif" title="알림이 안 울려요?" color="#74B9FF" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공메이트 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서\n이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (가장 중요!)\n배터리 최적화가 켜져 있으면 백그라운드에서 앱이 종료되어 알림이 오지 않을 수 있어요.\n설정 탭 > 알림 섹션 > "배터리 최적화 설정 바로가기"를 탭해서 이 앱을 "최적화 안 함"으로 설정해주세요.\n\n위 설정을 완료하면 화면이 꺼진 상태에서도 정확하게 알림이 와요!'}
+                {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공메이트 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서 이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (일부 기기)\n대부분의 기기에서는 위 설정만으로 충분해요.\n만약 그래도 알림이 안 온다면:\n• Android: 설정 > 앱 > 열공메이트 > 배터리 > "제한 없음" 선택\n• 일부 제조사(Xiaomi, Huawei 등): "자동 실행" 또는 "백그라운드 활동" 허용 필요\n• iPhone: 설정 > 알림 > 열공메이트 > 알림 허용 확인'}
               </GuideSection>
 
               {/* 학습법 */}
