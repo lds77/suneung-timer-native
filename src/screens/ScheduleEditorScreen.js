@@ -647,8 +647,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 고정 일정 추가/수정 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
           onRequestClose={() => { setShowAddFixed(false); resetFixedForm(); }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={s.sheetBg}>
+          <View style={[s.sheetBg, Platform.OS === 'android' && { justifyContent: 'center' }]}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
@@ -675,6 +674,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>이름</Text>
                 <TextInput value={fixedLabel} onChangeText={setFixedLabel}
+                  onFocus={() => setActiveTimePicker(null)}
                   style={[s.fieldInput, { borderColor: T.border, color: T.text, backgroundColor: T.card }]}
                   placeholder="일정 이름" placeholderTextColor={T.sub} />
 
@@ -707,7 +707,6 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
             </View>
           </View>
-          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── 공부 계획 추가/수정 모달 ── */}
