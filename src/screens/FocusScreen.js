@@ -17,17 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const SW = Dimensions.get('window').width;
 const isTablet = SW >= 600;
-const CONTENT_MAX_W = isTablet ? 680 : SW;
 const GAP = 8;
-const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, SW) - 32 - GAP) / 2 : (SW - 32 - GAP) / 2;
-const RING_SIZE = isTablet ? Math.min(SW * 0.38, 340) : Math.min(SW - 72, 248);
-const RING_STROKE = isTablet ? 16 : 14;
-const RING_R = (RING_SIZE - RING_STROKE) / 2;
-const RING_C = 2 * Math.PI * RING_R;
-const RING_SIZE_FULL = isTablet ? Math.min(SW * 0.5, 460) : Math.min(SW - 40, 300);
-const RING_STROKE_FULL = isTablet ? 20 : 16;
-const RING_R_FULL = (RING_SIZE_FULL - RING_STROKE_FULL) / 2;
-const RING_C_FULL = 2 * Math.PI * RING_R_FULL;
 
 const getSchoolDefaultFavs = (school) => {
   const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
@@ -112,7 +102,19 @@ export default function FocusScreen() {
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const S = useMemo(() => createStyles(fs), [fs]);
   const isLandscape = isTablet && winW > winH;
-  const contentMaxW = isTablet ? Math.round(winW * 0.83) : SW;
+  const contentMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+
+  // 동적 링/카드 크기 (회전 시 재계산)
+  const CONTENT_MAX_W = isTablet ? 680 : winW;
+  const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, winW) - 32 - GAP) / 2 : (winW - 32 - GAP) / 2;
+  const RING_SIZE = isTablet ? Math.min(winW * 0.38, 340) : Math.min(winW - 72, 248);
+  const RING_STROKE = isTablet ? 16 : 14;
+  const RING_R = (RING_SIZE - RING_STROKE) / 2;
+  const RING_C = 2 * Math.PI * RING_R;
+  const RING_SIZE_FULL = isTablet ? Math.min(winW * 0.5, 460) : Math.min(winW - 40, 300);
+  const RING_STROKE_FULL = isTablet ? 20 : 16;
+  const RING_R_FULL = (RING_SIZE_FULL - RING_STROKE_FULL) / 2;
+  const RING_C_FULL = 2 * Math.PI * RING_R_FULL;
   const school = app.settings.schoolLevel || 'high';
   const subjectDefMin = school === 'elementary_lower' ? 15 : school === 'elementary_upper' ? 20 : school === 'middle' ? 30 : 45;
   const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
@@ -2873,7 +2875,7 @@ export default function FocusScreen() {
       <Modal visible={!!editTodoId} transparent animationType="slide" onRequestClose={() => setEditTodoId(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 580, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
+          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 540, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                 <Ionicons name="create-outline" size={18} color={T.accent} />

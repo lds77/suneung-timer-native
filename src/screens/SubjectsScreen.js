@@ -735,7 +735,7 @@ export default function SubjectsScreen({ navigation }) {
       {/* 주간 목표 설정 모달 */}
       <Modal visible={!!goalSubj} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 }}>
-          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: T.border }}>
+          <View style={[{ backgroundColor: T.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: T.border }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>
               주간 목표 설정
             </Text>

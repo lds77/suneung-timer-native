@@ -1883,7 +1883,7 @@ export default function StatsScreen() {
       {/* ── 주간 리포트 카드 모달 ── */}
       <Modal visible={showReport} transparent animationType="fade" onRequestClose={() => setShowReport(false)}>
         <View style={S.mo}>
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+          <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={reportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
@@ -2056,7 +2056,7 @@ export default function StatsScreen() {
       {/* ── 오늘 리포트 카드 모달 ── */}
       <Modal visible={showDayReport} transparent animationType="fade" onRequestClose={() => setShowDayReport(false)}>
         <View style={S.mo}>
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+          <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={dayReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
@@ -2160,7 +2160,7 @@ export default function StatsScreen() {
       {/* ── 월간 리포트 카드 모달 ── */}
       <Modal visible={showMonthReport} transparent animationType="fade" onRequestClose={() => setShowMonthReport(false)}>
         <View style={S.mo}>
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+          <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={monthReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
@@ -2273,7 +2273,7 @@ export default function StatsScreen() {
       {/* ── 잔디 리포트 카드 모달 ── */}
       <Modal visible={showHeatReport} transparent animationType="fade" onRequestClose={() => setShowHeatReport(false)}>
         <View style={S.mo}>
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }}>
+          <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={heatReportRef} collapsable={false}>
               <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
@@ -2310,7 +2310,8 @@ export default function StatsScreen() {
                 {/* 잔디 미니 그리드 */}
                 {(() => {
                   const MG = 2;
-                  const MC = Math.max(6, Math.floor((SW - 40 - 32 - (HM_WEEKS - 1) * MG) / HM_WEEKS));
+                  const cardW = isTablet ? 540 : winW;
+                  const MC = Math.max(6, Math.floor((cardW - 40 - 32 - (HM_WEEKS - 1) * MG) / HM_WEEKS));
                   return (
                     <View style={{ paddingHorizontal: 16, marginBottom: 14 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>

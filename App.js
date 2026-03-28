@@ -754,7 +754,7 @@ function MainApp() {
       {/* ⏰ 정확한 알람 권한 안내 모달 (Android 12+, 최초 1회) */}
       <Modal visible={!!app.showExactAlarmModal} transparent animationType="fade" onRequestClose={app.dismissExactAlarmModal}>
         <View style={{ flex: 1, backgroundColor: '#00000088', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
+          <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }, _isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
             <Text style={{ fontSize: 22, textAlign: 'center', marginBottom: 8 }}>⏰</Text>
             <Text style={{ fontSize: 17, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 10 }}>정확한 알람 권한 필요</Text>
             <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   obProgress: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: 16, paddingBottom: 8 },
   obDot: { width: 28, height: 4, borderRadius: 2 },
   obScroll: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 40 },
-  obStep: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 10 },
+  obStep: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 10, maxWidth: 540, width: '100%', alignSelf: 'center' },
   obTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 6 },
   obSub: { fontSize: 13, textAlign: 'center', marginBottom: 20 },
 

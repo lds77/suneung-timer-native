@@ -18,6 +18,7 @@ import TimePickerGrid from '../components/TimePickerGrid';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 
 const { width: SW } = Dimensions.get('window');
+const isTablet = SW >= 600;
 
 // ─── 그리드 상수 ───
 const START_HOUR = 6;      // 06:00 부터
@@ -155,7 +156,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
         {/* 헤더 */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>
@@ -343,7 +344,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, T, 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
         {/* 헤더 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: plan.color || T.accent, marginRight: 10 }} />
@@ -417,7 +418,7 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>빈 시간에 배치</Text>
           <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={T.sub} /></TouchableOpacity>
@@ -472,10 +473,12 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
 
 // ─── 메인 화면 ───
 export default function PlannerScreen({ navigation }) {
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const isLandscape = isTablet && winW > winH;
 
   const [viewMode, setViewMode]     = useState('today'); // 'today' | 'weekly' | 'monthly'
   const [weekOffset, setWeekOffset] = useState(0);
@@ -956,7 +959,7 @@ export default function PlannerScreen({ navigation }) {
     };
 
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: insets.bottom + 80 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: insets.bottom + 80 }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
         {/* 요일 헤더 */}
         <View style={{ flexDirection: 'row', marginBottom: 4 }}>
           {DAY_LABELS.map((l, i) => (
@@ -1270,7 +1273,7 @@ export default function PlannerScreen({ navigation }) {
     const nowLabel = `${String(Math.floor(nowMin/60)).padStart(2,'0')}:${String(nowMin%60).padStart(2,'0')}`;
 
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ padding: 16 }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
 
         {/* ── 헤더: 날짜 + 진행률 통합 카드 ── */}
         <View style={{
@@ -1612,11 +1615,11 @@ export default function PlannerScreen({ navigation }) {
 
       {/* 상단 헤더 — 주간/월간일 때만 네비게이션 표시 */}
       {viewMode !== 'today' && (
-        <View style={{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingVertical: 8 }}>
+        <View style={[{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingVertical: 8 }, isTablet && { alignItems: 'center' }]}>
           {(() => {
             const isOff = viewMode === 'weekly' ? weekOffset !== 0 : monthOffset !== 0;
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, isTablet && { maxWidth: tabletMaxW, width: '100%' }]}>
                 <TouchableOpacity
                   onPress={() => viewMode === 'weekly' ? setWeekOffset(p => p - 1) : setMonthOffset(p => p - 1)}
                   style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
@@ -1812,7 +1815,7 @@ export default function PlannerScreen({ navigation }) {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: T.card, borderTopWidth: 1, borderTopColor: T.border,
         paddingHorizontal: 12, paddingTop: 6,
-        paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 6),
+        paddingBottom: Platform.OS === 'android' ? 6 : Math.max(insets.bottom, 6),
         gap: 6,
       }}>
         {[
@@ -1846,7 +1849,7 @@ export default function PlannerScreen({ navigation }) {
       {/* ── D-Day 추가/수정 모달 ── */}
       <Modal visible={showDDayModal} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: T.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: T.border, maxHeight: '85%' }}>
+          <View style={[{ backgroundColor: T.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: T.border, maxHeight: '85%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Ionicons name="calendar-outline" size={18} color={T.accent} />
