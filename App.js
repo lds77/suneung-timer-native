@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
+import { DEFAULT_SCHEDULES } from './src/constants/presets';
+import { generateId } from './src/utils/format';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
@@ -24,6 +26,7 @@ import FocusScreen from './src/screens/FocusScreen';
 import SubjectsScreen from './src/screens/SubjectsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import PlannerScreen from './src/screens/PlannerScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -76,10 +79,16 @@ function OnboardingScreen() {
 
   // D-Day
   const [ddLabel, setDdLabel] = useState('');
-  const [ddDays, setDdDays] = useState(1);
+  const [ddSelectedDates, setDdSelectedDates] = useState(new Set());
   const [pickerMonth, setPickerMonth] = useState(new Date());
-  const [pickerSelected, setPickerSelected] = useState(null);
   const today = new Date().toISOString().split('T')[0];
+  const toggleDdDate = (dateStr) => {
+    setDdSelectedDates(prev => { const next = new Set(prev); if (next.has(dateStr)) next.delete(dateStr); else next.add(dateStr); return next; });
+  };
+  const ddSortedDates = React.useMemo(() => [...ddSelectedDates].sort(), [ddSelectedDates]);
+  const ddStartDate = ddSortedDates.length > 0 ? ddSortedDates[0] : null;
+  const ddEndDate = ddSortedDates.length > 0 ? ddSortedDates[ddSortedDates.length - 1] : null;
+  const ddComputedDays = ddStartDate && ddEndDate ? Math.round((new Date(ddEndDate + 'T00:00:00') - new Date(ddStartDate + 'T00:00:00')) / 86400000) + 1 : 0;
   const DDAY_PRESETS = (() => {
     if (selectedSchool === 'high') return [
       { label: '수능 2026', date: '2026-11-19' },
@@ -122,9 +131,9 @@ function OnboardingScreen() {
     return cells;
   }, [pickerMonth]);
   const addDDay = () => {
-    if (!ddLabel.trim() || !pickerSelected) return;
-    app.addDDay({ label: ddLabel.trim(), date: pickerSelected, days: ddDays });
-    setDdLabel(''); setPickerSelected(null); setDdDays(1);
+    if (!ddLabel.trim() || ddSelectedDates.size === 0) return;
+    app.addDDay({ label: ddLabel.trim(), date: ddStartDate, days: ddComputedDays });
+    setDdLabel(''); setDdSelectedDates(new Set());
   };
 
   // 과목
@@ -164,7 +173,6 @@ function OnboardingScreen() {
   };
 
   const handleFinish = () => {
-    // 초등학교는 elementary_lower / elementary_upper 형식으로 저장 (SettingsScreen/플래너 호환)
     const schoolLevel = selectedSchool === 'elementary'
       ? `elementary_${selectedElemGrade}` : selectedSchool;
     app.updateSettings({
@@ -176,6 +184,22 @@ function OnboardingScreen() {
       onboardingDone: true,
     });
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
+
+    // 학교급 기본 시간표 자동 적용
+    const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    const template = DEFAULT_SCHEDULES[schoolLevel];
+    if (template) {
+      const newWs = { enabled: true };
+      DAY_KEYS.forEach(key => {
+        const src = weekdays.includes(key) ? template.weekday : template.weekend;
+        newWs[key] = {
+          fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
+          plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: null })),
+        };
+      });
+      app.setWeeklySchedule?.(newWs);
+    }
   };
 
   return (
@@ -287,7 +311,7 @@ function OnboardingScreen() {
           <View style={styles.obPresetRow}>
             {DDAY_PRESETS.map(p => (
               <TouchableOpacity key={p.label} style={[styles.obPreset, { borderColor: ddLabel === p.label ? T.accent : T.border, backgroundColor: ddLabel === p.label ? T.accent + '15' : T.card }]}
-                onPress={() => { setDdLabel(p.label); if (p.date) setPickerSelected(p.date); }}>
+                onPress={() => { setDdLabel(p.label); if (p.date) { setDdSelectedDates(new Set([p.date])); const d = new Date(p.date + 'T00:00:00'); setPickerMonth(new Date(d.getFullYear(), d.getMonth(), 1)); } }}>
                 <Text style={[styles.obPresetT, { color: ddLabel === p.label ? T.accent : T.sub }]}>{p.label}</Text>
               </TouchableOpacity>
             ))}
@@ -310,11 +334,18 @@ function OnboardingScreen() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {pickerCells.map((cell, i) => {
                 if (!cell) return <View key={`e${i}`} style={{ width: '14.28%', height: 34 }} />;
-                const sel = pickerSelected === cell.date, past = cell.date < today;
+                const sel = ddSelectedDates.has(cell.date);
+                const inRange = ddStartDate && ddEndDate && cell.date >= ddStartDate && cell.date <= ddEndDate;
+                const past = cell.date < today;
                 return (
                   <TouchableOpacity key={cell.date} style={{ width: '14.28%', height: 34, alignItems: 'center', justifyContent: 'center' }}
-                    onPress={() => !past && setPickerSelected(cell.date)} disabled={past}>
-                    <View style={[{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, sel && { backgroundColor: T.accent }, past && { opacity: 0.3 }]}>
+                    onPress={() => !past && toggleDdDate(cell.date)} disabled={past}>
+                    <View style={[
+                      { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+                      sel && { backgroundColor: T.accent },
+                      !sel && inRange && { backgroundColor: T.accent + '25' },
+                      past && { opacity: 0.3 },
+                    ]}>
                       <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? 'white' : T.text }}>{cell.day}</Text>
                     </View>
                   </TouchableOpacity>
@@ -322,25 +353,22 @@ function OnboardingScreen() {
               })}
             </View>
           </View>
-          {/* 시험 기간 */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <Text style={{ fontSize: 11, color: T.sub }}>시험 기간</Text>
-            <View style={{ flexDirection: 'row', gap: 4 }}>
-              {[1,2,3,4,5].map(n => (
-                <TouchableOpacity key={n} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddDays === n ? T.accent : T.border, backgroundColor: ddDays === n ? T.accent : 'transparent' }}
-                  onPress={() => setDdDays(n)}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          {pickerSelected && ddLabel.trim() && (
+          {/* 선택된 날짜 요약 */}
+          {ddSelectedDates.size > 0 && ddLabel.trim() ? (
             <View style={{ backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, textAlign: 'center' }}>
-                {ddLabel} · {pickerSelected}{ddDays > 1 ? ` (${ddDays}일간)` : ''}
+                {ddLabel} · {ddSelectedDates.size === 1 ? ddStartDate : `${ddStartDate} ~ ${ddEndDate} (${ddComputedDays}일)`}
               </Text>
             </View>
-          )}
+          ) : ddSelectedDates.size > 0 ? (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 8 }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.accent + '15' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
+                  {ddSelectedDates.size === 1 ? ddStartDate : `${ddStartDate} ~ ${ddEndDate} (${ddComputedDays}일)`}
+                </Text>
+              </View>
+            </View>
+          ) : null}
           {app.ddays.length > 0 && (
             <View style={styles.obDDayList}>
               {app.ddays.map(dd => (
@@ -356,10 +384,10 @@ function OnboardingScreen() {
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => {
-              if (pickerSelected && ddLabel.trim()) addDDay();
+              if (ddSelectedDates.size > 0 && ddLabel.trim()) addDDay();
               setStep(4);
             }}>
-              <Text style={styles.obBtnT}>{app.ddays.length > 0 || (pickerSelected && ddLabel.trim()) ? '다음 →' : '건너뛰기 →'}</Text>
+              <Text style={styles.obBtnT}>{app.ddays.length > 0 || (ddSelectedDates.size > 0 && ddLabel.trim()) ? '다음 →' : '건너뛰기 →'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -703,7 +731,7 @@ function MainApp() {
         <NavigationContainer>
           <Tab.Navigator screenOptions={{
             headerShown: false,
-            tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, ...(Platform.OS === 'android' && { height: 56 }) },
+            tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingTop: 4 },
             tabBarActiveTintColor: T.accent, tabBarInactiveTintColor: T.sub,
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: -2 },
           }}>
@@ -711,6 +739,8 @@ function MainApp() {
               options={{ tabBarLabel: '집중', tabBarIcon: ({ color, size }) => <Ionicons name="timer-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Subjects" component={SubjectsScreen}
               options={{ tabBarLabel: '과목', tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} /> }} />
+            <Tab.Screen name="Planner" component={PlannerScreen}
+              options={{ tabBarLabel: '플래너', tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Stats" component={StatsScreen}
               options={{ tabBarLabel: '통계', tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
             <Tab.Screen name="Settings" component={SettingsScreen}

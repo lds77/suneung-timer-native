@@ -16,20 +16,13 @@ import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
 import { generateId } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import { Ionicons } from '@expo/vector-icons';
+import TimePickerGrid from '../components/TimePickerGrid';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 
-// 30분 단위 시간 옵션 00:00 ~ 24:00 (자정 이후 새벽 시간 포함)
-const TIME_OPTIONS = (() => {
-  const opts = [];
-  for (let h = 0; h <= 23; h++) {
-    opts.push(`${String(h).padStart(2, '0')}:00`);
-    opts.push(`${String(h).padStart(2, '0')}:30`);
-  }
-  opts.push('24:00');
-  return opts;
-})();
+const parseTimeToMin = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const minToStr = (min) => { const h = Math.floor(min / 60); const m = min % 60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; };
 
 const PLAN_COLORS = ['#E8575A', '#4A90D9', '#5CB85C', '#F5A623', '#9B6FC3', '#E17055', '#00B894', '#6C5CE7', '#FDCB6E'];
 const EMOJI_ICON_MAP = {
@@ -87,82 +80,6 @@ const LEVEL_LABELS = {
 };
 
 
-const DROPDOWN_ITEM_H = 42;
-const DROPDOWN_VISIBLE = 5;
-
-function formatTimeOpt(opt) {
-  const [h, m] = opt.split(':').map(Number);
-  if (h === 24) return '자정';
-  const isAM = h < 12;
-  const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${isAM ? '오전' : '오후'} ${dh}:${String(m).padStart(2, '0')}`;
-}
-
-function TimeDropdownPicker({ label, value, onChange, open, onToggle, T }) {
-  const scrollRef = useRef(null);
-  const selectedIdx = Math.max(0, TIME_OPTIONS.indexOf(value || '08:00'));
-
-  useEffect(() => {
-    if (open) {
-      const offset = Math.max(0, selectedIdx - 2) * DROPDOWN_ITEM_H;
-      setTimeout(() => scrollRef.current?.scrollTo({ y: offset, animated: false }), 50);
-    }
-  }, [open]);
-
-  return (
-    <View style={{ flex: 1 }}>
-      {/* 트리거 버튼 */}
-      <TouchableOpacity
-        onPress={onToggle}
-        style={{
-          borderWidth: 1.5, borderRadius: 10,
-          borderColor: open ? T.accent : T.border,
-          backgroundColor: open ? T.accent + '10' : T.card,
-          paddingHorizontal: 10, paddingVertical: 11,
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        }}
-      >
-        <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: open ? T.accent : T.text }}>
-          {formatTimeOpt(value)} <Text style={{ fontSize: 10 }}>{open ? '▲' : '▼'}</Text>
-        </Text>
-      </TouchableOpacity>
-      {/* 드롭다운 */}
-      {open && (
-        <View style={{
-          marginTop: 4, borderWidth: 1.5, borderColor: T.accent,
-          borderRadius: 10, backgroundColor: T.card, overflow: 'hidden',
-          height: DROPDOWN_ITEM_H * DROPDOWN_VISIBLE,
-        }}>
-          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
-            {TIME_OPTIONS.map(opt => {
-              const isSel = opt === value;
-              return (
-                <TouchableOpacity
-                  key={opt}
-                  onPress={() => { onChange(opt); onToggle(); }}
-                  style={{
-                    height: DROPDOWN_ITEM_H, justifyContent: 'center', alignItems: 'center',
-                    backgroundColor: isSel ? T.accent + '18' : 'transparent',
-                    borderLeftWidth: isSel ? 3 : 0, borderLeftColor: T.accent,
-                  }}
-                >
-                  <Text style={{
-                    fontSize: 14, fontWeight: isSel ? '800' : '500',
-                    color: isSel ? T.accent : T.text,
-                  }}>
-                    {formatTimeOpt(opt)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const { width: winW } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
@@ -191,7 +108,6 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [fixedLabel, setFixedLabel] = useState('');
   const [fixedStart, setFixedStart] = useState('08:00');
   const [fixedEnd, setFixedEnd] = useState('09:00');
-  const [activeTimePicker, setActiveTimePicker] = useState(null); // 'start' | 'end' | null
 
   // 공부 계획 추가/수정 폼
   const [planTab, setPlanTab] = useState('subject'); // 'subject' | 'custom'
@@ -199,7 +115,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [planLabel, setPlanLabel] = useState('');
   const [planIcon, setPlanIcon] = useState('book-outline');
   const [planColor, setPlanColor] = useState('#4A90D9');
-  const [planTargetMin, setPlanTargetMin] = useState(30);
+  const [planTargetMin, setPlanTargetMin] = useState(60);
+  const [planUseSchedule, setPlanUseSchedule] = useState(false);
+  const [planStart, setPlanStart] = useState('08:00');
+  const [planEnd, setPlanEnd] = useState('09:00');
 
   // 요일 복사
   const [copyDays, setCopyDays] = useState({});
@@ -292,7 +211,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   // ── 고정 일정 추가/수정 ──
   const resetFixedForm = useCallback(() => {
     setFixedLabel(''); setFixedStart('08:00'); setFixedEnd('09:00');
-    setFixedType(FIXED_TYPES[0]); setEditingFixedId(null); setActiveTimePicker(null);
+    setFixedType(FIXED_TYPES[0]); setEditingFixedId(null);
   }, []);
 
   const openAddFixed = useCallback(() => {
@@ -351,9 +270,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
   // ── 공부 계획 추가/수정 ──
   const resetPlanForm = useCallback(() => {
-    setPlanLabel(''); setPlanTargetMin(30);
+    setPlanLabel(''); setPlanTargetMin(60);
     setPlanSubjectId(null); setPlanTab('subject');
     setPlanIcon('📚'); setPlanColor('#4A90D9');
+    setPlanUseSchedule(false); setPlanStart('08:00'); setPlanEnd('09:00');
     setEditingPlanId(null);
   }, []);
 
@@ -364,7 +284,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
   const openEditPlan = useCallback((p) => {
     setEditingPlanId(p.id);
-    setPlanTargetMin(p.targetMin || 30);
+    setPlanTargetMin(p.targetMin || 60);
+    setPlanUseSchedule(!!p.start);
+    setPlanStart(p.start || '08:00');
+    setPlanEnd(p.end || '09:00');
     if (p.subjectId) {
       setPlanTab('subject');
       setPlanSubjectId(p.subjectId);
@@ -378,6 +301,16 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   }, []);
 
   const handleAddPlan = useCallback(() => {
+    if (planUseSchedule) {
+      if (parseTimeToMin(planEnd) <= parseTimeToMin(planStart)) {
+        Alert.alert('종료 시간이 시작 시간보다 늦어야 해요'); return;
+      }
+    }
+    const computedTargetMin = planUseSchedule
+      ? Math.round(parseTimeToMin(planEnd) - parseTimeToMin(planStart))
+      : planTargetMin;
+    const timeFields = planUseSchedule ? { start: planStart, end: planEnd } : { start: null, end: null };
+
     if (planTab === 'subject') {
       const subj = app.subjects.find(s => s.id === planSubjectId);
       if (!subj) { Alert.alert('과목을 선택해주세요.'); return; }
@@ -385,7 +318,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         updateDay(day => ({
           ...day,
           plans: (day.plans || []).map(p => p.id === editingPlanId
-            ? { ...p, label: subj.name, icon: 'book-outline', color: subj.color, subjectId: subj.id, targetMin: planTargetMin }
+            ? { ...p, label: subj.name, icon: 'book-outline', color: subj.color, subjectId: subj.id, targetMin: computedTargetMin, ...timeFields }
             : p
           ),
         }));
@@ -396,7 +329,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
             ...day, plans: [...plans, {
               id: generateId('p_'), label: subj.name, icon: 'book-outline',
               color: subj.color, subjectId: subj.id,
-              targetMin: planTargetMin, order: plans.length,
+              targetMin: computedTargetMin, order: plans.length, ...timeFields,
             }],
           };
         });
@@ -407,7 +340,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         updateDay(day => ({
           ...day,
           plans: (day.plans || []).map(p => p.id === editingPlanId
-            ? { ...p, label: planLabel.trim(), icon: planIcon, color: planColor, subjectId: null, targetMin: planTargetMin }
+            ? { ...p, label: planLabel.trim(), icon: planIcon, color: planColor, subjectId: null, targetMin: computedTargetMin, ...timeFields }
             : p
           ),
         }));
@@ -418,7 +351,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
             ...day, plans: [...plans, {
               id: generateId('p_'), label: planLabel.trim(), icon: planIcon,
               color: planColor, subjectId: null,
-              targetMin: planTargetMin, order: plans.length,
+              targetMin: computedTargetMin, order: plans.length, ...timeFields,
             }],
           };
         });
@@ -426,7 +359,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     }
     setShowAddPlan(false);
     resetPlanForm();
-  }, [planTab, planSubjectId, planLabel, planIcon, planColor, planTargetMin, editingPlanId, app.subjects, updateDay, resetPlanForm]);
+  }, [planTab, planSubjectId, planLabel, planIcon, planColor, planTargetMin, planUseSchedule, planStart, planEnd, editingPlanId, app.subjects, updateDay, resetPlanForm]);
 
   const handleDeletePlan = useCallback((id) => {
     Alert.alert('과목 삭제', '이 과목을 삭제할까요?', [
@@ -501,7 +434,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           <View style={[s.toggleRow, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={{ flex: 1 }}>
               <Text style={[s.toggleLabel, { color: T.text }]}>주간 플래너</Text>
-              <Text style={[s.toggleSub, { color: T.sub }]}>켜면 매일 오늘의 공부 계획이 표시돼요</Text>
+              <Text style={[s.toggleSub, { color: T.sub }]}>켜면 집중탭에 오늘의 공부 계획이 표시돼요</Text>
             </View>
             <Switch
               value={ws?.enabled === true}
@@ -510,6 +443,37 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               thumbColor="white"
             />
           </View>
+
+          {/* 복사 + 초기화 버튼 — 토글 바로 아래 컴팩트 배치 */}
+          {ws?.enabled && (
+            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 4, paddingTop: 2 }}>
+              <TouchableOpacity
+                onPress={() => { setCopyDays({}); setShowCopy(true); }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border }}>
+                <Ionicons name="copy-outline" size={13} color={T.text} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.text }}>다른 요일에 복사</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
+                  Alert.alert(
+                    '기본 시간표로 초기화',
+                    `「${levelLabel}」 기본 시간표로 전체 초기화할까요?\n\n학교·식사·취침 시간이 자동으로 채워져요.\n지금까지 설정한 내용은 모두 사라져요.`,
+                    [
+                      { text: '취소', style: 'cancel' },
+                      { text: '초기화', style: 'destructive', onPress: () => {
+                        applyDefaultTemplate();
+                        app.showToastCustom(`${levelLabel} 기본 시간표로 초기화했어요`, 'toru');
+                      }},
+                    ]
+                  );
+                }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10, backgroundColor: T.red + '12', borderWidth: 1, borderColor: T.red + '40' }}>
+                <Ionicons name="refresh-outline" size={13} color={T.red} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.red }}>기본으로 초기화</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {ws?.enabled ? (
             <>
@@ -534,7 +498,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
               {/* 고정 일정 */}
               <View style={s.section}>
-                <Text style={[s.sectionTitle, { color: T.sub }]}>고정 일정</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>고정 일정</Text>
+                  <TouchableOpacity onPress={openAddFixed} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 12, borderRadius: 20, backgroundColor: T.accent }}>
+                    <Ionicons name="add" size={14} color="#fff" />
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>추가</Text>
+                  </TouchableOpacity>
+                </View>
                 {sortedFixed.map(f => (
                   <View key={f.id} style={[s.fixedItem, { backgroundColor: T.card, borderColor: T.border }]}>
                     <Ionicons name={resolveIcon(f.icon) || 'calendar-outline'} size={18} color={T.sub} />
@@ -550,10 +520,6 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     </TouchableOpacity>
                   </View>
                 ))}
-                <TouchableOpacity onPress={openAddFixed}
-                  style={[s.addBtn, { borderColor: T.border }]}>
-                  <Text style={[s.addBtnText, { color: T.accent }]}>+ 고정 일정 추가</Text>
-                </TouchableOpacity>
               </View>
 
               {/* 가용 시간 */}
@@ -565,9 +531,15 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
               {/* 공부 계획 */}
               <View style={s.section}>
-                <View style={s.sectionRow}>
-                  <Text style={[s.sectionTitle, { color: T.sub }]}>공부 계획</Text>
-                  <Text style={[s.planTotal, { color: T.accent }]}>합계: {formatMin(planTotalMin)}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>공부 계획</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent }}>합계 {formatMin(planTotalMin)}</Text>
+                  </View>
+                  <TouchableOpacity onPress={openAddPlan} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 12, borderRadius: 20, backgroundColor: T.accent }}>
+                    <Ionicons name="add" size={14} color="#fff" />
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>추가</Text>
+                  </TouchableOpacity>
                 </View>
                 {planTotalMin > availableMin && (
                   <View style={[s.warnRow, { backgroundColor: T.yellow + '25', borderColor: T.yellow }]}>
@@ -602,38 +574,8 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     </TouchableOpacity>
                   </View>
                 ))}
-                <TouchableOpacity onPress={openAddPlan}
-                  style={[s.addBtn, { borderColor: T.border }]}>
-                  <Text style={[s.addBtnText, { color: T.accent }]}>+ 과목 추가</Text>
-                </TouchableOpacity>
               </View>
 
-              {/* 요일 복사 */}
-              <TouchableOpacity onPress={() => { setCopyDays({}); setShowCopy(true); }}
-                style={[s.copyBtn, { borderColor: T.border, backgroundColor: T.card }]}>
-                <Text style={[s.copyBtnText, { color: T.text }]}>이 요일을 다른 요일에 복사</Text>
-              </TouchableOpacity>
-
-              {/* 기본 시간표로 초기화 */}
-              <TouchableOpacity
-                onPress={() => {
-                  const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
-                  Alert.alert(
-                    '기본 시간표로 초기화',
-                    `${levelLabel} 기본 시간표로 초기화할까요?\n학교·식사·취침 시간이 자동으로 세팅돼요.\n지금까지 설정한 내용은 모두 사라져요.`,
-                    [
-                      { text: '취소', style: 'cancel' },
-                      { text: '초기화', style: 'destructive', onPress: () => {
-                        applyDefaultTemplate();
-                        app.showToastCustom('기본 시간표로 초기화했어요', 'toru');
-                      }},
-                    ]
-                  );
-                }}
-                style={[s.copyBtn, { borderColor: T.red + '60', backgroundColor: T.card, marginTop: 6 }]}
-              >
-                <Text style={[s.copyBtnText, { color: T.red }]}>기본 시간표로 초기화</Text>
-              </TouchableOpacity>
             </>
           ) : (
             <View style={s.offHint}>
@@ -674,23 +616,20 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>이름</Text>
                 <TextInput value={fixedLabel} onChangeText={setFixedLabel}
-                  onFocus={() => setActiveTimePicker(null)}
                   style={[s.fieldInput, { borderColor: T.border, color: T.text, backgroundColor: T.card }]}
                   placeholder="일정 이름" placeholderTextColor={T.sub} />
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>시간</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                  <TimeDropdownPicker
-                    label="시작" value={fixedStart} onChange={setFixedStart}
-                    open={activeTimePicker === 'start'}
-                    onToggle={() => { Keyboard.dismiss(); setActiveTimePicker(p => p === 'start' ? null : 'start'); }}
+                  <TimePickerGrid
+                    label="시작 시간" value={fixedStart}
+                    onChange={(v) => { setFixedStart(v); Keyboard.dismiss(); }}
                     T={T}
                   />
-                  <TimeDropdownPicker
-                    label="종료" value={fixedEnd} onChange={setFixedEnd}
-                    open={activeTimePicker === 'end'}
-                    onToggle={() => { Keyboard.dismiss(); setActiveTimePicker(p => p === 'end' ? null : 'end'); }}
-                    T={T}
+                  <TimePickerGrid
+                    label="종료 시간" value={fixedEnd}
+                    onChange={(v) => { setFixedEnd(v); Keyboard.dismiss(); }}
+                    T={T} minValue={fixedStart}
                   />
                 </View>
               </ScrollView>
@@ -733,23 +672,26 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 app.subjects.length === 0 ? (
                   <Text style={[s.emptyHint, { color: T.sub }]}>과목탭에서 과목을 먼저 추가해주세요</Text>
                 ) : (
-                  <ScrollView style={{ maxHeight: 160, marginBottom: 14 }} showsVerticalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
                     {app.subjects.map(subj => {
                       const sel = planSubjectId === subj.id;
                       return (
                         <TouchableOpacity key={subj.id} onPress={() => setPlanSubjectId(subj.id)}
-                          style={[s.subjRow, {
+                          style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 5,
+                            paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+                            borderWidth: 1.5,
                             borderColor: sel ? subj.color : T.border,
-                            backgroundColor: sel ? subj.color + '15' : T.card,
-                          }]}>
-                          <View style={[s.subjDot, { backgroundColor: subj.color }]} />
-                          <Text style={[s.subjName, { color: sel ? subj.color : T.text, fontWeight: sel ? '800' : '600' }]}>
+                            backgroundColor: sel ? subj.color + '18' : T.surface,
+                          }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj.color }} />
+                          <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? subj.color : T.sub }}>
                             {subj.name}
                           </Text>
                         </TouchableOpacity>
                       );
                     })}
-                  </ScrollView>
+                  </View>
                 )
               ) : (
                 <>
@@ -783,17 +725,68 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               )}
 
               <Text style={[s.fieldLabel, { color: T.sub }]}>목표 시간</Text>
-              <View style={s.stepperRow}>
-                <TouchableOpacity onPress={() => setPlanTargetMin(m => Math.max(10, m - 5))}
-                  style={[s.stepperBtn, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={{ color: T.text, fontSize: 20, fontWeight: '700' }}>−</Text>
-                </TouchableOpacity>
-                <Text style={[s.stepperVal, { color: T.text }]}>{planTargetMin}분</Text>
-                <TouchableOpacity onPress={() => setPlanTargetMin(m => Math.min(180, m + 5))}
-                  style={[s.stepperBtn, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={{ color: T.text, fontSize: 20, fontWeight: '700' }}>+</Text>
-                </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                {[30, 60, 90, 120, 180].map(min => {
+                  const sel = planTargetMin === min;
+                  const lbl = min < 60 ? `${min}분` : min % 60 === 0 ? `${min/60}시간` : `${Math.floor(min/60)}시간 ${min%60}분`;
+                  return (
+                    <TouchableOpacity key={min} onPress={() => {
+                      setPlanTargetMin(min);
+                      if (planUseSchedule) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + min, 24 * 60)));
+                    }} style={{
+                      flex: 1, paddingVertical: 7, borderRadius: 16, alignItems: 'center',
+                      backgroundColor: sel ? T.accent : T.surface,
+                      borderWidth: 1.5, borderColor: sel ? T.accent : T.border,
+                    }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: sel ? '#fff' : T.sub }}>{lbl}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+
+              {/* 특정 시간 배치 토글 */}
+              <TouchableOpacity onPress={() => {
+                const next = !planUseSchedule;
+                setPlanUseSchedule(next);
+                if (next) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+              }} style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
+                marginBottom: planUseSchedule ? 12 : 16,
+                backgroundColor: T.surface,
+                borderWidth: 1.5, borderColor: planUseSchedule ? T.accent + '55' : T.border,
+              }}>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>특정 시간에 배치</Text>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>타임라인에 시간대로 표시돼요</Text>
+                </View>
+                <Switch
+                  value={planUseSchedule}
+                  onValueChange={(v) => {
+                    setPlanUseSchedule(v);
+                    if (v) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                  }}
+                  trackColor={{ false: T.border, true: T.accent + '80' }}
+                  thumbColor={planUseSchedule ? T.accent : '#ccc'}
+                />
+              </TouchableOpacity>
+
+              {planUseSchedule && (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  <TimePickerGrid label="시작 시간" value={planStart} onChange={(v) => {
+                    setPlanStart(v);
+                    const newStartMin = parseTimeToMin(v);
+                    if (parseTimeToMin(planEnd) <= newStartMin) {
+                      setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
+                    }
+                  }} T={T} />
+                  <TimePickerGrid label="종료 시간" value={planEnd} onChange={(v) => {
+                    setPlanEnd(v);
+                    const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
+                    if (diff > 0) setPlanTargetMin(diff);
+                  }} T={T} minValue={planStart} />
+                </View>
+              )}
 
               <View style={s.sheetBtnRow}>
                 <TouchableOpacity onPress={() => { setShowAddPlan(false); resetPlanForm(); }}
@@ -868,10 +861,10 @@ function createStyles(fs) { return StyleSheet.create({
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center',
-    margin: 16, padding: 16, borderRadius: 14, borderWidth: 1,
+    margin: 12, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1,
   },
-  toggleLabel: { fontSize: Math.round(15 * fs), fontWeight: '800', marginBottom: 2 },
-  toggleSub: { fontSize: Math.round(13 * fs) },
+  toggleLabel: { fontSize: Math.round(14 * fs), fontWeight: '800' },
+  toggleSub: { fontSize: Math.round(12 * fs), marginTop: 1 },
 
   dayTabScroll: { marginBottom: 8, paddingVertical: 4 },
   dayTabContent: { paddingHorizontal: 16, gap: 6, paddingVertical: 4 },

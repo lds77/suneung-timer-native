@@ -11,7 +11,7 @@ import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme } from '../constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
-import { formatDDay } from '../utils/format';
+
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
@@ -23,8 +23,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
-import ScheduleEditorScreen from './ScheduleEditorScreen';
 import { Ionicons } from '@expo/vector-icons';
+import TimePickerGrid from '../components/TimePickerGrid';
 
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
@@ -231,9 +231,6 @@ export default function SettingsScreen() {
     });
   }, []);
 
-  // D-Day 추가/수정 모달 (캘린더 방식)
-  const [showDDayModal, setShowDDayModal] = useState(false);
-  const [editingDDay, setEditingDDay] = useState(null); // null=추가, dd객체=수정
   const [showGuide, setShowGuide] = useState(false);
   const [openGuideId, setOpenGuideId] = useState(null);
   const guideScrollRef = useRef(null);
@@ -243,78 +240,16 @@ export default function SettingsScreen() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
-  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [reminderTime, setReminderTime] = useState('21:00');
 
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
   useEffect(() => {
-    const anyOpen = showGuide || showDDayModal || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showStylePicker || showFontPicker || showScheduleEditor;
+    const anyOpen = showGuide || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showStylePicker || showFontPicker;
     if (!anyOpen && prevModalOpen.current) Keyboard.dismiss();
     prevModalOpen.current = anyOpen;
-  }, [showGuide, showDDayModal, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showScheduleEditor]);
-
-const [ddLabel, setDdLabel] = useState('');
-  const [ddDays, setDdDays] = useState(1);
-  const [pickerMonth, setPickerMonth] = useState(new Date());
-  const [pickerSelected, setPickerSelected] = useState(null);
-  const today = new Date().toISOString().split('T')[0];
-
-  
-
-  const DDAY_PRESETS = [
-    { label: '수능 2026', date: '2026-11-19' },
-    { label: '중간고사', date: null }, { label: '기말고사', date: null }, { label: '모의고사', date: null },
-  ];
-
-  const pickerStr = `${pickerMonth.getFullYear()}.${String(pickerMonth.getMonth() + 1).padStart(2, '0')}`;
-  const pickerCells = useMemo(() => {
-    const y = pickerMonth.getFullYear(), m = pickerMonth.getMonth();
-    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
-    const cells = Array(first.getDay()).fill(null);
-    for (let d = 1; d <= last.getDate(); d++) cells.push({ day: d, date: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
-    return cells;
-  }, [pickerMonth]);
-
-  const openAddDDay = () => {
-    setEditingDDay(null);
-    setDdLabel(''); setPickerSelected(null); setDdDays(1);
-    setShowDDayModal(true);
-  };
-
-  const openEditDDay = (dd) => {
-    setEditingDDay(dd);
-    setDdLabel(dd.label);
-    setPickerSelected(dd.date);
-    setDdDays(dd.days || 1);
-    if (dd.date) {
-      const d = new Date(dd.date + 'T00:00:00');
-      setPickerMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-    }
-    setShowDDayModal(true);
-  };
-
-  const handleAddDDay = () => {
-    if (!ddLabel.trim() || !pickerSelected) { app.showToastCustom('이름과 날짜를 선택하세요', 'paengi'); return; }
-    if (editingDDay) {
-      app.updateDDay(editingDDay.id, { label: ddLabel.trim(), date: pickerSelected, days: ddDays });
-      app.showToastCustom('D-Day 수정 완료!', 'taco');
-    } else {
-      if (app.ddays.length >= 10) { app.showToastCustom('D-Day는 최대 10개까지!', 'paengi'); return; }
-      app.addDDay({ label: ddLabel.trim(), date: pickerSelected, days: ddDays });
-      app.showToastCustom('D-Day 추가 완료!', 'taco');
-    }
-    setDdLabel(''); setPickerSelected(null); setDdDays(1); setEditingDDay(null);
-    setShowDDayModal(false);
-  };
-
-  const handleDeleteDDay = (dd) => {
-    Alert.alert('D-Day 삭제', `"${dd.label}"을 삭제할까요?`, [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: () => app.removeDDay(dd.id) },
-    ]);
-  };
-
+  }, [showGuide, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showStylePicker, showFontPicker]);
 
 
   return (
@@ -373,88 +308,39 @@ const [ddLabel, setDdLabel] = useState('');
           />
         </Section>
 
-        {/* 주간 플래너 배너 */}
-        <TouchableOpacity
-          onPress={() => setShowScheduleEditor(true)}
-          activeOpacity={0.75}
-          style={{
-            marginBottom: 16,
-            borderRadius: 16,
-            borderWidth: 1.5,
-            borderColor: T.accent,
-            backgroundColor: T.accent + '14',
-            overflow: 'hidden',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
-            <View style={{
-              width: 48, height: 48, borderRadius: 14,
-              backgroundColor: T.accent + '25',
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Ionicons name="calendar-outline" size={24} color={T.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent }}>주간 플래너</Text>
-                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: T.accent }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: 'white' }}>추천</Text>
-                </View>
-              </View>
-              <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', lineHeight: 16 }}>
-                요일별 공부 계획을 미리 짜두면{'\n'}매일 자동으로 불러와서 바로 시작할 수 있어요!
-              </Text>
-            </View>
-            <Text testID="chevron" style={{ fontSize: 22, color: T.accent, fontWeight: '700' }}>›</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* D-Day */}
-        <Section T={T} title={`D-Day (${app.ddays.length}/10)`}>
-          {app.ddays.map(dd => (
-            <View key={dd.id} style={[styles.ddayRow, { borderColor: T.border }]}>
-              <TouchableOpacity onPress={() => app.setPrimaryDDay(dd.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name={dd.isPrimary ? 'star' : 'star-outline'} size={20} color={dd.isPrimary ? T.gold : T.sub} />
-                <View><Text style={[styles.ddayLabel, { color: T.text }]}>{dd.label}</Text>
-                  <Text style={[styles.ddayDate, { color: T.sub }]}>{dd.date}{dd.days > 1 ? ` (${dd.days}일간)` : ''}</Text></View>
-              </TouchableOpacity>
-              <View style={{ flex: 1 }} />
-              <Text style={[styles.ddayBadge, { color: T.accent }]}>{formatDDay(dd.date)}</Text>
-              <TouchableOpacity onPress={() => openEditDDay(dd)} style={{ paddingHorizontal: 6 }}>
-                <Text style={{ fontSize: 15, color: T.sub }}>🖊️</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDeleteDDay(dd)}>
-                <Text style={[styles.ddayDel, { color: T.red }]}>×</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-          {app.ddays.length < 10 && (
-            <TouchableOpacity
-              style={[styles.ddayAddBtn, { borderColor: T.border }]}
-              onPress={openAddDDay}
-            >
-              <Text style={[styles.ddayAddText, { color: T.accent }]}>+ D-Day 추가</Text>
-            </TouchableOpacity>
-          )}
-        </Section>
-
         {/* 🔥 집중 도전 모드 */}
         <Section T={T} title="집중 도전 모드" icon="flame-outline">
           {(() => {
-            const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'focus')) || FOCUS_LEVELS[1];
+            const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'normal')) || FOCUS_LEVELS[0];
+            const isExam = lv.id === 'exam';
+            const isNormal = lv.id === 'normal';
             return (
-              <Row key={lv.id} T={T} label="잠금 강도"
-                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: lv.color }} />
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: lv.color }}>{lv.label}</Text>
-                  <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
-                </View>}
+              <TouchableOpacity
                 onPress={() => {
                   const hasActive = app.timers?.some(t => t.status === 'running' || t.status === 'paused');
                   if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 잠금 강도를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
                   setShowFocusPicker(true);
                 }}
-              />
+                style={{ marginHorizontal: 16, marginVertical: 8, padding: 14, borderRadius: 14, backgroundColor: lv.color + '12', borderWidth: 1.5, borderColor: lv.color + '40' }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: lv.color + '25', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={isExam ? 'flame' : isNormal ? 'leaf' : 'shield-half'} size={18} color={lv.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: lv.color }}>{lv.label}</Text>
+                      <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={lv.color} />
+                </View>
+                {isNormal && (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: lv.color + '20' }}>
+                    <Text style={{ fontSize: 12, color: '#FF6B6B', fontWeight: '600', textAlign: 'center' }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })()}
           {(app.settings.ultraStreak > 0 || app.settings.ultraStreakBest > 0) && (
@@ -682,74 +568,6 @@ const [ddLabel, setDdLabel] = useState('');
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* D-Day 추가/수정 모달 (캘린더 피커) */}
-      <Modal visible={showDDayModal} transparent animationType="fade">
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 20 }}><View style={[styles.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="calendar-outline" size={18} color={T.accent} />
-              <Text style={[styles.modalTitle, { color: T.text }]}>{editingDDay ? 'D-Day 수정' : 'D-Day 추가'}</Text>
-            </View>
-            {/* 프리셋 */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{DDAY_PRESETS.map(p => (
-              <TouchableOpacity key={p.label} style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: ddLabel === p.label ? T.accent : T.border }}
-                onPress={() => { setDdLabel(p.label); if (p.date) setPickerSelected(p.date); }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: ddLabel === p.label ? T.accent : T.sub }}>{p.label}</Text></TouchableOpacity>
-            ))}</View>
-            <TextInput value={ddLabel} onChangeText={setDdLabel} placeholder="이름 (예: 중간고사)" placeholderTextColor={T.sub} maxLength={15}
-              style={[styles.modalInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
-            {/* 캘린더 */}
-            <View style={{ backgroundColor: T.surface, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: T.border, marginBottom: 8 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()-1); return d; })}><Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 8 }}>◀</Text></TouchableOpacity>
-                <Text style={{ color: T.text, fontSize: 14, fontWeight: '800' }}>{pickerStr}</Text>
-                <TouchableOpacity onPress={() => setPickerMonth(p => { const d = new Date(p); d.setMonth(d.getMonth()+1); return d; })}><Text style={{ color: T.accent, fontSize: 16, paddingHorizontal: 8 }}>▶</Text></TouchableOpacity></View>
-              <View style={{ flexDirection: 'row', marginBottom: 2 }}>{'일월화수목금토'.split('').map(d => <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: T.sub, fontWeight: '600' }}>{d}</Text>)}</View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>{pickerCells.map((cell, i) => {
-                if (!cell) return <View key={`e${i}`} style={{ width: '14.28%', height: 32 }} />;
-                const sel = pickerSelected === cell.date, past = cell.date < today;
-                return (<TouchableOpacity key={cell.date} style={{ width: '14.28%', height: 32, alignItems: 'center', justifyContent: 'center' }} onPress={() => !past && setPickerSelected(cell.date)} disabled={past}>
-                  <View style={[{ width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, sel && { backgroundColor: T.accent }, past && { opacity: 0.3 }]}>
-                    <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '500', color: sel ? 'white' : T.text }}>{cell.day}</Text></View></TouchableOpacity>);
-              })}</View>
-            </View>
-            {pickerSelected && <Text style={{ fontSize: 12, color: T.accent, textAlign: 'center', marginBottom: 6, fontWeight: '700' }}>선택: {pickerSelected}</Text>}
-            {/* 날짜 직접 입력 */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Text style={{ fontSize: 12, color: T.sub }}>직접 입력:</Text>
-              <TextInput
-                placeholder="2026-06-15"
-                placeholderTextColor={T.sub}
-                value={pickerSelected || ''}
-                onChangeText={(v) => {
-                  if (/^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v+'T00:00:00').getTime())) {
-                    setPickerSelected(v);
-                    const d = new Date(v+'T00:00:00');
-                    setPickerMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-                  } else if (v.length <= 10) {
-                    setPickerSelected(v);
-                  }
-                }}
-                style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 14, color: T.text, backgroundColor: T.surface2 }}
-                maxLength={10}
-              />
-            </View>
-            {/* 기간 */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, color: T.sub }}>시험 기간</Text>
-              <View style={{ flexDirection: 'row', gap: 3 }}>{[1,2,3,4,5].map(n => (
-                <TouchableOpacity key={n} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: ddDays === n ? T.accent : T.border, backgroundColor: ddDays === n ? T.accent : 'transparent' }}
-                  onPress={() => setDdDays(n)}><Text style={{ fontSize: 12, fontWeight: '700', color: ddDays === n ? 'white' : T.sub }}>{n}일</Text></TouchableOpacity>
-              ))}</View></View>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={[styles.modalCancel, { borderColor: T.border }]} onPress={() => { setShowDDayModal(false); setDdLabel(''); setPickerSelected(null); setDdDays(1); setEditingDDay(null); }}>
-                <Text style={[styles.modalCancelText, { color: T.sub }]}>취소</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.modalConfirm, { backgroundColor: T.accent }]} onPress={handleAddDDay}>
-                <Text style={styles.modalConfirmText}>{editingDDay ? '수정' : '추가'}</Text></TouchableOpacity></View>
-          </View></ScrollView></View>
-        </KeyboardAvoidingView>
-      </Modal>
-
       {/* 📖 사용 가이드 모달 */}
       <Modal visible={showGuide} transparent animationType="fade">
         <View style={{ flex: 1 }}>
@@ -763,7 +581,7 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 기본 사용법 */}
               <GuideSection id="basic" title="기본 사용법" color={T.accent} T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 집중 도전 또는 편하게 공부 중 모드를 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
+                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 잠금 강도에 따라 모드가 자동 선택되거나 직접 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n잠금 강도 (설정에서 변경):\n• 일반 — 편하게 공부 모드 자동 시작\n• 집중 — 집중 도전 / 편하게 공부 중 선택\n• 울트라집중 — 집중 도전 모드 자동 시작\n\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
               </GuideSection>
 
               {/* 타이머 종류 */}
@@ -778,12 +596,12 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 집중 모드 */}
               <GuideSection id="focus" title="집중 도전 vs 편하게 공부" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'타이머를 시작할 때 공부 방식을 선택해요.\n\n집중 도전 — 화면을 켠 채 공부\n→ 화면이 자동으로 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n편하게 공부 — 화면을 꺼도 OK\n→ 화면을 꺼도 타이머가 계속 돌아가요\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 음악 들으며, 또는 부담 없이 공부하고 싶을 때 추천!'}
+                {'타이머를 시작할 때 잠금 강도에 따라 공부 모드가 결정돼요.\n\n집중 도전 — 화면을 켠 채 공부\n→ 화면이 자동으로 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n편하게 공부 — 화면을 꺼도 OK\n→ 화면을 꺼도 타이머가 계속 돌아가요\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 음악 들으며, 또는 부담 없이 공부하고 싶을 때 추천!\n\n모드 자동 선택:\n• 일반 강도 → 편하게 공부가 자동 시작돼요\n• 집중 강도 → 매번 직접 선택할 수 있어요\n• 울트라집중 → 집중 도전이 자동 시작돼요'}
               </GuideSection>
 
               {/* 잠금화면 */}
               <GuideSection id="lock" title="잠금화면 & 집중 강도" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'집중 도전 모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 "잠금 해제" 버튼을 눌러야 앱으로 돌아올 수 있어요\n• 잠금 해제 시 "이탈" 횟수가 올라가요\n\n집중 강도 3단계 (설정에서 변경 가능):\n\n일반: 이탈해도 타이머는 계속 진행돼요. 이탈 횟수만 기록에 남아요.\n\n집중: 이탈해도 타이머는 계속 진행돼요.\n단, 1분 이상 자리를 비우면 돌아올 때 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 10초 이상 앱을 나가면 타이머가 즉시 정지돼요!\n돌아올 때 챌린지 문구를 입력해야만 타이머가 재개돼요.\n진짜 시험처럼 집중하고 싶을 때!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요'}
+                {'집중 도전 모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 "잠금 해제" 버튼을 눌러야 앱으로 돌아올 수 있어요\n• 잠금 해제 시 "이탈" 횟수가 올라가요\n\n집중 강도 3단계 (설정에서 변경 가능):\n\n일반: 편하게 공부가 자동 시작돼요.\n이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중: 집중 도전 / 편하게 공부를 직접 선택해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 집중 도전이 자동 시작돼요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요\n타이머 실행 중에는 잠금 강도를 변경할 수 없어요'}
               </GuideSection>
 
               {/* 오늘의 계획 */}
@@ -798,17 +616,22 @@ const [ddLabel, setDdLabel] = useState('');
 
               {/* 통계 */}
               <GuideSection id="stats" title="통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 6개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.'}
+                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n주간 리포트에서 울트라집중 세션 수도 확인할 수 있어요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 6개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.\n\n세션 뱃지:\n• Verified — 이탈 0회 달성\n• Ultra — 울트라집중 모드로 완료'}
               </GuideSection>
 
               {/* 잔디 */}
               <GuideSection id="heatmap" title="365일 잔디" color="#4CAF50" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'통계 > 잔디 탭에서 확인할 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 편하게 공부한 날\n• 초록 = 집중 도전한 날\n• 금색 = Verified 달성한 날!\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
+                {'통계 > 잔디 탭에서 확인할 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 편하게 공부한 날\n• 초록 = 집중 도전한 날\n• 금색 = Verified 달성한 날!\n• 빨강 = 울트라집중 모드로 공부한 날\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
               </GuideSection>
 
               {/* 과목 & 할 일 */}
-              <GuideSection id="subject" title="과목·D-Day" color="#FDCB6E" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'과목 탭:\n• + 버튼으로 과목을 추가하고 색상을 지정할 수 있어요\n• 과목별 총 공부 시간이 자동으로 쌓여요\n• 즐겨찾기 버튼으로 즐겨찾기 과목을 상단에 고정해요\n\nD-Day (설정 탭):\n• 수능, 시험, 목표일을 등록하면 남은 날수를 표시해요\n• 여러 개를 등록하고 대표 D-Day를 설정할 수 있어요\n• 집중탭 상단에 D-Day 카운터가 표시돼요'}
+              <GuideSection id="subject" title="과목 관리" color="#FDCB6E" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'과목 탭:\n• + 버튼으로 과목을 추가하고 색상을 지정할 수 있어요\n• 과목별 총 공부 시간이 자동으로 쌓여요\n• 즐겨찾기 버튼으로 즐겨찾기 과목을 상단에 고정해요\n\nD-Day·일정은 플래너 탭 > 월간에서 관리해요\n• 시험, 모의고사, 과제 제출일 등을 캘린더에 등록해요\n• 별(★)로 고정한 일정은 집중탭 상단에 항상 표시돼요\n• D-14 이내로 다가오는 일정은 집중탭에 자동으로 표시돼요'}
+              </GuideSection>
+
+              {/* 플래너 탭 */}
+              <GuideSection id="planner" title="플래너 탭" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'플래너 탭에서 오늘·주간·월간 일정을 한눈에 파악해요.\n\n오늘 뷰\n• 오늘 시간표 블록과 계획을 시각적으로 확인해요\n• 공부 계획 옆 재생 버튼으로 바로 타이머를 시작해요\n• 배치 버튼으로 빈 시간에 미배치 계획을 넣을 수 있어요\n\n주간 뷰\n• 요일별 시간표를 그리드로 확인해요\n• 블록을 탭하면 바로 타이머를 시작할 수 있어요\n\n월간 뷰 (D-Day·일정 관리)\n• 날짜를 탭하면 그날의 공부 기록과 일정을 확인해요\n• 날짜를 길게 누르면 새 일정을 바로 추가해요\n• 과거 날짜에는 공부량에 따라 색상 도트가 표시돼요\n• 시험·일정에 별(★)을 고정하면 집중탭에 상시 표시돼요\n\n⚙ 버튼\n• 주간 플래너 편집 화면이 열려요\n• 요일별 고정 일정(학교·식사 등)과 공부 계획을 설정해요\n• 기본 시간표 초기화로 학교급에 맞는 시간표를 불러올 수 있어요'}
               </GuideSection>
 
               {/* 스마트 할 일 */}
@@ -843,26 +666,39 @@ const [ddLabel, setDdLabel] = useState('');
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 24, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 24, marginBottom: 12 }}>
             <Ionicons name="information-circle-outline" size={13} color={T.sub} />
-            <Text style={{ fontSize: 12, color: T.sub }}>타이머 시작 시 집중 도전 모드에서 적용돼요</Text>
+            <Text style={{ fontSize: 12, color: T.sub }}>타이머 시작 시 적용돼요</Text>
           </View>
           {FOCUS_LEVELS.map(lv => {
-            const sel = (app.settings.ultraFocusLevel || 'focus') === lv.id;
+            const sel = (app.settings.ultraFocusLevel || 'normal') === lv.id;
+            const isExam = lv.id === 'exam';
+            const isNormal = lv.id === 'normal';
+            const icon = isExam ? 'flame' : isNormal ? 'leaf' : 'shield-half';
             return (
               <TouchableOpacity key={lv.id} onPress={() => { app.updateSettings({ ultraFocusLevel: lv.id }); setShowFocusPicker(false); }}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? lv.color + '15' : 'transparent' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 12 }}>
-                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: lv.color }} />
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 20, marginHorizontal: 12, marginBottom: 6, backgroundColor: sel ? lv.color + '15' : T.surface2, borderRadius: 12, borderWidth: sel ? 1.5 : 1, borderColor: sel ? lv.color + '50' : T.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: sel ? lv.color + '25' : T.bg, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={icon} size={17} color={sel ? lv.color : T.sub} />
+                  </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: sel ? '700' : '400', color: sel ? lv.color : T.text }}>{lv.label}</Text>
-                    <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 15, fontWeight: sel ? '800' : '500', color: sel ? lv.color : T.text }}>{lv.label}</Text>
+                      {isExam && !sel && <View style={{ backgroundColor: '#FF6B6B20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}><Text style={{ fontSize: 10, fontWeight: '700', color: '#FF6B6B' }}>도전!</Text></View>}
+                    </View>
+                    <Text style={{ fontSize: 12, color: sel ? lv.color + 'BB' : T.sub, marginTop: 3, lineHeight: 16 }}>{lv.desc}</Text>
                   </View>
                 </View>
-                {sel && <Ionicons name="checkmark" size={16} color={lv.color} />}
+                {sel && <Ionicons name="checkmark-circle" size={20} color={lv.color} />}
               </TouchableOpacity>
             );
           })}
+          {(app.settings.ultraFocusLevel || 'normal') !== 'exam' && (
+            <View style={{ marginHorizontal: 24, marginTop: 6, marginBottom: 4 }}>
+              <Text style={{ fontSize: 11.5, color: '#FF6B6B', textAlign: 'center', fontWeight: '500', lineHeight: 17 }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -999,36 +835,35 @@ const [ddLabel, setDdLabel] = useState('');
       </Modal>
 
       {/* 리마인더 시간 피커 */}
-      <Modal visible={showReminderPicker} transparent animationType="slide">
+      <Modal visible={showReminderPicker} transparent animationType="slide"
+        onShow={() => {
+          const h = app.settings.dailyReminderHour ?? 21;
+          const m = app.settings.dailyReminderMin ?? 0;
+          setReminderTime(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+        }}
+      >
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowReminderPicker(false)} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>리마인더 시각</Text>
-            <TouchableOpacity onPress={() => setShowReminderPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowReminderPicker(false)}>
+              <Ionicons name="close" size={22} color={T.sub} />
+            </TouchableOpacity>
           </View>
-          {[
-            { h: 17, m: 0, label: '오후 5시' },
-            { h: 18, m: 0, label: '오후 6시' },
-            { h: 19, m: 0, label: '오후 7시' },
-            { h: 20, m: 0, label: '오후 8시' },
-            { h: 20, m: 30, label: '오후 8시 30분' },
-            { h: 21, m: 0, label: '오후 9시' },
-            { h: 21, m: 30, label: '오후 9시 30분' },
-            { h: 22, m: 0, label: '오후 10시' },
-          ].map(opt => {
-            const sel = app.settings.dailyReminderHour === opt.h && app.settings.dailyReminderMin === opt.m;
-            return (
-              <TouchableOpacity key={opt.label} onPress={() => { app.updateSettings({ dailyReminderHour: opt.h, dailyReminderMin: opt.m }); setShowReminderPicker(false); }}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
-                <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{opt.label}</Text>
-                {sel && <Text style={{ fontSize: 16, color: T.accent }}>✓</Text>}
-              </TouchableOpacity>
-            );
-          })}
+          <TimePickerGrid label="" value={reminderTime} onChange={setReminderTime} T={T} />
+          <TouchableOpacity
+            onPress={() => {
+              const [h, m] = reminderTime.split(':').map(Number);
+              app.updateSettings({ dailyReminderHour: h, dailyReminderMin: m });
+              setShowReminderPicker(false);
+            }}
+            style={{ marginTop: 16, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>확인</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
 
-      <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
     </KeyboardAvoidingView>
   );
 }

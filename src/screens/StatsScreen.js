@@ -281,11 +281,6 @@ export default function StatsScreen() {
   const monthBestZone = [...monthTimeZoneAnalysis].filter(z => z.count > 0).sort((a, b) => b.avgDensity - a.avgDensity)[0];
 
   // ─── 취약 과목 분석 ────────────────────────────────────────────
-  const weakSubjects = useMemo(() => {
-    const start7 = dateStr(addDays(new Date(), -7));
-    const recent7 = new Set(app.sessions.filter(s => s.date >= start7 && s.subjectId).map(s => s.subjectId));
-    return app.subjects.filter(s => !recent7.has(s.id) && (s.totalElapsedSec || 0) > 0);
-  }, [app.sessions, app.subjects]);
 
   // ─── 월간 캘린더 히트맵 ───────────────────────────────────────
   const calendarData = useMemo(() => {
@@ -317,11 +312,8 @@ export default function StatsScreen() {
     const data = {};
     app.sessions.forEach(s => {
       if (!s.date) return;
-      if (!data[s.date]) data[s.date] = { sec: 0, hasScreenOn: false, hasVerified: false, hasUltra: false };
+      if (!data[s.date]) data[s.date] = { sec: 0 };
       data[s.date].sec += (s.durationSec || 0);
-      if (s.focusMode === 'screen_on') data[s.date].hasScreenOn = true;
-      if (s.verified) data[s.date].hasVerified = true;
-      if (s.ultraFocusLevel === 'exam') data[s.date].hasUltra = true;
     });
     const end = new Date();
     const endDow = end.getDay();
@@ -333,34 +325,22 @@ export default function StatsScreen() {
       const week = [];
       for (let d = 0; d < 7; d++) {
         const ds = dateStr(cur);
-        const dd = data[ds] || { sec: 0, hasScreenOn: false, hasVerified: false, hasUltra: false };
+        const dd = data[ds] || { sec: 0 };
         const isFuture = cur > end;
-        week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today, hasScreenOn: dd.hasScreenOn, hasVerified: dd.hasVerified, hasUltra: dd.hasUltra });
+        week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today });
         cur = addDays(cur, 1);
       }
       weeks.push(week);
     }
     return weeks;
   }, [app.sessions, today]);
-  const heatmap365Max = useMemo(() => Math.max(...heatmap365.flat().map(d => d.sec), 1), [heatmap365]);
 
-  // 잔디 색상: 편하게모드 = accent 계열, 집중도전모드 = 초록, Verified = 골드
-  // 잔디 색상 — 고정 시간 기준 (30분/1시간/2시간/4시간)
+  // 잔디 색상 — accent 계열 4단계 (30분/1시간/2시간/4시간)
   const HEAT_STEPS = [1800, 3600, 7200, 14400]; // 30m, 1h, 2h, 4h
   const getHeat365Color = (day) => {
     if (day.isFuture) return 'transparent';
     if (day.sec === 0) return T.surface2;
-    const sec = day.sec;
-    const level = sec >= HEAT_STEPS[3] ? 3 : sec >= HEAT_STEPS[2] ? 2 : sec >= HEAT_STEPS[1] ? 1 : 0;
-    if (day.hasUltra) {
-      return ['#FFCDD2', '#FF6B6B', '#E53935', '#B71C1C'][level];
-    }
-    if (day.hasVerified) {
-      return ['#FFF3C4', '#F6D55C', '#F0C030', '#E6AC00'][level];
-    }
-    if (day.hasScreenOn) {
-      return ['#C8E6C9', '#66BB6A', '#388E3C', '#1B5E20'][level];
-    }
+    const level = day.sec >= HEAT_STEPS[3] ? 3 : day.sec >= HEAT_STEPS[2] ? 2 : day.sec >= HEAT_STEPS[1] ? 1 : 0;
     return [T.heat1, T.heat2, T.heat3, T.heat4][level];
   };
   const totalStudyDays365 = useMemo(() => heatmap365.flat().filter(d => d.sec > 0 && !d.isFuture).length, [heatmap365]);
@@ -1127,10 +1107,10 @@ export default function StatsScreen() {
           })()}
 
           {/* ── 세션 리스트 ── */}
-          {todaySessions.length > 0 && (
+          {todaySessions.filter(s => (s.durationSec || 0) >= 300).length > 0 && (
             <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>세션 기록 ({todaySessions.length}회)</Text>
-              {todaySessions.slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
+              <Text style={[S.secLabel, { color: T.sub }]}>세션 기록 ({todaySessions.filter(s => (s.durationSec || 0) >= 300).length}회)</Text>
+              {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
                 const subj = app.subjects.find(s => s.id === sess.subjectId);
                 const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
                 const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
@@ -1173,56 +1153,6 @@ export default function StatsScreen() {
             </View>
           )}
 
-          {/* 취약 과목 알림 */}
-          {weakSubjects.length > 0 && (
-            <View style={[S.weakCard, { backgroundColor: T.accent + '18', borderColor: T.accent + '40' }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                <Ionicons name="warning-outline" size={14} color={T.accent} />
-                <Text style={[S.weakTitle, { color: T.accent, marginBottom: 0 }]}>최근 7일간 안 한 과목</Text>
-              </View>
-              <View style={S.weakChips}>
-                {weakSubjects.map(s => (
-                  <View key={s.id} style={[S.weakChip, { backgroundColor: T.surface2, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
-                    <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: s.color }} />
-                    <Text style={[S.weakChipT, { color: T.text }]}>{s.name}</Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  const names = weakSubjects.map(s => s.name).join(', ');
-                  Alert.alert(
-                    '할일에 추가할까요?',
-                    `${names}\n\n위 과목을 할일 목록에 추가합니다.`,
-                    [
-                      { text: '취소', style: 'cancel' },
-                      {
-                        text: '추가하기',
-                        onPress: () => {
-                          const existing = app.todos.filter(t => !t.isTemplate && !t.done);
-                          const toAdd = weakSubjects.filter(s => !existing.some(t => t.text === `${s.name} 공부하기` && t.subjectId === s.id));
-                          if (toAdd.length === 0) {
-                            app.showToastCustom('이미 할일에 추가되어 있어요!', 'taco');
-                          } else {
-                            toAdd.forEach(s => app.addTodo({ text: `${s.name} 공부하기`, subjectId: s.id, subjectLabel: s.name, subjectColor: s.color }));
-                            app.showToastCustom(`${toAdd.length}개 할일이 추가됐어요!`, 'taco');
-                          }
-                        },
-                      },
-                    ]
-                  );
-                }}
-                style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: T.accent + '30', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name="add-circle-outline" size={14} color={T.accent} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>할일에 추가하기</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* ── 오늘 리포트 카드 버튼 ── */}
           <TouchableOpacity
             style={[S.reportBtn, { backgroundColor: T.accent }]}
@@ -1232,7 +1162,7 @@ export default function StatsScreen() {
             <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+              <Text style={S.reportBtnSub}>오늘의 공부 인증하기</Text>
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
@@ -1384,7 +1314,7 @@ export default function StatsScreen() {
             <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+              <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
@@ -1490,7 +1420,7 @@ export default function StatsScreen() {
             <Ionicons name="clipboard-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-              <Text style={S.reportBtnSub}>공유하고 기록으로 남기기</Text>
+              <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
@@ -1510,7 +1440,7 @@ export default function StatsScreen() {
             <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
               style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
               <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                매일 공부하면 칸이 채워져요! 365일 초록색으로 채워보세요!
+                매일 공부하면 칸이 채워져요! 365일 빈칸 없이 채워보세요!
               </Text>
             </TouchableOpacity>
           )}
@@ -1569,11 +1499,7 @@ export default function StatsScreen() {
                                   borderColor: day.isToday ? T.accent : 'transparent',
                                 },
                               ]}
-                            >
-                              {day.hasVerified && !day.isFuture && (
-                                <Ionicons name="star" size={8} color="#FFF" />
-                              )}
-                            </View>
+                            />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -1593,12 +1519,6 @@ export default function StatsScreen() {
                   <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
                 </React.Fragment>
               ))}
-            </View>
-            <View style={[S.heatLegend, { marginTop: 6 }]}>
-              <View style={[S.heatBox, { backgroundColor: T.heat3 }]} /><Ionicons name="book-outline" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>편하게</Text>
-              <View style={[S.heatBox, { backgroundColor: '#388E3C', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>집중</Text>
-              <View style={[S.heatBox, { backgroundColor: '#F0C030', marginLeft: 8 }]} /><Ionicons name="trophy" size={12} color={T.sub} style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>Verified</Text>
-              <View style={[S.heatBox, { backgroundColor: '#FF6B6B', marginLeft: 8 }]} /><Ionicons name="flame" size={12} color="#FF6B6B" style={{ marginLeft: 2 }} /><Text style={[S.heatLegendT, { color: T.sub }]}>울트라</Text>
             </View>
             <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
               잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
@@ -1757,7 +1677,7 @@ export default function StatsScreen() {
             <Ionicons name="leaf-outline" size={24} color="white" />
             <View>
               <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-              <Text style={S.reportBtnSub}>잔디 기록 공유하기</Text>
+              <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
             </View>
             <Text style={S.reportBtnArrow}>→</Text>
           </TouchableOpacity>
@@ -2121,8 +2041,8 @@ export default function StatsScreen() {
             <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="share-outline" size={16} color="white" />
-                  <Text style={S.shareBtnT}>이미지로 공유</Text>
+                  <Ionicons name="trophy-outline" size={16} color="white" />
+                  <Text style={S.shareBtnT}>이번 주 성과 자랑하기</Text>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowReport(false)} style={[S.shareBtn, { backgroundColor: T.accent }]} activeOpacity={0.85}>
@@ -2225,8 +2145,8 @@ export default function StatsScreen() {
             <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareDayReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="share-outline" size={16} color="white" />
-                  <Text style={S.shareBtnT}>이미지로 공유</Text>
+                  <Ionicons name="flame-outline" size={16} color="white" />
+                  <Text style={S.shareBtnT}>오늘의 공부 인증하기</Text>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowDayReport(false)} style={[S.shareBtn, { backgroundColor: T.accent }]} activeOpacity={0.85}>
@@ -2338,8 +2258,8 @@ export default function StatsScreen() {
             <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareMonthReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="share-outline" size={16} color="white" />
-                  <Text style={S.shareBtnT}>이미지로 공유</Text>
+                  <Ionicons name="calendar-outline" size={16} color="white" />
+                  <Text style={S.shareBtnT}>한 달 기록 공유하기</Text>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowMonthReport(false)} style={[S.shareBtn, { backgroundColor: T.accent }]} activeOpacity={0.85}>
@@ -2435,8 +2355,8 @@ export default function StatsScreen() {
             <View style={{ marginTop: 12, gap: 8 }}>
               <TouchableOpacity style={[S.shareBtn, { backgroundColor: T.accent }]} onPress={handleShareHeatReport} activeOpacity={0.85}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="share-outline" size={16} color="white" />
-                  <Text style={S.shareBtnT}>이미지로 공유</Text>
+                  <Ionicons name="leaf-outline" size={16} color="white" />
+                  <Text style={S.shareBtnT}>나의 잔디밭 자랑하기</Text>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowHeatReport(false)} style={[S.shareBtn, { backgroundColor: T.accent }]} activeOpacity={0.85}>

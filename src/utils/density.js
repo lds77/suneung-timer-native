@@ -38,9 +38,12 @@ import { getTier } from '../constants/presets';
  *   📖 편하게 공부 모드 50%+ 중지   = +2
  *   📖 편하게 공부 모드 50% 미만    = 0
  *   📖 편하게 공부 자유/뽀모 완료   = +5
- *   🔥 집중 도전 모드 이탈 0회      = +15 (Verified!)
- *   🔥 집중 도전 모드 이탈 1~2회    = +8
- *   🔥 집중 도전 모드 이탈 3회+     = +3
+ *   🔥 집중 모드 (normal/focus) 이탈 0회 = +10
+ *   🔥 집중 모드 이탈 1~2회         = +6
+ *   🔥 집중 모드 이탈 3회+          = +2
+ *   🔥 울트라 집중 (exam) 이탈 0회  = +15 (Verified!)
+ *   🔥 울트라 집중 이탈 1~2회       = +8
+ *   🔥 울트라 집중 이탈 3회+        = +4
  *
  * ━━━ 자가평가 보너스 (0~+3) ━━━
  *   🔥 또는 ⚡ 선택 시           = +3
@@ -154,6 +157,7 @@ export const calculateDensity = ({
   exitCount = 0,
   selfRating = null,
   schoolLevel = 'high',
+  ultraFocusLevel = 'normal',
 }) => {
   if (totalSec < 30) return 100;
 
@@ -189,13 +193,25 @@ export const calculateDensity = ({
   const persistenceBonus = getPersistenceBonus(totalMin, tier);
 
   // 4. 선언 보너스 (0~15)
+  //   편하게(screen_off): 최대 +5
+  //   집중(screen_on, normal/focus): 최대 +10
+  //   울트라(screen_on, exam): 최대 +15
   let declarationBonus = 0;
   if (focusMode === 'screen_on') {
-    if (exitCount === 0)       declarationBonus = 15;
-    else if (exitCount <= 2)   declarationBonus = 8;
-    else                       declarationBonus = 3;
+    const isUltra = ultraFocusLevel === 'exam';
+    if (isUltra) {
+      // 울트라집중: 일시정지 불가 + 앱 이탈 엄격 → 최대 +15
+      if (exitCount === 0)       declarationBonus = 15;
+      else if (exitCount <= 2)   declarationBonus = 8;
+      else                       declarationBonus = 4;
+    } else {
+      // 일반 집중: 최대 +10
+      if (exitCount === 0)       declarationBonus = 10;
+      else if (exitCount <= 2)   declarationBonus = 6;
+      else                       declarationBonus = 2;
+    }
   } else if (focusMode === 'screen_off') {
-    // 📖 편하게공부 모드: 자유/뽀모는 항상 +5, 카운트다운은 완료율에 따라 부분 보너스
+    // 📖 편하게공부 모드: 최대 +5
     if (timerType !== 'countdown')       declarationBonus = 5;
     else if (completionRatio >= 1)       declarationBonus = 5;
     else if (completionRatio >= 0.8)     declarationBonus = 3;
@@ -213,8 +229,11 @@ export const getDensityTier = (density) => getTier(density);
 
 export const calcAverageDensity = (sessions) => {
   if (!sessions || sessions.length === 0) return 0;
-  const total = sessions.reduce((sum, s) => sum + (s.focusDensity || 0), 0);
-  return Math.round(total / sessions.length);
+  // 5분 미만 짧은 세션은 밀도 평균에서 제외 (계획 진행률용 짧은 기록 보호)
+  const valid = sessions.filter(s => (s.durationSec || 0) >= 300);
+  if (valid.length === 0) return 0;
+  const total = valid.reduce((sum, s) => sum + (s.focusDensity || 0), 0);
+  return Math.round(total / valid.length);
 };
 
 /** 밀도 점수 상세 내역 (투명성 리포트용) */

@@ -47,7 +47,7 @@ Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   soundId: 'none', soundVolume: 70, darkMode: false, notifEnabled: true,
-  ultraFocusLevel: 'focus', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
+  ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
@@ -178,7 +178,7 @@ export function AppProvider({ children }) {
     };
     // 모드 미선택 시 잠금강도별 자동 진입
     if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'focus';
+      const level = settingsRef.current.ultraFocusLevel || 'normal';
       if (level === 'exam') {
         activateScreenOnMode();
         setTimeout(startAction, 50);
@@ -279,7 +279,7 @@ export function AppProvider({ children }) {
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
   const requestModeSelect = useCallback((action) => {
     if (focusModeRef.current) { action(); return; }
-    const level = settingsRef.current.ultraFocusLevel || 'focus';
+    const level = settingsRef.current.ultraFocusLevel || 'normal';
     // 울트라집중: 자동 집중모드(screen_on)
     if (level === 'exam') {
       activateScreenOnMode();
@@ -364,7 +364,7 @@ export function AppProvider({ children }) {
       const hasRunning = timersRef.current.some(t => t.status === 'running');
       const mode = focusModeRef.current;
       const uf = settingsRef.current;
-      const level = uf.ultraFocusLevel || 'focus';
+      const level = uf.ultraFocusLevel || 'normal';
       const isStrict = level === 'exam';
 
       if (state === 'inactive') { /* 무시 */ }
@@ -559,6 +559,7 @@ export function AppProvider({ children }) {
       pomoSets: t.pomoSet || 0, focusMode: mode,
       exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
+      ultraFocusLevel: mode === 'screen_on' ? (settingsRef.current?.ultraFocusLevel || 'normal') : 'normal',
     });
     const { getTier } = require('../constants/presets');
     return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
@@ -627,7 +628,7 @@ export function AppProvider({ children }) {
         const nextItem = t.seqItems[t.seqIndex + 1];
         if (nextItem) {
           const nextLabel = nextItem.isBreak
-            ? `🥤 ${Math.round((nextItem.totalSec || 60) / 60)}분 휴식`
+            ? `${Math.round((nextItem.totalSec || 60) / 60)}분 휴식`
             : nextItem.label;
           fireNotif(`${t.label} 완료!`, `다음: ${nextLabel}`);
         }
@@ -690,7 +691,7 @@ export function AppProvider({ children }) {
         showToastCustom(`${t.label} 완료!`, 'toru');
       }
     }
-    if (t.type !== 'lap' && t.elapsedSec >= 300) {
+    if (t.type !== 'lap' && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
@@ -897,43 +898,99 @@ export function AppProvider({ children }) {
     const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const dayKey = dayKeys[new Date().getDay()];
     const dayData = ws[dayKey];
-    if (!dayData?.fixed?.length || !dayData?.plans?.length) return;
+    if (!dayData) return;
 
     const now = Date.now();
     const today = getToday();
 
-    for (const fixed of dayData.fixed) {
-      if (!fixed.end) continue;
-      const [endH, endM] = fixed.end.split(':').map(Number);
-      const endDate = new Date();
-      endDate.setHours(endH, endM, 0, 0);
-      const triggerMs = endDate.getTime() + 10 * 60 * 1000; // 종료 + 10분
-      if (triggerMs <= now) continue; // 이미 지난 시간
+    // 1) 고정 일정 종료 + 10분 후 알림 (미완료 계획 있을 때만)
+    if (dayData.fixed?.length && dayData.plans?.length) {
+      for (const fixed of dayData.fixed) {
+        if (!fixed.end) continue;
+        const [endH, endM] = fixed.end.split(':').map(Number);
+        const endDate = new Date();
+        endDate.setHours(endH, endM, 0, 0);
+        const triggerMs = endDate.getTime() + 10 * 60 * 1000;
+        if (triggerMs <= now) continue;
 
-      // 미완료 계획 있는지 확인
-      const hasIncompletePlan = dayData.plans.some(plan => {
-        const doneSec = sessionsRef.current
-          .filter(s => s.date === today && s.planId === plan.id)
-          .reduce((sum, s) => sum + (s.durationSec || 0), 0);
-        return doneSec < (plan.targetMin || 0) * 60 * 0.8;
-      });
-      if (!hasIncompletePlan) continue;
-
-      try {
-        const trigger = Platform.OS === 'android'
-          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs), channelId: 'timer-complete' }
-          : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs) };
-        const id = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '공부 계획 알림',
-            body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
-            sound: 'default',
-            ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
-          },
-          trigger,
+        const hasIncompletePlan = dayData.plans.some(plan => {
+          const doneSec = sessionsRef.current
+            .filter(s => s.date === today && s.planId === plan.id)
+            .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+          return doneSec < (plan.targetMin || 0) * 60 * 0.8;
         });
-        plannerNotifIds.current.push(id);
-      } catch {}
+        if (!hasIncompletePlan) continue;
+
+        try {
+          const trigger = Platform.OS === 'android'
+            ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs), channelId: 'timer-complete' }
+            : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs) };
+          const id = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '공부 계획 알림',
+              body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
+              sound: 'default',
+              ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+            },
+            trigger,
+          });
+          plannerNotifIds.current.push(id);
+        } catch {}
+      }
+    }
+
+    // 2) 공부 계획 시작 알림 — 시작 10분 전 + 정각 (시간 배치된 계획만)
+    for (const plan of (dayData.plans || [])) {
+      if (!plan.start) continue;
+      const [startH, startM] = plan.start.split(':').map(Number);
+      const startDate = new Date();
+      startDate.setHours(startH, startM, 0, 0);
+      const startMs = startDate.getTime();
+
+      // 이미 완료한 계획은 알림 스킵
+      const doneSec = sessionsRef.current
+        .filter(s => s.date === today && s.planId === plan.id)
+        .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+      if (doneSec >= (plan.targetMin || 0) * 60 * 0.8) continue;
+
+      // 10분 전
+      const tenMinBeforeMs = startMs - 10 * 60 * 1000;
+      if (tenMinBeforeMs > now) {
+        try {
+          const trigger = Platform.OS === 'android'
+            ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(tenMinBeforeMs), channelId: 'timer-complete' }
+            : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(tenMinBeforeMs) };
+          const id = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '📚 공부 시작 10분 전',
+              body: `${plan.label} 시작 10분 남았어요! 준비해볼까요?`,
+              sound: 'default',
+              ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+            },
+            trigger,
+          });
+          plannerNotifIds.current.push(id);
+        } catch {}
+      }
+
+      // 정각
+      if (startMs > now) {
+        try {
+          const trigger = Platform.OS === 'android'
+            ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(startMs), channelId: 'timer-complete' }
+            : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(startMs) };
+          const id = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '⏰ 공부 시작!',
+              body: `${plan.label} 시작 시간이에요! 지금 바로 시작해볼까요?`,
+              sound: 'default',
+              ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+            },
+            trigger,
+          });
+          plannerNotifIds.current.push(id);
+        } catch {}
+      }
     }
   }, []);
 
@@ -1033,7 +1090,7 @@ export function AppProvider({ children }) {
 
     // 모드 미선택 시 잠금강도별 자동 진입
     if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'focus';
+      const level = settingsRef.current.ultraFocusLevel || 'normal';
       if (level === 'exam') {
         activateScreenOnMode();
         setTimeout(doStart, 50);
@@ -1096,7 +1153,7 @@ export function AppProvider({ children }) {
     cancelTimerNotif(id);
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      if (t.type !== 'lap' && t.elapsedSec >= 300 && t.status !== 'completed') {
+      if (t.type !== 'lap' && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null });
@@ -1448,11 +1505,12 @@ export function AppProvider({ children }) {
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
+      ultraFocusLevel: fm === 'screen_on' ? (settingsRef.current?.ultraFocusLevel || 'normal') : 'normal',
     });
     const { getTier } = require('../constants/presets');
     const tier = getTier(density);
     const verified = fm === 'screen_on' && exitCount === 0;
-    const ultraLevel = settingsRef.current?.ultraFocusLevel || 'focus';
+    const ultraLevel = settingsRef.current?.ultraFocusLevel || 'normal';
     const newSess = {
       id: generateId('sess_'), date: getToday(), subjectId, label: label.trim(),
       startedAt: startedAt ?? Date.now() - durationSec * 1000, endedAt: Date.now(),
@@ -1525,7 +1583,7 @@ export function AppProvider({ children }) {
     if (!target) return prev;
     if (target.isPrimary) return prev.map(d => d.id === id ? { ...d, isPrimary: false } : d);
     const cnt = prev.filter(d => d.isPrimary).length;
-    if (cnt >= 8) return prev;
+    if (cnt >= 3) return prev;
     return prev.map(d => d.id === id ? { ...d, isPrimary: true } : d);
   }), []);
   // addTodo: 문자열(하위 호환) 또는 객체로 호출 가능

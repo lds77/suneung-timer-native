@@ -105,7 +105,7 @@ export default function FocusScreen() {
   const app = useApp();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  // 🔥모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
+  // 집중모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
   const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const { width: winW, height: winH } = useWindowDimensions();
@@ -221,7 +221,17 @@ export default function FocusScreen() {
   };
   const SEQ_LABELS = ['공부','숙제','수학','국어','영어','독서','운동','휴식','점심','저녁','복습','과학','사회'];
 
-  const primaryDDs = app.ddays.filter(d => d.isPrimary);
+  // D-Day 스마트 노출: 고정(별) 최대 3개 + D-14 이내 자동 (중복 제거, 최대 6개)
+  const smartDDs = useMemo(() => {
+    const pinned = (app.ddays || []).filter(d => d.isPrimary).slice(0, 3);
+    const pinnedIds = new Set(pinned.map(d => d.id));
+    const urgent = (app.ddays || []).filter(d => {
+      if (pinnedIds.has(d.id)) return false;
+      const days = calcDDay(d.date);
+      return days !== null && days >= 0 && days <= 14;
+    }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    return [...pinned, ...urgent].slice(0, 6);
+  }, [app.ddays]);
   const active = app.timers.filter(t => t.status === 'running' || t.status === 'paused');
   const completed = app.timers.filter(t => t.status === 'completed');
   const maxRunning = active.length > 0 ? Math.max(...active.map(t => t.elapsedSec)) : 0;
@@ -235,7 +245,7 @@ export default function FocusScreen() {
 
   // 챌린지
   const [challengeInput, setChallengeInput] = useState('');
-  const challengeTarget = app.getChallengeText?.(app.settings.ultraFocusLevel || 'focus', app.ultraFocus?.challengeAwayMs || 0) || '집중';
+  const challengeTarget = app.getChallengeText?.(app.settings.ultraFocusLevel || 'normal', app.ultraFocus?.challengeAwayMs || 0) || '집중';
   const challengeMatch = challengeInput.trim() === challengeTarget;
   const challengeAwayMin = Math.floor((app.ultraFocus?.challengeAwayMs || 0) / 60000);
   const challengeAwaySec = Math.floor(((app.ultraFocus?.challengeAwayMs || 0) % 60000) / 1000);
@@ -250,7 +260,7 @@ export default function FocusScreen() {
   const scrollYRef = useRef(0);
   const inlineFocusedRef = useRef(false);
 
-  // ═══ 🔒 잠금 오버레이 (🔥모드 전용) ═══
+  // ═══ 🔒 잠금 오버레이 (집중모드 전용) ═══
   const SLIDE_WIDTH = isTablet ? Math.min(winW - 80, 360) : winW - 80;
   const THUMB_SIZE = 56;
   const SLIDE_THRESHOLD = SLIDE_WIDTH - THUMB_SIZE - 10;
@@ -300,7 +310,7 @@ export default function FocusScreen() {
     if (!hasActive) setTimerViewMode('default');
   }, [app.timers]);
 
-  // 🔥모드 타이머 실행 시 자동 잠금
+  // 집중모드 타이머 실행 시 자동 잠금
   useEffect(() => {
     if (app.focusMode === 'screen_on' && hasRunning && !app.ultraFocus?.showChallenge && !app.ultraFocus?.gaveUp) {
       if (!screenLocked) {
@@ -620,7 +630,7 @@ export default function FocusScreen() {
     if (inSeq) {
       opts.push({ text: '✕ 연속모드 전체취소', style: 'destructive', onPress: () => app.cancelSequence() });
     } else {
-      opts.push({ text: '🗑 삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
+      opts.push({ text: '삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
     }
     Alert.alert(t.label, '타이머 옵션', opts);
   };
@@ -671,7 +681,7 @@ export default function FocusScreen() {
             ) : (
               /* 정상 결과 */
               <>
-                <Text style={S.resEmoji}>🎉</Text>
+                <Ionicons name="trophy-outline" size={28} color={T.accent} />
                 {t.result?.tier && <View style={[S.resTier, { backgroundColor: t.result.tier.color + '20' }]}><Text style={[S.resTierT, { color: t.result.tier.color }]}>{t.result.tier.label}</Text></View>}
                 <Text style={[S.resDensity, { color: T.text }]}>밀도 {t.result?.density || 0}점</Text>
                 {/* 점수 이유 한 줄 */}
@@ -679,12 +689,12 @@ export default function FocusScreen() {
                   {(() => {
                     const r = t.result || {};
                     const parts = [];
-                    if (t.type === 'countdown') parts.push(r.density >= 30 ? '완주 👏' : '도전');
+                    if (t.type === 'countdown') parts.push(r.density >= 30 ? '완주' : '도전');
                     else if (t.type === 'pomodoro') parts.push(`${t.pomoSet || 1}세트`);
                     else parts.push(formatDuration(t.elapsedSec));
                     if ((t.pauseCount || 0) === 0) parts.push('일시정지 0회');
                     else parts.push(`일시정지 ${t.pauseCount}회`);
-                    if (r.focusMode === 'screen_on') { parts.push(r.verified ? '🏆 Verified!' : '🔥모드'); }
+                    if (r.focusMode === 'screen_on') { parts.push(r.verified ? 'Verified' : '집중모드'); }
                     return parts.join(' · ');
                   })()}
                 </Text>
@@ -1036,7 +1046,7 @@ export default function FocusScreen() {
             onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
             contentContainerStyle={[S.scrollCol, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
 
-        {/* 🔥모드 상태 배너 */}
+        {/* 집중모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (() => {
           const lvColor = app.settings.ultraFocusLevel === 'exam' ? '#FF6B6B' : app.settings.ultraFocusLevel === 'focus' ? '#FFB74D' : '#4CAF50';
           const lvLabel = app.settings.ultraFocusLevel === 'exam' ? '울트라집중' : app.settings.ultraFocusLevel === 'focus' ? '집중' : '일반';
@@ -1090,7 +1100,7 @@ export default function FocusScreen() {
           <View style={[S.ultraBanner, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B60' }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
             <View style={{ flex: 1 }}>
-              <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>📱 이탈 감지!</Text>
+              <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>이탈 감지!</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>{app.ultraFocus.exitCount}번 이탈 · 선언 보너스 감소</Text>
             </View>
           </View>
@@ -1108,7 +1118,7 @@ export default function FocusScreen() {
           <View style={[S.ultraBanner, { backgroundColor: '#6B7B8D18', borderColor: '#6B7B8D60' }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
             <View style={{ flex: 1 }}>
-              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>😴 오늘은 여기까지</Text>
+              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>오늘은 여기까지</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>다음엔 더 잘할 수 있어!</Text>
             </View>
           </View>
@@ -1150,19 +1160,21 @@ export default function FocusScreen() {
 </TouchableOpacity>
         </View>
 
-        {/* D-Day 배지 (1줄4개, 최대2줄8개, 규격 통일) */}
-        {primaryDDs.length > 0 && (
-          <View style={S.ddayGrid}>{primaryDDs.slice(0, 8).map(dd => {
+        {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
+        {smartDDs.length > 0 && (
+          <View style={S.ddayGrid}>{smartDDs.map(dd => {
             const dObj = new Date(dd.date + 'T00:00:00');
             const dayName = ['일','월','화','수','목','금','토'][dObj.getDay()];
+            const days = calcDDay(dd.date);
+            const isUrgent = days !== null && days >= 0 && days <= 3;
             return (
-            <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: T.accent + '15', borderColor: T.accent + '60' }]}
+            <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: isUrgent ? (T.red + '15') : (T.accent + '15'), borderColor: isUrgent ? (T.red + '60') : (T.accent + '60') }]}
               onPress={() => Alert.alert(dd.label, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}`, [
                 { text: '확인' },
-                { text: '설정에서 수정', onPress: () => navigation.navigate('Settings') },
+                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner') },
               ])}>
               <Text style={[S.ddayCellLabel, { color: T.text }]} numberOfLines={1}>{dd.label}</Text>
-              <Text style={[S.ddayCellVal, { color: T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
+              <Text style={[S.ddayCellVal, { color: isUrgent ? T.red : T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
           })}</View>
         )}
 
@@ -1247,14 +1259,14 @@ export default function FocusScreen() {
                           {status.type === 'idle'
                             ? `${plan.targetMin}분`
                             : status.type === 'done'
-                            ? `✅ ${plan.targetMin}분`
+                            ? `${plan.targetMin}분 완료`
                             : `${Math.floor(status.currentSec / 60)}분/${plan.targetMin}분`}
                         </Text>
                         <View style={S.planAction}>
                           {status.type === 'running' ? (
-                            <Text style={{ fontSize: 15 }}>🔵</Text>
+                            <Ionicons name="radio-button-on" size={15} color={T.accent} />
                           ) : status.pct >= 1 ? (
-                            <Text style={{ fontSize: 16 }}>✅</Text>
+                            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
                           ) : status.type === 'done' ? (
                             <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
                               <Text style={S.planPlayBtnT}>▶+</Text>
@@ -1409,8 +1421,8 @@ export default function FocusScreen() {
                   )).length;
                   return (
                     <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)}
-                      style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                      <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>
+                      style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 5, borderRadius: 12, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                      <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }} numberOfLines={1}>
                         {opt.label}{cnt > 0 ? ` ${cnt}` : ''}
                       </Text>
                     </TouchableOpacity>
@@ -1439,12 +1451,12 @@ export default function FocusScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {/* D-Day 임박 경고 (시험 7일 이내) */}
+              {/* D-Day 임박 경고 (시험 14일 이내) */}
               {(() => {
                 const urgentDdays = (app.ddays || []).filter(d => {
                   if (!d.date) return false;
                   const days = calcDDay(d.date);
-                  if (days === null || days < 0 || days > 7) return false;
+                  if (days === null || days < 0 || days > 14) return false;
                   return app.todos.some(t => !t.isTemplate && t.scope === 'exam' && t.ddayId === d.id && !t.done);
                 });
                 if (urgentDdays.length === 0 || todoScopeFilter === 'exam') return null;
@@ -1532,7 +1544,7 @@ export default function FocusScreen() {
                     })}
                     {pastKeys.length > 0 && (
                       <View style={{ marginTop: 4, opacity: 0.65 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 8 }}>📁 완료된 시험</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 8 }}>완료된 시험</Text>
                         {pastKeys.map(key => {
                           const group = ddayMap[key];
                           const dd = (app.ddays || []).find(d => d.id === key);
@@ -1542,7 +1554,7 @@ export default function FocusScreen() {
                           return (
                             <View key={key} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                               <Text style={{ fontSize: 13, color: T.sub, flex: 1 }}>
-                                📁 {dd?.label || '시험'}{days !== null ? ` D+${Math.abs(days)}` : ''}
+                                {dd?.label || '시험'}{days !== null ? ` D+${Math.abs(days)}` : ''}
                               </Text>
                               <Text style={{ fontSize: 12, color: T.sub }}>{doneCnt}/{group.todos.length} ({pct}%)</Text>
                             </View>
@@ -1582,7 +1594,7 @@ export default function FocusScreen() {
                 <View style={{ paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: T.border, marginTop: 4 }}>
                   {doneCount > 0 && (
                     <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent, marginBottom: 3 }}>
-                      ✅ 오늘 완료 {doneCount}개{allDone ? ' 🎉' : ''}
+                      오늘 완료 {doneCount}개
                     </Text>
                   )}
                   <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center' }}>
@@ -1817,7 +1829,7 @@ export default function FocusScreen() {
           <View style={isTablet ? { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' } : null}>
 
 
-        {/* 🔥모드 상태 배너 */}
+        {/* 집중모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (() => {
           const lvColor = app.settings.ultraFocusLevel === 'exam' ? '#FF6B6B' : app.settings.ultraFocusLevel === 'focus' ? '#FFB74D' : '#4CAF50';
           const lvLabel = app.settings.ultraFocusLevel === 'exam' ? '울트라집중' : app.settings.ultraFocusLevel === 'focus' ? '집중' : '일반';
@@ -1871,7 +1883,7 @@ export default function FocusScreen() {
           <View style={[S.ultraBanner, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B60' }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
             <View style={{ flex: 1 }}>
-              <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>📱 이탈 감지!</Text>
+              <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>이탈 감지!</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>{app.ultraFocus.exitCount}번 이탈 · 선언 보너스 감소</Text>
             </View>
           </View>
@@ -1889,7 +1901,7 @@ export default function FocusScreen() {
           <View style={[S.ultraBanner, { backgroundColor: '#6B7B8D18', borderColor: '#6B7B8D60' }]}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
             <View style={{ flex: 1 }}>
-              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>😴 오늘은 여기까지</Text>
+              <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>오늘은 여기까지</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>다음엔 더 잘할 수 있어!</Text>
             </View>
           </View>
@@ -1931,19 +1943,21 @@ export default function FocusScreen() {
 </TouchableOpacity>
         </View>
 
-        {/* D-Day 배지 (1줄4개, 최대2줄8개, 규격 통일) */}
-        {primaryDDs.length > 0 && (
-          <View style={S.ddayGrid}>{primaryDDs.slice(0, 8).map(dd => {
+        {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
+        {smartDDs.length > 0 && (
+          <View style={S.ddayGrid}>{smartDDs.map(dd => {
             const dObj = new Date(dd.date + 'T00:00:00');
             const dayName = ['일','월','화','수','목','금','토'][dObj.getDay()];
+            const days = calcDDay(dd.date);
+            const isUrgent = days !== null && days >= 0 && days <= 3;
             return (
-            <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: T.accent + '15', borderColor: T.accent + '60' }]}
+            <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: isUrgent ? (T.red + '15') : (T.accent + '15'), borderColor: isUrgent ? (T.red + '60') : (T.accent + '60') }]}
               onPress={() => Alert.alert(dd.label, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}`, [
                 { text: '확인' },
-                { text: '설정에서 수정', onPress: () => navigation.navigate('Settings') },
+                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner') },
               ])}>
               <Text style={[S.ddayCellLabel, { color: T.text }]} numberOfLines={1}>{dd.label}</Text>
-              <Text style={[S.ddayCellVal, { color: T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
+              <Text style={[S.ddayCellVal, { color: isUrgent ? T.red : T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
           })}</View>
         )}
 
@@ -2028,14 +2042,14 @@ export default function FocusScreen() {
                           {status.type === 'idle'
                             ? `${plan.targetMin}분`
                             : status.type === 'done'
-                            ? `✅ ${plan.targetMin}분`
+                            ? `${plan.targetMin}분 완료`
                             : `${Math.floor(status.currentSec / 60)}분/${plan.targetMin}분`}
                         </Text>
                         <View style={S.planAction}>
                           {status.type === 'running' ? (
-                            <Text style={{ fontSize: 15 }}>🔵</Text>
+                            <Ionicons name="radio-button-on" size={15} color={T.accent} />
                           ) : status.pct >= 1 ? (
-                            <Text style={{ fontSize: 16 }}>✅</Text>
+                            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
                           ) : status.type === 'done' ? (
                             <TouchableOpacity style={[S.planPlayBtn, { backgroundColor: T.accent }]} onPress={() => app.startFromPlan?.(plan)}>
                               <Text style={S.planPlayBtnT}>▶+</Text>
@@ -2190,8 +2204,8 @@ export default function FocusScreen() {
                   )).length;
                   return (
                     <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)}
-                      style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                      <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>
+                      style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 5, borderRadius: 12, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                      <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }} numberOfLines={1}>
                         {opt.label}{cnt > 0 ? ` ${cnt}` : ''}
                       </Text>
                     </TouchableOpacity>
@@ -2220,12 +2234,12 @@ export default function FocusScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {/* D-Day 임박 경고 (시험 7일 이내) */}
+              {/* D-Day 임박 경고 (시험 14일 이내) */}
               {(() => {
                 const urgentDdays = (app.ddays || []).filter(d => {
                   if (!d.date) return false;
                   const days = calcDDay(d.date);
-                  if (days === null || days < 0 || days > 7) return false;
+                  if (days === null || days < 0 || days > 14) return false;
                   return app.todos.some(t => !t.isTemplate && t.scope === 'exam' && t.ddayId === d.id && !t.done);
                 });
                 if (urgentDdays.length === 0 || todoScopeFilter === 'exam') return null;
@@ -2313,7 +2327,7 @@ export default function FocusScreen() {
                     })}
                     {pastKeys.length > 0 && (
                       <View style={{ marginTop: 4, opacity: 0.65 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 8 }}>📁 완료된 시험</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 8 }}>완료된 시험</Text>
                         {pastKeys.map(key => {
                           const group = ddayMap[key];
                           const dd = (app.ddays || []).find(d => d.id === key);
@@ -2323,7 +2337,7 @@ export default function FocusScreen() {
                           return (
                             <View key={key} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                               <Text style={{ fontSize: 13, color: T.sub, flex: 1 }}>
-                                📁 {dd?.label || '시험'}{days !== null ? ` D+${Math.abs(days)}` : ''}
+                                {dd?.label || '시험'}{days !== null ? ` D+${Math.abs(days)}` : ''}
                               </Text>
                               <Text style={{ fontSize: 12, color: T.sub }}>{doneCnt}/{group.todos.length} ({pct}%)</Text>
                             </View>
@@ -2363,7 +2377,7 @@ export default function FocusScreen() {
                 <View style={{ paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: T.border, marginTop: 4 }}>
                   {doneCount > 0 && (
                     <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent, marginBottom: 3 }}>
-                      ✅ 오늘 완료 {doneCount}개{allDone ? ' 🎉' : ''}
+                      오늘 완료 {doneCount}개
                     </Text>
                   )}
                   <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center' }}>
@@ -2665,12 +2679,12 @@ export default function FocusScreen() {
       <Modal visible={!!memoTimerId} transparent animationType="fade">
         <View style={S.mo}>
           <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
-            <Text style={[S.modalTitle, { color: T.text }]}>📝 한줄 메모</Text>
+            <Text style={[S.modalTitle, { color: T.text }]}>한줄 메모</Text>
             <Text style={[{ fontSize: 13, color: T.sub, marginBottom: 8, textAlign: 'center' }]}>오늘 이 공부, 한 줄로 남겨봐요</Text>
             <TextInput
               value={memoText}
               onChangeText={setMemoText}
-              placeholder="예) 수학 미적분 어려웠다, 단어 80개 완료 🎯"
+              placeholder="예) 수학 미적분 어려웠다, 단어 80개 완료"
               placeholderTextColor={T.sub}
               style={[S.memoInput, { borderColor: T.border, backgroundColor: T.surface2, color: T.text }]}
               maxLength={50}
@@ -2935,7 +2949,7 @@ export default function FocusScreen() {
               {/* 기한 */}
               <Text style={{ fontSize: 13, fontWeight: '700', color: editTodoRepeatType !== 'none' ? T.border : T.sub, marginBottom: 6 }}>기한</Text>
               {editTodoRepeatType !== 'none' ? (
-                <Text style={{ fontSize: 13, color: T.accent, marginBottom: 14 }}>🔁 반복 설정 시 해당 요일 오늘 할 일로 자동 추가됩니다</Text>
+                <Text style={{ fontSize: 13, color: T.accent, marginBottom: 14 }}>반복 설정 시 해당 요일 오늘 할 일로 자동 추가됩니다</Text>
               ) : (
                 <>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
@@ -2973,7 +2987,7 @@ export default function FocusScreen() {
               {/* 우선순위 */}
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>우선순위</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-                {[{ id: 'high', label: '🔴 중요', color: '#E17055' }, { id: 'normal', label: '⚪ 보통', color: '#4A90D9' }, { id: 'low', label: '⚫ 낮음', color: '#8E9AAF' }].map(opt => {
+                {[{ id: 'high', label: '중요', color: '#E17055' }, { id: 'normal', label: '보통', color: '#4A90D9' }, { id: 'low', label: '낮음', color: '#8E9AAF' }].map(opt => {
                   const sel = editTodoPriority === opt.id;
                   return (
                     <TouchableOpacity key={opt.id} onPress={() => { Keyboard.dismiss(); setEditTodoPriority(opt.id); }}
@@ -3143,7 +3157,7 @@ export default function FocusScreen() {
               {app.settings.mainCharacter === 'toru' ? '토루가 울고 있어...' : app.settings.mainCharacter === 'paengi' ? '팽이가 슬퍼하고 있어...' : app.settings.mainCharacter === 'taco' ? '타코가 실망했어...' : '토토루가 속상해...'}
             </Text>
             <View style={[S.chalInfo, { backgroundColor: '#FF6B6B12', borderColor: '#FF6B6B40' }]}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#FF6B6B' }}>📱 이탈 시간</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#FF6B6B' }}>이탈 시간</Text>
               <Text style={{ fontSize: 22, fontWeight: '900', color: '#FF6B6B', marginTop: 4 }}>
                 {challengeAwayMin > 0 ? `${challengeAwayMin}분 ${challengeAwaySec}초` : `${challengeAwaySec}초`}
               </Text>
@@ -3157,13 +3171,13 @@ export default function FocusScreen() {
               value={challengeInput} onChangeText={setChallengeInput} placeholder="여기에 입력..." placeholderTextColor={T.sub} autoFocus />
             <TouchableOpacity style={[S.chalBtn, { backgroundColor: challengeMatch ? T.accent : T.border }]}
               onPress={() => { if (challengeMatch) { setChallengeInput(''); app.dismissChallenge?.(); } }} disabled={!challengeMatch} activeOpacity={0.8}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: challengeMatch ? 'white' : T.sub }}>{challengeMatch ? '💪 다시 집중하기!' : '문구를 정확히 입력하세요'}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: challengeMatch ? 'white' : T.sub }}>{challengeMatch ? '다시 집중하기!' : '문구를 정확히 입력하세요'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8 }} onPress={() => {
                 const today = new Date().toISOString().split('T')[0];
                 const todayCount = app.settings.giveUpDate === today ? (app.settings.giveUpCount || 0) : 0;
                 const countMsg = todayCount > 0 ? `오늘 ${todayCount + 1}번째 그만하기예요.\n` : '';
-                Alert.alert('😴 정말 그만할까요?', `${countMsg}모든 타이머가 중단돼요`, [{ text: '계속하기', style: 'cancel' }, { text: '그만하기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }]);
+                Alert.alert('정말 그만할까요?', `${countMsg}모든 타이머가 중단돼요`, [{ text: '계속하기', style: 'cancel' }, { text: '그만하기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }]);
               }}>
               <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>그만하기</Text>
             </TouchableOpacity>
@@ -3172,7 +3186,7 @@ export default function FocusScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 🔒 잠금 오버레이 (🔥모드 전용) - 풀스크린 모달 */}
+      {/* 🔒 잠금 오버레이 (집중모드 전용) - 풀스크린 모달 */}
       <Modal visible={screenLocked} transparent animationType="none" statusBarTranslucent>
         <View style={[S.lockOverlayBg, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             {/* 첫 사용 한 줄 가이드 */}
@@ -3278,14 +3292,14 @@ export default function FocusScreen() {
             <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', marginBottom: 12 }}>오늘 공부 어땠나요?</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
               {[
-                { icon: '🔥', label: '완전 집중', value: 'fire', bonus: '+3점', color: '#FF6B9D' },
-                { icon: '😐', label: '보통이었어', value: 'normal', bonus: '±0점', color: T.sub },
-                { icon: '😴', label: '좀 딴 짓', value: 'sleepy', bonus: '±0점', color: '#B2BEC3' },
+                { icon: 'flame', label: '완전 집중', value: 'fire', bonus: '+3점', color: '#FF6B9D' },
+                { icon: 'happy-outline', label: '보통이었어', value: 'normal', bonus: '±0점', color: T.sub },
+                { icon: 'moon-outline', label: '좀 딴 짓', value: 'sleepy', bonus: '±0점', color: '#B2BEC3' },
               ].map(opt => (
                 <TouchableOpacity key={opt.value}
                   style={[S.selfRatingBtn, { backgroundColor: T.card, borderColor: resultSelfRating === opt.value ? opt.color : T.border, borderWidth: resultSelfRating === opt.value ? 2 : 1 }]}
                   onPress={() => setResultSelfRating(opt.value)}>
-                  <Text style={{ fontSize: 28, marginBottom: 6 }}>{opt.icon}</Text>
+                  <Ionicons name={opt.icon} size={28} color={opt.color} style={{ marginBottom: 6 }} />
                   <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, textAlign: 'center' }}>{opt.label}</Text>
                   <Text style={{ fontSize: 11, color: opt.color, fontWeight: '700', marginTop: 3 }}>{opt.bonus}</Text>
                 </TouchableOpacity>
