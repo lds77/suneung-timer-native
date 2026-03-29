@@ -363,10 +363,11 @@ export default function SubjectsScreen({ navigation }) {
         {tab === 'method' && (
           <>
             <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+            <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
             {methods.map(method => {
               const totalMin = method.items.reduce((s, it) => s + it.min, 0) + (method.items.length - 1) * method.breakMin;
               return (
-                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
                   <View style={S.methodTop}>
                     <View style={[S.methodIconWrap, { backgroundColor: method.color + '15' }]}>
                       <Ionicons name={method.icon} size={24} color={method.color} />
@@ -400,6 +401,7 @@ export default function SubjectsScreen({ navigation }) {
                 </View>
               );
             })}
+            </View>
           </>
         )}
 
@@ -498,10 +500,11 @@ export default function SubjectsScreen({ navigation }) {
               <>
                 {/* 자유 선택 모드 (기존) */}
                 <Text style={[S.secLabel, { color: T.sub }]}>과목별 시험시간 · 개별 또는 순차 시작</Text>
+                <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
                 {SUNEUNG_SUBJECTS.map(subj => {
                   const sel = suneungSelected.includes(subj.name);
                   return (
-                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
+                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
                       <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
                         <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
@@ -518,6 +521,7 @@ export default function SubjectsScreen({ navigation }) {
                     </View>
                   );
                 })}
+                </View>
               </>
             )}
 
@@ -617,6 +621,7 @@ export default function SubjectsScreen({ navigation }) {
               </TouchableOpacity>
             )}
 
+            <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
             {sorted.map(subj => {
               const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
               const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
@@ -625,7 +630,7 @@ export default function SubjectsScreen({ navigation }) {
               const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
               return (
                 <TouchableOpacity key={subj.id}
-                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
+                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }, isLandscape && { flex: 1, minWidth: '45%' }]}
                   onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
                   activeOpacity={1}
                   disabled={editMode}>
@@ -684,6 +689,7 @@ export default function SubjectsScreen({ navigation }) {
                 </TouchableOpacity>
               );
             })}
+            </View>
 
             {/* 빠른 추가 */}
             <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
