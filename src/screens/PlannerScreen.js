@@ -329,13 +329,14 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 }
 
 // ─── 공부계획 실행 바텀시트 ───
-function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, T, getPlanCompletedSec }) {
+function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, T, getPlanCompletedSec }) {
   if (!plan) return null;
   const doneSec = getPlanCompletedSec?.(plan.id) || 0;
   const targetSec = (plan.targetMin || 0) * 60;
   const pct = targetSec > 0 ? Math.min(1, doneSec / targetSec) : 0;
   const doneMin = Math.round(doneSec / 60);
   const isDone = pct >= 1;
+  const isTempAssigned = !!plan._tempAssigned;
 
   const startBtnColor = isDone ? T.green : (!isToday ? T.surface : (plan.color || T.accent));
   const startBtnText = isDone ? '✅ 완료' : (!isToday ? '오늘 일정만 실행 가능' : '▶ 지금 시작');
@@ -349,6 +350,11 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, T, 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: plan.color || T.accent, marginRight: 10 }} />
           <Text style={{ flex: 1, fontSize: 17, fontWeight: '800', color: T.text }}>{plan.label}</Text>
+          {isTempAssigned && (
+            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: T.accent + '20', marginRight: 8 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>임시 배치</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={22} color={T.sub} />
           </TouchableOpacity>
@@ -382,25 +388,47 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, T, 
         )}
 
         {/* 버튼 */}
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity onPress={onEdit} style={{
-            flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-            backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.border,
-          }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: T.text }}>수정</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={isToday && !isDone ? onStart : undefined}
-            disabled={!isToday || isDone}
-            style={{
-              flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-              backgroundColor: startBtnColor, opacity: (!isToday && !isDone) ? 0.5 : 1,
+        {isTempAssigned ? (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity onPress={onUnassign} style={{
+              flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+              backgroundColor: T.red + '18', borderWidth: 1.5, borderColor: T.red + '50',
             }}>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: startBtnTextColor }}>
-              {startBtnText}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: T.red }}>배치 취소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={isToday && !isDone ? onStart : undefined}
+              disabled={!isToday || isDone}
+              style={{
+                flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+                backgroundColor: startBtnColor, opacity: (!isToday && !isDone) ? 0.5 : 1,
+              }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: startBtnTextColor }}>
+                {startBtnText}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity onPress={onEdit} style={{
+              flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+              backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.border,
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: T.text }}>수정</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={isToday && !isDone ? onStart : undefined}
+              disabled={!isToday || isDone}
+              style={{
+                flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+                backgroundColor: startBtnColor, opacity: (!isToday && !isDone) ? 0.5 : 1,
+              }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: startBtnTextColor }}>
+                {startBtnText}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -531,6 +559,28 @@ export default function PlannerScreen({ navigation }) {
     const id = setInterval(() => setNowY(getNowY()), 60000);
     return () => clearInterval(id);
   }, []);
+
+  // weeklySchedule 변경 시 유효하지 않은 tempAssignments 정리
+  // (시간표 초기화 등으로 plan ID가 사라졌을 때 이전 임시 배치가 빈 시간을 막는 버그 방지)
+  useEffect(() => {
+    setTempAssignments(prev => {
+      if (Object.keys(prev).length === 0) return prev;
+      const validIds = new Set();
+      const ws = app.weeklySchedule;
+      if (ws) {
+        DAY_KEYS.forEach(k => {
+          (ws[k]?.plans || []).forEach(p => validIds.add(p.id));
+        });
+      }
+      const next = {};
+      let changed = false;
+      Object.entries(prev).forEach(([id, val]) => {
+        if (validIds.has(id)) next[id] = val;
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [app.weeklySchedule]);
 
   // 초기 스크롤 — 현재 시간 근처로
   useEffect(() => {
@@ -1246,9 +1296,14 @@ export default function PlannerScreen({ navigation }) {
   // 특정 요일의 빈 시간 슬롯 계산 (30분 이상)
   const getDayFreeSlots = useCallback((dayKey) => {
     const dd = getDayData(dayKey);
+    // tempAssignments 중 같은 요일/주차에 배치된 항목도 점유 시간으로 포함
+    const tempItems = Object.values(tempAssignments)
+      .filter(a => a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
+      .map(a => ({ start: a.start, end: a.end }));
     const items = [
       ...(dd.fixed || []).map(f => ({ ...f })),
       ...(dd.plans || []).filter(p => p.start && p.end).map(p => ({ ...p })),
+      ...tempItems,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
     const MIN_GAP = 30;
     const slots = [];
@@ -1265,7 +1320,7 @@ export default function PlannerScreen({ navigation }) {
       slots.push({ start: minToStr(prevEnd), end: '24:00', durationMin: 24 * 60 - prevEnd });
     }
     return slots;
-  }, [getDayData]);
+  }, [getDayData, tempAssignments, weekOffset]);
 
 
   // 주간 제목 문자열
@@ -1784,6 +1839,16 @@ export default function PlannerScreen({ navigation }) {
         plan={planSheet?.plan}
         isToday={planSheet?.dayKey === todayKey && weekOffset === 0}
         onClose={() => setPlanSheet(null)}
+        onUnassign={() => {
+          if (planSheet?.plan?.id) {
+            setTempAssignments(prev => {
+              const next = { ...prev };
+              delete next[planSheet.plan.id];
+              return next;
+            });
+          }
+          setPlanSheet(null);
+        }}
         onEdit={() => {
           const p = planSheet.plan;
           const dk = planSheet.dayKey;
