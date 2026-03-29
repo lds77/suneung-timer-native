@@ -1390,15 +1390,15 @@ export function AppProvider({ children }) {
             const newElapsed = t.elapsedSec + addedSec;
             if (t.type === 'countdown') {
               const e = Math.min(newElapsed, t.totalSec);
-              // 이미 완료된 카운트다운은 paused로
-              if (e >= t.totalSec) return { ...t, elapsedSec: t.totalSec, status: 'paused', resumedAt: null, elapsedSecAtResume: t.totalSec };
+              // 이미 완료된 카운트다운은 복원하지 않음 (null → filter로 제거)
+              if (e >= t.totalSec) return null;
               // 실행 중이었으면 running 유지 (resumedAt 갱신)
               if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
               return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
             }
             if (t.status === 'running') return { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: now, elapsedSecAtResume: newElapsed };
             return { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed };
-          });
+          }).filter(Boolean);
           setTimers(restored);
           // running으로 복원된 타이머 알림 재예약
           restored.forEach(t => {
