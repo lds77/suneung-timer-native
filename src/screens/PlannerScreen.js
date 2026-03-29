@@ -450,7 +450,14 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
 // ─── 빈 시간 배치 바텀시트 ───
 function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignToday, onManual, T }) {
   if (!plan) return null;
-  const futureSlots = freeSlots.filter(s => parseTimeToMin(s.start) >= nowMin);
+  const futureSlots = freeSlots
+    .filter(s => parseTimeToMin(s.end === '24:00' ? '24:00' : s.end) > nowMin)
+    .map(s => {
+      const clippedStart = Math.max(parseTimeToMin(s.start), nowMin);
+      const end = parseTimeToMin(s.end === '24:00' ? '24:00' : s.end);
+      return { ...s, start: minToStr(clippedStart), durationMin: end - clippedStart };
+    })
+    .filter(s => s.durationMin >= 30);
 
   const handleSlotTap = (start, assignEnd) => {
     onAssignToday(plan, start, assignEnd);
@@ -1891,8 +1898,9 @@ export default function PlannerScreen({ navigation }) {
         onEdit={() => {
           const p = planSheet.plan;
           const dk = planSheet.dayKey;
+          const isTmp = !!p._tempAssigned;
           setPlanSheet(null);
-          setModal({ dayKey: dk, initial: { ...p, blockType: 'plan' } });
+          setModal({ dayKey: dk, tempOnly: isTmp, initial: { ...p, blockType: 'plan' } });
         }}
         onStart={() => {
           const hasRunning = (app.timers || []).some(t => t.status === 'running' || t.status === 'paused');

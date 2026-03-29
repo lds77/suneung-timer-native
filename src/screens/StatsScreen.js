@@ -5,7 +5,6 @@ import {
   Dimensions, Share, StyleSheet, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
-import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { useApp } from '../hooks/useAppState';
@@ -102,7 +101,7 @@ export default function StatsScreen() {
   const [showDensityDetail, setShowDensityDetail] = useState(false);
 
   // 과목 탭
-  const [subjPeriod, setSubjPeriod] = useState('30d'); // '7d' | '30d' | 'all'
+  const [subjPeriod, setSubjPeriod] = useState('week'); // 'week' | 'month' | 'all'
   const [subjDetail, setSubjDetail] = useState(null);  // subject id → 상세 시트 트리거
 
 
@@ -490,11 +489,15 @@ export default function StatsScreen() {
   // lbl_ 접두사 or _none = 과목 미매칭(뽀모도로·학습법 등 타이머 이름) → '기타'로 통합
   const subjectAllStats = useMemo(() => {
     const now = new Date();
-    const cutoff = subjPeriod === '7d'
-      ? new Date(now - 7 * 864e5).toISOString().slice(0, 10)
-      : subjPeriod === '30d'
-      ? new Date(now - 30 * 864e5).toISOString().slice(0, 10)
-      : null;
+    let cutoff = null;
+    if (subjPeriod === 'week') {
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      cutoff = monday.toISOString().slice(0, 10);
+    } else if (subjPeriod === 'month') {
+      cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
     const filtered = cutoff ? app.sessions.filter(s => s.date >= cutoff) : app.sessions;
     const map = {};
     filtered.forEach(s => {
@@ -523,11 +526,15 @@ export default function StatsScreen() {
     const stat = subjectAllStats.find(s => s.id === subjDetail);
     if (!stat) return null;
     const now = new Date();
-    const cutoff = subjPeriod === '7d'
-      ? new Date(now - 7 * 864e5).toISOString().slice(0, 10)
-      : subjPeriod === '30d'
-      ? new Date(now - 30 * 864e5).toISOString().slice(0, 10)
-      : null;
+    let cutoff = null;
+    if (subjPeriod === 'week') {
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      cutoff = monday.toISOString().slice(0, 10);
+    } else if (subjPeriod === 'month') {
+      cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
     const filtered = cutoff ? app.sessions.filter(s => s.date >= cutoff) : app.sessions;
     const isEtc = subjDetail === '__기타__';
     const recentSess = filtered
@@ -1689,7 +1696,7 @@ export default function StatsScreen() {
         {tab === 'subject' && (<>
           {/* 기간 선택 */}
           <View style={S.subjPeriodRow}>
-            {[['7d', '7일'], ['30d', '30일'], ['all', '전체']].map(([val, label]) => (
+            {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
               <TouchableOpacity
                 key={val}
                 style={[S.subjPeriodBtn, {
