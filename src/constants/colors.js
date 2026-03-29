@@ -82,7 +82,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
     return {
       bg: '#131316', card: ac.dt2, surface: ac.dt2, surface2: ac.dt3,
       border: ac.dt3, tabBar: '#131316', tabBarBorder: ac.dt3,
-      text: '#E8E8F2', sub: '#9898B0', accent: ac.accent, accentLight: ac.dt2,
+      text: '#E8E8F2', sub: '#AEAEC8', accent: ac.accent, accentLight: ac.dt2,
       heat1: ac.dh[0], heat2: ac.dh[1], heat3: ac.dh[2], heat4: ac.dh[3],
       green: '#00B894', red: '#E84057', gold: '#FFD700',
       purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#636E72', fontScale: fs,
@@ -94,7 +94,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
   return {
     bg: '#F7F7F9', card: '#FFFFFF', surface: ac.t1, surface2: ac.t2,
     border: ac.t3, tabBar: '#FFFFFF', tabBarBorder: ac.t2,
-    text: '#2D2B3D', sub: '#8B8599', accent: ac.accent, accentLight: ac.t1,
+    text: '#2D2B3D', sub: '#6B6580', accent: ac.accent, accentLight: ac.t1,
     heat1: ac.h[0], heat2: ac.h[1], heat3: ac.h[2], heat4: ac.h[3],
     green: '#00B894', red: '#E84057', gold: '#FFD700',
     purple: '#6C5CE7', yellow: '#FDCB6E', gray: '#B2BEC3', fontScale: fs,
@@ -127,4 +127,23 @@ export const CHARACTER_BG = {
 export const SUBJECT_COLORS = [
   '#E8575A', '#4A90D9', '#5CB85C', '#F5A623',
   '#9B6FC3', '#FF6B9D', '#00B894', '#E17055',
+];
+
+// 집중탭 헤더 배경 프리셋 (0 = 기본/투명)
+export const HEADER_BG_PRESETS = [
+  { id: 0,  type: 'none',     label: '기본' },
+  // 단색
+  { id: 1,  type: 'solid',    label: '코랄',    color: '#FF6B6B' },
+  { id: 2,  type: 'solid',    label: '오렌지',  color: '#FF9F43' },
+  { id: 3,  type: 'solid',    label: '민트',    color: '#00B894' },
+  { id: 4,  type: 'solid',    label: '스카이',  color: '#4A90D9' },
+  { id: 5,  type: 'solid',    label: '퍼플',    color: '#6C5CE7' },
+  { id: 6,  type: 'solid',    label: '다크',    color: '#2D3436' },
+  // 그라데이션
+  { id: 7,  type: 'gradient', label: '선셋',    colors: ['#FF6B6B', '#FF9F43'] },
+  { id: 8,  type: 'gradient', label: '오션',    colors: ['#4A90D9', '#00CEC9'] },
+  { id: 9,  type: 'gradient', label: '포레스트', colors: ['#00B894', '#6AB04C'] },
+  { id: 10, type: 'gradient', label: '퍼플드림', colors: ['#A29BFE', '#6C5CE7'] },
+  { id: 11, type: 'gradient', label: '로즈',    colors: ['#FD79A8', '#E84393'] },
+  { id: 12, type: 'gradient', label: '골드',    colors: ['#F9CA24', '#F0932B'] },
 ];

@@ -5,7 +5,8 @@ import { useNavigation } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Dimensions, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform, Vibration, Keyboard, useWindowDimensions, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
-import { LIGHT, DARK, getTheme } from '../constants/colors';
+import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -16,6 +17,15 @@ import { getTier } from '../constants/presets';
 import { Ionicons } from '@expo/vector-icons';
 
 const SW = Dimensions.get('window').width;
+
+// 헥스 색상 밝기 계산 (0~255), 160 초과 = 밝은 배경
+function hexLuminance(hex) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
 const isTablet = SW >= 600;
 const GAP = 8;
 const CONTENT_MAX_W_STATIC = isTablet ? 680 : SW;
@@ -1129,56 +1139,86 @@ export default function FocusScreen() {
         )}
 
         {/* 헤더 */}
-        <View style={[S.header, isTablet && !isLandscape && S.tabletBlock]}>
-          <View style={S.headerLeft}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
-            <TouchableOpacity
-              style={{ marginLeft: 8, flex: 1, minWidth: 0 }}
-              onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
-              activeOpacity={1}
-            >
-              <Text style={[S.title, { color: T.text }]} numberOfLines={1}>
-                {app.settings.nickname || '열공메이트'}
-              </Text>
-              {app.settings.motto ? (
-                <Text style={[S.headerSub, { color: T.accent, fontWeight: '700' }]} numberOfLines={1}>
-                  "{app.settings.motto}"
-                </Text>
-              ) : (
-                <>
-                  {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      {app.settings.streak > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>
-                          <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
-                        </Text>
+        {(() => {
+          const hPreset = HEADER_BG_PRESETS[app.settings.headerBgPreset ?? 0] || HEADER_BG_PRESETS[0];
+          const hasBg = hPreset.type !== 'none';
+          const bgSampleColor = hPreset.type === 'solid' ? hPreset.color
+            : hPreset.type === 'gradient' ? hPreset.colors[0] : null;
+          const isLightBg = bgSampleColor ? hexLuminance(bgSampleColor) > 160 : false;
+          const hText = hasBg ? (isLightBg ? '#1C1C1E' : '#fff') : T.text;
+          const hSub  = hasBg ? (isLightBg ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)') : T.sub;
+          const hAcc  = hasBg ? (isLightBg ? '#333' : '#fff') : T.accent;
+          const hShadow = (hasBg && !isLightBg) ? { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 } : {};
+          const cardStyle = [S.headerCard, isTablet && !isLandscape && S.tabletBlock,
+            hPreset.type === 'solid' ? { backgroundColor: hPreset.color }
+            : hPreset.type === 'none' ? { backgroundColor: T.card, borderWidth: 1, borderColor: T.border } : {}];
+          const innerContent = (
+            <View style={S.header}>
+              <View style={S.headerLeft}>
+                <TouchableOpacity
+                  style={{ flex: 1, minWidth: 0 }}
+                  onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
+                  activeOpacity={1}
+                >
+                  <Text style={[S.title, { color: hText }, hShadow]} numberOfLines={1}>
+                    {app.settings.nickname || '열공메이트'}
+                  </Text>
+                  {app.settings.motto ? (
+                    <Text style={[S.headerSub, { color: hAcc, fontWeight: '700' }, hShadow]} numberOfLines={1}>
+                      "{app.settings.motto}"
+                    </Text>
+                  ) : (
+                    <>
+                      {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {app.settings.streak > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>
+                              <Text style={{ color: hAcc, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
+                            </Text>
+                          )}
+                          {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>·</Text>
+                          )}
+                          {app.todaySessions?.length > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>
+                              오늘 <Text style={{ color: hAcc, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
+                            </Text>
+                          )}
+                        </View>
                       )}
-                      {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
-                      )}
-                      {app.todaySessions?.length > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>
-                          오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
-                        </Text>
-                      )}
-                    </View>
+                      {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
+                          <View style={{ backgroundColor: hasBg ? 'rgba(255,255,255,0.25)' : T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: hText, ...hShadow }}>{m.day}</Text>
+                          </View>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: hAcc, flexShrink: 1, ...hShadow }}>{m.text}</Text>
+                        </View>
+                      ); })()}
+                    </>
                   )}
-                  {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
-                      <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
-                    </View>
-                  ); })()}
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}>
-            <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
-          </TouchableOpacity>
-        </View>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[S.darkBtn, hasBg
+                  ? (isLightBg
+                    ? { borderColor: 'rgba(0,0,0,0.2)', backgroundColor: 'rgba(0,0,0,0.08)' }
+                    : { borderColor: 'rgba(255,255,255,0.4)', backgroundColor: 'rgba(255,255,255,0.15)' })
+                  : { borderColor: T.border, backgroundColor: T.card }]}
+                onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}
+              >
+                <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={hasBg ? (isLightBg ? '#1C1C1E' : '#fff') : T.sub} />
+              </TouchableOpacity>
+            </View>
+          );
+          if (hPreset.type === 'gradient') {
+            return (
+              <LinearGradient colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+                {innerContent}
+              </LinearGradient>
+            );
+          }
+          return <View style={cardStyle}>{innerContent}</View>;
+        })()}
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
         {smartDDs.length > 0 && (
@@ -1254,7 +1294,7 @@ export default function FocusScreen() {
                     return (
                       <View key={item.id} style={S.planFixedRow}>
                         <Ionicons name={resolveIcon(item.icon) || 'pin-outline'} size={14} color={isPast ? T.sub + '70' : T.sub} />
-                        <Text style={[S.planFixedLabel, { color: T.text + 'A0' }, pastStyle]}>{item.label}</Text>
+                        <Text style={[S.planFixedLabel, { color: T.sub }, pastStyle]}>{item.label}</Text>
                         <Text style={[S.planFixedTime, { color: T.sub }, pastStyle]}>{item.start}–{item.end}</Text>
                       </View>
                     );
@@ -1928,56 +1968,86 @@ export default function FocusScreen() {
         )}
 
         {/* 헤더 */}
-        <View style={[S.header, isTablet && !isLandscape && S.tabletBlock]}>
-          <View style={S.headerLeft}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
-            <TouchableOpacity
-              style={{ marginLeft: 8, flex: 1, minWidth: 0 }}
-              onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
-              activeOpacity={1}
-            >
-              <Text style={[S.title, { color: T.text }]} numberOfLines={1}>
-                {app.settings.nickname || '열공메이트'}
-              </Text>
-              {app.settings.motto ? (
-                <Text style={[S.headerSub, { color: T.accent, fontWeight: '700' }]} numberOfLines={1}>
-                  "{app.settings.motto}"
-                </Text>
-              ) : (
-                <>
-                  {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      {app.settings.streak > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>
-                          <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
-                        </Text>
+        {(() => {
+          const hPreset = HEADER_BG_PRESETS[app.settings.headerBgPreset ?? 0] || HEADER_BG_PRESETS[0];
+          const hasBg = hPreset.type !== 'none';
+          const bgSampleColor = hPreset.type === 'solid' ? hPreset.color
+            : hPreset.type === 'gradient' ? hPreset.colors[0] : null;
+          const isLightBg = bgSampleColor ? hexLuminance(bgSampleColor) > 160 : false;
+          const hText = hasBg ? (isLightBg ? '#1C1C1E' : '#fff') : T.text;
+          const hSub  = hasBg ? (isLightBg ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)') : T.sub;
+          const hAcc  = hasBg ? (isLightBg ? '#333' : '#fff') : T.accent;
+          const hShadow = (hasBg && !isLightBg) ? { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 } : {};
+          const cardStyle = [S.headerCard, isTablet && !isLandscape && S.tabletBlock,
+            hPreset.type === 'solid' ? { backgroundColor: hPreset.color }
+            : hPreset.type === 'none' ? { backgroundColor: T.card, borderWidth: 1, borderColor: T.border } : {}];
+          const innerContent = (
+            <View style={S.header}>
+              <View style={S.headerLeft}>
+                <TouchableOpacity
+                  style={{ flex: 1, minWidth: 0 }}
+                  onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
+                  activeOpacity={1}
+                >
+                  <Text style={[S.title, { color: hText }, hShadow]} numberOfLines={1}>
+                    {app.settings.nickname || '열공메이트'}
+                  </Text>
+                  {app.settings.motto ? (
+                    <Text style={[S.headerSub, { color: hAcc, fontWeight: '700' }, hShadow]} numberOfLines={1}>
+                      "{app.settings.motto}"
+                    </Text>
+                  ) : (
+                    <>
+                      {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {app.settings.streak > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>
+                              <Text style={{ color: hAcc, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
+                            </Text>
+                          )}
+                          {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>·</Text>
+                          )}
+                          {app.todaySessions?.length > 0 && (
+                            <Text style={[S.headerSub, { color: hSub }, hShadow]}>
+                              오늘 <Text style={{ color: hAcc, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
+                            </Text>
+                          )}
+                        </View>
                       )}
-                      {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
-                      )}
-                      {app.todaySessions?.length > 0 && (
-                        <Text style={[S.headerSub, { color: T.sub }]}>
-                          오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
-                        </Text>
-                      )}
-                    </View>
+                      {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
+                          <View style={{ backgroundColor: hasBg ? 'rgba(255,255,255,0.25)' : T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: hText, ...hShadow }}>{m.day}</Text>
+                          </View>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: hAcc, flexShrink: 1, ...hShadow }}>{m.text}</Text>
+                        </View>
+                      ); })()}
+                    </>
                   )}
-                  {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
-                      <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
-                    </View>
-                  ); })()}
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}>
-            <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
-          </TouchableOpacity>
-        </View>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[S.darkBtn, hasBg
+                  ? (isLightBg
+                    ? { borderColor: 'rgba(0,0,0,0.2)', backgroundColor: 'rgba(0,0,0,0.08)' }
+                    : { borderColor: 'rgba(255,255,255,0.4)', backgroundColor: 'rgba(255,255,255,0.15)' })
+                  : { borderColor: T.border, backgroundColor: T.card }]}
+                onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}
+              >
+                <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={hasBg ? (isLightBg ? '#1C1C1E' : '#fff') : T.sub} />
+              </TouchableOpacity>
+            </View>
+          );
+          if (hPreset.type === 'gradient') {
+            return (
+              <LinearGradient colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+                {innerContent}
+              </LinearGradient>
+            );
+          }
+          return <View style={cardStyle}>{innerContent}</View>;
+        })()}
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
         {smartDDs.length > 0 && (
@@ -2053,7 +2123,7 @@ export default function FocusScreen() {
                     return (
                       <View key={item.id} style={S.planFixedRow}>
                         <Ionicons name={resolveIcon(item.icon) || 'pin-outline'} size={14} color={isPast ? T.sub + '70' : T.sub} />
-                        <Text style={[S.planFixedLabel, { color: T.text + 'A0' }, pastStyle]}>{item.label}</Text>
+                        <Text style={[S.planFixedLabel, { color: T.sub }, pastStyle]}>{item.label}</Text>
                         <Text style={[S.planFixedTime, { color: T.sub }, pastStyle]}>{item.start}–{item.end}</Text>
                       </View>
                     );
@@ -3443,7 +3513,8 @@ function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 }, scrollCol: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
   scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
   tabletBlock: { width: CONTENT_MAX_W_STATIC },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headerCard: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, overflow: 'hidden' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
   title: { fontSize: Math.round(15 * fs), fontWeight: '800' }, headerSub: { fontSize: Math.round(11 * fs), marginTop: 1 },
   darkBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -3456,15 +3527,15 @@ function createStyles(fs) { return StyleSheet.create({
   planEditBtn: { fontSize: Math.round(14 * fs), fontWeight: '700' },
   planFixedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4 },
   planFixedIcon: { fontSize: Math.round(14 * fs) },
-  planFixedLabel: { flex: 1, fontSize: Math.round(13 * fs) },
-  planFixedTime: { fontSize: Math.round(12 * fs) },
+  planFixedLabel: { flex: 1, fontSize: Math.round(13 * fs), fontWeight: '500' },
+  planFixedTime: { fontSize: Math.round(12 * fs), fontWeight: '500' },
   planDivider: { height: 1, marginHorizontal: 12, marginVertical: 4 },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6 },
   planRowIcon: { fontSize: Math.round(16 * fs) },
   planLabel: { fontSize: Math.round(14 * fs), fontWeight: '600' },
   planMiniTrack: { height: 3, borderRadius: 2, marginTop: 3, overflow: 'hidden' },
   planMiniFill: { height: 3, borderRadius: 2 },
-  planTime: { fontSize: Math.round(12 * fs), minWidth: 54, textAlign: 'right' },
+  planTime: { fontSize: Math.round(12 * fs), minWidth: 54, textAlign: 'right', fontWeight: '600' },
   planAction: { width: 32, alignItems: 'center' },
   planPlayBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   planPlayBtnT: { color: 'white', fontSize: Math.round(12 * fs), fontWeight: '800' },

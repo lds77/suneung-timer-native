@@ -8,11 +8,10 @@ import {
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
-import { LIGHT, DARK, getTheme } from '../constants/colors';
-import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
+import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 
-import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import Constants from 'expo-constants';
 // IntentLauncher — 가이드에서 필요 시 복원 가능
@@ -295,6 +294,7 @@ export default function SettingsScreen() {
   const [showSchoolPicker, setShowSchoolPicker] = useState(false);
   const [showFocusPicker, setShowFocusPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showHeaderBgPicker, setShowHeaderBgPicker] = useState(false);
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
@@ -303,10 +303,10 @@ export default function SettingsScreen() {
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
   useEffect(() => {
-    const anyOpen = showGuide || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showStylePicker || showFontPicker;
+    const anyOpen = showGuide || showGoalPicker || showSchoolPicker || showFocusPicker || showColorPicker || showHeaderBgPicker || showStylePicker || showFontPicker;
     if (!anyOpen && prevModalOpen.current) Keyboard.dismiss();
     prevModalOpen.current = anyOpen;
-  }, [showGuide, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showStylePicker, showFontPicker]);
+  }, [showGuide, showGoalPicker, showSchoolPicker, showFocusPicker, showColorPicker, showHeaderBgPicker, showStylePicker, showFontPicker]);
 
 
   return (
@@ -316,7 +316,7 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="always" keyboardDismissMode="none"
         onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}>
-        {/* 닉네임 / 한마디 */}
+        {/* 닉네임 / 한마디 / 헤더 배경 */}
         <Section T={T} title="내 정보">
           <ProfileInput
             nickname={app.settings.nickname}
@@ -327,35 +327,27 @@ export default function SettingsScreen() {
             }}
             T={T}
           />
-        </Section>
-
-        {/* 캐릭터 */}
-        <Section T={T} title="캐릭터">
-          <View style={styles.charGrid}>
-            {CHARACTER_LIST.map(cId => {
-              const c = CHARACTERS[cId];
-              const isActive = app.settings.mainCharacter === cId;
-              return (
-                <TouchableOpacity
-                  key={cId}
-                  style={{ flex: 1, alignItems: 'center', gap: 4 }}
-                  onPress={() => app.updateSettings({ mainCharacter: cId })}
-                >
-                  <View style={{
-                    width: 60, height: 60, borderRadius: 30,
-                    borderWidth: isActive ? 2.5 : 1.5,
-                    borderColor: isActive ? T.accent : T.border,
-                    overflow: 'hidden', backgroundColor: c.bgColor,
-                  }}>
-                    <CharacterAvatar characterId={cId} size={60} mood={isActive ? 'happy' : 'normal'} />
-                  </View>
-                  <Text style={{ fontSize: 13, fontWeight: isActive ? '900' : '600', color: isActive ? T.accent : T.sub }}>
-                    {c.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <View style={{ height: 1, backgroundColor: T.border, marginTop: 8, marginBottom: 4 }} />
+          {(() => {
+            const cur = HEADER_BG_PRESETS[app.settings.headerBgPreset ?? 0] || HEADER_BG_PRESETS[0];
+            return (
+              <Row T={T} label="집중탭 헤더 배경"
+                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {cur.type === 'gradient' ? (
+                    <LinearGradient colors={cur.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={{ width: 20, height: 20, borderRadius: 10 }} />
+                  ) : cur.type === 'solid' ? (
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: cur.color }} />
+                  ) : (
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }} />
+                  )}
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{cur.label}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={T.sub} />
+                </View>}
+                onPress={() => setShowHeaderBgPicker(true)}
+              />
+            );
+          })()}
         </Section>
 
         {/* 목표 (목표시간 + 학교급) */}
@@ -788,6 +780,39 @@ export default function SettingsScreen() {
                   style={{ width: (winW - (isTablet ? (winW - tabletMaxW) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tc.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : tc.color + '60' }} />
                   <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{tc.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 헤더 배경 피커 */}
+      <Modal visible={showHeaderBgPicker} transparent animationType="slide">
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowHeaderBgPicker(false)} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>헤더 배경</Text>
+            <TouchableOpacity onPress={() => setShowHeaderBgPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
+            {HEADER_BG_PRESETS.map(preset => {
+              const sel = (app.settings.headerBgPreset ?? 0) === preset.id;
+              return (
+                <TouchableOpacity key={preset.id}
+                  onPress={() => { app.updateSettings({ headerBgPreset: preset.id }); setShowHeaderBgPicker(false); }}
+                  style={{ width: (winW - (isTablet ? (winW - tabletMaxW) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
+                  {preset.type === 'gradient' ? (
+                    <LinearGradient colors={preset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={{ width: 44, height: 44, borderRadius: 22, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : 'transparent' }} />
+                  ) : preset.type === 'solid' ? (
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: preset.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : preset.color + '60' }} />
+                  ) : (
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: T.surface2, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : T.border, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 16, color: T.sub }}>✕</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '500', color: sel ? T.text : T.sub }}>{preset.label}</Text>
                 </TouchableOpacity>
               );
             })}

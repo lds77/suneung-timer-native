@@ -67,6 +67,7 @@ const DEFAULT_SETTINGS = {
   streakReminderEnabled: true, // 연속 끊김 위기 알림
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
+  headerBgPreset: 0, // 집중탭 헤더 배경 프리셋 인덱스
 };
 
 const DEFAULT_COUNTUP_FAVS = [
