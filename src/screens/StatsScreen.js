@@ -502,15 +502,12 @@ export default function StatsScreen() {
     const map = {};
     filtered.forEach(s => {
       const { id, name, color } = getSessionSubject(s, app.subjects);
-      const isUnmatched = id.startsWith('lbl_') || id === '_none';
-      const groupId = isUnmatched ? '__기타__' : id;
-      const groupName = isUnmatched ? '기타' : name;
-      const groupColor = isUnmatched ? '#B2BEC3' : color;
-      if (!map[groupId]) map[groupId] = { id: groupId, name: groupName, color: groupColor, sec: 0, sessions: 0, densitySum: 0, lastDate: '' };
-      map[groupId].sec += (s.durationSec || 0);
-      map[groupId].sessions += 1;
-      map[groupId].densitySum += (s.focusDensity || 0);
-      if (!map[groupId].lastDate || s.date > map[groupId].lastDate) map[groupId].lastDate = s.date;
+      if (id.startsWith('lbl_') || id === '_none') return; // 기타 제외
+      if (!map[id]) map[id] = { id, name, color, sec: 0, sessions: 0, densitySum: 0, lastDate: '' };
+      map[id].sec += (s.durationSec || 0);
+      map[id].sessions += 1;
+      map[id].densitySum += (s.focusDensity || 0);
+      if (!map[id].lastDate || s.date > map[id].lastDate) map[id].lastDate = s.date;
     });
     const total = Object.values(map).reduce((a, b) => a + b.sec, 0);
     return Object.values(map).map(m => ({
@@ -536,11 +533,10 @@ export default function StatsScreen() {
       cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
     const filtered = cutoff ? app.sessions.filter(s => s.date >= cutoff) : app.sessions;
-    const isEtc = subjDetail === '__기타__';
     const recentSess = filtered
       .filter(s => {
         const { id } = getSessionSubject(s, app.subjects);
-        return isEtc ? (id.startsWith('lbl_') || id === '_none') : id === subjDetail;
+        return id === subjDetail;
       })
       .sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : (b.startedAt || 0) - (a.startedAt || 0)))
       .slice(0, 5);
@@ -1788,7 +1784,10 @@ export default function StatsScreen() {
             {/* 균형 지표 카드 */}
             {subjectAllStats.length >= 2 && (() => {
               const top = subjectAllStats[0];
-              const neglected = [...subjectAllStats].sort((a, b) => a.lastDate.localeCompare(b.lastDate))[0];
+              const neglected = [...subjectAllStats]
+                .filter(s => s.id !== top.id)
+                .sort((a, b) => a.lastDate.localeCompare(b.lastDate))[0];
+              if (!neglected) return null;
               const daysSince = neglected.lastDate
                 ? Math.floor((new Date(today) - new Date(neglected.lastDate)) / 864e5)
                 : null;
