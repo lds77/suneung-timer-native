@@ -148,6 +148,63 @@ function Row({ label, sub, right, onPress, T }) {
   );
 }
 
+// 닉네임/한마디 입력 컴포넌트
+const ProfileInput = React.memo(function ProfileInput({ nickname, motto, onSave, T }) {
+  const [nick, setNick] = useState(nickname || '');
+  const [mot, setMot] = useState(motto || '');
+  useEffect(() => { setNick(nickname || ''); }, [nickname]);
+  useEffect(() => { setMot(motto || ''); }, [motto]);
+  const handleSave = () => { onSave(nick.trim(), mot.trim()); };
+  return (
+    <View style={{ gap: 10 }}>
+      <View>
+        <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 5 }}>닉네임 <Text style={{ fontWeight: '400' }}>({nick.length}/12)</Text></Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TextInput
+            style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: T.text, backgroundColor: T.bg }}
+            value={nick}
+            onChangeText={v => { if (!v.includes('\n')) setNick(v); }}
+            placeholder="이름 또는 닉네임"
+            placeholderTextColor={T.sub}
+            maxLength={12}
+            returnKeyType="done"
+            onSubmitEditing={() => onSave(nick.trim(), mot.trim())}
+          />
+          <TouchableOpacity onPress={() => onSave(nick.trim(), mot.trim())} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: T.accent, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>저장</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View>
+        <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 5 }}>오늘의 한마디 <Text style={{ fontWeight: '400' }}>({mot.length}/20)</Text></Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TextInput
+            style={{ flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: T.text, backgroundColor: T.bg }}
+            value={mot}
+            onChangeText={v => { if (!v.includes('\n')) setMot(v); }}
+            placeholder="오늘의 다짐 (예: 3시간 집중!)"
+            placeholderTextColor={T.sub}
+            maxLength={20}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+          />
+          <TouchableOpacity onPress={handleSave} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: T.accent, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>저장</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}, (prev, next) =>
+  prev.nickname === next.nickname &&
+  prev.motto === next.motto &&
+  prev.T.border === next.T.border &&
+  prev.T.text === next.T.text &&
+  prev.T.bg === next.T.bg &&
+  prev.T.accent === next.T.accent &&
+  prev.T.sub === next.T.sub
+);
+
 // 챌린지 입력을 독립된 컴포넌트로 분리하여 부모 리렌더로 인한 포커스 손실 방지
 // React.memo + 색상값 비교 → T 객체 참조가 바뀌어도 실제 색상이 같으면 리렌더 안 함
 const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onFocus, T }) {
@@ -259,6 +316,19 @@ export default function SettingsScreen() {
         keyboardShouldPersistTaps="always" keyboardDismissMode="none"
         onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={16}>
+        {/* 닉네임 / 한마디 */}
+        <Section T={T} title="내 정보">
+          <ProfileInput
+            nickname={app.settings.nickname}
+            motto={app.settings.motto}
+            onSave={(nick, mot) => {
+              app.updateSettings({ nickname: nick, motto: mot });
+              app.showToastCustom('저장됐어요!', app.settings.mainCharacter || 'toru');
+            }}
+            T={T}
+          />
+        </Section>
+
         {/* 캐릭터 */}
         <Section T={T} title="캐릭터">
           <View style={styles.charGrid}>

@@ -155,6 +155,9 @@ export default function FocusScreen() {
   // 할일 추가 모달
   const [showAddTodoModal, setShowAddTodoModal] = useState(false);
   const inlineInputRef = useRef(null);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [editNickname, setEditNickname] = useState('');
+  const [editMotto, setEditMotto] = useState('');
   const [addTodoText, setAddTodoText] = useState('');
   const [addTodoSubjectId, setAddTodoSubjectId] = useState(null);
   const [addTodoSubjectLabel, setAddTodoSubjectLabel] = useState(null);
@@ -256,8 +259,6 @@ export default function FocusScreen() {
   // 완료 결과 모달 — 자기평가 입력
   const [resultSelfRating, setResultSelfRating] = useState(null);
   const [resultMemo, setResultMemo] = useState('');
-
-  const ultraMood = app.ultraFocus?.gaveUp ? 'sad' : app.ultraFocus?.showChallenge ? 'sad' : app.ultraFocus?.showWarning ? 'sad' : app.mood;
 
   const mainScrollRef = useRef(null);
   const scrollYRef = useRef(0);
@@ -1101,7 +1102,7 @@ export default function FocusScreen() {
         {/* 경고 배너 */}
         {app.ultraFocus?.showWarning && (
           <View style={[S.ultraBanner, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B60' }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>이탈 감지!</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>{app.ultraFocus.exitCount}번 이탈 · 선언 보너스 감소</Text>
@@ -1119,7 +1120,7 @@ export default function FocusScreen() {
         {/* 포기 상태 */}
         {app.ultraFocus?.gaveUp && (
           <View style={[S.ultraBanner, { backgroundColor: '#6B7B8D18', borderColor: '#6B7B8D60' }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>오늘은 여기까지</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>다음엔 더 잘할 수 있어!</Text>
@@ -1130,37 +1131,53 @@ export default function FocusScreen() {
         {/* 헤더 */}
         <View style={[S.header, isTablet && !isLandscape && S.tabletBlock]}>
           <View style={S.headerLeft}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
-            <View style={{ marginLeft: 8, flex: 1, minWidth: 0 }}><Text style={[S.title, { color: T.text }]}>열공메이트</Text>
-              {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {app.settings.streak > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>
-                      <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
-                    </Text>
-                  )}
-                  {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
-                  )}
-                  {app.todaySessions?.length > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>
-                      오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
-                    </Text>
-                  )}
-                </View>
-              )}
-              {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
-                    <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
+            <TouchableOpacity
+              style={{ marginLeft: 8, flex: 1, minWidth: 0 }}
+              onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
+              activeOpacity={1}
+            >
+              <Text style={[S.title, { color: T.text }]} numberOfLines={1}>
+                {app.settings.nickname || '열공메이트'}
+              </Text>
+              {app.settings.motto ? (
+                <Text style={[S.headerSub, { color: T.accent, fontWeight: '700' }]} numberOfLines={1}>
+                  "{app.settings.motto}"
+                </Text>
+              ) : (
+                <>
+                  {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {app.settings.streak > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>
+                          <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
+                        </Text>
+                      )}
+                      {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
+                      )}
+                      {app.todaySessions?.length > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>
+                          오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
+                        </Text>
+                      )}
                     </View>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
-                  </View>
-                ); })()}
-            </View></View>
+                  )}
+                  {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
+                      <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
+                    </View>
+                  ); })()}
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}>
-  <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
-</TouchableOpacity>
+            <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
+          </TouchableOpacity>
         </View>
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
@@ -1884,7 +1901,7 @@ export default function FocusScreen() {
         {/* 경고 배너 */}
         {app.ultraFocus?.showWarning && (
           <View style={[S.ultraBanner, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B60' }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={[S.ultraBannerTitle, { color: '#FF6B6B' }]}>이탈 감지!</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>{app.ultraFocus.exitCount}번 이탈 · 선언 보너스 감소</Text>
@@ -1902,7 +1919,7 @@ export default function FocusScreen() {
         {/* 포기 상태 */}
         {app.ultraFocus?.gaveUp && (
           <View style={[S.ultraBanner, { backgroundColor: '#6B7B8D18', borderColor: '#6B7B8D60' }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} mood="sad" />
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={40} />
             <View style={{ flex: 1 }}>
               <Text style={[S.ultraBannerTitle, { color: '#6B7B8D' }]}>오늘은 여기까지</Text>
               <Text style={[S.ultraBannerSub, { color: T.sub }]}>다음엔 더 잘할 수 있어!</Text>
@@ -1913,37 +1930,53 @@ export default function FocusScreen() {
         {/* 헤더 */}
         <View style={[S.header, isTablet && !isLandscape && S.tabletBlock]}>
           <View style={S.headerLeft}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood={ultraMood} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
-            <View style={{ marginLeft: 8, flex: 1, minWidth: 0 }}><Text style={[S.title, { color: T.text }]}>열공메이트</Text>
-              {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {app.settings.streak > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>
-                      <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
-                    </Text>
-                  )}
-                  {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
-                  )}
-                  {app.todaySessions?.length > 0 && (
-                    <Text style={[S.headerSub, { color: T.sub }]}>
-                      오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
-                    </Text>
-                  )}
-                </View>
-              )}
-              {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
-                    <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} tappable onCharChange={(id) => app.updateSettings({ mainCharacter: id })} />
+            <TouchableOpacity
+              style={{ marginLeft: 8, flex: 1, minWidth: 0 }}
+              onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
+              activeOpacity={1}
+            >
+              <Text style={[S.title, { color: T.text }]} numberOfLines={1}>
+                {app.settings.nickname || '열공메이트'}
+              </Text>
+              {app.settings.motto ? (
+                <Text style={[S.headerSub, { color: T.accent, fontWeight: '700' }]} numberOfLines={1}>
+                  "{app.settings.motto}"
+                </Text>
+              ) : (
+                <>
+                  {(app.settings.streak > 0 || app.todaySessions?.length > 0) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {app.settings.streak > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>
+                          <Text style={{ color: T.accent, fontWeight: '800' }}>{app.settings.streak}일</Text> 연속
+                        </Text>
+                      )}
+                      {app.settings.streak > 0 && app.todaySessions?.length > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>·</Text>
+                      )}
+                      {app.todaySessions?.length > 0 && (
+                        <Text style={[S.headerSub, { color: T.sub }]}>
+                          오늘 <Text style={{ color: T.accent, fontWeight: '800' }}>{app.todaySessions.length}세션</Text>
+                        </Text>
+                      )}
                     </View>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
-                  </View>
-                ); })()}
-            </View></View>
+                  )}
+                  {plannerRate !== null && (() => { const m = getPlannerMessage(app.settings.mainCharacter, plannerRate); return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1, gap: 4, flexWrap: 'wrap' }}>
+                      <View style={{ backgroundColor: T.accent + '35', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: T.text }}>{m.day}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: T.accent, flexShrink: 1 }}>{m.text}</Text>
+                    </View>
+                  ); })()}
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={[S.darkBtn, { borderColor: T.border, backgroundColor: T.card }]} onPress={() => app.updateSettings({ darkMode: !app.settings.darkMode })}>
-  <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
-</TouchableOpacity>
+            <Ionicons name={app.settings.darkMode ? 'sunny-outline' : 'moon-outline'} size={16} color={T.sub} />
+          </TouchableOpacity>
         </View>
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
@@ -3155,7 +3188,7 @@ export default function FocusScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={S.chalOverlay}>
           <View style={[S.chalBox, { backgroundColor: T.card }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={90} mood="sad" />
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={90} />
             <Text style={{ fontSize: 15, fontWeight: '800', color: T.text, marginTop: 10 }}>
               {app.settings.mainCharacter === 'toru' ? '토루가 울고 있어...' : app.settings.mainCharacter === 'paengi' ? '팽이가 슬퍼하고 있어...' : app.settings.mainCharacter === 'taco' ? '타코가 실망했어...' : '토토루가 속상해...'}
             </Text>
@@ -3205,7 +3238,7 @@ export default function FocusScreen() {
 
             {/* 캐릭터 + 메시지 */}
             <View style={{ alignItems: 'center', marginBottom: 30 }}>
-              <CharacterAvatar characterId={app.settings.mainCharacter} size={110} mood={app.ultraFocus?.exitCount > 0 ? 'normal' : 'happy'} />
+              <CharacterAvatar characterId={app.settings.mainCharacter} size={110} />
               <Text style={S.lockMsg}>
                 {app.ultraFocus?.exitCount === 0 ? '집중 잘하고 있어!' : `이탈 ${app.ultraFocus?.exitCount}회... 다시 집중!`}
               </Text>
@@ -3351,6 +3384,57 @@ export default function FocusScreen() {
 
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
+
+      {/* 닉네임 / 한마디 편집 모달 */}
+      <Modal visible={showNicknameModal} transparent animationType="fade" onRequestClose={() => setShowNicknameModal(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'center', padding: 24 }} activeOpacity={1} onPress={() => setShowNicknameModal(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: T.card, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: T.border }}>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, marginBottom: 16 }}>내 정보 설정</Text>
+
+              <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 6 }}>닉네임</Text>
+              <TextInput
+                style={{ borderWidth: 1.5, borderColor: T.border, borderRadius: 10, padding: 10, fontSize: 15, color: T.text, backgroundColor: T.surface, marginBottom: 14 }}
+                placeholder="이름 또는 닉네임 (예: 민준, 수험생)"
+                placeholderTextColor={T.sub}
+                value={editNickname}
+                onChangeText={setEditNickname}
+                maxLength={12}
+                returnKeyType="next"
+              />
+
+              <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 6 }}>오늘의 한마디</Text>
+              <TextInput
+                style={{ borderWidth: 1.5, borderColor: T.border, borderRadius: 10, padding: 10, fontSize: 14, color: T.text, backgroundColor: T.surface, marginBottom: 20 }}
+                placeholder="오늘의 목표나 다짐을 입력해요"
+                placeholderTextColor={T.sub}
+                value={editMotto}
+                onChangeText={setEditMotto}
+                maxLength={20}
+                returnKeyType="done"
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: T.surface, borderWidth: 1, borderColor: T.border }}
+                  onPress={() => setShowNicknameModal(false)}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent }}
+                  onPress={() => {
+                    app.updateSettings({ nickname: editNickname.trim(), motto: editMotto.trim() });
+                    setShowNicknameModal(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

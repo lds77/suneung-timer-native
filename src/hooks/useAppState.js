@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS = {
   dailyReminderHour: 20,       // 리마인더 시각 (시)
   dailyReminderMin: 0,         // 리마인더 시각 (분)
   streakReminderEnabled: true, // 연속 끊김 위기 알림
+  nickname: '',  // 사용자 닉네임
+  motto: '',     // 오늘의 한마디
 };
 
 const DEFAULT_COUNTUP_FAVS = [
