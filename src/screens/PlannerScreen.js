@@ -7,6 +7,7 @@ import {
   Modal, TextInput, Alert, StyleSheet, Platform,
   Dimensions, useWindowDimensions, StatusBar,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getTheme } from '../constants/colors';
@@ -16,6 +17,8 @@ import { useApp } from '../hooks/useAppState';
 import RunningTimersBar from '../components/RunningTimersBar';
 import TimePickerGrid from '../components/TimePickerGrid';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
+
+const TEMP_STORAGE_KEY = 'plannerTempAssignments';
 
 const { width: SW } = Dimensions.get('window');
 const isTablet = SW >= 600;
@@ -59,6 +62,16 @@ const getWeekDates = (weekOffset = 0) => {
     return d;
   });
 };
+
+// 특정 weekOffset의 일요일 날짜를 YYYY-MM-DD 문자열로 반환
+const getWeekStartStr = (weekOffset = 0) => {
+  const today = new Date();
+  const dow = today.getDay();
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - dow + weekOffset * 7);
+  return sunday.toISOString().slice(0, 10);
+};
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 // 현재 시간 → 그리드 상의 Y 위치 (px)
 const getNowY = () => {
@@ -516,6 +529,7 @@ export default function PlannerScreen({ navigation }) {
   const [planSheet, setPlanSheet]     = useState(null);
   const [quickAssignPlan, setQuickAssignPlan] = useState(null);
   const [tempAssignments, setTempAssignments] = useState({});
+  const tempLoadedRef = useRef(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
   // ── D-Day 모달 상태 ──
@@ -581,6 +595,41 @@ export default function PlannerScreen({ navigation }) {
       return changed ? next : prev;
     });
   }, [app.weeklySchedule]);
+
+  // tempAssignments AsyncStorage 로드 (마운트 시 1회)
+  useEffect(() => {
+    AsyncStorage.getItem(TEMP_STORAGE_KEY).then(raw => {
+      if (raw) {
+        try {
+          const stored = JSON.parse(raw);
+          const todaySunday = getWeekStartStr(0);
+          const cutoff = getWeekStartStr(-1); // 지난 주까지만 유지
+          const result = {};
+          Object.entries(stored).forEach(([weekStart, assignments]) => {
+            if (weekStart < cutoff) return; // 오래된 주 제거
+            const diff = Math.round((new Date(weekStart) - new Date(todaySunday)) / MS_PER_WEEK);
+            Object.entries(assignments).forEach(([planId, val]) => {
+              result[planId] = { ...val, weekOffset: diff };
+            });
+          });
+          if (Object.keys(result).length > 0) setTempAssignments(result);
+        } catch (_) {}
+      }
+      tempLoadedRef.current = true;
+    });
+  }, []);
+
+  // tempAssignments 변경 시 AsyncStorage 저장
+  useEffect(() => {
+    if (!tempLoadedRef.current) return;
+    const byWeek = {};
+    Object.entries(tempAssignments).forEach(([planId, val]) => {
+      const weekStart = getWeekStartStr(val.weekOffset || 0);
+      if (!byWeek[weekStart]) byWeek[weekStart] = {};
+      byWeek[weekStart][planId] = { start: val.start, end: val.end, dayKey: val.dayKey };
+    });
+    AsyncStorage.setItem(TEMP_STORAGE_KEY, JSON.stringify(byWeek)).catch(() => {});
+  }, [tempAssignments]);
 
   // 초기 스크롤 — 현재 시간 근처로
   useEffect(() => {
@@ -657,8 +706,8 @@ export default function PlannerScreen({ navigation }) {
     const endMin = startMin + 30; // 기본 30분
     setModal({
       dayKey,
-      initial: null,
-      prefill: {
+      initial: {
+        blockType: 'plan',
         start: minToStr(Math.min(startMin, 23 * 60 + 50)),
         end:   minToStr(Math.min(endMin, 24 * 60)),
       },
@@ -1823,7 +1872,7 @@ export default function PlannerScreen({ navigation }) {
             }
           }}
           onDelete={(id, type) => handleDelete(modal.dayKey, id, type)}
-          initial={modal.initial ? modal.initial : (modal.prefill ? { ...modal.prefill, blockType: 'plan' } : null)}
+          initial={modal.initial || null}
           subjects={app.subjects || []}
           T={T}
           planOnly
