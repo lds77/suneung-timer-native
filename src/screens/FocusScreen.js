@@ -110,6 +110,7 @@ export default function FocusScreen() {
   const [screenLocked, setScreenLocked] = useState(false);
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const { width: winW, height: winH } = useWindowDimensions();
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const S = useMemo(() => createStyles(fs), [fs]);
   const isLandscape = isTablet && winW > winH;
@@ -2784,7 +2785,7 @@ export default function FocusScreen() {
       {/* ── 메모 입력 모달 ── */}
       <Modal visible={!!memoTimerId} transparent animationType="fade">
         <View style={S.mo}>
-          <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+          <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
             <Text style={[S.modalTitle, { color: T.text }]}>한줄 메모</Text>
             <Text style={[{ fontSize: 13, color: T.sub, marginBottom: 8, textAlign: 'center' }]}>오늘 이 공부, 한 줄로 남겨봐요</Text>
             <TextInput
@@ -2979,7 +2980,7 @@ export default function FocusScreen() {
       <Modal visible={!!editTodoId} transparent animationType="slide" onRequestClose={() => setEditTodoId(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: 540, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
+          <View style={[S.addTodoSheet, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                 <Ionicons name="create-outline" size={18} color={T.accent} />
@@ -3115,7 +3116,7 @@ export default function FocusScreen() {
 
       {/* ═══ 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showFavMgr} transparent animationType="fade">
-        <View style={S.mo}><View style={[S.moScroll, isTablet && { alignItems: 'center' }, { justifyContent: 'center', flex: 1 }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
+        <View style={S.mo}><View style={[S.moScroll, isTablet && { alignItems: 'center' }, { justifyContent: 'center', flex: 1 }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Ionicons name="star" size={16} color="#F0B429" />
             <Text style={[S.modalTitle, { color: T.text }]}>즐겨찾기 편집</Text>
@@ -3146,7 +3147,7 @@ export default function FocusScreen() {
 
       {/* ═══ 공부량 즐겨찾기 편집 모달 ═══ */}
       <Modal visible={showCountupFavMgr} transparent animationType="fade">
-        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
+        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Ionicons name="trending-up-outline" size={16} color={T.accent} />
             <Text style={[S.modalTitle, { color: T.text }]}>공부량 즐겨찾기 편집</Text>
@@ -3202,7 +3203,7 @@ export default function FocusScreen() {
 
       {/* ═══ 커스텀 타이머 + 연속모드 ═══ */}
       <Modal visible={showAdd} transparent animationType="fade">
-        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540 }]}>
+        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%' }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>커스텀 타이머</Text>
           <View style={[S.typeRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'countdown', icon: 'alarm-outline', l: '타임어택' }, { id: 'pomodoro', icon: 'nutrition-outline', l: '뽀모도로' }, { id: 'sequence', icon: 'clipboard-outline', l: '연속모드' }].map(m => (

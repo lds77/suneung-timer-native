@@ -169,7 +169,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
         {/* 헤더 */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>
@@ -358,7 +358,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
         {/* 헤더 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: plan.color || T.accent, marginRight: 10 }} />
@@ -466,7 +466,7 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>빈 시간에 배치</Text>
           <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={T.sub} /></TouchableOpacity>
@@ -526,6 +526,7 @@ export default function PlannerScreen({ navigation }) {
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
 
   const [viewMode, setViewMode]     = useState('today'); // 'today' | 'weekly' | 'monthly'
@@ -1993,7 +1994,7 @@ export default function PlannerScreen({ navigation }) {
       {/* ── D-Day 추가/수정 모달 ── */}
       <Modal visible={showDDayModal} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={[{ backgroundColor: T.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: T.border, maxHeight: '85%' }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
+          <View style={[{ backgroundColor: T.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: T.border, maxHeight: '85%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Ionicons name="calendar-outline" size={18} color={T.accent} />

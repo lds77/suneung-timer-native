@@ -38,6 +38,7 @@ const TABLET_MAX_W = 680;
 export default function StatsScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
   const contentW = isTablet ? Math.min(winW, TABLET_MAX_W) - 32 : winW - 32;
   const CELL = useMemo(() => Math.floor((contentW - 28 - 12) / 7), [contentW]);
@@ -1842,7 +1843,7 @@ export default function StatsScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={S.mo}>
           <View style={S.moScroll}>
-            <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { width: 540, alignSelf: 'center', marginHorizontal: 0 }]}>
+            <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', marginHorizontal: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <Ionicons name="document-text-outline" size={16} color={T.text} />
                 <Text style={[S.modalTitle, { color: T.text, marginBottom: 0 }]}>메모 수정</Text>
@@ -1892,7 +1893,7 @@ export default function StatsScreen() {
           <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={reportRef} collapsable={false}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="bar-chart-outline" title="주간 리포트" subtitle={`${dateStr(addDays(new Date(), -6))} ~ ${today}`} characterId={app.settings.mainCharacter} />
 
                 {/* 히어로 지표 — 총 공부시간 강조 */}
@@ -2065,7 +2066,7 @@ export default function StatsScreen() {
           <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={dayReportRef} collapsable={false}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="today-outline" title="오늘 리포트" subtitle={today} characterId={app.settings.mainCharacter} />
 
                 {/* 히어로 — 총 공부시간 */}
@@ -2169,7 +2170,7 @@ export default function StatsScreen() {
           <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={monthReportRef} collapsable={false}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="calendar-outline" title={`${viewMonthStr} 월간 리포트`} subtitle={`공부일 ${monthStudyDays}일 / ${calendarData.filter(Boolean).length}일`} characterId={app.settings.mainCharacter} />
 
                 {/* 히어로 — 총 공부시간 */}
@@ -2282,7 +2283,7 @@ export default function StatsScreen() {
           <View style={[{ flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 20 }, isTablet && { maxWidth: 580, alignSelf: 'center', width: '100%' }]}>
             <ScrollView style={{ maxHeight: winH * 0.88 - 130 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View ref={heatReportRef} collapsable={false}>
-              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+              <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
                 <ReportGradientHeader accent={T.accent} icon="leaf-outline" title="공부 기록" subtitle={`${new Date().getFullYear()}년 누적`} characterId={app.settings.mainCharacter} />
 
                 {/* 히어로 — 올해 총 공부시간 */}
@@ -2316,7 +2317,7 @@ export default function StatsScreen() {
                 {/* 잔디 미니 그리드 */}
                 {(() => {
                   const MG = 2;
-                  const cardW = isTablet ? 540 : winW;
+                  const cardW = isTablet ? tabletModalW : winW;
                   const MC = Math.max(6, Math.floor((cardW - 40 - 32 - (HM_WEEKS - 1) * MG) / HM_WEEKS));
                   return (
                     <View style={{ paddingHorizontal: 16, marginBottom: 14 }}>

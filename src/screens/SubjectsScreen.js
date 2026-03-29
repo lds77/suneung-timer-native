@@ -153,6 +153,7 @@ const ELEM_GRADE_KEY = (school) => school;
 export default function SubjectsScreen({ navigation }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
@@ -707,7 +708,7 @@ export default function SubjectsScreen({ navigation }) {
       {/* 과목 추가 모달 */}
       <Modal visible={showAdd} transparent animationType="fade">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { width: 540, alignSelf: 'center' }]}>
+        <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>과목 추가</Text>
           <TextInput value={addName} onChangeText={setAddName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}
             style={[S.mInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} autoFocus />
@@ -735,7 +736,7 @@ export default function SubjectsScreen({ navigation }) {
       {/* 주간 목표 설정 모달 */}
       <Modal visible={!!goalSubj} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 30 }}>
-          <View style={[{ backgroundColor: T.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: T.border }, isTablet && { maxWidth: 540, alignSelf: 'center', width: '100%' }]}>
+          <View style={[{ backgroundColor: T.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>
               주간 목표 설정
             </Text>
