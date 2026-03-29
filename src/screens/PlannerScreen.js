@@ -617,29 +617,63 @@ export default function PlannerScreen({ navigation }) {
 
   // 주간 헤더 (요일 + 날짜)
   const renderWeekHeader = () => (
-    <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
-      <View style={{ width: TIME_COL_W }} />
-      {DAY_KEYS.map((key, i) => {
-        const date = weekDates[i];
-        const isToday = isThisWeek && key === todayKey;
-        return (
-          <View key={key} style={{ width: DAY_W, alignItems: 'center', paddingVertical: 8, borderLeftWidth: 1, borderLeftColor: T.border + '60' }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: key === 'sat' ? T.accent : key === 'sun' ? T.red : T.sub }}>
-              {DAY_LABELS[i]}
-            </Text>
-            <View style={{
-              width: 26, height: 26, borderRadius: 13, marginTop: 2,
-              backgroundColor: isToday ? T.accent : 'transparent',
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Text style={{ fontSize: 13, fontWeight: isToday ? '800' : '600',
-                color: isToday ? '#fff' : key === 'sat' ? T.accent : key === 'sun' ? T.red : T.text }}>
-                {date.getDate()}
-              </Text>
+    <View style={{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border }}>
+      {/* 주간 네비게이션 — 컴팩트 인라인 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingTop: 7, paddingBottom: 6 }}>
+        <TouchableOpacity
+          onPress={() => setWeekOffset(p => p - 1)}
+          style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chevron-back" size={15} color={T.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+          disabled={weekOffset === 0}
+          onPress={() => setWeekOffset(0)}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>{weekTitle}</Text>
+          {weekOffset !== 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: T.accent, borderRadius: 10 }}>
+              <Ionicons name="today-outline" size={9} color="#fff" />
+              <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>오늘</Text>
             </View>
-          </View>
-        );
-      })}
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: T.accent + '18', borderRadius: 10 }}>
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: T.accent }} />
+              <Text style={{ fontSize: 9, fontWeight: '700', color: T.accent }}>이번 주</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setWeekOffset(p => p + 1)}
+          style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="chevron-forward" size={15} color={T.text} />
+        </TouchableOpacity>
+      </View>
+      {/* 요일 + 날짜 헤더 */}
+      <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: T.border }}>
+        <View style={{ width: TIME_COL_W }} />
+        {DAY_KEYS.map((key, i) => {
+          const date = weekDates[i];
+          const isToday = isThisWeek && key === todayKey;
+          return (
+            <View key={key} style={{ width: DAY_W, alignItems: 'center', paddingVertical: 4, borderLeftWidth: 1, borderLeftColor: T.border + '60' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: key === 'sat' ? T.accent : key === 'sun' ? T.red : T.sub }}>
+                {DAY_LABELS[i]}
+              </Text>
+              <View style={{
+                width: 22, height: 22, borderRadius: 11, marginTop: 2,
+                backgroundColor: isToday ? T.accent : 'transparent',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontSize: 12, fontWeight: isToday ? '800' : '600',
+                  color: isToday ? '#fff' : key === 'sat' ? T.accent : key === 'sun' ? T.red : T.text }}>
+                  {date.getDate()}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
     </View>
   );
 
@@ -647,17 +681,21 @@ export default function PlannerScreen({ navigation }) {
   const renderGrid = () => (
     <View style={{ flexDirection: 'row' }}>
       {/* 시간 컬럼 — 06~23 라벨 + 하단 24 라벨 */}
-      <View style={{ width: TIME_COL_W }}>
-        {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
-          <View key={i} style={{ height: HOUR_H, justifyContent: 'flex-start', paddingTop: 2, alignItems: 'flex-end', paddingRight: 6 }}>
-            <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>
-              {String(START_HOUR + i).padStart(2, '0')}
-            </Text>
-          </View>
-        ))}
-        {/* 24 라벨 — 그리드 끝 경계에 딱 맞게 */}
+      <View style={{ width: TIME_COL_W, borderRightWidth: 1, borderRightColor: T.border }}>
+        {Array.from({ length: TOTAL_HOURS }).map((_, i) => {
+          const hour = START_HOUR + i;
+          const isKey = hour % 3 === 0; // 06·09·12·15·18·21 강조
+          return (
+            <View key={i} style={{ height: HOUR_H, justifyContent: 'flex-start', paddingTop: 2, alignItems: 'flex-end', paddingRight: 6 }}>
+              <Text style={{ fontSize: isKey ? 11 : 10, color: isKey ? T.accent : T.sub, fontWeight: isKey ? '800' : '500' }}>
+                {String(hour).padStart(2, '0')}
+              </Text>
+            </View>
+          );
+        })}
+        {/* 24 라벨 */}
         <View style={{ height: 14, justifyContent: 'flex-start', paddingTop: 1, alignItems: 'flex-end', paddingRight: 6 }}>
-          <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>24</Text>
+          <Text style={{ fontSize: 11, color: T.accent, fontWeight: '800' }}>24</Text>
         </View>
       </View>
 
@@ -1613,56 +1651,39 @@ export default function PlannerScreen({ navigation }) {
       <StatusBar barStyle={T.text === '#E8E8F2' ? 'light-content' : 'dark-content'} />
       <RunningTimersBar />
 
-      {/* 상단 헤더 — 주간/월간일 때만 네비게이션 표시 */}
-      {viewMode !== 'today' && (
+      {/* 상단 헤더 — 월간일 때만 네비게이션 표시 (주간은 renderWeekHeader에 통합) */}
+      {viewMode === 'monthly' && (
         <View style={[{ backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingVertical: 8 }, isTablet && { alignItems: 'center' }]}>
-          {(() => {
-            const isOff = viewMode === 'weekly' ? weekOffset !== 0 : monthOffset !== 0;
-            return (
-              <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, isTablet && { maxWidth: tabletMaxW, width: '100%' }]}>
-                <TouchableOpacity
-                  onPress={() => viewMode === 'weekly' ? setWeekOffset(p => p - 1) : setMonthOffset(p => p - 1)}
-                  style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="chevron-back" size={18} color={T.text} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{ flex: 1, alignItems: 'center' }}
-                  disabled={!isOff}
-                  onPress={() => { setWeekOffset(0); setMonthOffset(0); }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>
-                    {viewMode === 'weekly' ? weekTitle : monthTitle}
-                  </Text>
-                  {isOff ? (
-                    <View style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3,
-                      paddingHorizontal: 10, paddingVertical: 2,
-                      backgroundColor: T.accent, borderRadius: 12,
-                    }}>
-                      <Ionicons name="today-outline" size={10} color="#fff" />
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>오늘로 이동</Text>
-                    </View>
-                  ) : (
-                    <View style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3,
-                      paddingHorizontal: 8, paddingVertical: 2,
-                      backgroundColor: T.accent + '18', borderRadius: 12,
-                    }}>
-                      <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: T.accent }} />
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>이번 주</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => viewMode === 'weekly' ? setWeekOffset(p => p + 1) : setMonthOffset(p => p + 1)}
-                  style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="chevron-forward" size={18} color={T.text} />
-                </TouchableOpacity>
-              </View>
-            );
-          })()}
+          <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, isTablet && { maxWidth: tabletMaxW, width: '100%' }]}>
+            <TouchableOpacity
+              onPress={() => setMonthOffset(p => p - 1)}
+              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-back" size={18} color={T.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, alignItems: 'center' }}
+              disabled={monthOffset === 0}
+              onPress={() => setMonthOffset(0)}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text }}>{monthTitle}</Text>
+              {monthOffset !== 0 ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, paddingHorizontal: 10, paddingVertical: 2, backgroundColor: T.accent, borderRadius: 12 }}>
+                  <Ionicons name="today-outline" size={10} color="#fff" />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>오늘로 이동</Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: T.accent + '18', borderRadius: 12 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: T.accent }} />
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>이번 달</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setMonthOffset(p => p + 1)}
+              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-forward" size={18} color={T.text} />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 

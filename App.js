@@ -884,7 +884,12 @@ function Root() {
           // Android: fontFamily(Bold 변형) + fontWeight(700) 동시 적용 시 텍스트 사라짐
           // Bold 폰트 파일이 weight를 이미 내포하므로 fontWeight는 normal로 정규화
           const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : flat.fontSize;
-          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }) } });
+          const effectiveSize = scaledSize || flat.fontSize;
+          // 나눔스퀘어는 vertical metrics가 커서 lineHeight 없으면 글자 하단이 잘림
+          const lineHeightFix = fontId === 'nanumSquare' && effectiveSize && !flat.lineHeight
+            ? { lineHeight: Math.ceil(effectiveSize * 1.35) }
+            : {};
+          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }), ...lineHeightFix } });
         };
         setLoadedFont(fontId);
       } catch (e) {

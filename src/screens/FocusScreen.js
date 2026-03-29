@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 const SW = Dimensions.get('window').width;
 const isTablet = SW >= 600;
 const GAP = 8;
+const CONTENT_MAX_W_STATIC = isTablet ? 680 : SW;
 
 const getSchoolDefaultFavs = (school) => {
   const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
@@ -3357,13 +3358,13 @@ export default function FocusScreen() {
 function createStyles(fs) { return StyleSheet.create({
   container: { flex: 1 }, scrollCol: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
   scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
-  tabletBlock: { width: CONTENT_MAX_W },
+  tabletBlock: { width: CONTENT_MAX_W_STATIC },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
   title: { fontSize: Math.round(15 * fs), fontWeight: '800' }, headerSub: { fontSize: Math.round(11 * fs), marginTop: 1 },
   darkBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   ddayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 6 },
-  ddayCell: { width: (CONTENT_MAX_W - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
+  ddayCell: { width: (CONTENT_MAX_W_STATIC - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
   ddayCellLabel: { fontSize: Math.round(11 * fs), fontWeight: '700' }, ddayCellVal: { fontSize: Math.round(11 * fs), fontWeight: '900', marginTop: 1 },
   planCard: { borderRadius: 14, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   planCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
