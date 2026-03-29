@@ -1735,16 +1735,6 @@ export default function PlannerScreen({ navigation }) {
           </View>
         )}
 
-        {/* 주간 시간표 링크 */}
-        <TouchableOpacity onPress={() => setViewMode('weekly')} style={{
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-          paddingVertical: 18, marginTop: 4, gap: 6,
-        }}>
-          <Ionicons name="calendar-outline" size={16} color={T.accent} />
-          <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>주간 시간표 보기</Text>
-          <Ionicons name="chevron-forward" size={14} color={T.accent} />
-        </TouchableOpacity>
-
         <View style={{ height: insets.bottom + 20 }} />
       </ScrollView>
     );
