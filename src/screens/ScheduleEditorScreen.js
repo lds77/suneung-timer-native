@@ -430,6 +430,14 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
         <ScrollView key={visible ? 1 : 0} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" nestedScrollEnabled={true}>
 
+          {/* 가이드 안내 */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginHorizontal: 16, marginTop: 12, marginBottom: 6, padding: 10, borderRadius: 10, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
+            <Ionicons name="repeat-outline" size={14} color={T.accent} style={{ marginTop: 1 }} />
+            <Text style={{ flex: 1, fontSize: 12, color: T.accent, fontWeight: '600', lineHeight: 18 }}>
+              {'요일별로 매주 자동 반복되는 고정 일과를 설정해요.\n주간 뷰에서 시간 배치는 그날만 적용돼요.'}
+            </Text>
+          </View>
+
           {/* ON/OFF */}
           <View style={[s.toggleRow, { backgroundColor: T.card, borderColor: T.border }]}>
             <View style={{ flex: 1 }}>

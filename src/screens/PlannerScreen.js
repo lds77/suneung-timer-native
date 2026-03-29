@@ -1945,36 +1945,47 @@ export default function PlannerScreen({ navigation }) {
         T={T}
       />
 
-      {/* ── 하단 세그먼트 바: 오늘 / 주간 / 월간 / 편집 ── */}
+      {/* ── 하단 세그먼트 바: 오늘 / 주간 / 월간 / 반복설정 ── */}
       <View style={{
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: T.card, borderTopWidth: 1, borderTopColor: T.border,
-        paddingHorizontal: 12, paddingTop: 6,
+        paddingHorizontal: 10, paddingTop: 6,
         paddingBottom: Platform.OS === 'android' ? 6 : Math.max(insets.bottom, 6),
-        gap: 6,
+        gap: 8,
       }}>
-        {[
-          { id: 'today', label: '오늘', icon: 'today-outline' },
-          { id: 'weekly', label: '주간', icon: 'calendar-outline' },
-          { id: 'monthly', label: '월간', icon: 'grid-outline' },
-        ].map(m => {
-          const sel = viewMode === m.id;
-          return (
-            <TouchableOpacity key={m.id} onPress={() => setViewMode(m.id)} style={{
-              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-              paddingVertical: 8, borderRadius: 10,
-              backgroundColor: sel ? T.accent : 'transparent',
-            }}>
-              <Ionicons name={m.icon} size={15} color={sel ? '#fff' : T.sub} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? '#fff' : T.sub }}>{m.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        {/* 탭 그룹 박스 */}
+        <View style={{
+          flex: 1, flexDirection: 'row',
+          backgroundColor: T.surface, borderRadius: 12,
+          borderWidth: 1, borderColor: T.border,
+          padding: 3, gap: 2,
+        }}>
+          {[
+            { id: 'today', label: '오늘', icon: 'today-outline' },
+            { id: 'weekly', label: '주간', icon: 'calendar-outline' },
+            { id: 'monthly', label: '월간', icon: 'grid-outline' },
+          ].map(m => {
+            const sel = viewMode === m.id;
+            return (
+              <TouchableOpacity key={m.id} onPress={() => setViewMode(m.id)} style={{
+                flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+                paddingVertical: 7, borderRadius: 9,
+                backgroundColor: sel ? T.accent : 'transparent',
+              }}>
+                <Ionicons name={m.icon} size={14} color={sel ? '#fff' : T.sub} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: sel ? '#fff' : T.sub }}>{m.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {/* 반복설정 버튼 */}
         <TouchableOpacity onPress={() => setShowScheduleEditor(true)} style={{
-          width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+          flexDirection: 'row', alignItems: 'center', gap: 4,
+          paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10,
           backgroundColor: T.surface, borderWidth: 1, borderColor: T.border,
         }}>
-          <Ionicons name="settings-outline" size={18} color={T.accent} />
+          <Ionicons name="repeat-outline" size={13} color={T.accent} />
+          <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>반복설정</Text>
         </TouchableOpacity>
       </View>
 
