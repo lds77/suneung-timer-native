@@ -389,7 +389,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
 
         {/* 버튼 */}
         {isTempAssigned ? (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity onPress={onUnassign} style={{
               flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
               backgroundColor: T.red + '18', borderWidth: 1.5, borderColor: T.red + '50',
