@@ -980,6 +980,9 @@ export default function PlannerScreen({ navigation }) {
   const ddComputedDays = ddStartDate && ddEndDate
     ? Math.round((new Date(ddEndDate + 'T00:00:00') - new Date(ddStartDate + 'T00:00:00')) / 86400000) + 1
     : 0;
+  // YYYY-MM-DD → M/D 형식으로 축약
+  const fmtMD = (dateStr) => { if (!dateStr) return ''; const [, m, d] = dateStr.split('-'); return `${parseInt(m)}/${parseInt(d)}`; };
+  const ddDateLabel = ddSelectedDates.size === 0 ? '' : ddSelectedDates.size === 1 ? fmtMD(ddStartDate) : `${fmtMD(ddStartDate)} ~ ${fmtMD(ddEndDate)} (${ddComputedDays}일)`;
 
   const openAddDDay = (prefillDate) => {
     setEditingDDay(null);
@@ -1521,7 +1524,9 @@ export default function PlannerScreen({ navigation }) {
           }
 
           const prevEnd = idx > 0 ? (isMidnightCrossing(allItems[idx-1].start, allItems[idx-1].end) ? 24*60 : parseTimeToMin(allItems[idx-1].end)) : 0;
-          const showNowLine = !isPast && startMin > nowMin && prevEnd <= nowMin;
+          // 이전 항목이 현재 진행 중(아직 안 끝남)인 경우도 다음 upcoming 항목 앞에 "지금" 표시
+          const prevIsCurrent = idx > 0 && parseTimeToMin(allItems[idx-1].start) <= nowMin && prevEnd > nowMin;
+          const showNowLine = !isPast && startMin > nowMin && (prevEnd <= nowMin || prevIsCurrent);
           const prevItemEnd = idx > 0
             ? (isMidnightCrossing(allItems[idx-1].start, allItems[idx-1].end) ? 24*60 : parseTimeToMin(allItems[idx-1].end))
             : null;
@@ -1678,6 +1683,16 @@ export default function PlannerScreen({ navigation }) {
         {/* ── 시간 미배치 계획 ── */}
         {unscheduled.length > 0 && (
           <View style={{ marginTop: 4 }}>
+            {/* allItems가 없어서 "지금" 구분선이 안 나왔을 때 여기서 대신 표시 */}
+            {allItems.length === 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: T.red + '50' }} />
+                <View style={{ backgroundColor: T.red, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginHorizontal: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>지금 {nowLabel}</Text>
+                </View>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: T.red + '50' }} />
+              </View>
+            )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: 4 }}>
               <View style={{ flex: 1, height: 1, backgroundColor: T.border }} />
               <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>시간 미배치</Text>
@@ -2054,19 +2069,11 @@ export default function PlannerScreen({ navigation }) {
 
               {/* 선택된 날짜 요약 */}
               {ddSelectedDates.size > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.accent + '15' }}>
                     <Ionicons name="calendar" size={12} color={T.accent} />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
-                      {ddSelectedDates.size === 1
-                        ? ddStartDate
-                        : `${ddStartDate} ~ ${ddEndDate} (${ddComputedDays}일)`}
-                    </Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>{ddDateLabel}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setDdSelectedDates(new Set())}
-                    style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>초기화</Text>
-                  </TouchableOpacity>
                 </View>
               )}
 

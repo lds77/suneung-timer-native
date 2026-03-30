@@ -1785,12 +1785,20 @@ export default function StatsScreen() {
             {/* 균형 지표 카드 */}
             {subjectAllStats.length >= 2 && (() => {
               const top = subjectAllStats[0];
+              // 전체 세션 기준 실제 마지막 공부일 맵 (기간 필터 무관)
+              const realLastDate = {};
+              app.sessions.forEach(s => {
+                const { id } = getSessionSubject(s, app.subjects);
+                if (id.startsWith('lbl_') || id === '_none') return;
+                if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
+              });
               const neglected = [...subjectAllStats]
                 .filter(s => s.id !== top.id)
-                .sort((a, b) => a.lastDate.localeCompare(b.lastDate))[0];
+                .sort((a, b) => (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || ''))[0];
               if (!neglected) return null;
-              const daysSince = neglected.lastDate
-                ? Math.floor((new Date(today) - new Date(neglected.lastDate)) / 864e5)
+              const lastDate = realLastDate[neglected.id] || '';
+              const daysSince = lastDate
+                ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
                 : null;
               return (
                 <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>

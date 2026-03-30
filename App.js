@@ -89,6 +89,8 @@ function OnboardingScreen() {
   const ddStartDate = ddSortedDates.length > 0 ? ddSortedDates[0] : null;
   const ddEndDate = ddSortedDates.length > 0 ? ddSortedDates[ddSortedDates.length - 1] : null;
   const ddComputedDays = ddStartDate && ddEndDate ? Math.round((new Date(ddEndDate + 'T00:00:00') - new Date(ddStartDate + 'T00:00:00')) / 86400000) + 1 : 0;
+  const fmtMD = (dateStr) => { if (!dateStr) return ''; const [, m, d] = dateStr.split('-'); return `${parseInt(m)}/${parseInt(d)}`; };
+  const ddDateLabel = ddSelectedDates.size === 0 ? '' : ddSelectedDates.size === 1 ? fmtMD(ddStartDate) : `${fmtMD(ddStartDate)} ~ ${fmtMD(ddEndDate)} (${ddComputedDays}일)`;
   const DDAY_PRESETS = (() => {
     if (selectedSchool === 'high') return [
       { label: '수능 2026', date: '2026-11-19' },
@@ -357,15 +359,13 @@ function OnboardingScreen() {
           {ddSelectedDates.size > 0 && ddLabel.trim() ? (
             <View style={{ backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: T.text, textAlign: 'center' }}>
-                {ddLabel} · {ddSelectedDates.size === 1 ? ddStartDate : `${ddStartDate} ~ ${ddEndDate} (${ddComputedDays}일)`}
+                {ddLabel} · {ddDateLabel}
               </Text>
             </View>
           ) : ddSelectedDates.size > 0 ? (
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 8 }}>
               <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.accent + '15' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
-                  {ddSelectedDates.size === 1 ? ddStartDate : `${ddStartDate} ~ ${ddEndDate} (${ddComputedDays}일)`}
-                </Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>{ddDateLabel}</Text>
               </View>
             </View>
           ) : null}
