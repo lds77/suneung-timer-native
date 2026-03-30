@@ -627,6 +627,17 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </Section>
 
+        {/* 온보딩 다시보기 */}
+        <TouchableOpacity
+          onPress={() => Alert.alert('온보딩 다시보기', '처음 시작 화면으로 돌아가요.\n(공부 기록은 유지됩니다)', [
+            { text: '취소', style: 'cancel' },
+            { text: '다시보기', onPress: () => app.updateSettings({ onboardingDone: false }) },
+          ])}
+          style={{ alignItems: 'center', paddingVertical: 14, marginBottom: 8 }}
+        >
+          <Text style={{ fontSize: 13, color: T.sub }}>처음 화면 다시보기</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
