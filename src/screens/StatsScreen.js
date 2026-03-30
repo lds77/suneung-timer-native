@@ -1794,7 +1794,11 @@ export default function StatsScreen() {
               });
               const neglected = [...subjectAllStats]
                 .filter(s => s.id !== top.id)
-                .sort((a, b) => (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || ''))[0];
+                .sort((a, b) => {
+                  const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
+                  if (dateCmp !== 0) return dateCmp;
+                  return a.secs - b.secs; // 날짜 같으면 공부 시간 적은 쪽이 더 소홀
+                })[0];
               if (!neglected) return null;
               const lastDate = realLastDate[neglected.id] || '';
               const daysSince = lastDate
