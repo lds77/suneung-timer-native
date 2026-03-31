@@ -1305,6 +1305,13 @@ export function AppProvider({ children }) {
   // 초기 로드
   useEffect(() => {
     (async () => {
+      // Android 13+(API 33+): 알림 권한 요청 전 상태 확인 → 재설치 감지용
+      // requestPermissionsAsync 호출 후에는 유저가 허용하면 'granted'가 되어 판단 불가
+      let freshInstallDetected = false;
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        const prePerm = await Notifications.getPermissionsAsync();
+        if (!prePerm.granted) freshInstallDetected = true;
+      }
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
@@ -1318,6 +1325,8 @@ export function AppProvider({ children }) {
         if (s.ultraFocusEnabled !== undefined) delete s.ultraFocusEnabled;
         // schoolLevel 마이그레이션: 'elementary' → 'elementary_upper'
         if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
+        // 재설치 시 exactAlarmGuideShown 리셋 (구글 백업 복원 대응, Android 13+)
+        if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
       if (sess) setSessions(sess); if (dd) setDDays(dd);

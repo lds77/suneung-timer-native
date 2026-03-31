@@ -1797,7 +1797,7 @@ export default function StatsScreen() {
                 .sort((a, b) => {
                   const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
                   if (dateCmp !== 0) return dateCmp;
-                  return a.secs - b.secs; // 날짜 같으면 공부 시간 적은 쪽이 더 소홀
+                  return a.sec - b.sec; // 날짜 같으면 공부 시간 적은 쪽이 더 소홀
                 })[0];
               if (!neglected) return null;
               const lastDate = realLastDate[neglected.id] || '';
