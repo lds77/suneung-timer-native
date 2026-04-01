@@ -34,36 +34,36 @@ export const getTodoMessage = (completedCount, allDone, characterId) => {
   const char = characterId || 'toru';
   if (allDone && completedCount > 0) {
     const msgs = {
-      toru:   '오늘 할 일 전부 완료! 완벽한 하루야! 🏆💕',
-      paengi: '다 했어?! 진짜?! 최고다!! 🎊🎊🎊',
-      taco:   '올클리어. 더 할 말이 없다. 레전드. 😎',
-      totoru: '모든 할 일을 다 했어. 정말 잘했다. 🌈',
+      toru:   '오늘 할 일 전부 완료! 완벽한 하루야!',
+      paengi: '다 했어?! 진짜?! 최고다!!',
+      taco:   '올클리어. 더 할 말이 없다. 레전드.',
+      totoru: '모든 할 일을 다 했어. 정말 잘했다.',
     };
     return msgs[char] || msgs.toru;
   }
   if (completedCount >= 5) {
     const msgs = {
-      toru:   '5개 완료! 오늘 정말 알차다! 🎉',
-      paengi: '다섯 개?! 레전드다 레전드!! 🏆',
-      taco:   '5개. 오늘 집중력 미쳤다. 🔥',
+      toru:   '5개 완료! 오늘 정말 알차다!',
+      paengi: '다섯 개?! 레전드다 레전드!!',
+      taco:   '5개. 오늘 집중력 미쳤다.',
       totoru: '5개 완료. 대단하다. 진심으로.',
     };
     return msgs[char] || msgs.toru;
   }
   if (completedCount >= 3) {
     const msgs = {
-      toru:   '벌써 3개나! 정말 대단해! 💪',
-      paengi: '3개?! 완전 열공 모드잖아!! 🌟',
-      taco:   '3개 완료. 꽤 괜찮은 페이스. 👍',
+      toru:   '벌써 3개나! 정말 대단해!',
+      paengi: '3개?! 완전 열공 모드잖아!!',
+      taco:   '3개 완료. 꽤 괜찮은 페이스.',
       totoru: '착착 해나가고 있어. 멋지다.',
     };
     return msgs[char] || msgs.toru;
   }
   if (completedCount >= 1) {
     const msgs = {
-      toru:   '첫 번째 완료! 좋은 시작이야! ✨',
-      paengi: '오 하나 했다!! 이 기세로!! 🔥',
-      taco:   '1개 클리어. 다음 거 가자. 👊',
+      toru:   '첫 번째 완료! 좋은 시작이야!',
+      paengi: '오 하나 했다!! 이 기세로!!',
+      taco:   '1개 클리어. 다음 거 가자.',
       totoru: '첫 번째 완료. 잘하고 있어.',
     };
     return msgs[char] || msgs.toru;
