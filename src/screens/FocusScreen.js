@@ -119,11 +119,11 @@ export default function FocusScreen() {
   // 동적 링/카드 크기 (회전 시 재계산)
   const CONTENT_MAX_W = isTablet ? 680 : winW;
   const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, winW) - 32 - GAP) / 2 : (winW - 32 - GAP) / 2;
-  const RING_SIZE = isTablet ? Math.min(winW * 0.38, 340) : Math.min(winW - 72, 248);
+  const RING_SIZE = isTablet ? Math.min(winW * 0.38, 340) : Math.min(winW - 72, 340);
   const RING_STROKE = isTablet ? 16 : 14;
   const RING_R = (RING_SIZE - RING_STROKE) / 2;
   const RING_C = 2 * Math.PI * RING_R;
-  const RING_SIZE_FULL = isTablet ? Math.min(winW * 0.5, 460) : Math.min(winW - 40, 300);
+  const RING_SIZE_FULL = isTablet ? Math.min(winW * 0.5, 460) : Math.min(winW - 40, 340);
   const RING_STROKE_FULL = isTablet ? 20 : 16;
   const RING_R_FULL = (RING_SIZE_FULL - RING_STROKE_FULL) / 2;
   const RING_C_FULL = 2 * Math.PI * RING_R_FULL;
@@ -865,7 +865,7 @@ export default function FocusScreen() {
             </Svg>
             {/* 링 내부: 시간 + 서브 텍스트 */}
             <View style={{ alignItems: 'center' }}>
-              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : (formatTime(display).length >= 7 ? 38 : 50), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : Math.round(RING_R * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
               {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
@@ -963,7 +963,7 @@ export default function FocusScreen() {
             )}
           </Svg>
           <View style={{ alignItems: 'center' }}>
-            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : (formatTime(display).length >= 7 ? 38 : 60), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : Math.round(RING_R_FULL * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
             {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
