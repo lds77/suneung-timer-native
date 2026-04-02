@@ -865,7 +865,7 @@ export default function FocusScreen() {
             </Svg>
             {/* 링 내부: 시간 + 서브 텍스트 */}
             <View style={{ alignItems: 'center' }}>
-              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : 50, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : (formatTime(display).length >= 7 ? 38 : 50), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
               {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
@@ -963,7 +963,7 @@ export default function FocusScreen() {
             )}
           </Svg>
           <View style={{ alignItems: 'center' }}>
-            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : 60, fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : (formatTime(display).length >= 7 ? 38 : 60), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
             {t.type !== 'lap' && getTotalElapsed(t) > 0 && (

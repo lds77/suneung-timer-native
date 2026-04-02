@@ -48,7 +48,13 @@ export default function CircularTimer({
       </Svg>
       <View style={styles.center}>
         {children}
-        <Text style={[styles.time, { color: isRunning ? strokeColor : T.text }]}>
+        <Text
+          style={[styles.time, {
+            color: isRunning ? strokeColor : T.text,
+            fontSize: (timeText?.length || 0) >= 7 ? 32 : (timeText?.length || 0) >= 5 ? 38 : 42,
+          }]}
+          numberOfLines={1}
+        >
           {timeText}
         </Text>
         {subLabel ? (
@@ -79,6 +85,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
     letterSpacing: -2,
+    width: SIZE - STROKE * 2 - 20,
+    textAlign: 'center',
   },
   sub: {
     fontSize: 11,
