@@ -106,8 +106,9 @@ export default function FocusScreen() {
   const app = useApp();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  // 집중모드 잠금화면 여부 (락 오버레이는 하드코딩 다크색 사용 — T에 영향 안 줌)
-  const [screenLocked, setScreenLocked] = useState(false);
+  // 집중모드 잠금화면 여부 — AppContext에서 관리 (MainApp 리마운트 시에도 유지, iOS Modal 투명 버그 방지)
+  const screenLocked = app.screenLocked ?? false;
+  const setScreenLocked = app.setScreenLocked;
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const { width: winW, height: winH } = useWindowDimensions();
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -314,10 +315,6 @@ export default function FocusScreen() {
     return () => sub.remove();
   }, []);
 
-  // screenLocked 변경 시 useAppState에 알림 (AppState 핸들러가 잠금 여부 체크용)
-  useEffect(() => {
-    app.notifyScreenLocked?.(screenLocked);
-  }, [screenLocked]);
 
   // 타이머 없어지면 기본모드로 복귀
   useEffect(() => {
@@ -330,7 +327,6 @@ export default function FocusScreen() {
     if (app.focusMode === 'screen_on' && hasRunning && !app.ultraFocus?.showChallenge && !app.ultraFocus?.gaveUp) {
       if (!screenLocked) {
         setScreenLocked(true);
-        try { app.applyFocusBrightness?.(); } catch {}
       }
     }
     if (!hasRunning || app.focusMode !== 'screen_on') {
@@ -342,6 +338,13 @@ export default function FocusScreen() {
       setScreenLocked(false);
     }
   }, [app.focusMode, hasRunning, app.ultraFocus?.showChallenge, app.ultraFocus?.gaveUp]);
+
+  // screenLocked 상태에 따라 밝기 적용 — context에서 관리하므로 remount 후에도 정상 동작
+  useEffect(() => {
+    if (screenLocked && app.focusMode === 'screen_on') {
+      try { app.applyFocusBrightness?.(); } catch {}
+    }
+  }, [screenLocked]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -366,6 +369,8 @@ export default function FocusScreen() {
             setScreenLocked(false);
             slideX.setValue(0);
             slideOpacity.setValue(1);
+            // 잠금 해제 후 배너(다시 잠금 버튼)가 보이도록 ScrollView 상단으로 이동
+            setTimeout(() => mainScrollRef.current?.scrollTo({ y: 0, animated: false }), 50);
           });
         } else {
           // 원위치
@@ -864,8 +869,8 @@ export default function FocusScreen() {
               )}
             </Svg>
             {/* 링 내부: 시간 + 서브 텍스트 */}
-            <View style={{ alignItems: 'center' }}>
-              <Text testID="timer-text" style={{ fontSize: isTablet ? 64 : Math.round(RING_R * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+            <View style={{ alignItems: 'center', width: RING_SIZE - RING_STROKE * 4 }}>
+              <Text testID="timer-text" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: isTablet ? 64 : Math.round(RING_R * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
                 {formatTime(display)}
               </Text>
               {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
@@ -962,8 +967,8 @@ export default function FocusScreen() {
               />
             )}
           </Svg>
-          <View style={{ alignItems: 'center' }}>
-            <Text testID="timer-text" style={{ fontSize: isTablet ? 80 : Math.round(RING_R_FULL * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+          <View style={{ alignItems: 'center', width: RING_SIZE_FULL - RING_STROKE_FULL * 4 }}>
+            <Text testID="timer-text" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: isTablet ? 80 : Math.round(RING_R_FULL * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
               {formatTime(display)}
             </Text>
             {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
@@ -3293,78 +3298,7 @@ export default function FocusScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 🔒 잠금 오버레이 (집중모드 전용) - 풀스크린 모달 */}
-      <Modal visible={screenLocked} transparent animationType="none" statusBarTranslucent>
-        <View style={[S.lockOverlayBg, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            {/* 첫 사용 한 줄 가이드 */}
-            {!app.settings.guideLock && (
-              <TouchableOpacity onPress={() => app.updateSettings({ guideLock: true })}
-                style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* 캐릭터 + 메시지 */}
-            <View style={{ alignItems: 'center', marginBottom: 30 }}>
-              <CharacterAvatar characterId={app.settings.mainCharacter} size={110} />
-              <Text style={S.lockMsg}>
-                {app.ultraFocus?.exitCount === 0 ? '집중 잘하고 있어!' : `이탈 ${app.ultraFocus?.exitCount}회... 다시 집중!`}
-              </Text>
-            </View>
-
-            {/* 타이머 표시 */}
-            <Text style={S.lockTimer}>
-              {(() => {
-                const rt = app.timers.find(t => t.status === 'running');
-                if (!rt) return '--:--';
-                let d;
-                if (rt.type === 'countdown') {
-                  d = Math.max(0, rt.totalSec - rt.elapsedSec);
-                } else if (rt.type === 'sequence') {
-                  const seqTarget = rt.seqPhase === 'break' ? rt.seqBreakSec : rt.totalSec;
-                  d = Math.max(0, seqTarget - rt.elapsedSec);
-                } else if (rt.type === 'pomodoro') {
-                  const target = (rt.pomoPhase === 'work' ? rt.pomoWorkMin : rt.pomoBreakMin) * 60;
-                  d = Math.max(0, target - rt.elapsedSec);
-                } else {
-                  d = rt.elapsedSec;
-                }
-                const m = Math.floor(d / 60); const s = d % 60;
-                return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-              })()}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
-              <Ionicons name="flash" size={14} color="#FF6B6B" />
-              <Text style={[S.lockModeBadge, { marginBottom: 0 }]}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
-            </View>
-
-            {/* 잠깐 쉬기 — 울트라집중에서는 숨김 */}
-            {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
-              <TouchableOpacity onPress={() => { app.allowPause?.(); setScreenLocked(false); }} style={S.lockPauseBtn}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="pause" size={14} color="#FFB74D" />
-                  <Text style={S.lockPauseBtnT}>잠깐 쉬기 (60초)</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* 슬라이드 해제 */}
-            <View style={[S.lockSlideWrap, { bottom: Math.max(80, insets.bottom + 40) }]}>
-              <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', gap: 5 }, { opacity: slideOpacity }]}>
-                <Ionicons name="lock-open-outline" size={13} color="rgba(255,255,255,0.5)" />
-                <Text style={S.lockSlideHint}>옆으로 밀어서 잠금 해제</Text>
-              </Animated.View>
-              <View style={[S.lockSlideTrack, { width: SLIDE_WIDTH }]}>
-                <Animated.View style={[S.lockSlideThumb, { transform: [{ translateX: slideX }] }]} {...panResponder.panHandlers}>
-                  <Text style={{ fontSize: 22, color: '#000000', fontWeight: '900' }}>→</Text>
-                </Animated.View>
-              </View>
-            </View>
-        </View>
-      </Modal>
+      {/* 🔒 잠금 오버레이는 App.js의 LockOverlay 컴포넌트로 이동 (Root 레벨 렌더링 — 폰트 변경 리마운트에 영향받지 않음) */}
 
       {/* ── 완료 결과 + 자기평가 ── */}
       <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
@@ -3653,7 +3587,9 @@ function createStyles(fs) { return StyleSheet.create({
   // 가이드 말풍선
   guideBubble: { borderRadius: 10, padding: 12, borderWidth: 1, marginTop: 10, width: '100%' },
   // 잠금 오버레이 (하드코딩 색상 — T 미사용)
-  lockOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
+  // iOS: presentationStyle="fullScreen" + transparent={false} 환경에서 flex:1이 모달 창을 채우지 못하는 버그 방지
+  // → position absolute로 명시적 전체 커버
+  lockOverlayBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
   lockMsg: { fontSize: Math.round(16 * fs), fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' },
   lockTimer: { fontSize: Math.round(52 * fs), fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 },
   lockModeBadge: { fontSize: Math.round(14 * fs), fontWeight: '700', color: '#FF6B6B', marginBottom: 20 },

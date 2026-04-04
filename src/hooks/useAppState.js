@@ -218,11 +218,16 @@ export function AppProvider({ children }) {
   const focusModeRef = useRef(null);
   focusModeRef.current = focusMode;
 
-  // 🔥모드 원래 밝기 저장 (복원용) — 다크모드는 FocusScreen 로컬 screenLocked로 처리
+  // 🔥모드 원래 밝기 저장 (복원용) — 다크모드는 FocusScreen screenLocked로 처리
   const originalBrightness = useRef(null);
-  // FocusScreen에서 잠금화면 ON/OFF 시 업데이트 — AppState 핸들러에서 체크용
+  // FocusScreen 잠금화면 상태 — Context에서 관리해 MainApp 리마운트 시에도 유지 (iOS Modal 투명 버그 방지)
+  const [screenLocked, setScreenLockedState] = useState(false);
   const screenLockedRef = useRef(false);
-  const notifyScreenLocked = useCallback((locked) => { screenLockedRef.current = locked; }, []);
+  const setScreenLocked = useCallback((locked) => {
+    screenLockedRef.current = locked;
+    setScreenLockedState(locked);
+  }, []);
+  const notifyScreenLocked = setScreenLocked; // 하위 호환 유지
 
   // 울트라 포커스 상태 (🔥모드 전용)
   const [ultraFocus, setUltraFocus] = useState({
@@ -1784,6 +1789,7 @@ export function AppProvider({ children }) {
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
+      screenLocked, setScreenLocked,
       favs, setFavs, addFav, removeFav,
       countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,

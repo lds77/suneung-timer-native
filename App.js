@@ -6,9 +6,10 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Modal,
   TextInput, ScrollView, Platform, Dimensions,
+  Animated, PanResponder, useWindowDimensions,
 } from 'react-native';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import * as Font from 'expo-font';
@@ -719,6 +720,137 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
   );
 }
 
+// ── 잠금 오버레이 — Root 레벨에 배치하여 MainApp 리마운트(폰트 변경 등)에 영향받지 않음 ──
+function LockOverlay() {
+  const app = useApp();
+  const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const isTabletLock = winW >= 600;
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+  const fs = T.fontScale;
+
+  const SLIDE_WIDTH = isTabletLock ? Math.min(winW - 80, 360) : winW - 80;
+  const THUMB_SIZE = 56;
+  const SLIDE_THRESHOLD = SLIDE_WIDTH - THUMB_SIZE - 10;
+  const slideThresholdRef = useRef(SLIDE_THRESHOLD);
+  slideThresholdRef.current = SLIDE_THRESHOLD;
+  const slideX = useRef(new Animated.Value(0)).current;
+  const slideOpacity = useRef(new Animated.Value(1)).current;
+
+  // 함수 refs — panResponder 내부에서 항상 최신 함수 참조
+  const restoreBrightnessRef = useRef(null);
+  restoreBrightnessRef.current = app.restoreBrightness;
+  const setScreenLockedRef = useRef(null);
+  setScreenLockedRef.current = app.setScreenLocked;
+  const allowPauseRef = useRef(null);
+  allowPauseRef.current = app.allowPause;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderMove: (_, gs) => {
+        const threshold = slideThresholdRef.current;
+        const x = Math.max(0, Math.min(gs.dx, threshold));
+        slideX.setValue(x);
+        slideOpacity.setValue(1 - (x / threshold) * 0.8);
+      },
+      onPanResponderRelease: (_, gs) => {
+        const threshold = slideThresholdRef.current;
+        if (gs.dx >= threshold) {
+          Animated.timing(slideX, { toValue: threshold, duration: 100, useNativeDriver: false }).start(() => {
+            try { restoreBrightnessRef.current?.(); } catch {}
+            setScreenLockedRef.current?.(false);
+            slideX.setValue(0);
+            slideOpacity.setValue(1);
+          });
+        } else {
+          Animated.spring(slideX, { toValue: 0, useNativeDriver: false }).start();
+          Animated.timing(slideOpacity, { toValue: 1, duration: 200, useNativeDriver: false }).start();
+        }
+      },
+    })
+  ).current;
+
+  if (!app.screenLocked) return null;
+
+  const rt = app.timers?.find(t => t.status === 'running');
+  let timerDisplay = '--:--';
+  if (rt) {
+    let d;
+    if (rt.type === 'countdown') d = Math.max(0, rt.totalSec - rt.elapsedSec);
+    else if (rt.type === 'sequence') {
+      const seqTarget = rt.seqPhase === 'break' ? rt.seqBreakSec : rt.totalSec;
+      d = Math.max(0, seqTarget - rt.elapsedSec);
+    } else if (rt.type === 'pomodoro') {
+      const target = (rt.pomoPhase === 'work' ? rt.pomoWorkMin : rt.pomoBreakMin) * 60;
+      d = Math.max(0, target - rt.elapsedSec);
+    } else {
+      d = rt.elapsedSec;
+    }
+    const m = Math.floor(d / 60); const s = d % 60;
+    timerDisplay = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* 첫 사용 한 줄 가이드 */}
+      {!app.settings.guideLock && (
+        <TouchableOpacity onPress={() => app.updateSettings({ guideLock: true })}
+          style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.8)" />
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* 캐릭터 + 메시지 */}
+      <View style={{ alignItems: 'center', marginBottom: 30 }}>
+        <CharacterAvatar characterId={app.settings.mainCharacter} size={110} />
+        <Text style={{ fontSize: Math.round(16 * fs), fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' }}>
+          {app.ultraFocus?.exitCount === 0 ? '집중 잘하고 있어!' : `이탈 ${app.ultraFocus?.exitCount}회... 다시 집중!`}
+        </Text>
+      </View>
+
+      {/* 타이머 표시 */}
+      <Text style={{ fontSize: Math.round(52 * fs), fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 }}>
+        {timerDisplay}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
+        <Ionicons name="flash" size={14} color="#FF6B6B" />
+        <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: '#FF6B6B' }}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
+      </View>
+
+      {/* 잠깐 쉬기 */}
+      {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
+        <TouchableOpacity onPress={() => { allowPauseRef.current?.(); setScreenLockedRef.current?.(false); }}
+          style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#FFB74D60', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="pause" size={14} color="#FFB74D" />
+            <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: '#FFB74D' }}>잠깐 쉬기 (60초)</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* 슬라이드 해제 */}
+      <View style={{ alignItems: 'center', position: 'absolute', left: 0, right: 0, bottom: Math.max(80, insets.bottom + 40) }}>
+        <Animated.View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: slideOpacity }}>
+          <Ionicons name="lock-open-outline" size={13} color="rgba(255,255,255,0.5)" />
+          <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginBottom: 14, letterSpacing: 1 }}>옆으로 밀어서 잠금 해제</Text>
+        </Animated.View>
+        <View style={{ height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', width: SLIDE_WIDTH }}>
+          <Animated.View style={{ width: 56, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', transform: [{ translateX: slideX }] }} {...panResponder.panHandlers}>
+            <Text style={{ fontSize: 22, color: '#000000', fontWeight: '900' }}>→</Text>
+          </Animated.View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ── 메인 ──
 function MainApp() {
   const app = useApp();
@@ -917,6 +1049,8 @@ function Root() {
   return (
     <>
       <MainApp key={loadedFont} />
+      {/* LockOverlay는 MainApp 밖에 배치 — 폰트 변경으로 MainApp이 리마운트되어도 잠금화면 유지 */}
+      <LockOverlay />
       {!fontsLoaded && (
         <View style={[StyleSheet.absoluteFill, styles.loading]}>
           <ActivityIndicator size="large" color="#FF6B9D" />
