@@ -293,43 +293,67 @@ export default function SubjectsScreen({ navigation }) {
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+      <View style={{ flex: 1, flexDirection: isLandscape ? 'row' : 'column' }}>
 
-        {/* 헤더 */}
-        <View style={S.header}>
-          <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
-            <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
-          </View>
-        </View>
-
-        {/* 초등: 학년 정보 */}
-        {(school === 'elementary_lower' || school === 'elementary_upper') && (
-          <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
-              {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
-            </Text>
+        {/* 가로모드: 좌측 사이드바 탭 */}
+        {isLandscape && (
+          <View style={{ width: 130, backgroundColor: T.surface2, paddingTop: 14, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: T.border }}>
+            <View style={[S.schoolBadge, { backgroundColor: T.accent + '15', alignSelf: 'center', marginBottom: 14 }]}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
+            </View>
+            {(school === 'elementary_lower' || school === 'elementary_upper') && (
+              <Text style={{ fontSize: 11, fontWeight: '600', color: T.sub, textAlign: 'center', marginBottom: 8 }}>
+                {school === 'elementary_lower' ? '1~3학년' : '4~6학년'}
+              </Text>
+            )}
+            {tabs.map(t => (
+              <TouchableOpacity key={t.id}
+                style={[{ paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10, marginBottom: 4, alignItems: 'center', gap: 4 }, tab === t.id && { backgroundColor: T.card }]}
+                onPress={() => changeTab(t.id)}>
+                <Ionicons name={t.icon} size={18} color={tab === t.id ? T.accent : T.sub} />
+                <Text style={{ fontSize: 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub, textAlign: 'center' }}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
-        {/* 탭 (3개 or 4개) */}
-        <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
-          {tabs.map(t => (
-            <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
-              onPress={() => changeTab(t.id)}>
-              <Ionicons name={t.icon} size={isHigh ? 14 : 16} color={tab === t.id ? T.text : T.sub} style={{ marginBottom: 1 }} />
-              <Text style={{ fontSize: isHigh ? 9 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, !isLandscape && isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+
+          {/* 헤더 + 탭바 — 세로모드만 */}
+          {!isLandscape && (
+            <>
+              <View style={S.header}>
+                <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
+                </View>
+              </View>
+              {(school === 'elementary_lower' || school === 'elementary_upper') && (
+                <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
+                    {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
+                  </Text>
+                </View>
+              )}
+              <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
+                {tabs.map(t => (
+                  <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
+                    onPress={() => changeTab(t.id)}>
+                    <Ionicons name={t.icon} size={isHigh ? 14 : 16} color={tab === t.id ? T.text : T.sub} style={{ marginBottom: 1 }} />
+                    <Text style={{ fontSize: isHigh ? 9 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
 
         {/* ═══ 탭: 추천 루틴 ═══ */}
         {tab === 'routine' && (
-          <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
+          <View style={{}}>
             {routines.map(routine => {
               const totalMin = routine.items.reduce((s, it) => s + it.min, 0) + (routine.items.length - 1) * routine.breakMin;
               return (
-                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
+                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}>
                   <View style={S.routineTop}>
                     <Ionicons name={routine.icon} size={28} color={routine.color} />
                     <View style={{ flex: 1 }}>
@@ -363,11 +387,11 @@ export default function SubjectsScreen({ navigation }) {
         {tab === 'method' && (
           <>
             <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
-            <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
+            <View style={{}}>
             {methods.map(method => {
               const totalMin = method.items.reduce((s, it) => s + it.min, 0) + (method.items.length - 1) * method.breakMin;
               return (
-                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
+                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }]}>
                   <View style={S.methodTop}>
                     <View style={[S.methodIconWrap, { backgroundColor: method.color + '15' }]}>
                       <Ionicons name={method.icon} size={24} color={method.color} />
@@ -500,11 +524,11 @@ export default function SubjectsScreen({ navigation }) {
               <>
                 {/* 자유 선택 모드 (기존) */}
                 <Text style={[S.secLabel, { color: T.sub }]}>과목별 시험시간 · 개별 또는 순차 시작</Text>
-                <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
+                <View style={{}}>
                 {SUNEUNG_SUBJECTS.map(subj => {
                   const sel = suneungSelected.includes(subj.name);
                   return (
-                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }, isLandscape && { flex: 1, minWidth: '45%' }]}>
+                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
                       <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
                         <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
@@ -621,7 +645,7 @@ export default function SubjectsScreen({ navigation }) {
               </TouchableOpacity>
             )}
 
-            <View style={isLandscape ? { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } : {}}>
+            <View style={{}}>
             {sorted.map(subj => {
               const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
               const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
@@ -630,7 +654,7 @@ export default function SubjectsScreen({ navigation }) {
               const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
               return (
                 <TouchableOpacity key={subj.id}
-                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }, isLandscape && { flex: 1, minWidth: '45%' }]}
+                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
                   onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
                   activeOpacity={1}
                   disabled={editMode}>
@@ -708,8 +732,9 @@ export default function SubjectsScreen({ navigation }) {
           </>
         )}
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </View>
 
       {/* 과목 추가 모달 */}
       <Modal visible={showAdd} transparent animationType="fade">

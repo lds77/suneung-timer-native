@@ -40,9 +40,21 @@ export default function StatsScreen() {
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
-  const contentW = isTablet ? Math.min(winW, TABLET_MAX_W) - 32 : winW - 32;
+  const SIDEBAR_W = 100; // 가로모드 사이드바 너비
+  const scrollW = isLandscape ? winW - SIDEBAR_W : winW;
+  const contentW = isTablet ? Math.min(scrollW, TABLET_MAX_W) - 32 : scrollW - 32;
   const CELL = useMemo(() => Math.floor((contentW - 28 - 12) / 7), [contentW]);
-  const HM_CELL = useMemo(() => Math.max(8, Math.floor((winW - 72 - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS)), [winW]);
+  const HM_CELL = useMemo(() => {
+    // landscape: heatmap is in the left flex:1 of a two-column layout
+    //   scrollW already excludes sidebar; subtract scroll-padding(32) + gap(10), halve for one column
+    //   overhead = card-pad(24) + dayLabel-col(16) = 40 (scroll padding already removed)
+    // portrait: baseW includes scroll padding, so overhead = 32 + 24 + 16 = 72
+    const baseW = isLandscape
+      ? (scrollW - 32 - 10) / 2
+      : (isTablet ? Math.min(tabletMaxW, winW) : winW);
+    const overhead = isLandscape ? 40 : 72;
+    return Math.max(8, Math.floor((baseW - overhead - (HM_WEEKS - 1) * HM_GAP) / HM_WEEKS));
+  }, [isLandscape, scrollW, tabletMaxW, winW]);
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
@@ -779,16 +791,41 @@ export default function StatsScreen() {
     [todaySessions.length, Math.floor(todayTotalSec / 300)],
   );
 
+  const STAT_TABS = [
+    { id: 'daily', l: '일간', icon: 'today-outline' },
+    { id: 'weekly', l: '주간', icon: 'calendar-outline' },
+    { id: 'monthly', l: '월간', icon: 'grid-outline' },
+    { id: 'heatmap', l: '잔디', icon: 'leaf-outline' },
+    { id: 'subject', l: '과목', icon: 'bar-chart-outline' },
+  ];
+
   // ═══ RENDER ═══════════════════════════════════════════════════
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+      <View style={{ flex: 1, flexDirection: isLandscape ? 'row' : 'column' }}>
 
-        {/* ── 헤더 ── */}
+        {/* 가로모드: 좌측 사이드바 탭 */}
+        {isLandscape && (
+          <View style={{ width: 100, backgroundColor: T.surface2, paddingTop: 14, paddingHorizontal: 6, borderRightWidth: 1, borderRightColor: T.border }}>
+            {STAT_TABS.map(t => (
+              <TouchableOpacity key={t.id}
+                style={[{ paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10, marginBottom: 4, alignItems: 'center', gap: 4 }, tab === t.id && { backgroundColor: T.card }]}
+                onPress={() => setTab(t.id)}>
+                <Ionicons name={t.icon} size={18} color={tab === t.id ? T.accent : T.sub} />
+                <Text style={{ fontSize: 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub, textAlign: 'center' }}>{t.l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, !isLandscape && isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+
+        {/* ── 헤더 탭바 — 세로모드만 ── */}
+        {!isLandscape && (
         <View style={S.header}>
           <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
-            {[{ id: 'daily', l: '일간' }, { id: 'weekly', l: '주간' }, { id: 'monthly', l: '월간' }, { id: 'heatmap', l: '잔디' }, { id: 'subject', l: '과목' }].map(t => (
+            {STAT_TABS.map(t => (
               <TouchableOpacity
                 key={t.id}
                 style={[S.tabBtn, tab === t.id && { backgroundColor: T.accent }]}
@@ -801,6 +838,7 @@ export default function StatsScreen() {
             ))}
           </View>
         </View>
+        )}
 
         {/* ── 요약 카드 (탭별 맞춤) ── */}
         {tab !== 'subject' && (
@@ -1351,7 +1389,7 @@ export default function StatsScreen() {
                 if (!cell) return <View key={`e${i}`} style={S.calCell} />;
                 return (
                   <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                    <View style={[S.calDot, { width: CELL, height: CELL, backgroundColor: getHeatColor(cell.sec) }]}>
+                    <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
                       <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
                     </View>
                     {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
@@ -1849,6 +1887,7 @@ export default function StatsScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </View>
 
       {/* ── 메모 수정 모달 ── */}
       <Modal visible={!!editMemo} transparent animationType="none" onRequestClose={() => setEditMemo(null)} onShow={() => { memoInputRef.current?.focus(); }}>

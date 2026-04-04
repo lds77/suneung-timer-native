@@ -104,6 +104,9 @@ const carryoverGeometry = (end) => {
 // ─── 블록 추가/수정 모달 ───
 // minStartTime: 이 시간 이전은 시작시간 선택 불가 (오늘의 현재 시간)
 function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly }) {
+  const { width: winW } = useWindowDimensions();
+  const isTablet = winW >= 600;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const [type, setType]           = useState(planOnly ? 'plan' : 'fixed');
   const [label, setLabel]         = useState('');
   const [start, setStart]         = useState('08:00');
@@ -343,6 +346,9 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 
 // ─── 공부계획 실행 바텀시트 ───
 function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, T, getPlanCompletedSec }) {
+  const { width: winW } = useWindowDimensions();
+  const isTablet = winW >= 600;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   if (!plan) return null;
   const doneSec = getPlanCompletedSec?.(plan.id) || 0;
   const targetSec = (plan.targetMin || 0) * 60;
@@ -356,9 +362,10 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
   const startBtnTextColor = (isDone || !isToday) ? T.sub : '#fff';
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'flex-end' }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', borderRadius: 20 }]}>
         {/* 헤더 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: plan.color || T.accent, marginRight: 10 }} />
@@ -443,12 +450,16 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
           </View>
         )}
       </View>
+      </View>
     </Modal>
   );
 }
 
 // ─── 빈 시간 배치 바텀시트 ───
 function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignToday, onManual, T }) {
+  const { width: winW } = useWindowDimensions();
+  const isTablet = winW >= 600;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   if (!plan) return null;
   const futureSlots = freeSlots
     .filter(s => parseTimeToMin(s.end === '24:00' ? '24:00' : s.end) > nowMin)
@@ -464,56 +475,58 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
-      <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>빈 시간에 배치</Text>
-          <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={T.sub} /></TouchableOpacity>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: plan.color || T.accent }} />
-          <Text style={{ fontSize: 13, color: T.sub }}>{plan.label} · {plan.targetMin}분 목표</Text>
-        </View>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'flex-end' }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, maxHeight: '70%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', borderRadius: 20 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>빈 시간에 배치</Text>
+            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={T.sub} /></TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: plan.color || T.accent }} />
+            <Text style={{ fontSize: 13, color: T.sub }}>{plan.label} · {plan.targetMin}분 목표</Text>
+          </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {futureSlots.length === 0 ? (
-            <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', paddingVertical: 20 }}>
-              오늘 남은 빈 시간이 없어요
-            </Text>
-          ) : (
-            futureSlots.map((slot, i) => {
-              const assignEnd = minToStr(Math.min(parseTimeToMin(slot.start) + plan.targetMin, parseTimeToMin(slot.end === '24:00' ? '24:00' : slot.end)));
-              const fits = slot.durationMin >= plan.targetMin;
-              return (
-                <TouchableOpacity key={i} onPress={() => handleSlotTap(slot.start, assignEnd)} style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  padding: 14, borderRadius: 12, marginBottom: 8,
-                  backgroundColor: fits ? T.accent + '12' : T.surface,
-                  borderWidth: 1.5, borderColor: fits ? T.accent + '50' : T.border,
-                }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '800', color: fits ? T.accent : T.text }}>
-                      {slot.start} ~ {assignEnd}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>
-                      빈 시간 {slot.durationMin >= 60 ? `${Math.floor(slot.durationMin/60)}시간${slot.durationMin%60>0?` ${slot.durationMin%60}분`:''}` : `${slot.durationMin}분`}
-                      {!fits ? `  ·  목표 ${plan.targetMin}분 중 ${slot.durationMin}분 가능` : '  ·  목표 시간 전부 가능'}
-                    </Text>
-                  </View>
-                  {fits && <Ionicons name="checkmark-circle" size={22} color={T.accent} />}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {futureSlots.length === 0 ? (
+              <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', paddingVertical: 20 }}>
+                오늘 남은 빈 시간이 없어요
+              </Text>
+            ) : (
+              futureSlots.map((slot, i) => {
+                const assignEnd = minToStr(Math.min(parseTimeToMin(slot.start) + plan.targetMin, parseTimeToMin(slot.end === '24:00' ? '24:00' : slot.end)));
+                const fits = slot.durationMin >= plan.targetMin;
+                return (
+                  <TouchableOpacity key={i} onPress={() => handleSlotTap(slot.start, assignEnd)} style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    padding: 14, borderRadius: 12, marginBottom: 8,
+                    backgroundColor: fits ? T.accent + '12' : T.surface,
+                    borderWidth: 1.5, borderColor: fits ? T.accent + '50' : T.border,
+                  }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: fits ? T.accent : T.text }}>
+                        {slot.start} ~ {assignEnd}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>
+                        빈 시간 {slot.durationMin >= 60 ? `${Math.floor(slot.durationMin/60)}시간${slot.durationMin%60>0?` ${slot.durationMin%60}분`:''}` : `${slot.durationMin}분`}
+                        {!fits ? `  ·  목표 ${plan.targetMin}분 중 ${slot.durationMin}분 가능` : '  ·  목표 시간 전부 가능'}
+                      </Text>
+                    </View>
+                    {fits && <Ionicons name="checkmark-circle" size={22} color={T.accent} />}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
 
-        <TouchableOpacity onPress={onManual} style={{
-          paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-          borderWidth: 1.5, borderColor: T.border, marginTop: 8,
-        }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>직접 시간 설정하기</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={onManual} style={{
+            paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+            borderWidth: 1.5, borderColor: T.border, marginTop: 8,
+          }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>직접 시간 설정하기</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
@@ -648,7 +661,7 @@ export default function PlannerScreen({ navigation }) {
   }, [viewMode]);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
-  const DAY_W = Math.floor((winW - TIME_COL_W) / 7);
+  const DAY_W = Math.floor((tabletMaxW - TIME_COL_W) / 7);
   const isThisWeek = weekOffset === 0;
 
   // weeklySchedule에서 특정 요일 데이터 가져오기
@@ -1081,7 +1094,15 @@ export default function PlannerScreen({ navigation }) {
     for (let i = 0; i < firstDow; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-    const cellW = Math.floor((winW - 16) / 7);
+    // 마지막 행도 7개로 패딩
+    const paddedCells = [...cells];
+    while (paddedCells.length % 7 !== 0) paddedCells.push(null);
+    const rows = [];
+    for (let i = 0; i < paddedCells.length; i += 7) rows.push(paddedCells.slice(i, i + 7));
+    const cellPct = `${100 / 7}%`;
+    // 아이패드에서 셀 높이를 화면 높이 기준으로 동적 계산 (달력 6주 기준)
+    const totalRows = Math.ceil(cells.length / 7);
+    const cellH = isTablet ? Math.max(72, Math.floor((winH * 0.52) / totalRows)) : 64;
     const todayStr = getToday();
     // 선택된 날짜의 상세 정보
     const selDateStr = selectedDate;
@@ -1109,77 +1130,91 @@ export default function PlannerScreen({ navigation }) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: insets.bottom + 80 }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
         {/* 요일 헤더 */}
-        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+        <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: T.border }}>
           {DAY_LABELS.map((l, i) => (
-            <View key={l} style={{ width: cellW, alignItems: 'center', paddingVertical: 4 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: i === 0 ? T.red : i === 6 ? T.accent : T.sub }}>{l}</Text>
+            <View key={l} style={{ width: cellPct, alignItems: 'center', paddingVertical: 6 }}>
+              <Text style={{ fontSize: isTablet ? 13 : 11, fontWeight: '700', color: i === 0 ? T.red : i === 6 ? T.accent : T.sub }}>{l}</Text>
             </View>
           ))}
         </View>
 
-        {/* 날짜 셀 그리드 */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {cells.map((d, idx) => {
-            if (!d) return <View key={`e${idx}`} style={{ width: cellW, height: 64 }} />;
-            const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const isToday = dateStr === todayStr;
-            const isSel = dateStr === selectedDate;
-            const dow = new Date(targetYear, targetMonth, d).getDay();
-            const isPast = dateStr < todayStr;
-            const ddayInfo = ddayDateMap[dateStr];
-            const studyOp = getStudyDotOpacity(dateStr);
-            const daysLeft = calcDDay(dateStr);
+        {/* 날짜 셀 그리드 — 행별 flex:1 */}
+        <View style={{ borderBottomWidth: 1, borderBottomColor: T.border }}>
+          {rows.map((row, rowIdx) => (
+            <View key={rowIdx} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: T.border }}>
+              {row.map((d, colIdx) => {
+                const idx = rowIdx * 7 + colIdx;
+                const dotSize = isTablet ? 7 : 5;
+                if (!d) return (
+                  <View key={`e${idx}`} style={{
+                    width: cellPct, height: cellH,
+                    borderRightWidth: colIdx < 6 ? 1 : 0, borderRightColor: T.border,
+                  }} />
+                );
+                const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isToday = dateStr === todayStr;
+                const isSel = dateStr === selectedDate;
+                const dow = new Date(targetYear, targetMonth, d).getDay();
+                const isPast = dateStr < todayStr;
+                const ddayInfo = ddayDateMap[dateStr];
+                const studyOp = getStudyDotOpacity(dateStr);
+                const daysLeft = calcDDay(dateStr);
 
-            return (
-              <TouchableOpacity key={idx} activeOpacity={0.6} onPress={() => setSelectedDate(isSel ? null : dateStr)}
-                onLongPress={() => { if (!isPast) openAddDDay(dateStr); }}
-                style={{
-                  width: cellW, height: 64, borderRadius: 8, padding: 3, marginBottom: 2,
-                  backgroundColor: ddayInfo ? (T.accent + '20') : 'transparent',
-                  borderWidth: isSel ? 1.5 : ddayInfo ? 1 : 0,
-                  borderColor: isSel ? T.accent : ddayInfo ? (T.accent + '40') : 'transparent',
-                }}>
-                {/* 날짜 숫자 */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
-                  <View style={{
-                    width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: isToday ? T.accent : 'transparent',
-                  }}>
-                    <Text style={{ fontSize: 12, fontWeight: isToday ? '800' : '600',
-                      color: isToday ? '#fff' : dow === 0 ? T.red : dow === 6 ? T.accent : T.text }}>
-                      {d}
-                    </Text>
-                  </View>
-                </View>
+                return (
+                  <TouchableOpacity key={idx} activeOpacity={0.6}
+                    onPress={() => setSelectedDate(isSel ? null : dateStr)}
+                    onLongPress={() => { if (!isPast) openAddDDay(dateStr); }}
+                    style={{
+                      width: cellPct, height: cellH, padding: 4,
+                      borderRightWidth: colIdx < 6 ? 1 : 0, borderRightColor: T.border,
+                      backgroundColor: isSel ? T.accent + '12' : ddayInfo ? (T.accent + '10') : 'transparent',
+                    }}>
+                    {/* 날짜 숫자 */}
+                    <View style={{ alignItems: 'center', marginBottom: 4 }}>
+                      <View style={{
+                        width: isTablet ? 28 : 22, height: isTablet ? 28 : 22,
+                        borderRadius: isTablet ? 14 : 11,
+                        alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: isToday ? T.accent : isSel ? T.accent + '30' : 'transparent',
+                        borderWidth: isSel && !isToday ? 1.5 : 0,
+                        borderColor: T.accent,
+                      }}>
+                        <Text style={{ fontSize: isTablet ? 15 : 12, fontWeight: isToday ? '900' : '600',
+                          color: isToday ? '#fff' : dow === 0 ? T.red : dow === 6 ? T.accent : T.text }}>
+                          {d}
+                        </Text>
+                      </View>
+                    </View>
 
-                {/* 공부 기록 도트 (과거) */}
-                {isPast && studyOp > 0 && (
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: T.accent, opacity: studyOp, marginBottom: 2 }} />
-                )}
+                    {/* 공부 기록 도트 */}
+                    {(isPast || isToday) && studyOp > 0 && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 2, marginBottom: 3 }}>
+                        {[...Array(Math.ceil(studyOp * 3))].map((_, i) => (
+                          <View key={i} style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: T.accent, opacity: 0.7 + i * 0.1 }} />
+                        ))}
+                      </View>
+                    )}
 
-                {/* 오늘 공부 도트 */}
-                {isToday && studyOp > 0 && (
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: T.accent, opacity: studyOp, marginBottom: 2 }} />
-                )}
+                    {/* D-Day 이벤트 마커 */}
+                    {ddayInfo && (
+                      <Text style={{ fontSize: isTablet ? 9 : 8, fontWeight: '800', color: T.accent, textAlign: 'center' }} numberOfLines={1}>
+                        {ddayInfo.label}
+                      </Text>
+                    )}
 
-                {/* D-Day 이벤트 마커 — 모든 기간 날짜에 표시 */}
-                {ddayInfo && (
-                  <Text style={{ fontSize: 8, fontWeight: '800', color: T.accent, textAlign: 'center' }} numberOfLines={1}>
-                    {ddayInfo.label}
-                  </Text>
-                )}
-
-                {/* D-Day 임박 뱃지 (시작일에만, D-14 이내) */}
-                {ddayInfo && ddayInfo.isStart && daysLeft !== null && daysLeft >= 0 && daysLeft <= 14 && (
-                  <View style={{ backgroundColor: daysLeft <= 3 ? T.red : T.accent, borderRadius: 4, paddingHorizontal: 3, alignSelf: 'center', marginTop: 1 }}>
-                    <Text style={{ fontSize: 7, fontWeight: '800', color: '#fff' }}>
-                      {daysLeft === 0 ? 'D-Day' : `D-${daysLeft}`}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+                    {/* D-Day 임박 뱃지 */}
+                    {ddayInfo && ddayInfo.isStart && daysLeft !== null && daysLeft >= 0 && daysLeft <= 14 && (
+                      <View style={{ backgroundColor: daysLeft <= 3 ? T.red : T.accent, borderRadius: 4, paddingHorizontal: 3, alignSelf: 'center', marginTop: 1 }}>
+                        <Text style={{ fontSize: 7, fontWeight: '800', color: '#fff' }}>
+                          {daysLeft === 0 ? 'D-Day' : `D-${daysLeft}`}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
         </View>
 
         {/* ── 선택된 날짜 상세 ── */}
@@ -1810,8 +1845,11 @@ export default function PlannerScreen({ navigation }) {
       {/* 주간 뷰 */}
       {viewMode === 'weekly' && (
         <>
-          {renderWeekHeader()}
+          <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
+            {renderWeekHeader()}
+          </View>
           <ScrollView ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
             {renderGrid()}
             {/* ③ 미배치 계획 — 요일별 컬럼 */}
             {hasUnscheduled && (
@@ -1863,6 +1901,7 @@ export default function PlannerScreen({ navigation }) {
               </View>
             )}
             <View style={{ height: insets.bottom + 20 }} />
+            </View>
           </ScrollView>
         </>
       )}
@@ -1963,7 +2002,8 @@ export default function PlannerScreen({ navigation }) {
       <View style={{
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: T.card, borderTopWidth: 1, borderTopColor: T.border,
-        paddingHorizontal: 10, paddingTop: 6,
+        paddingHorizontal: isTablet ? Math.round((winW - tabletMaxW) / 2) + 10 : 10,
+        paddingTop: 6,
         paddingBottom: Platform.OS === 'android' ? 6 : Math.max(insets.bottom, 6),
         gap: 8,
       }}>

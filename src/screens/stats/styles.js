@@ -109,8 +109,8 @@ export function createStyles(fs) { return StyleSheet.create({
   calWeekRow: { flexDirection: 'row', marginBottom: 4 },
   calWeekDay: { flex: 1, textAlign: 'center', fontSize: Math.round(11 * fs), fontWeight: '700' },
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 3 },
-  calDot: { borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  calCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 2, padding: 3 },
+  calDot: { borderRadius: 6, alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: 1 },
   calDay: { fontSize: Math.round(12 * fs), fontWeight: '700' },
   calTime: { fontSize: Math.round(11 * fs), marginTop: 1 },
 
