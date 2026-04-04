@@ -1278,7 +1278,7 @@ export default function StatsScreen() {
 
           </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
-          {(!isLandscape || !dayDetailDate) && (<>
+          {(<>
           {/* ── 시간대별 집중력 분석 ── */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
             <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
@@ -1407,7 +1407,7 @@ export default function StatsScreen() {
           </View>
           </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
-          {(!isLandscape || !dayDetailDate) && (<>
+          {(<>
           {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
 
           {/* ── 시간대별 집중력 분석 (월간) ── */}
@@ -1569,7 +1569,7 @@ export default function StatsScreen() {
 
           </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
-          {(!isLandscape || !dayDetailDate) && (<>
+          {(<>
           {/* 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
             const memoed = [...app.sessions]
