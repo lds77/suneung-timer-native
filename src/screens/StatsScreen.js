@@ -1250,8 +1250,8 @@ export default function StatsScreen() {
             </View>
           )}
 
-          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {(<>
           {/* ── 시간대별 집중력 분석 ── */}
           <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1381,8 +1381,8 @@ export default function StatsScreen() {
               <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
             </View>
           </View>
-          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {(<>
           {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
 
@@ -1545,8 +1545,8 @@ export default function StatsScreen() {
             </Text>
           </View>
 
-          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {isLandscape ? renderDayDetailInline() : null}
+          </View><View style={isLandscape ? { flex: 1 } : {}}>
           {(<>
           {/* 공부 일기 (메모 있는 세션 전체, 날짜별 그룹) */}
           {(() => {
