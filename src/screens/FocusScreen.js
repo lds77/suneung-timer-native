@@ -1237,7 +1237,7 @@ export default function FocusScreen() {
             <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: isUrgent ? (T.red + '15') : (T.accent + '15'), borderColor: isUrgent ? (T.red + '60') : (T.accent + '60') }]}
               onPress={() => Alert.alert(dd.label, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}`, [
                 { text: '확인' },
-                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner') },
+                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner', { tab: 'monthly' }) },
               ])}>
               <Text style={[S.ddayCellLabel, { color: T.text }]} numberOfLines={1}>{dd.label}</Text>
               <Text style={[S.ddayCellVal, { color: isUrgent ? T.red : T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);
@@ -2066,7 +2066,7 @@ export default function FocusScreen() {
             <TouchableOpacity key={dd.id} style={[S.ddayCell, { backgroundColor: isUrgent ? (T.red + '15') : (T.accent + '15'), borderColor: isUrgent ? (T.red + '60') : (T.accent + '60') }]}
               onPress={() => Alert.alert(dd.label, `날짜: ${dd.date} (${dayName})\n${formatDDay(dd.date)}`, [
                 { text: '확인' },
-                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner') },
+                { text: '플래너에서 관리', onPress: () => navigation.navigate('Planner', { tab: 'monthly' }) },
               ])}>
               <Text style={[S.ddayCellLabel, { color: T.text }]} numberOfLines={1}>{dd.label}</Text>
               <Text style={[S.ddayCellVal, { color: isUrgent ? T.red : T.accent }]}>{formatDDay(dd.date)}</Text></TouchableOpacity>);

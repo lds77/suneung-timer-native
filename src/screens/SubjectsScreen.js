@@ -1,5 +1,5 @@
 // src/screens/SubjectsScreen.js
-// v23: 학습법 탭 + 고등 수능 탭
+// v24: 가로모드 독립 2분할 스크롤
 import React, { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions, useWindowDimensions } from 'react-native';
@@ -132,10 +132,9 @@ const SUNEUNG_SUBJECTS = [
 ];
 
 // 실제 수능 시간표 (2025학년도 기준)
-// 교시 · 시작 · 종료 · 쉬는시간(다음 교시까지)
 const SUNEUNG_TIMETABLE = [
   { order: 1, period: '1교시', name: '국어',      min: 80,  start: '08:40', end: '10:00', breakMin: 30, color: '#E8575A' },
-  { order: 2, period: '2교시', name: '수학',      min: 100, start: '10:30', end: '12:10', breakMin: 60, color: '#4A90D9' },  // 점심 포함
+  { order: 2, period: '2교시', name: '수학',      min: 100, start: '10:30', end: '12:10', breakMin: 60, color: '#4A90D9' },
   { order: 3, period: '3교시', name: '영어',      min: 70,  start: '13:10', end: '14:20', breakMin: 30, color: '#5CB85C' },
   { order: 4, period: '4교시', name: '한국사',    min: 30,  start: '14:50', end: '15:20', breakMin: 15, color: '#E17055' },
   { order: 5, period: '4교시', name: '탐구 1',    min: 30,  start: '15:35', end: '16:05', breakMin: 2,  color: '#F5A623' },
@@ -169,13 +168,11 @@ export default function SubjectsScreen({ navigation }) {
   const [addName, setAddName] = useState('');
   const [addColor, setAddColor] = useState(SUBJECT_COLORS[0]);
   const [addChar, setAddChar] = useState('toru');
-  // 수능 선택
   const [suneungSelected, setSuneungSelected] = useState([]);
   const toggleSuneung = (name) => setSuneungSelected(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
-  const [suneungMode, setSuneungMode] = useState('timetable'); // 'timetable' | 'free'
+  const [suneungMode, setSuneungMode] = useState('timetable');
 
-  // 주간 목표 설정 모달
-  const [goalSubj, setGoalSubj] = useState(null); // 목표 설정 대상 과목
+  const [goalSubj, setGoalSubj] = useState(null);
   const [goalInput, setGoalInput] = useState('');
 
   const key = ELEM_GRADE_KEY(school);
@@ -187,12 +184,11 @@ export default function SubjectsScreen({ navigation }) {
   });
   const toggleFavorite = (subj) => app.updateSubject(subj.id, { isFavorite: !subj.isFavorite });
 
-  // 이번 주 과목별 공부 시간 계산
   const weekSubjSec = useMemo(() => {
     const now = new Date();
-    const day = now.getDay(); // 0=일
+    const day = now.getDay();
     const mon = new Date(now);
-    mon.setDate(mon.getDate() - ((day + 6) % 7)); // 이번 주 월요일
+    mon.setDate(mon.getDate() - ((day + 6) % 7));
     const monStr = mon.toISOString().slice(0, 10);
     const map = {};
     (app.sessions || []).forEach(s => {
@@ -203,7 +199,6 @@ export default function SubjectsScreen({ navigation }) {
     return map;
   }, [app.sessions]);
 
-  // 탭 목록: 고등만 수능 포함
   const tabs = isHigh
     ? [{ id: 'subjects', icon: 'list-outline', label: '내 과목' }, { id: 'method', icon: 'bulb-outline', label: '학습법' }, { id: 'routine', icon: 'clipboard-outline', label: '추천 루틴' }, { id: 'suneung', icon: 'flag-outline', label: '수능' }]
     : [{ id: 'subjects', icon: 'list-outline', label: '내 과목' }, { id: 'method', icon: 'bulb-outline', label: '학습법' }, { id: 'routine', icon: 'clipboard-outline', label: '추천 루틴' }];
@@ -251,16 +246,13 @@ export default function SubjectsScreen({ navigation }) {
     const ordered = suneungSelected.map(name => SUNEUNG_SUBJECTS.find(s => s.name === name)).filter(Boolean).sort((a, b) => a.order - b.order);
 
     if (suneungMode === 'timetable') {
-      // 실제 시간표 모드: 교시별 실제 쉬는시간을 break 아이템으로 삽입
       const items = [];
       ordered.forEach((s, i) => {
         const tt = SUNEUNG_TIMETABLE.find(t => t.name === s.name);
         items.push({ label: `${tt?.period || ''} ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' });
-        // 마지막이 아니면 쉬는시간 삽입
         if (i < ordered.length - 1 && tt && tt.breakMin > 0) {
           const nextSubj = ordered[i + 1];
           const nextTt = SUNEUNG_TIMETABLE.find(t => t.name === nextSubj.name);
-          // 현재 과목 종료 ~ 다음 과목 시작 사이 실제 쉬는시간 계산
           let actualBreak = tt.breakMin;
           if (tt && nextTt) {
             const [eh, em] = tt.end.split(':').map(Number);
@@ -276,13 +268,11 @@ export default function SubjectsScreen({ navigation }) {
       const ok = app.startSequence({ items, breakSec: 0, seqName: '수능 시뮬레이션 (실제 시간표)', seqIcon: 'flag-outline', seqColor: '#E8575A' });
       if (ok) { navigation.navigate('Focus'); setSuneungSelected([]); }
     } else {
-      // 자유 모드: 기존 로직 (고정 20분 쉬는시간)
       const items = ordered.map(s => ({ label: `수능 ${s.name}`, color: s.color, totalSec: s.min * 60, type: 'countdown' }));
       const ok = app.startSequence({ items, breakSec: 20 * 60, seqName: '수능 시뮬레이션', seqIcon: 'flag-outline', seqColor: '#E8575A' });
       if (ok) { navigation.navigate('Focus'); setSuneungSelected([]); }
     }
   };
-
 
   const handleAdd = () => {
     if (!addName.trim()) return;
@@ -290,450 +280,532 @@ export default function SubjectsScreen({ navigation }) {
     setAddName(''); setShowAdd(false);
   };
 
+  // ═══ 렌더 헬퍼 ═══
+  const renderRoutineCard = (routine) => {
+    const totalMin = routine.items.reduce((s, it) => s + it.min, 0) + (routine.items.length - 1) * routine.breakMin;
+    return (
+      <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.routineTop}>
+          <Ionicons name={routine.icon} size={28} color={routine.color} />
+          <View style={{ flex: 1 }}>
+            <Text style={[S.routineName, { color: T.text }]}>{routine.name}</Text>
+          </View>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: routine.color + '60' }}
+            onPress={() => startRoutine(routine)}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <Ionicons name="alarm-outline" size={13} color={routine.color} />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: routine.color }}>{totalMin}분</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={S.methodFlow}>
+          {routine.items.map((it, i) => (
+            <React.Fragment key={i}>
+              <View style={[S.methodChip, { backgroundColor: it.color + '18' }]}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
+              </View>
+              {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
+            </React.Fragment>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderMethodCard = (method) => {
+    const totalMin = method.items.reduce((s, it) => s + it.min, 0) + (method.items.length - 1) * method.breakMin;
+    return (
+      <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={S.methodTop}>
+          <View style={[S.methodIconWrap, { backgroundColor: method.color + '15' }]}>
+            <Ionicons name={method.icon} size={24} color={method.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '900', color: T.text, marginBottom: 2 }}>{method.name}</Text>
+            <Text style={{ fontSize: 13, color: T.sub, lineHeight: 18 }}>{method.desc}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
+              <Ionicons name="link-outline" size={10} color={T.sub} />
+              <Text style={{ fontSize: 11, color: T.sub }}>{method.source}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: method.color + '60', alignSelf: 'flex-start' }}
+            onPress={() => startMethod(method)}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <Ionicons name="alarm-outline" size={13} color={method.color} />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: method.color }}>{totalMin}분</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={S.methodFlow}>
+          {method.items.map((it, i) => (
+            <React.Fragment key={i}>
+              <View style={[S.methodChip, { backgroundColor: T.surface2 }]}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: T.text }}>{it.label} {it.min}분</Text>
+              </View>
+              {i < method.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
+            </React.Fragment>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderSubjectCard = (subj) => {
+    const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
+    const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
+    const wSec = weekSubjSec[subj.id] || 0;
+    const wGoal = subj.weeklyGoalMin ? subj.weeklyGoalMin * 60 : 0;
+    const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
+    return (
+      <TouchableOpacity key={subj.id}
+        style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
+        onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
+        activeOpacity={1}
+        disabled={editMode}>
+        <View style={[S.subjDot, { backgroundColor: subj.color }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{subj.name}</Text>
+          <Text style={{ fontSize: 11, color: T.sub }}>
+            누적 {formatShort(subj.totalElapsedSec || 0)}{todaySec > 0 ? ` · 오늘 ${formatShort(todaySec)}` : ''}
+          </Text>
+          {wGoal > 0 && (
+            <View style={{ marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: wPct >= 100 ? T.green : T.sub }}>
+                  주간 {formatShort(wSec)} / {subj.weeklyGoalMin >= 60 ? `${subj.weeklyGoalMin / 60}시간` : `${subj.weeklyGoalMin}분`}
+                </Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: wPct >= 100 ? T.green : subj.color }}>{wPct}%</Text>
+              </View>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: T.border, overflow: 'hidden' }}>
+                <View style={{ height: 4, borderRadius: 2, width: `${wPct}%`, backgroundColor: wPct >= 100 ? T.green : subj.color }} />
+              </View>
+            </View>
+          )}
+        </View>
+        {editMode ? (
+          <TouchableOpacity
+            style={[S.delBtn]}
+            onPress={() => deleteSubject(subj)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>−</Text>
+          </TouchableOpacity>
+        ) : running ? (
+          <View style={[S.runBadge, { backgroundColor: subj.color + '18' }]}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: subj.color }}>실행중</Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => toggleFavorite(subj)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 16 }}>{subj.isFavorite ? '⭐' : '☆'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
+              onPress={() => startCountup(subj)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="trending-up-outline" size={11} color={subj.color} />
+                <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>자유</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]} onPress={() => startSingle(subj)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Ionicons name="timer-outline" size={11} color={subj.color} />
+                <Text style={{ color: subj.color, fontSize: 12, fontWeight: '800', lineHeight: 18 }}>{defMin}분</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  // 수능 탭 공통 렌더
+  const renderSuneungList = () => (
+    <>
+      {/* 모드 토글 */}
+      <View style={{ flexDirection: 'row', marginBottom: 10, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: T.border }}>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'timetable' ? T.accent : T.surface2 }}
+          onPress={() => { setSuneungMode('timetable'); setSuneungSelected([]); }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="time-outline" size={14} color={suneungMode === 'timetable' ? 'white' : T.sub} />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'timetable' ? 'white' : T.sub }}>실제 시간표</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'free' ? T.accent : T.surface2 }}
+          onPress={() => { setSuneungMode('free'); setSuneungSelected([]); }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Ionicons name="shuffle-outline" size={14} color={suneungMode === 'free' ? 'white' : T.sub} />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'free' ? 'white' : T.sub }}>자유 선택</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {suneungMode === 'timetable' ? (
+        <>
+          <Text style={[S.secLabel, { color: T.sub }]}>2025학년도 수능 시간표 · 실제 쉬는시간 반영</Text>
+          {SUNEUNG_TIMETABLE.map((tt, i) => {
+            const sel = suneungSelected.includes(tt.name);
+            const prevTt = i > 0 ? SUNEUNG_TIMETABLE[i - 1] : null;
+            let breakBefore = 0;
+            if (prevTt) {
+              const [eh, em] = prevTt.end.split(':').map(Number);
+              const [sh, sm] = tt.start.split(':').map(Number);
+              breakBefore = (sh * 60 + sm) - (eh * 60 + em);
+            }
+            const showBreak = breakBefore > 0 && (i === 0 || suneungSelected.includes(prevTt?.name) || sel);
+            return (
+              <React.Fragment key={tt.order}>
+                {showBreak && i > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, marginBottom: 4, gap: 8 }}>
+                    <View style={{ width: 1, height: 20, backgroundColor: T.border, marginLeft: 18 }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: T.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Ionicons name={breakBefore >= 40 ? 'restaurant-outline' : 'cafe-outline'} size={11} color={T.sub} />
+                      <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>
+                        {breakBefore >= 40 ? '점심' : '쉬는시간'} {breakBefore}분
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}
+                  onPress={() => toggleSuneung(tt.name)} activeOpacity={0.7}>
+                  <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
+                    {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
+                  </View>
+                  <View style={[S.colorBar, { backgroundColor: tt.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{tt.name}</Text>
+                      <View style={{ backgroundColor: tt.color + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: tt.color }}>{tt.period}</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{tt.start} ~ {tt.end}</Text>
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{tt.min}분</Text>
+                  <TouchableOpacity style={[S.playBtnSm, { backgroundColor: tt.color }]}
+                    onPress={() => startSuneungSingle({ name: tt.name, min: tt.min, color: tt.color })}>
+                    <Ionicons name="caret-forward" size={13} color="white" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              </React.Fragment>
+            );
+          })}
+          <TouchableOpacity
+            style={{ alignSelf: 'center', marginTop: 6, marginBottom: 2, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: T.surface2 }}
+            onPress={() => {
+              const allNames = SUNEUNG_TIMETABLE.map(t => t.name);
+              setSuneungSelected(prev => prev.length === allNames.length ? [] : allNames);
+            }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
+              {suneungSelected.length === SUNEUNG_TIMETABLE.length ? '전체 해제' : '전체 선택'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={[S.secLabel, { color: T.sub }]}>과목별 시험시간 · 개별 또는 순차 시작</Text>
+          <View>
+          {SUNEUNG_SUBJECTS.map(subj => {
+            const sel = suneungSelected.includes(subj.name);
+            return (
+              <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
+                <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
+                  <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
+                    {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
+                  </View>
+                </TouchableOpacity>
+                <View style={[S.colorBar, { backgroundColor: subj.color }]} />
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T.text }}>{subj.name}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
+                <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
+                  onPress={() => startSuneungSingle(subj)}>
+                  <Ionicons name="caret-forward" size={13} color="white" />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+          </View>
+        </>
+      )}
+    </>
+  );
+
+  const renderSuneungSeqBar = () => suneungSelected.length > 0 ? (
+    <View style={[S.seqBar, { backgroundColor: T.card, borderColor: T.accent }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Ionicons name="flag-outline" size={16} color={T.accent} />
+          <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{suneungSelected.length}과목 선택</Text>
+        </View>
+        {suneungMode === 'timetable' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: T.accent + '14', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+            <Ionicons name="time-outline" size={11} color={T.accent} />
+            <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>실제 시간표</Text>
+          </View>
+        )}
+      </View>
+      <Text style={{ fontSize: 11, color: T.sub, marginBottom: 4 }}>
+        {suneungSelected.map(n => (SUNEUNG_TIMETABLE.find(s => s.name === n) || SUNEUNG_SUBJECTS.find(s => s.name === n))).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
+      </Text>
+      {suneungMode === 'timetable' && (() => {
+        const orderedSel = suneungSelected.map(n => SUNEUNG_TIMETABLE.find(t => t.name === n)).filter(Boolean).sort((a, b) => a.order - b.order);
+        const studyMin = orderedSel.reduce((s, t) => s + t.min, 0);
+        let breakMin = 0;
+        for (let i = 0; i < orderedSel.length - 1; i++) {
+          const [eh, em] = orderedSel[i].end.split(':').map(Number);
+          const [sh, sm] = orderedSel[i + 1].start.split(':').map(Number);
+          breakMin += (sh * 60 + sm) - (eh * 60 + em);
+        }
+        const totalMin = studyMin + breakMin;
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        return (
+          <Text style={{ fontSize: 11, color: T.sub, marginBottom: 6 }}>
+            공부 {Math.floor(studyMin / 60)}시간{studyMin % 60 > 0 ? ` ${studyMin % 60}분` : ''} + 쉬는시간 {breakMin}분 = 총 {h}시간{m > 0 ? ` ${m}분` : ''}
+          </Text>
+        );
+      })()}
+      <TouchableOpacity style={[S.seqStartBtn, { backgroundColor: T.accent }]} onPress={startSuneungSequence}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="caret-forward" size={15} color="white" />
+          <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>수능 시뮬레이션 시작</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
+  const renderSubjectHeader = () => (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
+        {editMode ? '삭제할 과목을 선택하세요' : '과목별 타이머 바로 시작'}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {sorted.length > 0 && (
+          <TouchableOpacity
+            style={[S.addBtn, editMode
+              ? { backgroundColor: T.accent + '18', borderWidth: 1, borderColor: T.accent }
+              : { backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }]}
+            onPress={() => setEditMode(e => !e)}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: editMode ? T.accent : T.sub }}>
+              {editMode ? '완료' : '편집'}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {!editMode && (
+          <TouchableOpacity style={[S.addBtn, { backgroundColor: T.accent }]} onPress={() => setShowAdd(true)}>
+            <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>+ 추가</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderQuickAdd = () => (
+    <>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6 }}>빠른 추가</Text>
+      <View style={S.presetWrap}>
+        {SUBJECT_PRESETS.map(p => {
+          const exists = app.subjects.some(s => s.name === p.name);
+          return (
+            <TouchableOpacity key={p.name} style={[S.presetChip, { borderColor: T.border, backgroundColor: exists ? T.surface2 : T.card }]}
+              onPress={() => !exists && app.addSubject({ name: p.name, color: p.color, character: p.character || 'toru' })} disabled={exists}>
+              <View style={[S.prDot, { backgroundColor: p.color }]} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: exists ? T.sub : T.text }}>{p.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </>
+  );
+
   return (
     <View style={[S.container, { backgroundColor: T.bg }]}>
       <RunningTimersBar />
-      <View style={{ flex: 1, flexDirection: isLandscape ? 'row' : 'column' }}>
 
-        {/* 가로모드: 좌측 사이드바 탭 */}
-        {isLandscape && (
-          <View style={{ width: 130, backgroundColor: T.surface2, paddingTop: 14, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: T.border }}>
-            <View style={[S.schoolBadge, { backgroundColor: T.accent + '15', alignSelf: 'center', marginBottom: 14 }]}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
+      {/* 가로모드: 상단 탭바 */}
+      {isLandscape && (
+        <View style={{ backgroundColor: T.surface2, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {/* 학교 배지 */}
+            <View style={[S.schoolBadge, { backgroundColor: T.accent + '15', marginRight: 8 }]}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
             </View>
-            {(school === 'elementary_lower' || school === 'elementary_upper') && (
-              <Text style={{ fontSize: 11, fontWeight: '600', color: T.sub, textAlign: 'center', marginBottom: 8 }}>
-                {school === 'elementary_lower' ? '1~3학년' : '4~6학년'}
-              </Text>
-            )}
+            {/* 탭 버튼들 */}
             {tabs.map(t => (
               <TouchableOpacity key={t.id}
-                style={[{ paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10, marginBottom: 4, alignItems: 'center', gap: 4 }, tab === t.id && { backgroundColor: T.card }]}
+                style={[{
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingHorizontal: 14, paddingVertical: 8,
+                  borderBottomWidth: 2.5,
+                  borderBottomColor: tab === t.id ? T.accent : 'transparent',
+                  marginBottom: -1,
+                }, tab === t.id && {}]}
                 onPress={() => changeTab(t.id)}>
-                <Ionicons name={t.icon} size={18} color={tab === t.id ? T.accent : T.sub} />
-                <Text style={{ fontSize: 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub, textAlign: 'center' }}>{t.label}</Text>
+                <Ionicons name={t.icon} size={15} color={tab === t.id ? T.accent : T.sub} />
+                <Text style={{ fontSize: 13, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub }}>{t.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        )}
+        </View>
+      )}
 
-        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, !isLandscape && isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        {isLandscape ? (
+          // ═══ 가로모드: 독립 스크롤 2분할 ═══
+          <>
+            {/* 좌측 스크롤 */}
+            <ScrollView style={{ flex: 1, borderRightWidth: 1, borderRightColor: T.border }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
 
-          {/* 헤더 + 탭바 — 세로모드만 */}
-          {!isLandscape && (
-            <>
-              <View style={S.header}>
-                <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
-                </View>
-              </View>
-              {(school === 'elementary_lower' || school === 'elementary_upper') && (
-                <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
-                    {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
-                  </Text>
-                </View>
+              {/* 루틴 — 앞 절반 */}
+              {tab === 'routine' && routines.slice(0, Math.ceil(routines.length / 2)).map(renderRoutineCard)}
+
+              {/* 학습법 — 앞 절반 */}
+              {tab === 'method' && (
+                <>
+                  <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                  {methods.slice(0, Math.ceil(methods.length / 2)).map(renderMethodCard)}
+                </>
               )}
-              <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
-                {tabs.map(t => (
-                  <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
-                    onPress={() => changeTab(t.id)}>
-                    <Ionicons name={t.icon} size={isHigh ? 14 : 16} color={tab === t.id ? T.text : T.sub} style={{ marginBottom: 1 }} />
-                    <Text style={{ fontSize: isHigh ? 9 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
 
+              {/* 수능 — 모드 토글 + 과목 선택 리스트 */}
+              {tab === 'suneung' && isHigh && renderSuneungList()}
 
-        {/* ═══ 탭: 추천 루틴 ═══ */}
-        {tab === 'routine' && (
-          <View style={{}}>
-            {routines.map(routine => {
-              const totalMin = routine.items.reduce((s, it) => s + it.min, 0) + (routine.items.length - 1) * routine.breakMin;
-              return (
-                <View key={routine.id} style={[S.routineCard, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={S.routineTop}>
-                    <Ionicons name={routine.icon} size={28} color={routine.color} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[S.routineName, { color: T.text }]}>{routine.name}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: routine.color + '60' }}
-                      onPress={() => startRoutine(routine)}
-                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="alarm-outline" size={13} color={routine.color} />
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: routine.color }}>{totalMin}분</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={S.methodFlow}>
-                    {routine.items.map((it, i) => (
-                      <React.Fragment key={i}>
-                        <View style={[S.methodChip, { backgroundColor: it.color + '18' }]}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: it.color }}>{it.label} {it.min}분</Text>
-                        </View>
-                        {i < routine.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
-                      </React.Fragment>
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* ═══ 탭: 학습법 ═══ */}
-        {tab === 'method' && (
-          <>
-            <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
-            <View style={{}}>
-            {methods.map(method => {
-              const totalMin = method.items.reduce((s, it) => s + it.min, 0) + (method.items.length - 1) * method.breakMin;
-              return (
-                <View key={method.id} style={[S.methodCard, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={S.methodTop}>
-                    <View style={[S.methodIconWrap, { backgroundColor: method.color + '15' }]}>
-                      <Ionicons name={method.icon} size={24} color={method.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '900', color: T.text, marginBottom: 2 }}>{method.name}</Text>
-                      <Text style={{ fontSize: 13, color: T.sub, lineHeight: 18 }}>{method.desc}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
-                        <Ionicons name="link-outline" size={10} color={T.sub} />
-                        <Text style={{ fontSize: 11, color: T.sub }}>{method.source}</Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: 11, borderRadius: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: method.color + '60', alignSelf: 'flex-start' }}
-                      onPress={() => startMethod(method)}
-                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="alarm-outline" size={13} color={method.color} />
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: method.color }}>{totalMin}분</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={S.methodFlow}>
-                    {method.items.map((it, i) => (
-                      <React.Fragment key={i}>
-                        <View style={[S.methodChip, { backgroundColor: T.surface2 }]}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.text }}>{it.label} {it.min}분</Text>
-                        </View>
-                        {i < method.items.length - 1 && <Text style={{ fontSize: 11, color: T.sub }}>→</Text>}
-                      </React.Fragment>
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-            </View>
-          </>
-        )}
-
-        {/* ═══ 탭: 🎯 수능 (고등만) ═══ */}
-        {tab === 'suneung' && isHigh && (
-          <>
-            {/* 모드 토글 */}
-            <View style={{ flexDirection: 'row', marginBottom: 10, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: T.border }}>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'timetable' ? T.accent : T.surface2 }}
-                onPress={() => { setSuneungMode('timetable'); setSuneungSelected([]); }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="time-outline" size={14} color={suneungMode === 'timetable' ? 'white' : T.sub} />
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'timetable' ? 'white' : T.sub }}>실제 시간표</Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: suneungMode === 'free' ? T.accent : T.surface2 }}
-                onPress={() => { setSuneungMode('free'); setSuneungSelected([]); }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Ionicons name="shuffle-outline" size={14} color={suneungMode === 'free' ? 'white' : T.sub} />
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: suneungMode === 'free' ? 'white' : T.sub }}>자유 선택</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {suneungMode === 'timetable' ? (
-              <>
-                {/* 실제 시간표 타임라인 */}
-                <Text style={[S.secLabel, { color: T.sub }]}>2025학년도 수능 시간표 · 실제 쉬는시간 반영</Text>
-                {SUNEUNG_TIMETABLE.map((tt, i) => {
-                  const sel = suneungSelected.includes(tt.name);
-                  const prevTt = i > 0 ? SUNEUNG_TIMETABLE[i - 1] : null;
-                  // 이전 과목과의 쉬는시간 표시
-                  let breakBefore = 0;
-                  if (prevTt) {
-                    const [eh, em] = prevTt.end.split(':').map(Number);
-                    const [sh, sm] = tt.start.split(':').map(Number);
-                    breakBefore = (sh * 60 + sm) - (eh * 60 + em);
-                  }
-                  const showBreak = breakBefore > 0 && (i === 0 || suneungSelected.includes(prevTt?.name) || sel);
-                  return (
-                    <React.Fragment key={tt.order}>
-                      {/* 쉬는시간 표시 */}
-                      {showBreak && i > 0 && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, marginBottom: 4, gap: 8 }}>
-                          <View style={{ width: 1, height: 20, backgroundColor: T.border, marginLeft: 18 }} />
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: T.surface2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                            <Ionicons name={breakBefore >= 40 ? 'restaurant-outline' : 'cafe-outline'} size={11} color={T.sub} />
-                            <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>
-                              {breakBefore >= 40 ? '점심' : '쉬는시간'} {breakBefore}분
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-                      {/* 과목 카드 */}
-                      <TouchableOpacity
-                        style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}
-                        onPress={() => toggleSuneung(tt.name)} activeOpacity={0.7}>
-                        <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
-                          {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
-                        </View>
-                        <View style={[S.colorBar, { backgroundColor: tt.color }]} />
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{tt.name}</Text>
-                            <View style={{ backgroundColor: tt.color + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: tt.color }}>{tt.period}</Text>
-                            </View>
-                          </View>
-                          <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{tt.start} ~ {tt.end}</Text>
-                        </View>
-                        <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{tt.min}분</Text>
-                        <TouchableOpacity style={[S.playBtnSm, { backgroundColor: tt.color }]}
-                          onPress={() => startSuneungSingle({ name: tt.name, min: tt.min, color: tt.color })}>
-                          <Ionicons name="caret-forward" size={13} color="white" />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    </React.Fragment>
-                  );
-                })}
-
-                {/* 전체 선택 / 해제 */}
-                <TouchableOpacity
-                  style={{ alignSelf: 'center', marginTop: 6, marginBottom: 2, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: T.surface2 }}
-                  onPress={() => {
-                    const allNames = SUNEUNG_TIMETABLE.map(t => t.name);
-                    setSuneungSelected(prev => prev.length === allNames.length ? [] : allNames);
-                  }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>
-                    {suneungSelected.length === SUNEUNG_TIMETABLE.length ? '전체 해제' : '전체 선택'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* 자유 선택 모드 (기존) */}
-                <Text style={[S.secLabel, { color: T.sub }]}>과목별 시험시간 · 개별 또는 순차 시작</Text>
-                <View style={{}}>
-                {SUNEUNG_SUBJECTS.map(subj => {
-                  const sel = suneungSelected.includes(subj.name);
-                  return (
-                    <View key={subj.name} style={[S.suneungCard, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }]}>
-                      <TouchableOpacity style={S.suneungSelect} onPress={() => toggleSuneung(subj.name)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
-                        <View style={[S.selectDot, { borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent : 'transparent' }]}>
-                          {sel && <Text style={{ color: 'white', fontSize: 12, fontWeight: '800' }}>✓</Text>}
-                        </View>
-                      </TouchableOpacity>
-                      <View style={[S.colorBar, { backgroundColor: subj.color }]} />
-                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T.text }}>{subj.name}</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, minWidth: 44, textAlign: 'center' }}>{subj.min}분</Text>
-                      <TouchableOpacity style={[S.playBtnSm, { backgroundColor: subj.color }]}
-                        onPress={() => startSuneungSingle(subj)}>
-                        <Ionicons name="caret-forward" size={13} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-                </View>
-              </>
-            )}
-
-            {/* 순차 시작 바 */}
-            {suneungSelected.length > 0 && (
-              <View style={[S.seqBar, { backgroundColor: T.card, borderColor: T.accent }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Ionicons name="flag-outline" size={16} color={T.accent} />
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{suneungSelected.length}과목 선택</Text>
-                  </View>
-                  {suneungMode === 'timetable' && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: T.accent + '14', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                      <Ionicons name="time-outline" size={11} color={T.accent} />
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: T.accent }}>실제 시간표</Text>
+              {/* 내 과목 — 과목 리스트 */}
+              {tab === 'subjects' && (
+                <>
+                  {renderSubjectHeader()}
+                  {sorted.length === 0 && (
+                    <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                      <CharacterAvatar characterId="paengi" size={40} mood="sad" />
+                      <Text style={{ fontSize: 14, color: T.sub, marginTop: 6 }}>과목을 추가해보세요!</Text>
                     </View>
                   )}
-                </View>
-                <Text style={{ fontSize: 11, color: T.sub, marginBottom: 4 }}>
-                  {suneungSelected.map(n => (SUNEUNG_TIMETABLE.find(s => s.name === n) || SUNEUNG_SUBJECTS.find(s => s.name === n))).filter(Boolean).sort((a, b) => a.order - b.order).map(s => s.name).join(' → ')}
-                </Text>
-                {suneungMode === 'timetable' && (() => {
-                  // 선택된 과목의 총 시간 + 쉬는시간 계산
-                  const orderedSel = suneungSelected.map(n => SUNEUNG_TIMETABLE.find(t => t.name === n)).filter(Boolean).sort((a, b) => a.order - b.order);
-                  const studyMin = orderedSel.reduce((s, t) => s + t.min, 0);
-                  let breakMin = 0;
-                  for (let i = 0; i < orderedSel.length - 1; i++) {
-                    const [eh, em] = orderedSel[i].end.split(':').map(Number);
-                    const [sh, sm] = orderedSel[i + 1].start.split(':').map(Number);
-                    breakMin += (sh * 60 + sm) - (eh * 60 + em);
-                  }
-                  const totalMin = studyMin + breakMin;
-                  const h = Math.floor(totalMin / 60);
-                  const m = totalMin % 60;
-                  return (
-                    <Text style={{ fontSize: 11, color: T.sub, marginBottom: 6 }}>
-                      공부 {Math.floor(studyMin / 60)}시간{studyMin % 60 > 0 ? ` ${studyMin % 60}분` : ''} + 쉬는시간 {breakMin}분 = 총 {h}시간{m > 0 ? ` ${m}분` : ''}
-                    </Text>
-                  );
-                })()}
-                <TouchableOpacity style={[S.seqStartBtn, { backgroundColor: T.accent }]} onPress={startSuneungSequence}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="caret-forward" size={15} color="white" />
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>수능 시뮬레이션 시작</Text>
+                  {sorted.length > 0 && !app.settings.subjectGoalGuideShown && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => app.updateSettings({ subjectGoalGuideShown: true })}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.accent + '12', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
+                      <Ionicons name="bulb-outline" size={16} color={T.accent} />
+                      <Text style={{ flex: 1, fontSize: 12, color: T.text, lineHeight: 17 }}>
+                        <Text style={{ fontWeight: '800' }}>과목을 길게 누르면</Text> 주간 목표를 설정할 수 있어요!
+                      </Text>
+                      <Ionicons name="close" size={14} color={T.sub} />
+                    </TouchableOpacity>
+                  )}
+                  {sorted.map(renderSubjectCard)}
+                </>
+              )}
+
+            </ScrollView>
+
+            {/* 우측 스크롤 */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+
+              {/* 루틴 — 뒤 절반 */}
+              {tab === 'routine' && routines.slice(Math.ceil(routines.length / 2)).map(renderRoutineCard)}
+
+              {/* 학습법 — 뒤 절반 */}
+              {tab === 'method' && methods.slice(Math.ceil(methods.length / 2)).map(renderMethodCard)}
+
+              {/* 수능 — 순차 시작 바 또는 안내 */}
+              {tab === 'suneung' && isHigh && (
+                renderSuneungSeqBar() || (
+                  <View style={{ alignItems: 'center', paddingTop: 60, gap: 10 }}>
+                    <Ionicons name="flag-outline" size={36} color={T.border} />
+                    <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', lineHeight: 20 }}>과목을 선택하면{'\n'}시뮬레이션 설정이{'\n'}여기 표시됩니다</Text>
                   </View>
-                </TouchableOpacity>
+                )
+              )}
+
+              {/* 내 과목 — 빠른 추가 */}
+              {tab === 'subjects' && renderQuickAdd()}
+
+            </ScrollView>
+          </>
+        ) : (
+          // ═══ 세로모드: 기존 단일 스크롤 ═══
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+
+            {/* 헤더 + 탭바 */}
+            <View style={S.header}>
+              <View style={[S.schoolBadge, { backgroundColor: T.accent + '15' }]}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>{SCHOOL_LABELS[school] || '고등'}</Text>
+              </View>
+            </View>
+            {(school === 'elementary_lower' || school === 'elementary_upper') && (
+              <View style={[S.gradeRow, { backgroundColor: T.surface2 }]}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, paddingHorizontal: 10 }}>
+                  {school === 'elementary_lower' ? '1~3학년' : '4~6학년'} · 학년 변경은 설정에서
+                </Text>
               </View>
             )}
-          </>
-        )}
+            <View style={[S.tabRow, { backgroundColor: T.surface2 }]}>
+              {tabs.map(t => (
+                <TouchableOpacity key={t.id} style={[S.tabBtn, tab === t.id && { backgroundColor: T.card, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4 }]}
+                  onPress={() => changeTab(t.id)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                    <Ionicons name={t.icon} size={13} color={tab === t.id ? T.text : T.sub} />
+                    <Text style={{ fontSize: isHigh ? 10 : 11, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.text : T.sub }}>{t.label}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* ═══ 탭: 내 과목 ═══ */}
-        {tab === 'subjects' && (
-          <>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
-                {editMode ? '삭제할 과목을 선택하세요' : '과목별 타이머 바로 시작'}
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {sorted.length > 0 && (
+            {/* ═══ 탭: 추천 루틴 ═══ */}
+            {tab === 'routine' && (
+              <View>{routines.map(renderRoutineCard)}</View>
+            )}
+
+            {/* ═══ 탭: 학습법 ═══ */}
+            {tab === 'method' && (
+              <>
+                <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                <View>{methods.map(renderMethodCard)}</View>
+              </>
+            )}
+
+            {/* ═══ 탭: 수능 ═══ */}
+            {tab === 'suneung' && isHigh && (
+              <>
+                {renderSuneungList()}
+                {renderSuneungSeqBar()}
+              </>
+            )}
+
+            {/* ═══ 탭: 내 과목 ═══ */}
+            {tab === 'subjects' && (
+              <>
+                {renderSubjectHeader()}
+                {sorted.length === 0 && (
+                  <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
+                    <CharacterAvatar characterId="paengi" size={40} mood="sad" />
+                    <Text style={{ fontSize: 14, color: T.sub, marginTop: 6 }}>과목을 추가해보세요!</Text>
+                  </View>
+                )}
+                {sorted.length > 0 && !app.settings.subjectGoalGuideShown && (
                   <TouchableOpacity
-                    style={[S.addBtn, editMode
-                      ? { backgroundColor: T.accent + '18', borderWidth: 1, borderColor: T.accent }
-                      : { backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }]}
-                    onPress={() => setEditMode(e => !e)}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: editMode ? T.accent : T.sub }}>
-                      {editMode ? '완료' : '편집'}
+                    activeOpacity={0.8}
+                    onPress={() => app.updateSettings({ subjectGoalGuideShown: true })}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.accent + '12', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
+                    <Ionicons name="bulb-outline" size={16} color={T.accent} />
+                    <Text style={{ flex: 1, fontSize: 12, color: T.text, lineHeight: 17 }}>
+                      <Text style={{ fontWeight: '800' }}>과목을 길게 누르면</Text> 주간 목표를 설정할 수 있어요!
                     </Text>
+                    <Ionicons name="close" size={14} color={T.sub} />
                   </TouchableOpacity>
                 )}
-                {!editMode && (
-                  <TouchableOpacity style={[S.addBtn, { backgroundColor: T.accent }]} onPress={() => setShowAdd(true)}>
-                    <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>+ 추가</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {sorted.length === 0 && (
-              <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
-                <CharacterAvatar characterId="paengi" size={40} mood="sad" />
-                <Text style={{ fontSize: 14, color: T.sub, marginTop: 6 }}>과목을 추가해보세요!</Text>
-              </View>
+                <View>{sorted.map(renderSubjectCard)}</View>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
+                {renderQuickAdd()}
+              </>
             )}
 
-            {/* 주간 목표 가이드 — 과목이 있고, 아직 안 본 사용자에게만 */}
-            {sorted.length > 0 && !app.settings.subjectGoalGuideShown && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => app.updateSettings({ subjectGoalGuideShown: true })}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.accent + '12', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: T.accent + '30' }}>
-                <Ionicons name="bulb-outline" size={16} color={T.accent} />
-                <Text style={{ flex: 1, fontSize: 12, color: T.text, lineHeight: 17 }}>
-                  <Text style={{ fontWeight: '800' }}>과목을 길게 누르면</Text> 주간 목표를 설정할 수 있어요!
-                </Text>
-                <Ionicons name="close" size={14} color={T.sub} />
-              </TouchableOpacity>
-            )}
-
-            <View style={{}}>
-            {sorted.map(subj => {
-              const running = app.timers.some(t => t.subjectId === subj.id && t.status === 'running');
-              const todaySec = app.todaySessions.filter(s => s.subjectId === subj.id).reduce((a, s) => a + (s.durationSec || 0), 0);
-              const wSec = weekSubjSec[subj.id] || 0;
-              const wGoal = subj.weeklyGoalMin ? subj.weeklyGoalMin * 60 : 0;
-              const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
-              return (
-                <TouchableOpacity key={subj.id}
-                  style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
-                  onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
-                  activeOpacity={1}
-                  disabled={editMode}>
-                  <View style={[S.subjDot, { backgroundColor: subj.color }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{subj.name}</Text>
-                    <Text style={{ fontSize: 11, color: T.sub }}>
-                      누적 {formatShort(subj.totalElapsedSec || 0)}{todaySec > 0 ? ` · 오늘 ${formatShort(todaySec)}` : ''}
-                    </Text>
-                    {wGoal > 0 && (
-                      <View style={{ marginTop: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: wPct >= 100 ? T.green : T.sub }}>
-                            주간 {formatShort(wSec)} / {subj.weeklyGoalMin >= 60 ? `${subj.weeklyGoalMin / 60}시간` : `${subj.weeklyGoalMin}분`}
-                          </Text>
-                          <Text style={{ fontSize: 10, fontWeight: '800', color: wPct >= 100 ? T.green : subj.color }}>{wPct}%</Text>
-                        </View>
-                        <View style={{ height: 4, borderRadius: 2, backgroundColor: T.border, overflow: 'hidden' }}>
-                          <View style={{ height: 4, borderRadius: 2, width: `${wPct}%`, backgroundColor: wPct >= 100 ? T.green : subj.color }} />
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                  {editMode ? (
-                    <TouchableOpacity
-                      style={[S.delBtn]}
-                      onPress={() => deleteSubject(subj)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>−</Text>
-                    </TouchableOpacity>
-                  ) : running ? (
-                    <View style={[S.runBadge, { backgroundColor: subj.color + '18' }]}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: subj.color }}>실행중</Text>
-                    </View>
-                  ) : (
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <TouchableOpacity onPress={() => toggleFavorite(subj)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={{ fontSize: 16 }}>{subj.isFavorite ? '⭐' : '☆'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
-                        onPress={() => startCountup(subj)}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                          <Ionicons name="trending-up-outline" size={11} color={subj.color} />
-                          <Text style={{ fontSize: 12, fontWeight: '800', color: subj.color, lineHeight: 18 }}>자유</Text>
-                        </View>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]} onPress={() => startSingle(subj)}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                          <Ionicons name="timer-outline" size={11} color={subj.color} />
-                          <Text style={{ color: subj.color, fontSize: 12, fontWeight: '800', lineHeight: 18 }}>{defMin}분</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-            </View>
-
-            {/* 빠른 추가 */}
-            <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
-            <View style={S.presetWrap}>
-              {SUBJECT_PRESETS.map(p => {
-                const exists = app.subjects.some(s => s.name === p.name);
-                return (
-                  <TouchableOpacity key={p.name} style={[S.presetChip, { borderColor: T.border, backgroundColor: exists ? T.surface2 : T.card }]}
-                    onPress={() => !exists && app.addSubject({ name: p.name, color: p.color, character: p.character || 'toru' })} disabled={exists}>
-                    <View style={[S.prDot, { backgroundColor: p.color }]} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: exists ? T.sub : T.text }}>{p.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
+            <View style={{ height: 100 }} />
+          </ScrollView>
         )}
-
-          <View style={{ height: 100 }} />
-        </ScrollView>
       </View>
 
       {/* 과목 추가 모달 */}

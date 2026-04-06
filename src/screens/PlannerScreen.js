@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES } from '../constants/presets';
@@ -533,7 +534,7 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
 }
 
 // ─── 메인 화면 ───
-export default function PlannerScreen({ navigation }) {
+export default function PlannerScreen({ navigation, route }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const app = useApp();
@@ -542,7 +543,12 @@ export default function PlannerScreen({ navigation }) {
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
 
-  const [viewMode, setViewMode]     = useState('today'); // 'today' | 'weekly' | 'monthly'
+  const [viewMode, setViewMode]     = useState(route?.params?.tab || 'today'); // 'today' | 'weekly' | 'monthly'
+
+  useFocusEffect(useCallback(() => {
+    if (route?.params?.tab) setViewMode(route.params.tab);
+  }, [route?.params?.tab]));
+
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [nowY, setNowY]             = useState(getNowY());
