@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Pressable, Alert,
-  Dimensions, Share, StyleSheet, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
+  Share, StyleSheet, TextInput, Platform, KeyboardAvoidingView, useWindowDimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -30,19 +30,17 @@ import {
 } from './stats/components/ReportComponents';
 import { createStyles, HM_WEEKS, HM_GAP } from './stats/styles';
 
-const { width: SW } = Dimensions.get('window');
-const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
 
 // ═══════════════════════════════════════════════════════════════════
 export default function StatsScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
+  const isTablet = winW >= 600;
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;
   const scrollW = winW;
   const contentW = isTablet ? Math.min(scrollW, TABLET_MAX_W) - 32 : scrollW - 32;
-  const CELL = useMemo(() => Math.floor((contentW - 28 - 12) / 7), [contentW]);
   const HM_CELL = useMemo(() => {
     // landscape: heatmap is in the left flex:1 of a two-column layout
     //   winW - scroll-padding(32) - gap(10), halved for one column
