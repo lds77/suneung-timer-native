@@ -242,6 +242,7 @@ export function AppProvider({ children }) {
 
   const notifIdMap = useRef(new Map()); // timerId → 예약 알림 identifier
   const phaseNotifMap = useRef(new Map()); // timerId → [id1, id2, ...] 페이즈 전환 알림
+  const phaseNotifRunId = useRef(new Map()); // timerId → 마지막 scheduleAllPhaseNotifs runId (race condition 방지)
   const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
@@ -812,12 +813,17 @@ export function AppProvider({ children }) {
   // 뽀모도로·연속모드: 모든 미래 페이즈 알림 일괄 예약
   const scheduleAllPhaseNotifs = async (timer) => {
     if (!settingsRef.current.notifEnabled) return;
+    // race condition 방지: 같은 타이머에 거의 동시에 여러 번 호출될 때 최신 호출만 실행
+    const runId = Date.now() + Math.random();
+    phaseNotifRunId.current.set(timer.id, runId);
     // 기존 페이즈 알림 먼저 취소
     const oldIds = phaseNotifMap.current.get(timer.id) || [];
     phaseNotifMap.current.delete(timer.id);
     for (const pid of oldIds) {
       try { await Notifications.cancelScheduledNotificationAsync(pid); } catch {}
     }
+    // 취소하는 동안 더 최신 호출이 들어왔으면 중단 (그쪽이 새로 예약함)
+    if (phaseNotifRunId.current.get(timer.id) !== runId) return;
     const ids = [];
     // 기준 시각: timer.resumedAt (페이즈 실제 시작 시각)
     // Date.now() 기준이면 함수 호출 지연만큼 알림이 밀리므로 절대 시각으로 예약
