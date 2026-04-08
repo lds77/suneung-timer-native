@@ -1258,11 +1258,12 @@ export default function PlannerScreen({ navigation, route }) {
               <View style={{ gap: 4, marginBottom: selEvents.length > 0 ? 10 : 0 }}>
                 {selSessions.map((sess, i) => {
                   const subj = (app.subjects || []).find(s => s.id === sess.subjectId);
+                  const sessLabel = sess.label ? sess.label.replace(/^[\p{Emoji}\s]+/u, '').trim() : '';
                   return (
                     <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj?.color || T.accent }} />
                       <Text style={{ fontSize: 12, fontWeight: '600', color: T.text }} numberOfLines={1}>
-                        {subj?.name || '과목 없음'}
+                        {subj?.name || sessLabel || '과목 없음'}
                       </Text>
                       <Text style={{ fontSize: 11, color: T.sub, marginLeft: 'auto' }}>
                         {Math.round((sess.durationSec || 0) / 60)}분
