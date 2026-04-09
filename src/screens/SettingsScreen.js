@@ -25,8 +25,6 @@ import { FONT_FAMILY_MAP } from '../constants/fonts';
 import { Ionicons } from '@expo/vector-icons';
 import TimePickerGrid from '../components/TimePickerGrid';
 
-const { width: SW } = Dimensions.get('window');
-const isTablet = SW >= 600;
 
 // 모듈 레벨 스타일 참조 — SettingsScreen 렌더 시 갱신
 let _styles = null;
@@ -250,6 +248,7 @@ const ChallengeInput = React.memo(function ChallengeInput({ initial, onSave, onF
 
 export default function SettingsScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
+  const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산 (모듈레벨 정적값 덮어쓰기)
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const isLandscape = isTablet && winW > winH;
   const app = useApp();
@@ -626,17 +625,6 @@ export default function SettingsScreen() {
             <Row T={T} label="피드백 보내기" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
         </Section>
-
-        {/* 온보딩 다시보기 */}
-        <TouchableOpacity
-          onPress={() => Alert.alert('온보딩 다시보기', '처음 시작 화면으로 돌아가요.\n(공부 기록은 유지됩니다)', [
-            { text: '취소', style: 'cancel' },
-            { text: '다시보기', onPress: () => app.updateSettings({ onboardingDone: false }) },
-          ])}
-          style={{ alignItems: 'center', paddingVertical: 14, marginBottom: 8 }}
-        >
-          <Text style={{ fontSize: 13, color: T.sub }}>처음 화면 다시보기</Text>
-        </TouchableOpacity>
 
         <View style={{ height: 100 }} />
       </ScrollView>

@@ -2,11 +2,9 @@
 // v24: 가로모드 독립 2분할 스크롤
 import React, { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Dimensions, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 
-const { width: SW } = Dimensions.get('window');
-const isTablet = SW >= 600;
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
@@ -151,6 +149,7 @@ const ELEM_GRADE_KEY = (school) => school;
 
 export default function SubjectsScreen({ navigation }) {
   const { width: winW, height: winH } = useWindowDimensions();
+  const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const isLandscape = isTablet && winW > winH;

@@ -111,6 +111,7 @@ export default function FocusScreen() {
   const setScreenLocked = app.setScreenLocked;
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const { width: winW, height: winH } = useWindowDimensions();
+  const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산 (모듈레벨 정적값 덮어쓰기)
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const S = useMemo(() => createStyles(fs), [fs]);

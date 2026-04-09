@@ -794,52 +794,61 @@ function LockOverlay() {
     timerDisplay = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
+  const avatarSize = isTabletLock ? 160 : 110;
+  const timerFontSize = Math.round((isTabletLock ? 72 : 52) * fs);
+  const bodyFontSize = Math.round((isTabletLock ? 20 : 16) * fs);
+  const subFontSize = Math.round((isTabletLock ? 17 : 14) * fs);
+  const CONTENT_MAX_WIDTH = isTabletLock ? 520 : undefined;
+
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* 첫 사용 한 줄 가이드 */}
-      {!app.settings.guideLock && (
-        <TouchableOpacity onPress={() => app.updateSettings({ guideLock: true })}
-          style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.8)" />
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
-          </View>
-        </TouchableOpacity>
-      )}
+      {/* 컨텐츠 래퍼 — 태블릿에서 maxWidth로 중앙 정렬 */}
+      <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignItems: 'center' }}>
+        {/* 첫 사용 한 줄 가이드 */}
+        {!app.settings.guideLock && (
+          <TouchableOpacity onPress={() => app.updateSettings({ guideLock: true })}
+            style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="lock-closed" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.8)" />
+              <Text style={{ fontSize: isTabletLock ? 15 : 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-      {/* 캐릭터 + 메시지 */}
-      <View style={{ alignItems: 'center', marginBottom: 30 }}>
-        <CharacterAvatar characterId={app.settings.mainCharacter} size={110} />
-        <Text style={{ fontSize: Math.round(16 * fs), fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' }}>
-          {app.ultraFocus?.exitCount === 0 ? '집중 잘하고 있어!' : `이탈 ${app.ultraFocus?.exitCount}회... 다시 집중!`}
+        {/* 캐릭터 + 메시지 */}
+        <View style={{ alignItems: 'center', marginBottom: 30 }}>
+          <CharacterAvatar characterId={app.settings.mainCharacter} size={avatarSize} />
+          <Text style={{ fontSize: bodyFontSize, fontWeight: '800', color: 'white', marginTop: 14, textAlign: 'center' }}>
+            {app.ultraFocus?.exitCount === 0 ? '집중 잘하고 있어!' : `이탈 ${app.ultraFocus?.exitCount}회... 다시 집중!`}
+          </Text>
+        </View>
+
+        {/* 타이머 표시 */}
+        <Text style={{ fontSize: timerFontSize, fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 }}>
+          {timerDisplay}
         </Text>
-      </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
+          <Ionicons name="flash" size={isTabletLock ? 18 : 14} color="#FF6B6B" />
+          <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#FF6B6B' }}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
+        </View>
 
-      {/* 타이머 표시 */}
-      <Text style={{ fontSize: Math.round(52 * fs), fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 }}>
-        {timerDisplay}
-      </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
-        <Ionicons name="flash" size={14} color="#FF6B6B" />
-        <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: '#FF6B6B' }}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
+        {/* 잠깐 쉬기 */}
+        {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
+          <TouchableOpacity onPress={() => { allowPauseRef.current?.(); setScreenLockedRef.current?.(false); }}
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#FFB74D60', marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="pause" size={isTabletLock ? 18 : 14} color="#FFB74D" />
+              <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#FFB74D' }}>잠깐 쉬기 (60초)</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
-
-      {/* 잠깐 쉬기 */}
-      {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
-        <TouchableOpacity onPress={() => { allowPauseRef.current?.(); setScreenLockedRef.current?.(false); }}
-          style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#FFB74D60', marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="pause" size={14} color="#FFB74D" />
-            <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: '#FFB74D' }}>잠깐 쉬기 (60초)</Text>
-          </View>
-        </TouchableOpacity>
-      )}
 
       {/* 슬라이드 해제 */}
       <View style={{ alignItems: 'center', position: 'absolute', left: 0, right: 0, bottom: Math.max(80, insets.bottom + 40) }}>
         <Animated.View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: slideOpacity }}>
-          <Ionicons name="lock-open-outline" size={13} color="rgba(255,255,255,0.5)" />
-          <Text style={{ fontSize: Math.round(14 * fs), fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginBottom: 14, letterSpacing: 1 }}>옆으로 밀어서 잠금 해제</Text>
+          <Ionicons name="lock-open-outline" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.5)" />
+          <Text style={{ fontSize: subFontSize, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginBottom: 14, letterSpacing: 1 }}>옆으로 밀어서 잠금 해제</Text>
         </Animated.View>
         <View style={{ height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', width: SLIDE_WIDTH }}>
           <Animated.View style={{ width: 56, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', transform: [{ translateX: slideX }] }} {...panResponder.panHandlers}>

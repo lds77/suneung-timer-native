@@ -82,6 +82,7 @@ const LEVEL_LABELS = {
 
 export default function ScheduleEditorScreen({ visible, onClose }) {
   const { width: winW } = useWindowDimensions();
+  const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산 (모듈레벨 정적값 덮어쓰기)
   const tabletMaxW = isTablet ? Math.round(winW * 0.83) : winW;
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);

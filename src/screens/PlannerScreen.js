@@ -536,6 +536,7 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
 // ─── 메인 화면 ───
 export default function PlannerScreen({ navigation, route }) {
   const { width: winW, height: winH } = useWindowDimensions();
+  const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산 (모듈레벨 정적값 덮어쓰기)
   const insets = useSafeAreaInsets();
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
@@ -546,7 +547,11 @@ export default function PlannerScreen({ navigation, route }) {
   const [viewMode, setViewMode]     = useState(route?.params?.tab || 'today'); // 'today' | 'weekly' | 'monthly'
 
   useFocusEffect(useCallback(() => {
-    if (route?.params?.tab) setViewMode(route.params.tab);
+    if (route?.params?.tab) {
+      setViewMode(route.params.tab);
+      // 사용 후 params 초기화 — 이후 탭 클릭 시 마지막 뷰 유지
+      navigation.setParams({ tab: undefined });
+    }
   }, [route?.params?.tab]));
 
   const [weekOffset, setWeekOffset] = useState(0);
