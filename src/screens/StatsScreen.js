@@ -303,6 +303,7 @@ export default function StatsScreen() {
       const sess = app.sessions.filter(s => s.date === ds);
       cells.push({ day: d, date: ds, sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), sessions: sess.length, density: calcAverageDensity(sess), isToday: ds === today });
     }
+    while (cells.length % 7 !== 0) cells.push(null);
     return cells;
   }, [app.sessions, viewMonth, today]);
   const monthTotalSec = calendarData.filter(Boolean).reduce((s, d) => s + d.sec, 0);
@@ -1094,17 +1095,21 @@ export default function StatsScreen() {
                   {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
                 </View>
                 <View style={S.calGrid}>
-                  {calendarData.map((cell, i) => {
-                    if (!cell) return <View key={`e${i}`} style={S.calCell} />;
-                    return (
-                      <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                        <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                          <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                        </View>
-                        {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
+                    <View key={ri} style={S.calRow}>
+                      {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
+                        if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
+                        return (
+                          <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
+                            <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
+                              <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
+                            </View>
+                            {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
                 <View style={S.heatLegend}>
                   <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
@@ -2194,17 +2199,21 @@ export default function StatsScreen() {
                 {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
               </View>
               <View style={S.calGrid}>
-                {calendarData.map((cell, i) => {
-                  if (!cell) return <View key={`e${i}`} style={S.calCell} />;
-                  return (
-                    <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                      <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                        <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                      </View>
-                      {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
+                {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
+                  <View key={ri} style={S.calRow}>
+                    {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
+                      if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
+                      return (
+                        <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
+                          <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
+                            <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
+                          </View>
+                          {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
               </View>
               <View style={S.heatLegend}>
                 <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
