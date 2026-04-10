@@ -76,6 +76,13 @@ export default function StatsScreen() {
     }
   }, [isEditingMemo]);
 
+  // 가로모드 전환 시 dayDetailDate 초기화 → iOS ghost modal 방지
+  useEffect(() => {
+    if (isLandscape) {
+      setDayDetailDate(null);
+    }
+  }, [isLandscape]);
+
   // 세션 상세 모달
   const [sessionDetail, setSessionDetail] = useState(null); // session object
 
