@@ -30,7 +30,7 @@
         "backgroundColor": "#FFF0F5"
       },
       "package": "com.yeolgong.timer",
-      "versionCode": 13,
+      "versionCode": 14,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
@@ -48,7 +48,8 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "buildToolsVersion": "35.0.0",
+            "enablePageAlignedJniLibs": true
           }
         }
       ],
