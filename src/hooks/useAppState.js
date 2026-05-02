@@ -24,7 +24,13 @@ import { calculateDensity } from '../utils/density';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
+  handleNotification: async (notification) => {
+    const type = notification.request.content.data?.type;
+    if (type === 'weeklyReport' || type === 'monthlyReport') {
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
+    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false };
+  },
 });
 
 // Android 8+ 필수: Notification Channel 설정 (없으면 백그라운드 알림이 조용히 실패)
@@ -38,6 +44,12 @@ if (Platform.OS === 'android') {
     sound: 'default',
     enableVibrate: true,
     showBadge: true,
+  });
+  Notifications.setNotificationChannelAsync('report', {
+    name: '주간·월간 리포트',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    sound: 'default',
+    enableVibrate: true,
   });
 }
 
@@ -65,6 +77,8 @@ const DEFAULT_SETTINGS = {
   dailyReminderHour: 20,       // 리마인더 시각 (시)
   dailyReminderMin: 0,         // 리마인더 시각 (분)
   streakReminderEnabled: true, // 연속 끊김 위기 알림
+  weeklyReportEnabled: true,   // 주간 공부 리포트 (매주 일요일 밤)
+  monthlyReportEnabled: true,  // 월간 공부 리포트 (매월 마지막 날 밤)
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
   headerBgPreset: 0, // 집중탭 헤더 배경 프리셋 인덱스
@@ -105,6 +119,7 @@ export function AppProvider({ children }) {
   // 전역 집중모드 선택 대기 콜백
   const [pendingModeAction, setPendingModeAction] = useState(null);
   const [showExactAlarmModal, setShowExactAlarmModal] = useState(false);
+  const [pendingReportTab, setPendingReportTab] = useState(null);
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   useEffect(() => {
@@ -247,6 +262,8 @@ export function AppProvider({ children }) {
   const bgTime = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   const reminderNotifIds = useRef([]); // 공부 리마인더 알림 id 목록
+  const weeklyReportNotifId = useRef(null); // 주간 리포트 알림 id
+  const monthlyReportNotifId = useRef(null); // 월간 리포트 알림 id
 
   // ref: 최신 weeklySchedule / sessions (schedulePlannerReminders에서 사용)
   const weeklyScheduleRef = useRef(null);
@@ -500,6 +517,26 @@ export function AppProvider({ children }) {
             return { ...t, elapsedSec: e };
           }));
         }
+
+        // 포그라운드 복귀 시 리포트 알림 재예약 (최신 공부 데이터 반영)
+        scheduleWeeklyReport();
+        scheduleMonthlyReport();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // 리포트 알림 탭 처리: 알림 탭 → pendingReportTab 설정 + 토스트 안내
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const type = response.notification.request.content.data?.type;
+      const char = settingsRef.current.mainCharacter || 'toru';
+      if (type === 'weeklyReport') {
+        setPendingReportTab('weekly');
+        showToastCustom('이번 주 공부 리포트예요! 통계 탭에서 확인해봐요 📊', char);
+      } else if (type === 'monthlyReport') {
+        setPendingReportTab('monthly');
+        showToastCustom('이번 달 공부 리포트예요! 통계 탭에서 확인해봐요 📅', char);
       }
     });
     return () => sub.remove();
@@ -1072,6 +1109,147 @@ export function AppProvider({ children }) {
         reminderNotifIds.current.push(id);
       } catch {}
     }
+  }, []);
+
+  // 주간 공부 리포트 알림 예약 — 이번 주 일요일 밤 11시 발송
+  const scheduleWeeklyReport = useCallback(async () => {
+    if (weeklyReportNotifId.current) {
+      await Notifications.cancelScheduledNotificationAsync(weeklyReportNotifId.current).catch(() => {});
+      weeklyReportNotifId.current = null;
+    }
+    const sett = settingsRef.current;
+    if (!sett.weeklyReportEnabled || !sett.notifEnabled) return;
+
+    const now = new Date();
+    const daysFromMonday = (now.getDay() + 6) % 7; // 월=0, 화=1, ..., 일=6
+    const thisMonday = new Date(now);
+    thisMonday.setDate(now.getDate() - daysFromMonday);
+    thisMonday.setHours(0, 0, 0, 0);
+
+    const thisWeekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(thisMonday);
+      d.setDate(thisMonday.getDate() + i);
+      thisWeekDates.push(d.toISOString().split('T')[0]);
+    }
+
+    const thisWeekSessions = sessionsRef.current.filter(sess => thisWeekDates.includes(sess.date));
+    const totalSec = thisWeekSessions.reduce((sum, sess) => sum + (sess.durationSec || 0), 0);
+    if (totalSec === 0) return;
+
+    const lastWeekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(thisMonday);
+      d.setDate(thisMonday.getDate() - 7 + i);
+      lastWeekDates.push(d.toISOString().split('T')[0]);
+    }
+    const lastWeekSessions = sessionsRef.current.filter(sess => lastWeekDates.includes(sess.date));
+    const lastWeekTotal = lastWeekSessions.reduce((sum, sess) => sum + (sess.durationSec || 0), 0);
+
+    const totalHours = Math.floor(totalSec / 3600);
+    const totalMins = Math.floor((totalSec % 3600) / 60);
+    const timeStr = totalHours > 0 ? `${totalHours}시간 ${totalMins}분` : `${totalMins}분`;
+    const studyDays = thisWeekDates.filter(d =>
+      sessionsRef.current.some(sess => sess.date === d && (sess.durationSec || 0) > 0)
+    ).length;
+
+    let compStr = '';
+    if (lastWeekTotal > 0) {
+      const diffMins = Math.round((totalSec - lastWeekTotal) / 60);
+      if (diffMins > 0) compStr = ` · 지난주보다 ${diffMins}분 ↑`;
+      else if (diffMins < 0) compStr = ` · 지난주보다 ${Math.abs(diffMins)}분 ↓`;
+    }
+
+    const thisSunday = new Date(thisMonday);
+    thisSunday.setDate(thisMonday.getDate() + 6);
+    thisSunday.setHours(23, 0, 0, 0);
+    if (thisSunday.getTime() <= Date.now()) return;
+
+    try {
+      const trigger = Platform.OS === 'android'
+        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday, channelId: 'report' }
+        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday };
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '이번 주 공부 리포트 📊',
+          body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
+          data: { type: 'weeklyReport' },
+          sound: 'default',
+        },
+        trigger,
+      });
+      weeklyReportNotifId.current = id;
+    } catch {}
+  }, []);
+
+  // 월간 공부 리포트 알림 예약 — 이번 달 마지막 날 밤 11시 발송
+  const scheduleMonthlyReport = useCallback(async () => {
+    if (monthlyReportNotifId.current) {
+      await Notifications.cancelScheduledNotificationAsync(monthlyReportNotifId.current).catch(() => {});
+      monthlyReportNotifId.current = null;
+    }
+    const sett = settingsRef.current;
+    if (!sett.monthlyReportEnabled || !sett.notifEnabled) return;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const thisMonthDates = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      thisMonthDates.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+
+    const thisMonthSessions = sessionsRef.current.filter(sess => thisMonthDates.includes(sess.date));
+    const totalSec = thisMonthSessions.reduce((sum, sess) => sum + (sess.durationSec || 0), 0);
+    if (totalSec === 0) return;
+
+    const lastMonth = month === 0 ? 11 : month - 1;
+    const lastMonthYear = month === 0 ? year - 1 : year;
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+    const lastMonthDates = [];
+    for (let d = 1; d <= daysInLastMonth; d++) {
+      lastMonthDates.push(`${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+    const lastMonthSessions = sessionsRef.current.filter(sess => lastMonthDates.includes(sess.date));
+    const lastMonthTotal = lastMonthSessions.reduce((sum, sess) => sum + (sess.durationSec || 0), 0);
+
+    const studyDays = thisMonthDates.filter(d =>
+      sessionsRef.current.some(sess => sess.date === d && (sess.durationSec || 0) > 0)
+    ).length;
+
+    const totalHours = Math.floor(totalSec / 3600);
+    const totalMins = Math.floor((totalSec % 3600) / 60);
+    const timeStr = totalHours > 0 ? `${totalHours}시간 ${totalMins}분` : `${totalMins}분`;
+
+    let compStr = '';
+    if (lastMonthTotal > 0) {
+      const diffHours = Math.round((totalSec - lastMonthTotal) / 3600);
+      if (diffHours > 0) compStr = ` · 지난달보다 ${diffHours}시간 ↑`;
+      else if (diffHours < 0) compStr = ` · 지난달보다 ${Math.abs(diffHours)}시간 ↓`;
+    }
+
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    lastDayOfMonth.setHours(23, 0, 0, 0);
+    if (lastDayOfMonth.getTime() <= Date.now()) return;
+
+    const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+    try {
+      const trigger = Platform.OS === 'android'
+        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: lastDayOfMonth, channelId: 'report' }
+        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: lastDayOfMonth };
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${MONTH_NAMES[month]} 공부 리포트 📅`,
+          body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
+          data: { type: 'monthlyReport' },
+          sound: 'default',
+        },
+        trigger,
+      });
+      monthlyReportNotifId.current = id;
+    } catch {}
   }, []);
 
   // 타이머 조작
@@ -1739,6 +1917,17 @@ export function AppProvider({ children }) {
     }, 2000);
   }, [sessions.length, settings.dailyReminderEnabled, settings.dailyReminderHour, settings.dailyReminderMin, settings.streakReminderEnabled, settings.streak, loading]);
 
+  // 리포트 알림: 앱 시작 + 세션/리포트 설정 변경 시 재예약
+  const reportDebounceRef = useRef(null);
+  useEffect(() => {
+    if (loading) return;
+    clearTimeout(reportDebounceRef.current);
+    reportDebounceRef.current = setTimeout(() => {
+      scheduleWeeklyReport();
+      scheduleMonthlyReport();
+    }, 2500);
+  }, [sessions.length, settings.weeklyReportEnabled, settings.monthlyReportEnabled, settings.notifEnabled, loading]);
+
   // 즐겨찾기 추가/제거
   const addFav = useCallback((fav) => {
     if (favs.length >= 6) { showToastCustom('즐겨찾기 최대 6개!', 'paengi'); return; }
@@ -1792,6 +1981,7 @@ export function AppProvider({ children }) {
       completedResultData, setCompletedResultData,
       pendingModeAction, requestModeSelect, resolveModeSelect, cancelModeSelect,
       showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
+      pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,

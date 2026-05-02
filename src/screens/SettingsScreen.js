@@ -489,6 +489,32 @@ export default function SettingsScreen() {
                   />
                 }
               />
+              <Row
+                T={T}
+                label="주간 공부 리포트"
+                sub="매주 일요일 밤 이번 주 공부 리포트를 보내줘요"
+                right={
+                  <Switch
+                    value={app.settings.weeklyReportEnabled}
+                    onValueChange={(v) => app.updateSettings({ weeklyReportEnabled: v })}
+                    trackColor={{ true: T.accent }}
+                    thumbColor="white"
+                  />
+                }
+              />
+              <Row
+                T={T}
+                label="월간 공부 리포트"
+                sub="매월 마지막 날 밤 이번 달 공부 리포트를 보내줘요"
+                right={
+                  <Switch
+                    value={app.settings.monthlyReportEnabled}
+                    onValueChange={(v) => app.updateSettings({ monthlyReportEnabled: v })}
+                    trackColor={{ true: T.accent }}
+                    thumbColor="white"
+                  />
+                }
+              />
             </>
           )}
         </Section>

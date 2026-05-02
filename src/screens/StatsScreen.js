@@ -58,6 +58,14 @@ export default function StatsScreen() {
   const S = useMemo(() => createStyles(fs), [fs]);
   const [tab, setTab] = useState('daily');
   const today = getToday();
+
+  // 리포트 알림 탭 → 해당 탭으로 자동 이동
+  useEffect(() => {
+    if (app.pendingReportTab) {
+      setTab(app.pendingReportTab);
+      app.clearPendingReportTab?.();
+    }
+  }, [app.pendingReportTab]);
   const [activeCard, setActiveCard] = useState(null);
   const activeCardTimer = useRef(null);
   const tapCard = useCallback((key) => {
