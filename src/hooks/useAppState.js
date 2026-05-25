@@ -58,7 +58,7 @@ Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
-  soundId: 'none', soundVolume: 70, darkMode: false, notifEnabled: true,
+  activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
   ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
@@ -1425,56 +1425,63 @@ export function AppProvider({ children }) {
   }, []);
 
   // ═══ 집중 사운드 ═══
-  const soundRef = useRef(null);
-  const isSoundLoadingRef = useRef(false); // 로딩 중 중복 방지
+  const soundRefsMap = useRef({}); // { [id]: Audio.Sound }
 
-  // 사운드 완전 정리 (await 보장)
-  const stopAndUnload = async () => {
-    const s = soundRef.current;
-    soundRef.current = null;
-    if (s) {
+  const stopAllSounds = async () => {
+    const entries = Object.entries(soundRefsMap.current);
+    soundRefsMap.current = {};
+    for (const [, s] of entries) {
       try { await s.stopAsync(); } catch {}
       try { await s.unloadAsync(); } catch {}
     }
   };
 
-  // soundId 변경 시
+  // activeSounds 변경 시 — 추가/제거 diff 처리
   useEffect(() => {
     if (loading) return;
+    const activeSounds = settings.activeSounds ?? [];
+    const currentIds = Object.keys(soundRefsMap.current);
+
+    const toRemove = currentIds.filter(id => !activeSounds.includes(id));
+    for (const id of toRemove) {
+      const s = soundRefsMap.current[id];
+      delete soundRefsMap.current[id];
+      if (s) { s.stopAsync().catch(() => {}); s.unloadAsync().catch(() => {}); }
+    }
+
+    const toAdd = activeSounds.filter(id => !currentIds.includes(id) && SOUND_FILES[id]);
+    if (toAdd.length === 0) return;
+
     let cancelled = false;
-    const run = async () => {
-      if (isSoundLoadingRef.current) return;
-      isSoundLoadingRef.current = true;
-      await stopAndUnload();
-      if (cancelled) { isSoundLoadingRef.current = false; return; }
-      const { soundId, soundVolume } = settings;
-      if (soundId !== 'none' && SOUND_FILES[soundId]) {
+    const loadNew = async () => {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+      for (const id of toAdd) {
+        if (cancelled) break;
         try {
-          await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
           const { sound } = await Audio.Sound.createAsync(
-            SOUND_FILES[soundId],
-            { isLooping: true, volume: (soundVolume ?? 70) / 100 }
+            SOUND_FILES[id],
+            { isLooping: true, volume: (settings.soundVolume ?? 70) / 100 }
           );
-          if (cancelled) { try { await sound.unloadAsync(); } catch {} isSoundLoadingRef.current = false; return; }
-          soundRef.current = sound;
+          if (cancelled) { sound.unloadAsync().catch(() => {}); break; }
+          soundRefsMap.current[id] = sound;
           await sound.playAsync();
         } catch {}
       }
-      isSoundLoadingRef.current = false;
     };
-    run();
+    loadNew();
     return () => { cancelled = true; };
-  }, [settings.soundId, loading]);
+  }, [settings.activeSounds, loading]);
 
   // 볼륨 변경 시 (사운드 교체 없이 볼륨만)
   useEffect(() => {
-    if (loading || !soundRef.current) return;
-    soundRef.current.setVolumeAsync((settings.soundVolume ?? 70) / 100).catch(() => {});
+    if (loading) return;
+    const vol = (settings.soundVolume ?? 70) / 100;
+    Object.values(soundRefsMap.current).forEach(s => s.setVolumeAsync(vol).catch(() => {}));
   }, [settings.soundVolume, loading]);
 
   // 앱 종료 시 정리
   useEffect(() => {
-    return () => { stopAndUnload(); };
+    return () => { stopAllSounds(); };
   }, []);
 
   // 토스트
@@ -1514,6 +1521,11 @@ export function AppProvider({ children }) {
         if (s.ultraFocusEnabled !== undefined) delete s.ultraFocusEnabled;
         // schoolLevel 마이그레이션: 'elementary' → 'elementary_upper'
         if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
+        // soundId → activeSounds 마이그레이션
+        if (!Array.isArray(s.activeSounds)) {
+          s.activeSounds = (s.soundId && s.soundId !== 'none') ? [s.soundId] : [];
+        }
+        delete s.soundId;
         // 재설치 시 exactAlarmGuideShown 리셋 (구글 백업 복원 대응, Android 13+)
         if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });

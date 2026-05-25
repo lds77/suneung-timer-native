@@ -1813,23 +1813,35 @@ export default function FocusScreen() {
 
 
         {/* 노이즈 */}
+        {(() => {
+          const activeSounds = app.settings.activeSounds ?? [];
+          const toggleSound = (id) => {
+            if (activeSounds.includes(id)) {
+              app.updateSettings({ activeSounds: activeSounds.filter(x => x !== id) });
+            } else if (activeSounds.length >= 3) {
+              app.showToastCustom('최대 3개까지 선택할 수 있어요 🎵', 'paengi');
+            } else {
+              app.updateSettings({ activeSounds: [...activeSounds, id] });
+            }
+          };
+          return (
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: app.settings.soundId !== 'none' ? 6 : 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeSounds.length > 0 ? 6 : 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <Ionicons name="musical-notes-outline" size={14} color={T.sub} />
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
               </View>
               <TouchableOpacity
-                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.surface }]}
-                onPress={() => app.updateSettings({ soundId: 'none' })}>
+                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: activeSounds.length === 0 ? T.accent : T.border, backgroundColor: activeSounds.length === 0 ? T.accent : T.surface }]}
+                onPress={() => app.updateSettings({ activeSounds: [] })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name="volume-mute-outline" size={13} color={app.settings.soundId === 'none' ? 'white' : T.text} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === 'none' ? 'white' : T.text }]}>끄기</Text>
+                  <Ionicons name="volume-mute-outline" size={13} color={activeSounds.length === 0 ? 'white' : T.text} />
+                  <Text style={[S.nbT, { color: activeSounds.length === 0 ? 'white' : T.text }]}>끄기</Text>
                 </View>
               </TouchableOpacity>
             </View>
-            {app.settings.soundId !== 'none' && (
+            {activeSounds.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <TouchableOpacity
                   onPress={() => app.updateSettings({ soundVolume: Math.max(10, (app.settings.soundVolume ?? 70) - 10) })}
@@ -1856,21 +1868,24 @@ export default function FocusScreen() {
           <View style={{ gap: 4 }}>
             <View style={S.noiseRow}>
               {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }].map(s => (
-                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: activeSounds.includes(s.id) ? T.accent : T.border, backgroundColor: activeSounds.includes(s.id) ? T.accent : T.surface }]} onPress={() => toggleSound(s.id)}>
+                  <Ionicons name={s.icon} size={18} color={activeSounds.includes(s.id) ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: activeSounds.includes(s.id) ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={S.noiseRow}>
               {[{ id: 'train', icon: 'train-outline', t: '기차' }, { id: 'library', icon: 'library-outline', t: '도서관' }, { id: 'clock', icon: 'time-outline', t: '시계' }, { id: 'space', icon: 'planet-outline', t: '우주' }, { id: 'writing', icon: 'pencil-outline', t: '필기' }].map(s => (
-                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: activeSounds.includes(s.id) ? T.accent : T.border, backgroundColor: activeSounds.includes(s.id) ? T.accent : T.surface }]} onPress={() => toggleSound(s.id)}>
+                  <Ionicons name={s.icon} size={18} color={activeSounds.includes(s.id) ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: activeSounds.includes(s.id) ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View></View>
+          </View>
+        </View>
+          );
+        })()}
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
@@ -2621,23 +2636,35 @@ export default function FocusScreen() {
 
 
         {/* 노이즈 */}
+        {(() => {
+          const activeSounds = app.settings.activeSounds ?? [];
+          const toggleSound = (id) => {
+            if (activeSounds.includes(id)) {
+              app.updateSettings({ activeSounds: activeSounds.filter(x => x !== id) });
+            } else if (activeSounds.length >= 3) {
+              app.showToastCustom('최대 3개까지 선택할 수 있어요 🎵', 'paengi');
+            } else {
+              app.updateSettings({ activeSounds: [...activeSounds, id] });
+            }
+          };
+          return (
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: app.settings.soundId !== 'none' ? 6 : 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeSounds.length > 0 ? 6 : 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <Ionicons name="musical-notes-outline" size={14} color={T.sub} />
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
               </View>
               <TouchableOpacity
-                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: app.settings.soundId === 'none' ? T.accent : T.border, backgroundColor: app.settings.soundId === 'none' ? T.accent : T.surface }]}
-                onPress={() => app.updateSettings({ soundId: 'none' })}>
+                style={[S.nb, { flex: 0, paddingHorizontal: 7, paddingVertical: 3, borderColor: activeSounds.length === 0 ? T.accent : T.border, backgroundColor: activeSounds.length === 0 ? T.accent : T.surface }]}
+                onPress={() => app.updateSettings({ activeSounds: [] })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name="volume-mute-outline" size={13} color={app.settings.soundId === 'none' ? 'white' : T.text} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === 'none' ? 'white' : T.text }]}>끄기</Text>
+                  <Ionicons name="volume-mute-outline" size={13} color={activeSounds.length === 0 ? 'white' : T.text} />
+                  <Text style={[S.nbT, { color: activeSounds.length === 0 ? 'white' : T.text }]}>끄기</Text>
                 </View>
               </TouchableOpacity>
             </View>
-            {app.settings.soundId !== 'none' && (
+            {activeSounds.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <TouchableOpacity
                   onPress={() => app.updateSettings({ soundVolume: Math.max(10, (app.settings.soundVolume ?? 70) - 10) })}
@@ -2664,21 +2691,24 @@ export default function FocusScreen() {
           <View style={{ gap: 4 }}>
             <View style={S.noiseRow}>
               {[{ id: 'rain', icon: 'rainy-outline', t: '빗소리' }, { id: 'wave', icon: 'water-outline', t: '파도' }, { id: 'forest', icon: 'leaf-outline', t: '숲속' }, { id: 'fire', icon: 'flame-outline', t: '모닥불' }, { id: 'cafe', icon: 'cafe-outline', t: '카페' }].map(s => (
-                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: activeSounds.includes(s.id) ? T.accent : T.border, backgroundColor: activeSounds.includes(s.id) ? T.accent : T.surface }]} onPress={() => toggleSound(s.id)}>
+                  <Ionicons name={s.icon} size={18} color={activeSounds.includes(s.id) ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: activeSounds.includes(s.id) ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={S.noiseRow}>
               {[{ id: 'train', icon: 'train-outline', t: '기차' }, { id: 'library', icon: 'library-outline', t: '도서관' }, { id: 'clock', icon: 'time-outline', t: '시계' }, { id: 'space', icon: 'planet-outline', t: '우주' }, { id: 'writing', icon: 'pencil-outline', t: '필기' }].map(s => (
-                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: app.settings.soundId === s.id ? T.accent : T.border, backgroundColor: app.settings.soundId === s.id ? T.accent : T.surface }]} onPress={() => app.updateSettings({ soundId: s.id })}>
-                  <Ionicons name={s.icon} size={18} color={app.settings.soundId === s.id ? 'white' : T.sub} />
-                  <Text style={[S.nbT, { color: app.settings.soundId === s.id ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
+                <TouchableOpacity key={s.id} style={[S.nb, { borderColor: activeSounds.includes(s.id) ? T.accent : T.border, backgroundColor: activeSounds.includes(s.id) ? T.accent : T.surface }]} onPress={() => toggleSound(s.id)}>
+                  <Ionicons name={s.icon} size={18} color={activeSounds.includes(s.id) ? 'white' : T.sub} />
+                  <Text style={[S.nbT, { color: activeSounds.includes(s.id) ? 'white' : T.text, marginTop: 1 }]} numberOfLines={1}>{s.t}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View></View>
+          </View>
+        </View>
+          );
+        })()}
 
         {/* 타임어택 / 커스텀 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 8 }}>
