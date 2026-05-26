@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>열공메이트 - 공부타이머 & 수능플래너</title>
+  <meta name="description" content="집중밀도 점수로 오늘 공부가 진짜였는지 확인하세요. 공부타이머·포모도로·수능D-day·집중잠금·잔디통계 올인원 학습앱">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #0f0f1a;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #4a0e7a 0%, #1a1a4e 50%, #0a2a5e 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 60px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(140,60,255,0.15) 0%, transparent 70%);
+      top: -100px; left: -100px;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(60,120,255,0.12) 0%, transparent 70%);
+      bottom: -50px; right: -50px;
+    }
+
+    .app-icon {
+      width: 120px; height: 120px;
+      border-radius: 26px;
+      margin: 0 auto 28px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(124,58,237,0.4);
+      position: relative;
+      z-index: 1;
+    }
+
+    .app-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.2rem, 6vw, 3.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero .tagline {
+      font-size: clamp(1rem, 3vw, 1.3rem);
+      color: rgba(255,255,255,0.75);
+      max-width: 480px;
+      margin: 0 auto 48px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.9);
+      font-size: 0.85rem;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .store-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .store-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      color: #111;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+
+    .store-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    .store-btn.dark {
+      background: #1a1a2e;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .store-btn svg { width: 28px; height: 28px; flex-shrink: 0; }
+
+    .store-btn-text { text-align: left; }
+    .store-btn-sub { font-size: 0.72rem; font-weight: 400; opacity: 0.7; display: block; }
+    .store-btn-name { font-size: 1rem; font-weight: 700; display: block; line-height: 1.2; }
+
+    /* Features */
+    .section {
+      padding: 80px 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      margin-bottom: 12px;
+    }
+
+    .section h2 {
+      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 60px;
+      color: #fff;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 28px;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .feature-card:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .feature-card p {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.6;
+    }
+
+    /* Stats */
+    .stats-section {
+      background: linear-gradient(135deg, #1e0a3c, #0a1a3c);
+      padding: 80px 24px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 32px;
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .stat-item .number {
+      font-size: 2.8rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-item .label {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+    }
+
+    /* Who */
+    .who-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .who-list li {
+      background: rgba(167,139,250,0.1);
+      border: 1px solid rgba(167,139,250,0.2);
+      border-radius: 14px;
+      padding: 20px 24px;
+      font-size: 0.95rem;
+      color: rgba(255,255,255,0.85);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .who-list li::before {
+      content: '✓';
+      color: #a78bfa;
+      font-weight: 800;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    /* Support */
+    .support-section {
+      background: rgba(255,255,255,0.03);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      padding: 80px 24px;
+      text-align: center;
+    }
+
+    .support-section h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .support-section p {
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 36px;
+      font-size: 1rem;
+    }
+
+    .contact-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 18px 32px;
+      font-size: 1rem;
+      color: #fff;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .contact-box:hover { background: rgba(255,255,255,0.1); }
+
+    .faq { max-width: 640px; margin: 60px auto 0; text-align: left; }
+
+    .faq-item {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 24px 0;
+    }
+
+    .faq-item h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #e2e8f0;
+    }
+
+    .faq-item p {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.3);
+      font-size: 0.85rem;
+    }
+
+    footer a { color: rgba(255,255,255,0.4); text-decoration: none; }
+    footer a:hover { color: rgba(255,255,255,0.7); }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      margin: 0 24px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="app-icon"><img src="adaptive-icon.png" alt="열공메이트"></div>
+  <div class="badge">광고 없음 · 현재 무료</div>
+  <h1>열공메이트</h1>
+  <p class="tagline">단순히 시간을 재는 타이머는 그만.<br>얼마나 집중했는지를 점수로 확인하세요.</p>
+  <div class="store-buttons">
+    <a href="https://apps.apple.com/app/id6759892516" class="store-btn" target="_blank">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+      </svg>
+      <div class="store-btn-text">
+        <span class="store-btn-sub">Download on the</span>
+        <span class="store-btn-name">App Store</span>
+      </div>
+    </a>
+    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" class="store-btn dark" target="_blank">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3.18 23.76c.3.17.64.24.99.2l12.69-12.7-3.54-3.54L3.18 23.76zm16.4-12.25l-2.43-1.4-3.89 3.89 3.89 3.89 2.46-1.42c.7-.4.7-1.55-.03-1.96zM.75 1.05C.45 1.38.3 1.84.3 2.41v19.18c0 .57.16 1.03.46 1.36l.07.07 10.75-10.75v-.26L.82.98.75 1.05zm11.49 11.56l3.56-3.56-12.7-7.33 9.14 10.89z"/>
+      </svg>
+      <div class="store-btn-text">
+        <span class="store-btn-sub">GET IT ON</span>
+        <span class="store-btn-name">Google Play</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Stats -->
+<section class="stats-section">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="number">4가지</div>
+      <div class="label">타이머 모드</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">365일</div>
+      <div class="label">잔디 기록</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">S+~F</div>
+      <div class="label">집중밀도 티어</div>
+    </div>
+    <div class="stat-item">
+      <div class="number">무료</div>
+      <div class="label">광고 없음</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Features -->
+<section class="section">
+  <p class="section-label">Features</p>
+  <h2>진짜 집중을 돕는<br>모든 기능</h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <h3>집중밀도 & 티어</h3>
+      <p>공부 후 집중도 점수(40~118점)와 S+~F 티어를 자동 분석. 오늘 공부가 진짜였는지 숫자로 확인하세요.</p>
+    </div>
+    <div class="feature-card">
+      <h3>4가지 타이머</h3>
+      <p>카운트다운 · 포모도로 · 연속모드 · 자유기록. 과목별로 이어서 자동 실행하는 연속모드도 지원합니다.</p>
+    </div>
+    <div class="feature-card">
+      <h3>집중 잠금 모드</h3>
+      <p>공부 중 이탈하면 챌린지 문구를 직접 입력해야만 해제됩니다. 울트라집중 모드로 딴짓을 막아보세요.</p>
+    </div>
+    <div class="feature-card">
+      <h3>365일 잔디</h3>
+      <p>1년 공부 기록을 격자 형태로 시각화. 일반·집중·Verified 색상으로 꾸준함을 한눈에 볼 수 있어요.</p>
+    </div>
+    <div class="feature-card">
+      <h3>플래너 & D-Day</h3>
+      <p>하루·한 주 공부 계획을 세우고 달성률을 확인. 수능·기말고사 D-day를 매일 자동으로 카운트합니다.</p>
+    </div>
+    <div class="feature-card">
+      <h3>과학적 학습법</h3>
+      <p>포모도로 · 52-17 법칙 · 인터리빙 등 연구로 검증된 학습법을 탭 한 번으로 시작할 수 있습니다.</p>
+    </div>
+    <div class="feature-card">
+      <h3>통계 & 리포트</h3>
+      <p>일간·주간·월간 통계로 공부 패턴을 파악하고, 주간 리포트를 이미지로 캡처해서 공유할 수 있어요.</p>
+    </div>
+    <div class="feature-card">
+      <h3>공부 캐릭터</h3>
+      <p>토루·팽이·타코·토토루 중 하나를 골라 함께 공부. 완벽한 집중엔 Verified 뱃지가 주어집니다.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Who -->
+<section class="section">
+  <p class="section-label">Recommended</p>
+  <h2>이런 분께<br>추천해요</h2>
+  <ul class="who-list">
+    <li>수능·모의고사 준비하는 고등학생·N수생</li>
+    <li>학점 관리가 필요한 대학생</li>
+    <li>공무원·자격증 준비 중인 공시생</li>
+    <li>꾸준한 공부 습관을 만들고 싶은 중학생</li>
+    <li>집중이 안 돼서 실속 없다고 느끼는 학생</li>
+    <li>무료로 광고 없이 깔끔한 타이머를 원하는 분</li>
+  </ul>
+</section>
+
+<div class="divider"></div>
+
+<!-- Support -->
+<section class="support-section" id="support">
+  <h2>문의 & 지원</h2>
+  <p>버그 신고, 기능 제안, 사용 문의는 이메일로 보내주세요.<br>최대한 빠르게 답변드릴게요.</p>
+  <a href="mailto:dongsikl51@gmail.com" class="contact-box">
+    dongsikl51@gmail.com
+  </a>
+
+  <div class="faq">
+    <div class="faq-item">
+      <h4>앱이 무료인가요?</h4>
+      <p>현재 모든 기능이 무료이며 광고가 없습니다.</p>
+    </div>
+    <div class="faq-item">
+      <h4>iOS와 Android 모두 지원하나요?</h4>
+      <p>네, App Store와 Google Play 모두 출시되어 있습니다. 위의 다운로드 버튼을 눌러 설치하세요.</p>
+    </div>
+    <div class="faq-item">
+      <h4>집중밀도 점수는 어떻게 계산되나요?</h4>
+      <p>타이머 완주 여부, 일시정지 횟수, 이탈 횟수를 종합해 40~118점으로 계산됩니다. S+(전설)~F 티어로 등급을 확인할 수 있어요.</p>
+    </div>
+    <div class="faq-item">
+      <h4>데이터를 백업하거나 복구할 수 있나요?</h4>
+      <p>앱 내 설정 탭에서 데이터를 백업하고 복구할 수 있습니다. 기기를 교체하거나 앱을 재설치하기 전에 미리 백업해 두시길 권장합니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>© 2025 열공메이트 &nbsp;·&nbsp; <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
+  <p style="margin-top: 8px;">
+    <a href="https://apps.apple.com/app/id6759892516" target="_blank">App Store</a>
+    &nbsp;·&nbsp;
+    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" target="_blank">Google Play</a>
+  </p>
+</footer>
+
+</body>
+</html>
