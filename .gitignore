@@ -46,3 +46,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# 사운드 백업 파일
+assets/sounds/_backup/
