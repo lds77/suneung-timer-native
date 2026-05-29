@@ -14,8 +14,10 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "applicationIdSuffix": ".preview"
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_VARIANT": "preview"
       }
     },
     "testflight": {
