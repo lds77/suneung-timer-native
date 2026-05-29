@@ -1,9 +1,9 @@
 // src/constants/characters.js
 export const CHARACTERS = {
-  toru: { id: 'toru', name: '토루', emoji: '🐻', desc: '따뜻하고 다정한 분홍 곰', bgColor: '#FDDCCC', image: require('../../assets/characters/toru.png') },
+  toru: { id: 'toru', name: '토루', emoji: '🐰', desc: '따뜻하고 다정한 분홍 토끼', bgColor: '#FDDCCC', image: require('../../assets/characters/toru.png') },
   paengi: { id: 'paengi', name: '팽이', emoji: '🐧', desc: '진지하고 걱정 많은 펭귄', bgColor: '#D6EDFF', image: require('../../assets/characters/paengi.png') },
   taco: { id: 'taco', name: '타코', emoji: '🐰', desc: '활발하고 긍정적인 토끼', bgColor: '#E2F5D3', image: require('../../assets/characters/taco.png') },
-  totoru: { id: 'totoru', name: '토토루', emoji: '🐻', desc: '묵직하고 듬직한 회색 곰', bgColor: '#E4D8F0', image: require('../../assets/characters/totoru.png') },
+  totoru: { id: 'totoru', name: '토토루', emoji: '🐰', desc: '묵직하고 듬직한 회색 토끼', bgColor: '#E4D8F0', image: require('../../assets/characters/totoru.png') },
 };
 export const CHARACTER_LIST = ['toru', 'paengi', 'taco', 'totoru'];
 export const MESSAGES = {
