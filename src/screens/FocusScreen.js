@@ -1219,12 +1219,12 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <LinearGradient colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+              <LinearGradient key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
                 {innerContent}
               </LinearGradient>
             );
           }
-          return <View style={cardStyle}>{innerContent}</View>;
+          return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
         })()}
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
@@ -2063,12 +2063,12 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <LinearGradient colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+              <LinearGradient key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
                 {innerContent}
               </LinearGradient>
             );
           }
-          return <View style={cardStyle}>{innerContent}</View>;
+          return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
         })()}
 
         {/* D-Day 배지 (고정 3개 + D-14 자동, 최대 6개) */}
