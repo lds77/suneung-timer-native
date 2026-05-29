@@ -34,11 +34,34 @@ const Tab = createBottomTabNavigator();
 // 폰트 설정 데이터를 별도 파일로 분리했습니다.
 // 필요 시 FONT_MAP, FONT_FAMILY_MAP를 가져다 쓰면 됩니다.
 
-// 기본 글꼴로 복원할 때 사용하기 위해 원본 Text.render를 저장
-const _originalTextRender = Text.render;
 // 태블릿(iPad) 전용 텍스트 스케일 — 폰 대비 15% 크게
 const _isTablet = Dimensions.get('window').width >= 600;
 const _TABLET_FONT_SCALE = 1.15;
+
+// RN 0.81에서 Text는 순수 함수 컴포넌트 — Text.render 패치 불가.
+// React.createElement를 가로채 Text/TextInput 생성 시 fontFamily를 주입한다.
+const _origCreateElement = React.createElement.bind(React);
+let _globalFont = null; // null = 시스템 폰트 | { base, bold, customFamilies, fontId }
+React.createElement = function (type, props, ...children) {
+  if (_globalFont && (type === Text || type === TextInput) && props) {
+    const { testID } = props;
+    if (testID !== 'timer-text' && testID !== 'chevron' && testID !== 'font-preview') {
+      const flat = StyleSheet.flatten(props.style) || {};
+      if (!flat.fontFamily || _globalFont.customFamilies.has(flat.fontFamily)) {
+        const isBold = flat.fontWeight && (flat.fontWeight === 'bold' || parseInt(flat.fontWeight, 10) >= 700);
+        const family = isBold ? _globalFont.bold : _globalFont.base;
+        const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : undefined;
+        const lineHeightFix = _globalFont.fontId === 'nanumSquare' && flat.fontSize && !flat.lineHeight
+          ? { lineHeight: Math.ceil((scaledSize || flat.fontSize) * 1.35) } : {};
+        return _origCreateElement(type, {
+          ...props,
+          style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }), ...lineHeightFix },
+        }, ...children);
+      }
+    }
+  }
+  return _origCreateElement(type, props, ...children);
+};
 
 
 // ── 온보딩 (6단계) ──
@@ -968,26 +991,9 @@ function Root() {
     const loadFont = async () => {
       const fontId = app.settings.fontFamily || 'default';
       if (fontId === 'default' || !FONT_MAP[fontId]) {
-        // 시스템 폰트 — 태블릿이면 fontSize만 스케일, 아니면 원상복구
-        if (_isTablet) {
-          Text.render = function (...args) {
-            const origin = _originalTextRender.call(this, ...args);
-            const props = origin.props;
-            if (props.testID === 'timer-text') return origin;
-            if (props.testID === 'chevron') return origin;
-            const flat = StyleSheet.flatten(props.style) || {};
-            if (flat.fontFamily || !flat.fontSize) return origin;
-            return React.cloneElement(origin, { style: { ...flat, fontSize: Math.round(flat.fontSize * _TABLET_FONT_SCALE) } });
-          };
-        } else {
-          Text.render = _originalTextRender;
-        }
-        Text.defaultProps = Text.defaultProps || {};
-        Text.defaultProps.style = undefined;
-        TextInput.defaultProps = TextInput.defaultProps || {};
-        TextInput.defaultProps.style = undefined;
+        // 시스템 폰트로 리셋
+        _globalFont = null;
         if (fontId !== 'default' && !FONT_MAP[fontId]) {
-          // 폰트 파일이 아직 없음 → 기본으로 폴백
           app.updateSettings({ fontFamily: 'default' });
         }
         setLoadedFont('default');
@@ -995,43 +1001,12 @@ function Root() {
         return;
       }
       try {
-        // 새로운 폰트를 로드하면 이름이 같아도 이전 것이 캐시되거나 덮어쓰기되지 않는 문제가 있으므로
-        // 각 폰트마다 고유한 family 이름을 사용합니다. FONT_MAP의 키가 곧 alias가 됩니다.
         await Font.loadAsync(FONT_MAP[fontId]);
-        // 전역 텍스트 렌더링을 가로채서 weight에 따라 올바른 패밀리를 지정하도록 패치
         const baseFamily = FONT_FAMILY_MAP[fontId];
-        // Android(Fabric)에서 cloneElement 이후 재렌더링 시 flat.fontFamily에 이전 폰트가 남음.
-        // → 우리 커스텀 폰트 family 목록을 만들어 두고, 해당 폰트는 새 폰트로 덮어씌움.
-        // → 아이콘 등 외부 폰트(Ionicons 등)는 Set에 없으므로 자동으로 건너뜀.
-        const _customFamilies = new Set(
+        const customFamilies = new Set(
           Object.values(FONT_FAMILY_MAP).flatMap(f => [f, f + '-Bold'])
         );
-        // 항상 원본 render에서 시작 (중첩 방지), cloneElement로 props 불변성 유지
-        Text.render = function (...args) {
-          const origin = _originalTextRender.call(this, ...args);
-          const props = origin.props;
-          // testID="timer-text" 인 텍스트는 전역 폰트 적용 건너뜀 (타이머 숫자)
-          if (props.testID === 'timer-text') return origin;
-          // testID="chevron" 인 텍스트는 전역 폰트 적용 건너뜀 (화살표 기호 — 일부 폰트에 글리프 없음)
-          if (props.testID === 'chevron') return origin;
-          // testID="font-preview" 인 텍스트는 건너뜀 (폰트 피커 미리보기 — 자체 fontFamily 유지)
-          if (props.testID === 'font-preview') return origin;
-          const flat = StyleSheet.flatten(props.style) || {};
-          // fontFamily가 있을 때: 우리 커스텀 폰트면 새 폰트로 교체, 외부 폰트(아이콘 등)면 건너뜀
-          if (flat.fontFamily && !_customFamilies.has(flat.fontFamily)) return origin;
-          const w = flat.fontWeight;
-          const isBold = w && (w === 'bold' || parseInt(w, 10) >= 700);
-          const family = isBold ? baseFamily + '-Bold' : baseFamily;
-          // Android: fontFamily(Bold 변형) + fontWeight(700) 동시 적용 시 텍스트 사라짐
-          // Bold 폰트 파일이 weight를 이미 내포하므로 fontWeight는 normal로 정규화
-          const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : flat.fontSize;
-          const effectiveSize = scaledSize || flat.fontSize;
-          // 나눔스퀘어는 vertical metrics가 커서 lineHeight 없으면 글자 하단이 잘림
-          const lineHeightFix = fontId === 'nanumSquare' && effectiveSize && !flat.lineHeight
-            ? { lineHeight: Math.ceil(effectiveSize * 1.35) }
-            : {};
-          return React.cloneElement(origin, { style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }), ...lineHeightFix } });
-        };
+        _globalFont = { base: baseFamily, bold: baseFamily + '-Bold', customFamilies, fontId };
         setLoadedFont(fontId);
       } catch (e) {
         console.log('폰트 로딩 실패:', e);
