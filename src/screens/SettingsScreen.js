@@ -607,11 +607,13 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <TouchableOpacity onPress={async () => {
             try {
-              const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+              const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain', '*/*'], copyToCacheDirectory: true });
               if (result.canceled) return;
               const file = result.assets?.[0];
               if (!file) return;
-              const raw = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+              const resp = await fetch(file.uri);
+              if (!resp.ok) throw new Error('fetch_failed');
+              const raw = await resp.text();
               const data = JSON.parse(raw);
               if (!data._meta || data._meta.app !== 'yeolgong') {
                 Alert.alert('복원 실패', '열공메이트 백업 파일이 아닙니다.');
