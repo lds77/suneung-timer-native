@@ -1,9 +1,9 @@
 // src/components/CharacterAvatar.js
 // 캐릭터 아바타 — 원형에 캐릭터 꽉 차게, 발바닥 하단 정렬
 
+import React, { useState } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
-import { useState } from 'react';
 
 // 캐릭터별 미세 조정 (이미지 내 캐릭터 크기/위치가 다름)
 const CHAR_ADJUST = {
