@@ -260,6 +260,10 @@ export default function SettingsScreen() {
   const scrollYRef = useRef(0);
   const challengeViewRef = useRef(null);
   const kbHeightRef = useRef(0);
+  // Modal 열릴 때 Row touch-up이 backdrop으로 새어들어가는 걸 방지
+  const backdropLocked = useRef(false);
+  const openPicker = (setter) => { backdropLocked.current = true; setter(true); };
+  const onPickerShow = () => { backdropLocked.current = false; };
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const show = Keyboard.addListener(showEvent, (e) => { kbHeightRef.current = e.endCoordinates.height; });
@@ -343,7 +347,7 @@ export default function SettingsScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{cur.label}</Text>
                   <Ionicons name="chevron-forward" size={16} color={T.sub} />
                 </View>}
-                onPress={() => setShowHeaderBgPicker(true)}
+                onPress={() => openPicker(setShowHeaderBgPicker)}
               />
             );
           })()}
@@ -356,7 +360,7 @@ export default function SettingsScreen() {
               <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{app.settings.dailyGoalMin / 60}시간</Text>
               <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
             </View>}
-            onPress={() => setShowGoalPicker(true)}
+            onPress={() => openPicker(setShowGoalPicker)}
           />
           <Row T={T} label="학교급"
             right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -365,7 +369,7 @@ export default function SettingsScreen() {
               </Text>
               <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
             </View>}
-            onPress={() => setShowSchoolPicker(true)}
+            onPress={() => openPicker(setShowSchoolPicker)}
           />
         </Section>
 
@@ -380,7 +384,7 @@ export default function SettingsScreen() {
                 onPress={() => {
                   const hasActive = app.timers?.some(t => t.status === 'running' || t.status === 'paused');
                   if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 잠금 강도를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
-                  setShowFocusPicker(true);
+                  openPicker(setShowFocusPicker);
                 }}
                 style={{ marginHorizontal: 16, marginVertical: 8, padding: 14, borderRadius: 14, backgroundColor: lv.color + '12', borderWidth: 1.5, borderColor: lv.color + '40' }}
               >
@@ -473,7 +477,7 @@ export default function SettingsScreen() {
                     </Text>
                     <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                   </View>}
-                  onPress={() => setShowReminderPicker(true)}
+                  onPress={() => openPicker(setShowReminderPicker)}
                 />
               )}
               <Row
@@ -544,7 +548,7 @@ export default function SettingsScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{tc.label}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
-                onPress={() => setShowColorPicker(true)}
+                onPress={() => openPicker(setShowColorPicker)}
               />
             );
           })()}
@@ -557,7 +561,7 @@ export default function SettingsScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent, lineHeight: 20 }}>{spLabel}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
-                onPress={() => setShowStylePicker(true)}
+                onPress={() => openPicker(setShowStylePicker)}
               />
             );
           })()}
@@ -576,7 +580,7 @@ export default function SettingsScreen() {
                   <Text testID="font-preview" style={{ fontSize: 14, fontWeight: '700', color: T.accent, fontFamily: fam }}>{curFont.label}</Text>
                   <Text testID="chevron" style={{ fontSize: 16, color: T.sub }}>›</Text>
                 </View>}
-                onPress={() => setShowFontPicker(true)}
+                onPress={() => openPicker(setShowFontPicker)}
               />
             );
           })()}
@@ -661,7 +665,7 @@ export default function SettingsScreen() {
       <Modal visible={showGuide} transparent animationType="fade">
         <View style={{ flex: 1 }}>
           <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }]} activeOpacity={1} onPress={() => setShowGuide(false)} />
-          <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+          <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="book-outline" size={16} color={T.accent} />
               <Text style={[styles.modalTitle, { color: T.text }]}>사용 가이드</Text>
@@ -748,9 +752,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 잠금 강도 피커 */}
-      <Modal visible={showFocusPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFocusPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showFocusPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowFocusPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -792,9 +796,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 테마 컬러 피커 */}
-      <Modal visible={showColorPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowColorPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showColorPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowColorPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>테마 컬러</Text>
             <TouchableOpacity onPress={() => setShowColorPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -815,9 +819,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 헤더 배경 피커 */}
-      <Modal visible={showHeaderBgPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowHeaderBgPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showHeaderBgPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowHeaderBgPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>헤더 배경</Text>
             <TouchableOpacity onPress={() => setShowHeaderBgPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -848,9 +852,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 스타일 프리셋 피커 */}
-      <Modal visible={showStylePicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowStylePicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showStylePicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowStylePicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>타이머 스타일</Text>
             <TouchableOpacity onPress={() => setShowStylePicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -877,9 +881,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 글꼴 피커 */}
-      <Modal visible={showFontPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowFontPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showFontPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowFontPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>글꼴</Text>
             <TouchableOpacity onPress={() => setShowFontPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -912,9 +916,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 일일 목표 시간 피커 */}
-      <Modal visible={showGoalPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowGoalPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showGoalPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowGoalPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>일일 목표 시간</Text>
             <TouchableOpacity onPress={() => setShowGoalPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -933,9 +937,9 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* 학교급 피커 */}
-      <Modal visible={showSchoolPicker} transparent animationType="slide">
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowSchoolPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
+      <Modal visible={showSchoolPicker} transparent animationType="slide" onShow={onPickerShow}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowSchoolPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>학교급</Text>
             <TouchableOpacity onPress={() => setShowSchoolPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
@@ -959,13 +963,14 @@ export default function SettingsScreen() {
       {/* 리마인더 시간 피커 */}
       <Modal visible={showReminderPicker} transparent animationType="slide"
         onShow={() => {
+          backdropLocked.current = false;
           const h = app.settings.dailyReminderHour ?? 21;
           const m = app.settings.dailyReminderMin ?? 0;
           setReminderTime(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
         }}
       >
-        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => setShowReminderPicker(false)} />
-        <View onStartShouldSetResponder={() => true} style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowReminderPicker(false); }} />
+        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>리마인더 시각</Text>
             <TouchableOpacity onPress={() => setShowReminderPicker(false)}>
