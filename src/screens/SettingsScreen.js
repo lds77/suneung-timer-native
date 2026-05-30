@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 
 import RunningTimersBar from '../components/RunningTimersBar';
@@ -337,8 +336,10 @@ export default function SettingsScreen() {
               <Row T={T} label="집중탭 헤더 배경"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   {cur.type === 'gradient' ? (
-                    <LinearGradient colors={cur.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                      style={{ width: 20, height: 20, borderRadius: 10 }} />
+                    <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', flexDirection: 'row' }}>
+                      <View style={{ flex: 1, backgroundColor: cur.colors[0] }} />
+                      <View style={{ flex: 1, backgroundColor: cur.colors[cur.colors.length - 1] }} />
+                    </View>
                   ) : cur.type === 'solid' ? (
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: cur.color }} />
                   ) : (

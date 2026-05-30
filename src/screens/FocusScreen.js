@@ -6,7 +6,6 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -1219,9 +1218,13 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <LinearGradient key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+              <View key={hPreset.id} style={[cardStyle, { overflow: 'hidden' }]}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
+                  <View style={{ flex: 1, backgroundColor: hPreset.colors[0] }} />
+                  <View style={{ flex: 1, backgroundColor: hPreset.colors[hPreset.colors.length - 1] }} />
+                </View>
                 {innerContent}
-              </LinearGradient>
+              </View>
             );
           }
           return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
@@ -2063,9 +2066,13 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <LinearGradient key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
+              <View key={hPreset.id} style={[cardStyle, { overflow: 'hidden' }]}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
+                  <View style={{ flex: 1, backgroundColor: hPreset.colors[0] }} />
+                  <View style={{ flex: 1, backgroundColor: hPreset.colors[hPreset.colors.length - 1] }} />
+                </View>
                 {innerContent}
-              </LinearGradient>
+              </View>
             );
           }
           return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
