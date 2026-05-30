@@ -834,8 +834,12 @@ export default function SettingsScreen() {
                   onPress={() => { app.updateSettings({ headerBgPreset: preset.id }); setShowHeaderBgPicker(false); }}
                   style={{ width: (winW - (isTablet ? (winW - tabletMaxW) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
                   {preset.type === 'gradient' ? (
-                    <LinearGradient colors={preset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                      style={{ width: 44, height: 44, borderRadius: 22, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : 'transparent' }} />
+                    <View style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : 'transparent' }}>
+                      <View style={{ flex: 1, flexDirection: 'row' }}>
+                        <View style={{ flex: 1, backgroundColor: preset.colors[0] }} />
+                        <View style={{ flex: 1, backgroundColor: preset.colors[preset.colors.length - 1] }} />
+                      </View>
+                    </View>
                   ) : preset.type === 'solid' ? (
                     <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: preset.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : preset.color + '60' }} />
                   ) : (
