@@ -12,6 +12,7 @@ import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 
 import RunningTimersBar from '../components/RunningTimersBar';
+import GradientView from '../components/GradientView';
 import Constants from 'expo-constants';
 // IntentLauncher — 가이드에서 필요 시 복원 가능
 // import * as IntentLauncher from 'expo-intent-launcher';
@@ -336,10 +337,8 @@ export default function SettingsScreen() {
               <Row T={T} label="집중탭 헤더 배경"
                 right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   {cur.type === 'gradient' ? (
-                    <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', flexDirection: 'row' }}>
-                      <View style={{ flex: 1, backgroundColor: cur.colors[0] }} />
-                      <View style={{ flex: 1, backgroundColor: cur.colors[cur.colors.length - 1] }} />
-                    </View>
+                    <GradientView colors={cur.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={{ width: 20, height: 20, borderRadius: 10 }} />
                   ) : cur.type === 'solid' ? (
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: cur.color }} />
                   ) : (
@@ -835,12 +834,8 @@ export default function SettingsScreen() {
                   onPress={() => { app.updateSettings({ headerBgPreset: preset.id }); setShowHeaderBgPicker(false); }}
                   style={{ width: (winW - (isTablet ? (winW - tabletMaxW) : 0) - 40 - 72) / 7, alignItems: 'center', gap: 6 }}>
                   {preset.type === 'gradient' ? (
-                    <View style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : 'transparent' }}>
-                      <View style={{ flex: 1, flexDirection: 'row' }}>
-                        <View style={{ flex: 1, backgroundColor: preset.colors[0] }} />
-                        <View style={{ flex: 1, backgroundColor: preset.colors[preset.colors.length - 1] }} />
-                      </View>
-                    </View>
+                    <GradientView colors={preset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={{ width: 44, height: 44, borderRadius: 22, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : 'transparent' }} />
                   ) : preset.type === 'solid' ? (
                     <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: preset.color, borderWidth: sel ? 3 : 1.5, borderColor: sel ? T.text : preset.color + '60' }} />
                   ) : (

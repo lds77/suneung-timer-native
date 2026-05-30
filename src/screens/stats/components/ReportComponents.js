@@ -1,6 +1,7 @@
 // stats/components/ReportComponents.js — 리포트 카드 공통 컴포넌트
 import React from 'react';
 import { View, Text } from 'react-native';
+import GradientView from '../../../components/GradientView';
 import { Ionicons } from '@expo/vector-icons';
 import CharacterAvatar from '../../../components/CharacterAvatar';
 import { darkenColor } from '../helpers';
@@ -8,11 +9,8 @@ import { darkenColor } from '../helpers';
 // 그라디언트 헤더
 export function ReportGradientHeader({ accent, icon, title, subtitle, characterId }) {
   return (
-    <View style={{ borderTopLeftRadius: 19, borderTopRightRadius: 19, overflow: 'hidden', backgroundColor: accent }}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
-        <View style={{ flex: 1, backgroundColor: accent }} />
-        <View style={{ flex: 1, backgroundColor: darkenColor(accent, 0.35) }} />
-      </View>
+    <GradientView colors={[accent, darkenColor(accent, 0.35)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={{ borderTopLeftRadius: 19, borderTopRightRadius: 19 }}>
       <View style={{ position: 'absolute', top: -18, right: -18, width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.08)' }} />
       <View style={{ position: 'absolute', bottom: -22, left: 24, width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.05)' }} />
       <View style={{ position: 'absolute', top: 8, right: 56, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)' }} />
@@ -28,7 +26,7 @@ export function ReportGradientHeader({ accent, icon, title, subtitle, characterI
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 3 }}>{subtitle}</Text>
         </View>
       </View>
-    </View>
+    </GradientView>
   );
 }
 

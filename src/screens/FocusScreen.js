@@ -9,6 +9,7 @@ import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
+import GradientView from '../components/GradientView';
 import Svg, { Circle } from 'react-native-svg';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 import { getPlannerMessage, getTodoMessage } from '../constants/characters';
@@ -1218,13 +1219,9 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <View key={hPreset.id} style={[cardStyle, { overflow: 'hidden' }]}>
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
-                  <View style={{ flex: 1, backgroundColor: hPreset.colors[0] }} />
-                  <View style={{ flex: 1, backgroundColor: hPreset.colors[hPreset.colors.length - 1] }} />
-                </View>
+              <GradientView key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
                 {innerContent}
-              </View>
+              </GradientView>
             );
           }
           return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
@@ -2066,13 +2063,9 @@ export default function FocusScreen() {
           );
           if (hPreset.type === 'gradient') {
             return (
-              <View key={hPreset.id} style={[cardStyle, { overflow: 'hidden' }]}>
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
-                  <View style={{ flex: 1, backgroundColor: hPreset.colors[0] }} />
-                  <View style={{ flex: 1, backgroundColor: hPreset.colors[hPreset.colors.length - 1] }} />
-                </View>
+              <GradientView key={hPreset.id} colors={hPreset.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={cardStyle}>
                 {innerContent}
-              </View>
+              </GradientView>
             );
           }
           return <View key={hPreset.id} style={cardStyle}>{innerContent}</View>;
