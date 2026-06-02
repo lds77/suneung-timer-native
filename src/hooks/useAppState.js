@@ -862,43 +862,27 @@ export function AppProvider({ children }) {
     }
     // 취소하는 동안 더 최신 호출이 들어왔으면 중단 (그쪽이 새로 예약함)
     if (phaseNotifRunId.current.get(timer.id) !== runId) return;
-    const ids = [];
+
     // 기준 시각: timer.resumedAt (페이즈 실제 시작 시각)
-    // Date.now() 기준이면 함수 호출 지연만큼 알림이 밀리므로 절대 시각으로 예약
     const baseTime = timer.resumedAt || Date.now();
-    const push = async (absMs, title, body) => {
-      const msFromNow = absMs - Date.now();
-      if (msFromNow <= 0) return;
-      // Android: DATE 절대시각 트리거 (exact alarm)
-      // iOS: TIME_INTERVAL 트리거 → expo-notifications DATE→Int() ms 잘림 버그 우회
-      const secFromNow = Math.max(1, Math.ceil(msFromNow / 1000));
-      const trigger = Platform.OS === 'android'
-        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(absMs), channelId: 'timer-complete' }
-        : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secFromNow };
-      try {
-        const id = await Notifications.scheduleNotificationAsync({
-          content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
-          trigger,
-        });
-        ids.push(id);
-      } catch {}
-    };
+
+    // Step 1: 알림 스펙 목록 동기적으로 수집 (await 없음 → 누적 지연 없음)
+    const specs = [];
     if (timer.type === 'pomodoro') {
       const firstTarget = timer.pomoPhase === 'work' ? timer.pomoWorkMin * 60 : timer.pomoBreakMin * 60;
-      // 현재 페이즈 종료 절대 시각 = resumedAt + (target - elapsedSecAtResume) * 1000
       let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
       let phase = timer.pomoPhase;
       let set = timer.pomoSet;
       let count = 0;
       while (absMs > Date.now() && count < 16) {
         if (phase === 'work') {
-          await push(absMs, `${timer.label} 집중 완료!`, '기지개 한 번 펴자!');
+          specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: '기지개 한 번 펴자!' });
           const isLong = (set + 1) % 4 === 0;
           phase = isLong ? 'longbreak' : 'break';
           set++;
           absMs += (isLong ? timer.pomoBreakMin * 2 : timer.pomoBreakMin) * 60 * 1000;
         } else {
-          await push(absMs, `${timer.label} 휴식 끝!`, '다시 달려보자!');
+          specs.push({ absMs, title: `${timer.label} 휴식 끝!`, body: '다시 달려보자!' });
           phase = 'work';
           absMs += timer.pomoWorkMin * 60 * 1000;
         }
@@ -906,7 +890,6 @@ export function AppProvider({ children }) {
       }
     } else if (timer.type === 'sequence') {
       const firstTarget = timer.seqPhase === 'work' ? timer.totalSec : timer.seqBreakSec;
-      // 현재 페이즈 종료 절대 시각 = resumedAt + (target - elapsedSecAtResume) * 1000
       let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
       let idx = timer.seqIndex;
       let phase = timer.seqPhase;
@@ -914,11 +897,11 @@ export function AppProvider({ children }) {
         if (phase === 'work') {
           const nextIdx = idx + 1;
           if (nextIdx >= timer.seqTotal) {
-            await push(absMs, '연속 실행 완료!', '모든 과목을 끝냈어!');
+            specs.push({ absMs, title: '연속 실행 완료!', body: '모든 과목을 끝냈어!' });
             break;
           }
           if (timer.seqBreakSec > 0) {
-            await push(absMs, `${timer.seqItems[idx].label} 완료!`, `물 한 잔 마시고 와요 (${Math.round(timer.seqBreakSec / 60)}분)`);
+            specs.push({ absMs, title: `${timer.seqItems[idx].label} 완료!`, body: `물 한 잔 마시고 와요 (${Math.round(timer.seqBreakSec / 60)}분)` });
           }
           phase = 'break';
           absMs += timer.seqBreakSec * 1000;
@@ -927,12 +910,35 @@ export function AppProvider({ children }) {
           if (idx >= timer.seqTotal) break;
           const ni = timer.seqItems[idx];
           const niSec = ni.totalSec || ((ni.min || 0) * 60);
-          await push(absMs, `▶ ${ni.label} 시작!`, '다음 과목 시작! 집중!');
+          specs.push({ absMs, title: `▶ ${ni.label} 시작!`, body: '다음 과목 시작! 집중!' });
           phase = 'work';
           absMs += niSec * 1000;
         }
       }
     }
+
+    // Step 2: 모든 알림을 병렬 예약 (Promise.all)
+    // — 순차 await 시 scheduleNotificationAsync 호출마다 누적 지연이 발생해
+    //   나중 페이즈 알림일수록 secFromNow/Date가 밀리는 문제를 방지
+    // — 각 msFromNow/secFromNow를 동시(동기)에 계산하므로 기준 시각이 동일
+    const now = Date.now(); // 모든 스펙의 기준 시각을 한 번에 고정
+    const ids = (await Promise.all(
+      specs.map(async ({ absMs, title, body }) => {
+        const msFromNow = absMs - now;
+        if (msFromNow <= 0) return null;
+        // Android: DATE 절대시각 트리거 (exact alarm)
+        // iOS: TIME_INTERVAL 트리거 → expo-notifications DATE→Int() ms 잘림 버그 우회
+        const secFromNow = Math.max(1, Math.ceil(msFromNow / 1000));
+        const trigger = Platform.OS === 'android'
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(absMs), channelId: 'timer-complete' }
+          : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secFromNow };
+        return Notifications.scheduleNotificationAsync({
+          content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
+          trigger,
+        }).catch(() => null);
+      })
+    )).filter(Boolean);
+
     if (ids.length > 0) phaseNotifMap.current.set(timer.id, ids);
   };
 
