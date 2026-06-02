@@ -939,6 +939,16 @@ export function AppProvider({ children }) {
       })
     )).filter(Boolean);
 
+    // Promise.all 완료 후 타이머가 이미 종료/삭제됐으면 방금 예약한 알림 즉시 취소
+    // (cancelTimerNotif가 Promise.all 진행 중에 호출됐을 경우의 레이스 컨디션 방어)
+    const timerStillActive = timersRef.current.some(
+      t => t.id === timer.id && (t.status === 'running' || t.status === 'paused')
+    );
+    if (!timerStillActive) {
+      ids.forEach(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {}));
+      return;
+    }
+
     if (ids.length > 0) phaseNotifMap.current.set(timer.id, ids);
   };
 
