@@ -35,6 +35,7 @@ module.exports = {
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
         'SCHEDULE_EXACT_ALARM',
+        'android.permission.USE_EXACT_ALARM',
         'android.permission.MODIFY_AUDIO_SETTINGS',
       ],
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],

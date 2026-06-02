@@ -813,10 +813,11 @@ export function AppProvider({ children }) {
       }
       if (seconds <= 0) return;
       const sec = Math.max(1, Math.ceil(seconds));
-      // DATE 트리거: Android는 setExactAndAllowWhileIdle → Doze 모드 관통, iOS도 절대시각이 seconds보다 정확
+      // Android: DATE 트리거 → USE_EXACT_ALARM/SCHEDULE_EXACT_ALARM 권한 시 setExactAndAllowWhileIdle 사용
+      // iOS: TIME_INTERVAL 트리거 → expo-notifications의 DATE→Int() ms 잘림 버그 우회 (최대 1초 오차 방지)
       const trigger = Platform.OS === 'android'
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000), channelId: 'timer-complete' }
-        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000) };
+        : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: sec };
       const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: customTitle || `${label} 완료!`,
@@ -868,10 +869,12 @@ export function AppProvider({ children }) {
     const push = async (absMs, title, body) => {
       const msFromNow = absMs - Date.now();
       if (msFromNow <= 0) return;
-      const fireAt = new Date(absMs);
+      // Android: DATE 절대시각 트리거 (exact alarm)
+      // iOS: TIME_INTERVAL 트리거 → expo-notifications DATE→Int() ms 잘림 버그 우회
+      const secFromNow = Math.max(1, Math.ceil(msFromNow / 1000));
       const trigger = Platform.OS === 'android'
-        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt, channelId: 'timer-complete' }
-        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt };
+        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(absMs), channelId: 'timer-complete' }
+        : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secFromNow };
       try {
         const id = await Notifications.scheduleNotificationAsync({
           content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
@@ -1650,11 +1653,12 @@ export function AppProvider({ children }) {
     }
   }, [timers, loading]);
 
-  // Android 12+ 정확한 알람 권한 안내 (최초 1회)
+  // Android 12 전용 정확한 알람 권한 안내 (최초 1회)
+  // Android 13+(API 33+)는 USE_EXACT_ALARM 권한이 자동 부여되므로 안내 불필요
   useEffect(() => {
     if (loading) return;
     if (Platform.OS !== 'android') return;
-    if (Platform.Version < 31) return; // Android 12 미만은 불필요
+    if (Platform.Version < 31 || Platform.Version >= 33) return; // Android 12(31~32)만 해당
     if (settings.exactAlarmGuideShown) return;
     const timer = setTimeout(() => {
       setShowExactAlarmModal(true);
