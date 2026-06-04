@@ -1827,7 +1827,7 @@ export default function FocusScreen() {
           return (
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeSounds.length > 0 ? 6 : 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <Ionicons name="musical-notes-outline" size={14} color={T.sub} />
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
@@ -1841,6 +1841,7 @@ export default function FocusScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+            <Text style={{ fontSize: 11, color: T.sub, opacity: 0.7, marginBottom: activeSounds.length > 0 ? 6 : 8 }}>최대 3개 동시 선택 가능 — 믹스해보세요</Text>
             {activeSounds.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <TouchableOpacity
@@ -2650,7 +2651,7 @@ export default function FocusScreen() {
           return (
         <View style={[S.noiseCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: activeSounds.length > 0 ? 6 : 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <Ionicons name="musical-notes-outline" size={14} color={T.sub} />
                 <Text style={[S.secTitle, { color: T.sub }]}>집중 사운드(백색소음)</Text>
@@ -2664,6 +2665,7 @@ export default function FocusScreen() {
                 </View>
               </TouchableOpacity>
             </View>
+            <Text style={{ fontSize: 11, color: T.sub, opacity: 0.7, marginBottom: activeSounds.length > 0 ? 6 : 8 }}>최대 3개 동시 선택 가능 — 믹스해보세요</Text>
             {activeSounds.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <TouchableOpacity
