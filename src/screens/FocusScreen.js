@@ -878,7 +878,7 @@ export default function FocusScreen() {
               <TouchableOpacity
                 activeOpacity={1}
                 onPress={() => setClockFullscreen(false)}
-                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }}
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.97)', alignItems: 'center', justifyContent: 'center' }}
               >
                 {t.type !== 'free' && (() => {
                   const end = new Date(Date.now() + display * 1000);
