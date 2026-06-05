@@ -11,6 +11,7 @@ import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
 import GradientView from '../components/GradientView';
 import Svg, { Circle } from 'react-native-svg';
+import AnalogClock from '../components/AnalogClock';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 import { getPlannerMessage, getTodoMessage } from '../constants/characters';
 import { getTier } from '../constants/presets';
@@ -134,6 +135,7 @@ export default function FocusScreen() {
   const subjectTimeChoices = school === 'elementary_lower' ? [10, 15, 20, 25] : school === 'elementary_upper' ? [15, 20, 25, 30] : school === 'middle' ? [25, 30, 40, 45] : [30, 45, 60, 90];
   const [showAdd, setShowAdd] = useState(false);
   const [timerViewMode, setTimerViewMode] = useState('default'); // 'default' | 'full' | 'mini'
+  const [clockFullscreen, setClockFullscreen] = useState(false);
   const [addType, setAddType] = useState('countdown');
   const [addMin, setAddMin] = useState(25);
   const [addSubject, setAddSubject] = useState(null);
@@ -796,7 +798,7 @@ export default function FocusScreen() {
           {iconName ? <Ionicons name={iconName} size={15} color={isA ? ringColor : T.sub} /> : (t.type === 'sequence' && t.seqPhase === 'break') ? <Ionicons name="cafe-outline" size={15} color={T.green} /> : seqIconName ? <Ionicons name={seqIconName} size={15} color={isA ? ringColor : T.sub} /> : null}
           <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: T.text }} numberOfLines={1}>{t.label}</Text>
           <View style={{ flexDirection: 'row', backgroundColor: T.surface2, borderRadius: 8, padding: 2, gap: 1 }}>
-            {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
+            {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }, { id: 'analog', label: '시계' }].map(opt => (
               <TouchableOpacity key={opt.id} onPress={() => setTimerViewMode(opt.id)}
                 style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: timerViewMode === opt.id ? T.accent : 'transparent' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: timerViewMode === opt.id ? 'white' : T.sub }}>{opt.label}</Text>
@@ -852,34 +854,72 @@ export default function FocusScreen() {
           </View>
         )}
 
-        {/* 원형 타이머 링 */}
-        <View style={{ alignItems: 'center', marginBottom: 14 }}>
-          <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
-            <Svg width={RING_SIZE} height={RING_SIZE} style={{ position: 'absolute' }}>
-              {/* 트랙 (배경 링) */}
-              <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
-                stroke={T.surface2} strokeWidth={T.ringStroke} fill="transparent" />
-              {/* 진행 링 */}
-              {pct > 0 && (
+        {/* 원형 타이머 링 / 아날로그 시계 */}
+        {timerViewMode === 'analog' ? (
+          <View style={{ alignItems: 'center', marginBottom: 14 }}>
+            {t.type !== 'free' && (() => {
+              const end = new Date(Date.now() + display * 1000);
+              const hh = end.getHours().toString().padStart(2, '0');
+              const mm = end.getMinutes().toString().padStart(2, '0');
+              return <Text style={{ fontSize: 12, color: T.sub, marginBottom: 6 }}>종료 {hh}:{mm}</Text>;
+            })()}
+            <View style={{ position: 'relative' }}>
+              <AnalogClock size={RING_SIZE} />
+              <TouchableOpacity
+                onPress={() => setClockFullscreen(true)}
+                style={{ position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: 5 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="expand-outline" size={16} color="#555" />
+              </TouchableOpacity>
+            </View>
+            {/* 전체화면 시계 Modal */}
+            <Modal visible={clockFullscreen} transparent animationType="fade" statusBarTranslucent>
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => setClockFullscreen(false)}
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {t.type !== 'free' && (() => {
+                  const end = new Date(Date.now() + display * 1000);
+                  const hh = end.getHours().toString().padStart(2, '0');
+                  const mm = end.getMinutes().toString().padStart(2, '0');
+                  return <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', marginBottom: 20, letterSpacing: 1 }}>종료 {hh}:{mm}</Text>;
+                })()}
+                <AnalogClock size={isTablet ? Math.min(SW * 0.55, 520) : Math.min(SW - 48, 340)} />
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 40 }}>탭하여 닫기</Text>
+              </TouchableOpacity>
+            </Modal>
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center', marginBottom: 14 }}>
+            <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+              <Svg width={RING_SIZE} height={RING_SIZE} style={{ position: 'absolute' }}>
+                {/* 트랙 (배경 링) */}
                 <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
-                  stroke={isP ? T.sub : ringColor} strokeWidth={T.ringStroke} fill="transparent"
-                  strokeDasharray={RING_C} strokeDashoffset={dashOffset}
-                  strokeLinecap="round"
-                  transform={`rotate(-90, ${RING_SIZE / 2}, ${RING_SIZE / 2})`}
-                />
-              )}
-            </Svg>
-            {/* 링 내부: 시간 + 서브 텍스트 */}
-            <View style={{ alignItems: 'center', width: RING_SIZE - RING_STROKE * 4 }}>
-              <Text testID="timer-text" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: isTablet ? 64 : Math.round(RING_R * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
-                {formatTime(display)}
-              </Text>
-              {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
-                <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(getTotalElapsed(t))}</Text>
-              )}
+                  stroke={T.surface2} strokeWidth={T.ringStroke} fill="transparent" />
+                {/* 진행 링 */}
+                {pct > 0 && (
+                  <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                    stroke={isP ? T.sub : ringColor} strokeWidth={T.ringStroke} fill="transparent"
+                    strokeDasharray={RING_C} strokeDashoffset={dashOffset}
+                    strokeLinecap="round"
+                    transform={`rotate(-90, ${RING_SIZE / 2}, ${RING_SIZE / 2})`}
+                  />
+                )}
+              </Svg>
+              {/* 링 내부: 시간 + 서브 텍스트 */}
+              <View style={{ alignItems: 'center', width: RING_SIZE - RING_STROKE * 4 }}>
+                <Text testID="timer-text" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: isTablet ? 64 : Math.round(RING_R * (formatTime(display).length >= 7 ? 0.42 : 0.52)), fontWeight: T.timerFontWeight, color: isA ? ringColor : T.sub, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
+                  {formatTime(display)}
+                </Text>
+                {t.type !== 'lap' && getTotalElapsed(t) > 0 && (
+                  <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>경과 {formatTime(getTotalElapsed(t))}</Text>
+                )}
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* 컨트롤 버튼 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -929,7 +969,7 @@ export default function FocusScreen() {
           {iconName ? <Ionicons name={iconName} size={18} color={isA ? ringColor : T.sub} /> : (t.type === 'sequence' && t.seqPhase === 'break') ? <Ionicons name="cafe-outline" size={18} color={T.green} /> : seqIconName ? <Ionicons name={seqIconName} size={18} color={isA ? ringColor : T.sub} /> : null}
           <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, flex: 1, textAlign: 'center' }} numberOfLines={1}>{t.label}</Text>
           <View style={{ flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: 2, gap: 1 }}>
-            {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
+            {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }, { id: 'analog', label: '시계' }].map(opt => (
               <TouchableOpacity key={opt.id} onPress={() => setTimerViewMode(opt.id)}
                 style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: timerViewMode === opt.id ? T.accent : 'transparent' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: timerViewMode === opt.id ? 'white' : T.sub }}>{opt.label}</Text>
@@ -1029,7 +1069,7 @@ export default function FocusScreen() {
           <Text style={{ fontSize: 15, color: isA ? (T.stylePreset === 'minimal' ? T.sub : '#E84047') : ringColor }}>{isA ? '⏸' : '▶'}</Text>
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', backgroundColor: T.surface2, borderRadius: 8, padding: 2, gap: 1 }}>
-          {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
+          {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }, { id: 'analog', label: '시계' }].map(opt => (
             <TouchableOpacity key={opt.id} onPress={() => setTimerViewMode(opt.id)}
               style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: timerViewMode === opt.id ? T.accent : 'transparent' }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: timerViewMode === opt.id ? 'white' : T.sub }}>{opt.label}</Text>
@@ -1054,7 +1094,7 @@ export default function FocusScreen() {
           {renderFullTimer(nonLapActive[0])}
         </View>
       )}
-      {nonLapActive.length > 0 && timerViewMode === 'default' && !isLandscape && (
+      {nonLapActive.length > 0 && (timerViewMode === 'default' || timerViewMode === 'analog') && !isLandscape && (
         <View style={[S.timerFixedArea, { borderBottomColor: T.border }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' }]}>
           {renderLargeTimer(nonLapActive[0])}
         </View>
@@ -1726,7 +1766,7 @@ export default function FocusScreen() {
             {renderMiniTimer(nonLapActive[0])}
           </View>
         )}
-        {nonLapActive.length > 0 && timerViewMode === 'default' && (
+        {nonLapActive.length > 0 && (timerViewMode === 'default' || timerViewMode === 'analog') && (
           <View>
             {renderLargeTimer(nonLapActive[0])}
           </View>
