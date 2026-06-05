@@ -4,7 +4,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.23',
+    version: '1.0.24',
     orientation: 'portrait',
     icon: './assets/icons/app-icon.png',
     userInterfaceStyle: 'light',
@@ -17,7 +17,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '23',
+      buildNumber: '24',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
