@@ -886,7 +886,7 @@ export default function FocusScreen() {
                   const mm = end.getMinutes().toString().padStart(2, '0');
                   return <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', marginBottom: 20, letterSpacing: 1 }}>종료 {hh}:{mm}</Text>;
                 })()}
-                <AnalogClock size={isTablet ? Math.min(SW * 0.55, 520) : Math.min(SW - 48, 340)} />
+                <AnalogClock size={isTablet ? Math.min(Math.round(winW * 0.55), 520) : Math.min(winW - 48, 340)} />
                 <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 40 }}>탭하여 닫기</Text>
               </TouchableOpacity>
             </Modal>
