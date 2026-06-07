@@ -1753,12 +1753,8 @@ export default function FocusScreen() {
         })()}
           </ScrollView>
           <View style={{ width: 1, backgroundColor: T.border }} />
-          {/* 오른쪽 컬럼: full 모드는 타이머만, 나머지는 ScrollView */}
-          {nonLapActive.length > 0 && timerViewMode === 'full' ? (
-            <View style={{ flex: 1, backgroundColor: T.bg }}>
-              {renderFullTimer(nonLapActive[0])}
-            </View>
-          ) : (
+          {/* 오른쪽 컬럼: 가로 전체모드는 Modal로 표시, 나머지는 ScrollView */}
+          {(
           <View style={{ flex: 1 }}>
         {/* 가로모드: 미니/기본 타이머 상단 고정 */}
         {nonLapActive.length > 0 && timerViewMode === 'mini' && (
@@ -1766,7 +1762,7 @@ export default function FocusScreen() {
             {renderMiniTimer(nonLapActive[0])}
           </View>
         )}
-        {nonLapActive.length > 0 && (timerViewMode === 'default' || timerViewMode === 'analog') && (
+        {nonLapActive.length > 0 && (timerViewMode === 'default' || timerViewMode === 'analog' || timerViewMode === 'full') && (
           <View>
             {renderLargeTimer(nonLapActive[0])}
           </View>
@@ -2859,6 +2855,13 @@ export default function FocusScreen() {
         </View>
       )}
 
+
+      {/* ── 가로모드 전체화면 링 타이머 Modal ── */}
+      <Modal visible={isLandscape && timerViewMode === 'full' && nonLapActive.length > 0} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setTimerViewMode('default')}>
+        <View style={{ flex: 1, backgroundColor: T.bg }}>
+          {nonLapActive.length > 0 && renderFullTimer(nonLapActive[0])}
+        </View>
+      </Modal>
 
       {/* ── 메모 입력 모달 ── */}
       <Modal visible={!!memoTimerId} transparent animationType="fade">
