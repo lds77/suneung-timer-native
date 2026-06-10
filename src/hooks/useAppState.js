@@ -21,6 +21,7 @@ const SOUND_FILES = {
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
+import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -1641,6 +1642,8 @@ export function AppProvider({ children }) {
         }
         await clearTimerSnapshot();
       }
+      // 이전 세션의 Live Activity id 복원 (iOS) — 동기화 effect가 재사용/정리
+      await initLiveActivity();
       setLoading(false);
     })();
   }, []);
@@ -1651,6 +1654,14 @@ export function AppProvider({ children }) {
     if (loading) return; clearTimeout(saveRef.current);
     saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
   }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
+
+  // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
+  // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
+  useEffect(() => {
+    if (loading) return;
+    const active = timers.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
+    syncLiveActivity(active, { darkMode: settings.darkMode, accentColor: settings.accentColor });
+  }, [timers, loading, settings.darkMode, settings.accentColor]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용

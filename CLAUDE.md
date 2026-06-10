@@ -17,6 +17,7 @@
 ## 기술 스택
 
 | 항목 | 내용 |
+
 |------|------|
 | 프레임워크 | React Native 0.76 + Expo SDK 52 |
 | 상태 관리 | Context API (`src/hooks/useAppState.js`) |
@@ -109,6 +110,7 @@ App.js                    앱 진입점, 온보딩, 네비게이션
 - `timer-progress` 채널: AndroidImportance.LOW, sticky 진행 알림 (Foreground Service 신호)
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
+- iOS Live Activity: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`, expo-live-activity 0.5.0-alpha1 고정 — SDK 56 업그레이드 시 expo-widgets로 마이그레이션)
 
 ---
 

@@ -4,7 +4,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.26',
+    version: '1.0.27',
     orientation: 'portrait',
     icon: './assets/icons/app-icon.png',
     userInterfaceStyle: 'light',
@@ -17,7 +17,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '27',
+      buildNumber: '28',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -61,6 +61,13 @@ module.exports = {
       ],
       'expo-av',
       'expo-font',
+      [
+        'expo-live-activity',
+        {
+          // iOS 16.2 미만 기기에서는 throw 대신 조용히 no-op
+          silentOnUnsupportedOS: true,
+        },
+      ],
     ],
     extra: {
       eas: {
