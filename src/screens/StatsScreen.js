@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import { CHARACTERS } from '../constants/characters';

@@ -16,7 +16,8 @@ import GradientView from '../components/GradientView';
 import Constants from 'expo-constants';
 // IntentLauncher — 가이드에서 필요 시 복원 가능
 // import * as IntentLauncher from 'expo-intent-launcher';
-import * as FileSystem from 'expo-file-system';
+// SDK 54: expo-file-system v19 루트는 새 API(File/Paths)가 기본 — 구 API(writeAsStringAsync 등)는 legacy 경로 필수
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
