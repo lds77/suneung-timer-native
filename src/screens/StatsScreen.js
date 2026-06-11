@@ -3739,6 +3739,7 @@ export default function StatsScreen() {
                 exitCount: sess.exitCount || 0,
                 selfRating: sess.selfRating || null,
                 schoolLevel: sess.schoolLevel || app.settings.schoolLevel || 'high',
+                ultraFocusLevel: sess.ultraFocusLevel || 'normal',
               });
               const bdItems = [
                 { label: '완료 점수', max: 40, val: bd.completionScore, color: '#4A90D9' },

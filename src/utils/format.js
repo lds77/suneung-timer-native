@@ -41,11 +41,25 @@ export const formatShort = (totalSec) => {
 };
 
 /**
+ * Date → YYYY-MM-DD (로컬 시간대 기준)
+ * toISOString()은 UTC라 KST 00:00~08:59에 하루 전 날짜가 나옴 — 날짜 문자열은 반드시 이 함수 사용
+ */
+export const toDateStr = (d) => {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/**
  * 오늘 날짜를 YYYY-MM-DD 형태로
  */
-export const getToday = () => {
+export const getToday = () => toDateStr(new Date());
+
+/**
+ * 어제 날짜를 YYYY-MM-DD 형태로 (로컬 기준)
+ */
+export const getYesterday = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  d.setDate(d.getDate() - 1);
+  return toDateStr(d);
 };
 
 /**

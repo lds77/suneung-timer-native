@@ -236,12 +236,12 @@ export const calcAverageDensity = (sessions) => {
   return Math.round(total / valid.length);
 };
 
-/** 밀도 점수 상세 내역 (투명성 리포트용) */
+/** 밀도 점수 상세 내역 (투명성 리포트용) — calculateDensity와 반드시 같은 점수가 나와야 함 */
 export const getDensityBreakdown = (params) => {
   const {
     pausedCount = 0, totalSec = 0, timerType = 'free', completionRatio = 1,
     pomoSets = 0, focusMode = 'screen_off', exitCount = 0, selfRating = null,
-    schoolLevel = 'high',
+    schoolLevel = 'high', ultraFocusLevel = 'normal',
   } = params;
   const totalMin = totalSec / 60;
   const tier = getSchoolTier(schoolLevel);
@@ -257,7 +257,9 @@ export const getDensityBreakdown = (params) => {
   const pb = getPersistenceBonus(totalMin, tier);
 
   const db = focusMode === 'screen_on'
-    ? (exitCount === 0 ? 15 : exitCount <= 2 ? 8 : 3)
+    ? (ultraFocusLevel === 'exam'
+      ? (exitCount === 0 ? 15 : exitCount <= 2 ? 8 : 4)
+      : (exitCount === 0 ? 10 : exitCount <= 2 ? 6 : 2))
     : focusMode === 'screen_off'
     ? (timerType !== 'countdown' ? 5 : completionRatio >= 1 ? 5 : completionRatio >= 0.8 ? 3 : completionRatio >= 0.5 ? 2 : 0)
     : 0;

@@ -19,7 +19,7 @@ const SOUND_FILES = {
   writing: require('../../assets/sounds/writing.mp3'),
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
-import { getToday, generateId } from '../utils/format';
+import { getToday, getYesterday, toDateStr, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
 import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
@@ -220,7 +220,7 @@ export function AppProvider({ children }) {
       if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: t.elapsedSec / Math.max(1, t.totalSec) });
+        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: t.elapsedSec / Math.max(1, t.totalSec), dedupeKey: `complete|${t.id}|${t.startedAt}` });
       }
       return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
     }));
@@ -622,6 +622,7 @@ export function AppProvider({ children }) {
         focusMode: focusModeRef.current || 'screen_off',
         exitCount: focusModeRef.current === 'screen_on' ? (ultraRef.current?.exitCount || 0) : 0,
         pomoSets: t.pomoSet + 1,
+        dedupeKey: `pomo|${t.id}|${t.startedAt}|${t.pomoSet}`,
       });
       // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
       if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300]);
@@ -654,6 +655,7 @@ export function AppProvider({ children }) {
           durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
           exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           focusMode: mode, timerType: 'countdown', completionRatio: 1,
+          dedupeKey: `seq|${t.id}|${t.seqIndex}|${t.startedAt}`,
           ...(result ? { densityOverride: result.density } : {}),
         });
         if (sessId) updatedSeqSessionIds = [...updatedSeqSessionIds, sessId];
@@ -738,20 +740,26 @@ export function AppProvider({ children }) {
         showToastCustom(`${t.label} 완료!`, 'toru');
       }
     }
-    if (t.type !== 'lap' && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
+    // 뽀모도로/연속모드 휴식 페이즈 중 종료(그만하기 등) → 휴식 시간을 공부로 기록하지 않음
+    //   (이전 work 페이즈는 pomoFlip/seqFlip이 이미 세션으로 기록함)
+    const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
+    if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
+      // 카운트다운: 중도 종료(그만하기 등)도 이 경로로 올 수 있으므로 실제 경과 시간만 기록
+      const realDurationSec = t.type === 'countdown' ? Math.min(t.elapsedSec, t.totalSec) : t.elapsedSec;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-        durationSec: t.type === 'countdown' ? t.totalSec : t.elapsedSec,
+        durationSec: realDurationSec,
         mode: t.type, pauseCount: t.pauseCount, exitCount: exitCnt,
         focusMode: mode, timerType: t.type,
         completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
         pomoSets: t.pomoSet || 0, planId: t.planId || null,
+        dedupeKey: `complete|${t.id}|${t.startedAt}`,
       });
       // 완료 결과 모달 트리거 (랩/시퀀스 제외)
       if (t.type !== 'sequence') {
-        const result = calcResult(t, t.type === 'countdown' ? t.totalSec : t.elapsedSec);
-        const durationSec = t.type === 'countdown' ? t.totalSec : t.elapsedSec;
+        const result = calcResult(t, realDurationSec);
+        const durationSec = realDurationSec;
         if (t.planId) {
           const ws = weeklyScheduleRef.current;
           const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
@@ -878,10 +886,10 @@ export function AppProvider({ children }) {
       while (absMs > Date.now() && count < 16) {
         if (phase === 'work') {
           specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: '기지개 한 번 펴자!' });
-          const isLong = (set + 1) % 4 === 0;
-          phase = isLong ? 'longbreak' : 'break';
+          // 휴식 길이: 앱 내 틱/표시/Live Activity 모두 longbreak도 pomoBreakMin을 쓰므로 알림도 동일하게
+          phase = (set + 1) % 4 === 0 ? 'longbreak' : 'break';
           set++;
-          absMs += (isLong ? timer.pomoBreakMin * 2 : timer.pomoBreakMin) * 60 * 1000;
+          absMs += timer.pomoBreakMin * 60 * 1000;
         } else {
           specs.push({ absMs, title: `${timer.label} 휴식 끝!`, body: '다시 달려보자!' });
           phase = 'work';
@@ -1088,7 +1096,7 @@ export function AppProvider({ children }) {
       // 이미 지난 시간이면 내일로
       if (triggerDate.getTime() <= now.getTime()) triggerDate.setDate(triggerDate.getDate() + 1);
       // 오늘 이미 공부했고 트리거가 오늘이면 스킵 (내일로)
-      if (hasTodaySession && triggerDate.toISOString().slice(0, 10) === todayStr) {
+      if (hasTodaySession && toDateStr(triggerDate) === todayStr) {
         triggerDate.setDate(triggerDate.getDate() + 1);
       }
       try {
@@ -1150,7 +1158,7 @@ export function AppProvider({ children }) {
     for (let i = 0; i < 7; i++) {
       const d = new Date(thisMonday);
       d.setDate(thisMonday.getDate() + i);
-      thisWeekDates.push(d.toISOString().split('T')[0]);
+      thisWeekDates.push(toDateStr(d));
     }
 
     const thisWeekSessions = sessionsRef.current.filter(sess => thisWeekDates.includes(sess.date));
@@ -1161,7 +1169,7 @@ export function AppProvider({ children }) {
     for (let i = 0; i < 7; i++) {
       const d = new Date(thisMonday);
       d.setDate(thisMonday.getDate() - 7 + i);
-      lastWeekDates.push(d.toISOString().split('T')[0]);
+      lastWeekDates.push(toDateStr(d));
     }
     const lastWeekSessions = sessionsRef.current.filter(sess => lastWeekDates.includes(sess.date));
     const lastWeekTotal = lastWeekSessions.reduce((sum, sess) => sum + (sess.durationSec || 0), 0);
@@ -1365,10 +1373,12 @@ export function AppProvider({ children }) {
     cancelTimerNotif(id);
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      if (t.type !== 'lap' && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
+      // 휴식 페이즈 중 중지 → 휴식 시간을 공부 세션으로 기록하지 않음 (work 페이즈는 flip 시 이미 기록됨)
+      const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
+      if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
         if (t.planId) {
@@ -1398,28 +1408,36 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
+  // 시퀀스 재시작/리셋 시 첫 항목 기준으로 되돌리는 필드 (label/totalSec 등은 진행하며 바뀜)
+  const seqResetFields = (t) => t.type !== 'sequence' ? {} : {
+    seqPhase: 'work', seqIndex: 0, seqSessionIds: [],
+    label: t.seqItems?.[0]?.label ?? t.label, color: t.seqItems?.[0]?.color ?? t.color,
+    subjectId: t.seqItems?.[0]?.subjectId ?? null, totalSec: t.seqItems?.[0]?.totalSec ?? t.totalSec,
+  };
+
   const restartTimer = useCallback((id) => {
+    const now = Date.now();
     const t = timersRef.current.find(t => t.id === id);
     if (t) {
-      const restarted = { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [] };
+      const restarted = { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(id, t.label, t.totalSec);
-      else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(restarted);
-      else if (t.type === 'sequence') scheduleAllPhaseNotifs({ ...restarted, seqPhase: 'work', seqIndex: 0, totalSec: t.seqItems?.[0]?.totalSec || t.totalSec });
+      else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(restarted);
     }
-    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], resumedAt: Date.now(), elapsedSecAtResume: 0 } : t));
+    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) } : t));
     showToast('start');
   }, []);
 
   const resetTimer = useCallback((id) => {
     cancelTimerNotif(id); // 예약 알림 취소
-    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'paused', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], resumedAt: null, elapsedSecAtResume: 0 } : t));
+    setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'paused', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], resumedAt: null, elapsedSecAtResume: 0, ...seqResetFields(t) } : t));
   }, []);
 
   const removeTimer = useCallback((id) => {
     cancelTimerNotif(id); // 예약 알림 취소
     setTimers(prev => {
       const t = prev.find(timer => timer.id === id);
-      if (t && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 300) {
+      const inBreakPhase = t && ((t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work'));
+      if (t && !inBreakPhase && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         recordSessionInternal({
@@ -1428,11 +1446,13 @@ export function AppProvider({ children }) {
           focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
           pomoSets: t.pomoSet || 0, planId: t.planId || null,
+          dedupeKey: `complete|${t.id}|${t.startedAt}`,
         });
       }
       return prev.filter(timer => timer.id !== id);
     });
-  }, [recordSessionInternal]);
+    // deps에 recordSessionInternal을 넣으면 선언(아래쪽 const) 전 TDZ 접근 — Hermes는 통과하지만 스펙상 크래시
+  }, []);
 
   // 랩 기록
   const addLap = useCallback((id) => {
@@ -1623,8 +1643,19 @@ export function AppProvider({ children }) {
             const newElapsed = t.elapsedSec + addedSec;
             if (t.type === 'countdown') {
               const e = Math.min(newElapsed, t.totalSec);
-              // 이미 완료된 카운트다운은 복원하지 않음 (null → filter로 제거)
-              if (e >= t.totalSec) return null;
+              // 앱이 꺼져 있는 동안 완료된 카운트다운: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실)
+              if (e >= t.totalSec) {
+                if (t.totalSec >= 300 || (t.planId && t.totalSec >= 30)) {
+                  recordSessionInternal({
+                    subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+                    durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
+                    focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
+                    completionRatio: 1, planId: t.planId || null,
+                  });
+                  showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
+                }
+                return null;
+              }
               // 실행 중이었으면 running 유지 (resumedAt 갱신)
               if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
               return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
@@ -1744,7 +1775,16 @@ export function AppProvider({ children }) {
     return Math.max(0, 24 * 60 - fixedMin);
   }, [weeklySchedule]);
 
-  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null, densityOverride = null }) => {
+  // 세션 중복 기록 방지 (dedupeKey → sessionId)
+  // setTimers 업데이터 내부에서 recordSessionInternal을 호출하는 경로(fireComplete/pomoFlip/seqFlip 등)는
+  // React가 업데이터를 재실행하면 같은 세션이 두 번 기록될 수 있음 → 같은 키는 기존 세션 id 반환
+  const sessionDedupeRef = useRef(new Map());
+
+  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null, densityOverride = null, dedupeKey = null }) => {
+    if (dedupeKey) {
+      const cached = sessionDedupeRef.current.get(dedupeKey);
+      if (cached) return cached;
+    }
     const density = densityOverride ?? calculateDensity({
       pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
       focusMode: fm, exitCount, selfRating,
@@ -1770,6 +1810,11 @@ export function AppProvider({ children }) {
     updateStreak();
     // 울트라집중 스트릭 갱신
     if (ultraLevel === 'exam' && fm === 'screen_on') updateUltraStreak();
+    if (dedupeKey) {
+      const m = sessionDedupeRef.current;
+      m.set(dedupeKey, newSess.id);
+      if (m.size > 100) m.delete(m.keys().next().value); // 오래된 키부터 정리 (무한 증가 방지)
+    }
     return newSess.id;
   }, []);
   const recordSession = recordSessionInternal;
@@ -1799,8 +1844,7 @@ export function AppProvider({ children }) {
   const updateStreak = useCallback(() => {
     setSettings(prev => {
       const today = getToday(); if (prev.lastStudyDate === today) return prev;
-      const y = new Date(); y.setDate(y.getDate() - 1);
-      return { ...prev, streak: (prev.lastStudyDate === y.toISOString().slice(0, 10) || !prev.lastStudyDate) ? prev.streak + 1 : 1, lastStudyDate: today };
+      return { ...prev, streak: (prev.lastStudyDate === getYesterday() || !prev.lastStudyDate) ? prev.streak + 1 : 1, lastStudyDate: today };
     });
   }, []);
 
@@ -1809,9 +1853,7 @@ export function AppProvider({ children }) {
     setSettings(prev => {
       const today = getToday();
       if (prev.ultraStreakDate === today) return prev; // 오늘 이미 갱신됨
-      const y = new Date(); y.setDate(y.getDate() - 1);
-      const yesterday = y.toISOString().slice(0, 10);
-      const newStreak = (prev.ultraStreakDate === yesterday || !prev.ultraStreakDate) ? (prev.ultraStreak || 0) + 1 : 1;
+      const newStreak = (prev.ultraStreakDate === getYesterday() || !prev.ultraStreakDate) ? (prev.ultraStreak || 0) + 1 : 1;
       return { ...prev, ultraStreak: newStreak, ultraStreakBest: Math.max(newStreak, prev.ultraStreakBest || 0), ultraStreakDate: today };
     });
   }, []);
