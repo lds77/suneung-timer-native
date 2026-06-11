@@ -3718,7 +3718,7 @@ export default function StatsScreen() {
 
       {/* ── 세션 상세 모달 ── */}
       <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => { setSessionDetail(null); setIsEditingMemo(false); }}>
-        <KeyboardAvoidingView style={S.moBottom} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={S.moBottom} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSessionDetail(null); setIsEditingMemo(false); }} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {sessionDetail && (() => {
