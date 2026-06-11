@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Animated, PanResponder, KeyboardAvoidingView, Platform, Vibration, Keyboard, useWindowDimensions, AppState } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, useWindowDimensions, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
@@ -195,15 +195,6 @@ export default function FocusScreen() {
   const scrollYRef = useRef(0);
   const inlineFocusedRef = useRef(false);
 
-  // ═══ 🔒 잠금 오버레이 (집중모드 전용) ═══
-  const SLIDE_WIDTH = isTablet ? Math.min(winW - 80, 360) : winW - 80;
-  const THUMB_SIZE = 56;
-  const SLIDE_THRESHOLD = SLIDE_WIDTH - THUMB_SIZE - 10;
-  const slideThresholdRef = useRef(SLIDE_THRESHOLD);
-  slideThresholdRef.current = SLIDE_THRESHOLD;
-  const slideX = useRef(new Animated.Value(0)).current;
-  const slideOpacity = useRef(new Animated.Value(1)).current;
-
   // 앱 복귀 시 키보드 자동 열림 방지
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
@@ -265,40 +256,7 @@ export default function FocusScreen() {
     }
   }, [screenLocked]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      onPanResponderMove: (_, gs) => {
-        const threshold = slideThresholdRef.current;
-        const x = Math.max(0, Math.min(gs.dx, threshold));
-        slideX.setValue(x);
-        // 슬라이드할수록 자물쇠 텍스트 흐려짐
-        slideOpacity.setValue(1 - (x / threshold) * 0.8);
-      },
-      onPanResponderRelease: (_, gs) => {
-        const threshold = slideThresholdRef.current;
-        if (gs.dx >= threshold) {
-          // 잠금 해제!
-          Animated.timing(slideX, { toValue: threshold, duration: 100, useNativeDriver: false }).start(() => {
-            // restore brightness so UI buttons are visible after unlocking
-            try { app.restoreBrightness?.(); } catch {}
-            setScreenLocked(false);
-            slideX.setValue(0);
-            slideOpacity.setValue(1);
-            // 잠금 해제 후 배너(다시 잠금 버튼)가 보이도록 ScrollView 상단으로 이동
-            setTimeout(() => mainScrollRef.current?.scrollTo({ y: 0, animated: false }), 50);
-          });
-        } else {
-          // 원위치
-          Animated.spring(slideX, { toValue: 0, useNativeDriver: false }).start();
-          Animated.timing(slideOpacity, { toValue: 1, duration: 200, useNativeDriver: false }).start();
-        }
-      },
-    })
-  ).current;
+  // (슬라이드 잠금해제 UI는 App.js의 잠금 오버레이가 담당 — 이 화면에는 재잠금 버튼만 있음)
 
   // 잠금 버튼 (해제 후 다시 잠그기)
   const lockScreen = () => {
