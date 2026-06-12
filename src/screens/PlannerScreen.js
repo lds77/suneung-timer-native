@@ -697,6 +697,31 @@ export default function PlannerScreen({ navigation, route }) {
     return m;
   }, [app.sessions, weekDateStrs]);
 
+  // 실행 레인(D): 날짜별 실제 공부 세션 → 그리드 Y 좌표 (요일 컬럼 오른쪽 가장자리에 가는 띠로 표시)
+  const subjectColorMap = useMemo(() => {
+    const m = {};
+    (app.subjects || []).forEach(s => { m[s.id] = s.color; });
+    return m;
+  }, [app.subjects]);
+  const weekSessionLanes = useMemo(() => {
+    const dateSet = new Set(weekDateStrs);
+    const byDate = {};
+    (app.sessions || []).forEach(s => {
+      if (!dateSet.has(s.date) || !s.startedAt) return;
+      const st = new Date(s.startedAt);
+      const startMin = st.getHours() * 60 + st.getMinutes() - START_HOUR * 60;
+      const durMin = Math.max(2, Math.round((s.durationSec || 0) / 60));
+      const top = Math.max(0, startMin);
+      const bottom = Math.min(GRID_H, startMin + durMin);
+      if (bottom <= top) return; // 그리드(06~24시) 밖 세션은 생략
+      (byDate[s.date] = byDate[s.date] || []).push({
+        id: s.id, top, height: Math.max(2, bottom - top),
+        color: subjectColorMap[s.subjectId] || T.accent,
+      });
+    });
+    return byDate;
+  }, [app.sessions, weekDateStrs, subjectColorMap, T.accent]);
+
   // 주간 요약: 계획 총량 vs 실행 총량 (계획·일자별로 목표 시간까지만 합산해 과달성 왜곡 방지)
   const weekSummary = useMemo(() => {
     let targetSec = 0, doneSec = 0;
@@ -819,6 +844,13 @@ export default function PlannerScreen({ navigation, route }) {
             <View style={{ width: `${weekSummary.pct}%`, height: '100%', borderRadius: 3, backgroundColor: T.accent }} />
           </View>
           <Text style={{ fontSize: 11, color: T.text, fontWeight: '800' }}>실행 {formatShort(weekSummary.doneSec)} · {weekSummary.pct}%</Text>
+        </View>
+      )}
+      {/* 다른 주 탐색 중: 요일 반복 템플릿임을 안내 (주별 달력으로 오해 방지) */}
+      {weekOffset !== 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingBottom: 6, paddingHorizontal: 16 }}>
+          <Ionicons name="repeat-outline" size={11} color={T.sub} />
+          <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }} numberOfLines={1}>시간표는 매주 반복돼요 · 여기서 수정하면 모든 주에 적용됩니다</Text>
         </View>
       )}
       {/* 요일 + 날짜 헤더 */}
@@ -955,13 +987,22 @@ export default function PlannerScreen({ navigation, route }) {
               );
             })}
 
-            {/* 고정 일정 블록 */}
+            {/* 고정 일정 블록 — 탭하면 정보 + 편집 화면 안내 (무반응이면 고장으로 느껴짐) */}
             {(dayData.fixed || []).map(f => {
               const { top, height } = blockGeometry(f.start, f.end);
               if (height < 4) return null;
               const blockColor = f.color || '#95A5A6';
               return (
-                <View key={f.id}
+                <TouchableOpacity key={f.id}
+                  activeOpacity={0.75}
+                  onPress={() => Alert.alert(
+                    f.label,
+                    `${f.start} ~ ${f.end}${isMidnightCrossing(f.start, f.end) ? ' (익일)' : ''}\n고정 일정은 시간표 편집에서 수정할 수 있어요.`,
+                    [
+                      { text: '닫기', style: 'cancel' },
+                      { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
+                    ],
+                  )}
                   style={{
                     position: 'absolute', left: 1, right: 1, top, height,
                     backgroundColor: blockColor,
@@ -974,7 +1015,7 @@ export default function PlannerScreen({ navigation, route }) {
                   {height > 20 && (
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }} numberOfLines={1}>{f.label}</Text>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
 
@@ -1021,6 +1062,14 @@ export default function PlannerScreen({ navigation, route }) {
                 </TouchableOpacity>
               );
             })}
+
+            {/* 실행 레인 — 실제 공부 세션을 컬럼 오른쪽 가장자리에 가는 띠로 (계획 블록과 겹침 없이 비교 가능) */}
+            {(weekSessionLanes[dayDateStr] || []).map(l => (
+              <View key={l.id} pointerEvents="none" style={{
+                position: 'absolute', right: 1, width: 4, top: l.top, height: l.height,
+                borderRadius: 2, backgroundColor: l.color, opacity: 0.95, zIndex: 5, elevation: 3,
+              }} />
+            ))}
 
             {/* 오늘 현재 시간 선 */}
             {isToday && nowY >= 0 && nowY <= GRID_H && (
