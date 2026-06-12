@@ -420,6 +420,11 @@ export function AppProvider({ children }) {
         timersRef.current
           .filter(t => t.status === 'running' && (t.type === 'sequence' || t.type === 'pomodoro'))
           .forEach(t => scheduleAllPhaseNotifs(t));
+
+        // iOS Live Activity: 백그라운드 표시 모드로 갱신 (연속모드 → 전체 남은 시간 카운트다운)
+        // bg 진입 시점엔 timers 상태가 안 바뀌어 동기화 effect가 안 돌므로 명시적으로 호출
+        const laTimerBg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
+        if (laTimerBg) syncLiveActivity(laTimerBg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
       }
       else if (state === 'active') {
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
@@ -518,6 +523,11 @@ export function AppProvider({ children }) {
             return { ...t, elapsedSec: e };
           }));
         }
+
+        // iOS Live Activity: 포그라운드 복귀 즉시 항목별 표시로 복원
+        // (페이즈 전환 보정은 위 setTimers 이후 동기화 effect가 마저 갱신)
+        const laTimerFg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
+        if (laTimerFg) syncLiveActivity(laTimerFg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
 
         // 포그라운드 복귀 시 리포트 알림 재예약 (최신 공부 데이터 반영)
         scheduleWeeklyReport();

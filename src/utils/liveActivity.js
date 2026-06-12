@@ -4,7 +4,7 @@
 // 카운트다운류는 progressBar.date(OS가 직접 그리는 카운트다운),
 // 자유 타이머는 elapsedTimer(카운트업)를 사용하므로 앱이 백그라운드여도 초 단위로 정확함
 
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTheme } from '../constants/colors';
 import { formatDuration } from './format';
@@ -47,7 +47,34 @@ const buildSubtitle = (t) => {
   return '집중하는 중 🔥';
 };
 
+// 연속모드: 현재 페이즈 + 남은 항목/휴식을 전부 합산한 전체 종료 시각(ms)
+const getSequenceTotalEndMs = (t) => {
+  const target = t.seqPhase === 'work' ? (t.totalSec || 0) : (t.seqBreakSec || 0);
+  const baseMs = (t.resumedAt || Date.now()) - (t.elapsedSecAtResume || 0) * 1000;
+  let endMs = baseMs + target * 1000; // 현재 페이즈 종료 시각
+  const items = t.seqItems || [];
+  const total = t.seqTotal || items.length;
+  for (let i = (t.seqIndex || 0) + 1; i < total; i++) {
+    endMs += ((items[i]?.totalSec) || 0) * 1000;
+  }
+  // 항목 사이 휴식: work 페이즈면 남은 항목 수만큼, break 진행 중이면 1회 차감 (현재 휴식은 위 target에 포함)
+  const remainingItems = Math.max(0, total - (t.seqIndex || 0) - 1);
+  const remainingBreaks = t.seqPhase === 'work' ? remainingItems : Math.max(0, remainingItems - 1);
+  endMs += remainingBreaks * (t.seqBreakSec || 0) * 1000;
+  return endMs;
+};
+
 const buildState = (t) => {
+  // 백그라운드: JS가 중단돼 페이즈 자동 전환이 불가능 → 연속모드는 페이즈 종료 시각이 지나면
+  // 0:00에 멈추거나 카운트업으로 보이는 문제가 생김 → 전체 남은 시간 카운트다운으로 전환
+  // (포그라운드 복귀 시 sig의 fg/bg 구분으로 즉시 항목별 표시로 복원됨)
+  if (AppState.currentState === 'background' && t.type === 'sequence' && t.status === 'running') {
+    return {
+      title: t.seqName || t.label || '연속모드',
+      subtitle: `연속 집중 ${(t.seqIndex || 0) + 1}/${t.seqTotal} 진행 중 · 전체 남은 시간`,
+      progressBar: { date: getSequenceTotalEndMs(t) },
+    };
+  }
   const state = { title: t.label || '타이머', subtitle: buildSubtitle(t) };
   if (t.status === 'running') {
     const target = phaseTargetSec(t);
@@ -62,7 +89,9 @@ const buildState = (t) => {
 };
 
 // 네이티브 호출이 필요한 변화만 감지 (elapsedSec 틱 제외 → 초당 호출 방지)
+// fg/bg 구분 포함 — 백그라운드 진입/복귀 시 연속모드 표시 모드 전환이 갱신되도록
 const makeSig = (t) => [
+  AppState.currentState === 'background' ? 'bg' : 'fg',
   t.id, t.status, t.type, t.label, t.color, t.resumedAt, t.elapsedSecAtResume,
   t.totalSec, t.pomoPhase, t.pomoSet, t.seqPhase, t.seqIndex,
 ].join('|');
