@@ -64,13 +64,13 @@ const getWeekDates = (weekOffset = 0) => {
   });
 };
 
-// 특정 weekOffset의 일요일 날짜를 YYYY-MM-DD 문자열로 반환
+// 특정 weekOffset의 일요일 날짜를 YYYY-MM-DD 문자열로 반환 (로컬 기준 — toISOString은 KST 새벽에 하루 밀림)
 const getWeekStartStr = (weekOffset = 0) => {
   const today = new Date();
   const dow = today.getDay();
   const sunday = new Date(today);
   sunday.setDate(today.getDate() - dow + weekOffset * 7);
-  return sunday.toISOString().slice(0, 10);
+  return `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
 };
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
