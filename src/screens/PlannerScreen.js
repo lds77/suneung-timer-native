@@ -5,7 +5,7 @@ import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, Switch,
   Modal, TextInput, Alert, StyleSheet, Platform,
-  Dimensions, useWindowDimensions, StatusBar,
+  Dimensions, useWindowDimensions, StatusBar, KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1108,6 +1108,16 @@ export default function PlannerScreen({ navigation, route }) {
     </View>
   );
 
+  // ── D-Day → 시험 할일 연결 시트 ──
+  const [ddayTodoSheet, setDdayTodoSheet] = useState(null); // 열려 있는 D-Day 객체
+  const [examTodoInput, setExamTodoInput] = useState('');
+  const addExamTodo = () => {
+    const text = examTodoInput.trim();
+    if (!text || !ddayTodoSheet) return;
+    app.addTodo({ text, scope: 'exam', ddayId: ddayTodoSheet.id });
+    setExamTodoInput('');
+  };
+
   // ── D-Day CRUD 헬퍼 ──
   const DDAY_PRESETS = [
     { label: '수능 2026', date: '2026-11-19' },
@@ -1409,7 +1419,8 @@ export default function PlannerScreen({ navigation, route }) {
             {selEvents.length > 0 && (
               <View style={{ gap: 6 }}>
                 {selEvents.map(dd => (
-                  <View key={dd.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: T.accent + '10', borderRadius: 8 }}>
+                  <TouchableOpacity key={dd.id} activeOpacity={0.75} onPress={() => setDdayTodoSheet(dd)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: T.accent + '10', borderRadius: 8 }}>
                     <Ionicons name="flag" size={14} color={T.accent} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>{dd.label}</Text>
@@ -1418,7 +1429,7 @@ export default function PlannerScreen({ navigation, route }) {
                     <TouchableOpacity onPress={() => openEditDDay(dd)} style={{ padding: 4 }}>
                       <Ionicons name="pencil-outline" size={14} color={T.sub} />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
@@ -1455,8 +1466,10 @@ export default function PlannerScreen({ navigation, route }) {
             const days = calcDDay(dd.date);
             const isPast = days !== null && days < 0;
             const isUrgent = days !== null && days >= 0 && days <= 14;
+            const examTodos = app.getExamTodos?.(dd.id) || [];
+            const examDone = examTodos.filter(t => t.done).length;
             return (
-              <View key={dd.id} style={{
+              <TouchableOpacity key={dd.id} activeOpacity={0.8} onPress={() => setDdayTodoSheet(dd)} style={{
                 flexDirection: 'row', alignItems: 'center', gap: 10,
                 paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6,
                 backgroundColor: T.card, borderRadius: 12, borderWidth: 1,
@@ -1470,7 +1483,10 @@ export default function PlannerScreen({ navigation, route }) {
 
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{dd.label}</Text>
-                  <Text style={{ fontSize: 11, color: T.sub }}>{dd.date}{dd.days > 1 ? ` · ${dd.days}일간` : ''}</Text>
+                  <Text style={{ fontSize: 11, color: T.sub }}>
+                    {dd.date}{dd.days > 1 ? ` · ${dd.days}일간` : ''}
+                    {examTodos.length > 0 ? `  ·  📝 ${examDone}/${examTodos.length}` : '  ·  탭해서 할 일 추가'}
+                  </Text>
                 </View>
 
                 {/* D-Day 뱃지 */}
@@ -1490,7 +1506,7 @@ export default function PlannerScreen({ navigation, route }) {
                 <TouchableOpacity onPress={() => handleDeleteDDay(dd)} style={{ padding: 4 }}>
                   <Ionicons name="close-circle-outline" size={16} color={T.red} />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -2204,6 +2220,99 @@ export default function PlannerScreen({ navigation, route }) {
           <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>반복설정</Text>
         </TouchableOpacity>
       </View>
+
+      {/* D-Day 시험 할일 시트 — D-Day와 시험 준비 할 일 연결 */}
+      <Modal visible={!!ddayTodoSheet} transparent animationType="slide" onRequestClose={() => setDdayTodoSheet(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={() => setDdayTodoSheet(null)} />
+          <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 24, maxHeight: '78%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
+            {ddayTodoSheet && (() => {
+              const dd = ddayTodoSheet;
+              const todos = app.getExamTodos?.(dd.id) || [];
+              const doneCnt = todos.filter(t => t.done).length;
+              const daysLeft = calcDDay(dd.date);
+              const remainTodos = todos.length - doneCnt;
+              const perDay = daysLeft > 0 && remainTodos > 0 ? Math.ceil(remainTodos / daysLeft) : 0;
+              return (
+                <>
+                  {/* 헤더 */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Ionicons name="flag" size={16} color={T.accent} />
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: T.text, flexShrink: 1 }} numberOfLines={1}>{dd.label}</Text>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: daysLeft === 0 ? T.red : T.accent }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{formatDDay(dd.date)}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => setDdayTodoSheet(null)} style={{ padding: 2 }}>
+                      <Ionicons name="close" size={22} color={T.sub} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={{ fontSize: 11, color: T.sub, marginBottom: 12 }}>{dd.date}{dd.days > 1 ? ` · ${dd.days}일간` : ''}</Text>
+
+                  {/* 진행률 + 하루 권장량 */}
+                  {todos.length > 0 && (
+                    <View style={{ marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.text }}>시험 준비 할 일 {doneCnt}/{todos.length}</Text>
+                        {daysLeft > 0 && remainTodos > 0 && (
+                          <Text style={{ fontSize: 11, color: T.sub }}>하루 {perDay}개씩 하면 끝나요</Text>
+                        )}
+                        {remainTodos === 0 && <Text style={{ fontSize: 11, color: T.green, fontWeight: '700' }}>🎉 준비 완료!</Text>}
+                      </View>
+                      <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface, overflow: 'hidden' }}>
+                        <View style={{ width: `${Math.round(doneCnt / todos.length * 100)}%`, height: '100%', backgroundColor: remainTodos === 0 ? T.green : T.accent }} />
+                      </View>
+                    </View>
+                  )}
+
+                  {/* 할일 목록 */}
+                  <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled">
+                    {todos.length === 0 && (
+                      <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', paddingVertical: 16, lineHeight: 18 }}>
+                        이 시험을 위해 할 일을 추가해보세요{'\n'}예: 기출 3개년 풀기 · 오답노트 정리 · 단어 암기
+                      </Text>
+                    )}
+                    {todos.map(t => (
+                      <TouchableOpacity key={t.id} onPress={() => app.toggleTodo(t.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 8 }}>
+                        <View style={{
+                          width: 20, height: 20, borderRadius: 5, borderWidth: 2,
+                          borderColor: t.done ? T.green : T.border, backgroundColor: t.done ? T.green : 'transparent',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {t.done && <Ionicons name="checkmark" size={13} color="#fff" />}
+                        </View>
+                        <Text style={{ flex: 1, fontSize: 14, color: t.done ? T.sub : T.text, textDecorationLine: t.done ? 'line-through' : 'none' }}>{t.text}</Text>
+                        <TouchableOpacity onPress={() => app.removeTodo(t.id)} style={{ padding: 4 }}>
+                          <Ionicons name="close" size={15} color={T.sub} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {/* 할일 추가 입력 */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    <TextInput
+                      style={{ flex: 1, borderWidth: 1.5, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: T.text, backgroundColor: T.bg }}
+                      placeholder="할 일 추가 (예: 기출 풀기)"
+                      placeholderTextColor={T.sub}
+                      value={examTodoInput}
+                      onChangeText={setExamTodoInput}
+                      onSubmitEditing={addExamTodo}
+                      returnKeyType="done"
+                      blurOnSubmit={false}
+                    />
+                    <TouchableOpacity onPress={addExamTodo} style={{ paddingHorizontal: 14, borderRadius: 10, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="add" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* 주간 플래너 편집 모달 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
