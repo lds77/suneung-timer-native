@@ -13,7 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES } from '../constants/presets';
-import { generateId, formatDDay, calcDDay, getToday } from '../utils/format';
+import { generateId, formatDDay, calcDDay, getToday, toDateStr, formatShort } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import RunningTimersBar from '../components/RunningTimersBar';
 import TimePickerGrid from '../components/TimePickerGrid';
@@ -682,6 +682,37 @@ export default function PlannerScreen({ navigation, route }) {
     return ws[dayKey] || { fixed: [], plans: [] };
   }, [app.weeklySchedule]);
 
+  // 이번 주 7일의 날짜 문자열 (로컬 기준)
+  const weekDateStrs = useMemo(() => weekDates.map(d => toDateStr(d)), [weekDates]);
+
+  // 계획에 연결된 세션의 날짜별 실행 시간 (key: 'YYYY-MM-DD|planId')
+  const planDoneMap = useMemo(() => {
+    const dateSet = new Set(weekDateStrs);
+    const m = {};
+    (app.sessions || []).forEach(s => {
+      if (!s.planId || !dateSet.has(s.date)) return;
+      const k = `${s.date}|${s.planId}`;
+      m[k] = (m[k] || 0) + (s.durationSec || 0);
+    });
+    return m;
+  }, [app.sessions, weekDateStrs]);
+
+  // 주간 요약: 계획 총량 vs 실행 총량 (계획·일자별로 목표 시간까지만 합산해 과달성 왜곡 방지)
+  const weekSummary = useMemo(() => {
+    let targetSec = 0, doneSec = 0;
+    DAY_KEYS.forEach((key, i) => {
+      const plans = getDayData(key).plans || [];
+      const dateStr = weekDateStrs[i];
+      plans.forEach(p => {
+        const t = (p.targetMin || 0) * 60;
+        targetSec += t;
+        const d = planDoneMap[`${dateStr}|${p.id}`] || 0;
+        doneSec += t > 0 ? Math.min(d, t) : d;
+      });
+    });
+    return { targetSec, doneSec, pct: targetSec > 0 ? Math.min(100, Math.round(doneSec / targetSec * 100)) : 0 };
+  }, [getDayData, weekDateStrs, planDoneMap]);
+
   // 요일 데이터 업데이트 헬퍼
   const updateDayData = useCallback((dayKey, updater) => {
     const ws = app.weeklySchedule || { enabled: true };
@@ -780,6 +811,16 @@ export default function PlannerScreen({ navigation, route }) {
           <Ionicons name="chevron-forward" size={15} color={T.text} />
         </TouchableOpacity>
       </View>
+      {/* 주간 요약 — 계획 대비 실행 (미래 주는 실행 데이터가 없으므로 계획만) */}
+      {weekSummary.targetSec > 0 && weekOffset <= 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 6, paddingHorizontal: 16 }}>
+          <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600' }}>계획 {formatShort(weekSummary.targetSec)}</Text>
+          <View style={{ width: 110, height: 5, borderRadius: 3, backgroundColor: T.surface, overflow: 'hidden' }}>
+            <View style={{ width: `${weekSummary.pct}%`, height: '100%', borderRadius: 3, backgroundColor: T.accent }} />
+          </View>
+          <Text style={{ fontSize: 11, color: T.text, fontWeight: '800' }}>실행 {formatShort(weekSummary.doneSec)} · {weekSummary.pct}%</Text>
+        </View>
+      )}
       {/* 요일 + 날짜 헤더 */}
       <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: T.border }}>
         <View style={{ width: TIME_COL_W }} />
@@ -834,6 +875,7 @@ export default function PlannerScreen({ navigation, route }) {
       {DAY_KEYS.map((key, di) => {
         const dayData = getDayData(key);
         const isToday = isThisWeek && key === todayKey;
+        const dayDateStr = weekDateStrs[di]; // 이 컬럼의 실제 날짜 (계획 달성률 계산용)
         const TOTAL_ROWS = TOTAL_HOURS; // 06:00~24:00 (18행, 마지막 행 하단이 24:00)
 
         // 전날 자정 넘는 일정 → 이 날 상단에 이어서 표시
@@ -965,6 +1007,17 @@ export default function PlannerScreen({ navigation, route }) {
                   {height > 20 && (
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }} numberOfLines={1}>{p.label}</Text>
                   )}
+                  {/* 달성률 미니바 — 그 날짜에 이 계획으로 공부한 기록이 있을 때만 */}
+                  {(() => {
+                    const doneSec = planDoneMap[`${dayDateStr}|${p.id}`] || 0;
+                    if (doneSec <= 0 || height <= 24) return null;
+                    const pct = Math.min(100, Math.round(doneSec / Math.max(60, (p.targetMin || 60) * 60) * 100));
+                    return (
+                      <View style={{ position: 'absolute', left: 3, right: 3, bottom: 2, height: 3, borderRadius: 2, backgroundColor: '#ffffff45', overflow: 'hidden' }}>
+                        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: '#fff' }} />
+                      </View>
+                    );
+                  })()}
                 </TouchableOpacity>
               );
             })}
@@ -1859,13 +1912,9 @@ export default function PlannerScreen({ navigation, route }) {
         <>
           <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
             {renderWeekHeader()}
-          </View>
-          <ScrollView ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
-            {renderGrid()}
-            {/* ③ 미배치 계획 — 요일별 컬럼 */}
+            {/* 미배치 계획 — 헤더 아래 고정 (스크롤과 무관하게 항상 보임) */}
             {hasUnscheduled && (
-              <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.card }}>
+              <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
                 <View style={{ width: TIME_COL_W, paddingTop: 6, alignItems: 'flex-end', paddingRight: 4 }}>
                   <Text style={{ fontSize: 8, color: T.sub, fontWeight: '600' }}>미배치</Text>
                 </View>
@@ -1912,6 +1961,10 @@ export default function PlannerScreen({ navigation, route }) {
                 })}
               </View>
             )}
+          </View>
+          <ScrollView ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
+            {renderGrid()}
             <View style={{ height: insets.bottom + 20 }} />
             </View>
           </ScrollView>
