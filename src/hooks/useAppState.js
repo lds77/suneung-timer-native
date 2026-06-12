@@ -19,7 +19,7 @@ const SOUND_FILES = {
   writing: require('../../assets/sounds/writing.mp3'),
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
-import { getToday, getYesterday, toDateStr, generateId } from '../utils/format';
+import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { calculateDensity } from '../utils/density';
 import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
@@ -991,9 +991,12 @@ export function AppProvider({ children }) {
 
     const now = Date.now();
     const today = getToday();
+    // '이번 주만' 계획은 해당 주에만 알림 대상
+    const wkStart = getWeekStartStr(0);
+    const activePlans = (dayData.plans || []).filter(p => !p.onlyWeek || p.onlyWeek === wkStart);
 
     // 1) 고정 일정 종료 + 10분 후 알림 (미완료 계획 있을 때만)
-    if (dayData.fixed?.length && dayData.plans?.length) {
+    if (dayData.fixed?.length && activePlans.length) {
       for (const fixed of dayData.fixed) {
         if (!fixed.end) continue;
         const [endH, endM] = fixed.end.split(':').map(Number);
@@ -1002,7 +1005,7 @@ export function AppProvider({ children }) {
         const triggerMs = endDate.getTime() + 10 * 60 * 1000;
         if (triggerMs <= now) continue;
 
-        const hasIncompletePlan = dayData.plans.some(plan => {
+        const hasIncompletePlan = activePlans.some(plan => {
           const doneSec = sessionsRef.current
             .filter(s => s.date === today && s.planId === plan.id)
             .reduce((sum, s) => sum + (s.durationSec || 0), 0);
@@ -1029,7 +1032,7 @@ export function AppProvider({ children }) {
     }
 
     // 2) 공부 계획 시작 알림 — 시작 10분 전 + 정각 (시간 배치된 계획만)
-    for (const plan of (dayData.plans || [])) {
+    for (const plan of activePlans) {
       if (!plan.start) continue;
       const [startH, startM] = plan.start.split(':').map(Number);
       const startDate = new Date();
@@ -1640,7 +1643,20 @@ export function AppProvider({ children }) {
       if (cuf) setCountupFavs(cuf);
       if (fv && fv.length > 0) setFavs(fv);
       const ws = await loadWeeklySchedule();
-      if (ws) setWeeklySchedule(ws);
+      if (ws) {
+        // '이번 주만'(onlyWeek) 계획 중 지난 주 항목 정리
+        const wkStart0 = getWeekStartStr(0);
+        let wsChanged = false;
+        const cleaned = { ...ws };
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(k => {
+          const day = cleaned[k];
+          if (!day?.plans?.some(p => p.onlyWeek && p.onlyWeek < wkStart0)) return;
+          wsChanged = true;
+          cleaned[k] = { ...day, plans: day.plans.filter(p => !p.onlyWeek || p.onlyWeek >= wkStart0) };
+        });
+        setWeeklySchedule(cleaned);
+        if (wsChanged) saveWeeklySchedule(cleaned);
+      }
       // 이전 세션 타이머 복원 (앱 강제종료 대비)
       const snapshot = await loadTimerSnapshot();
       if (snapshot && snapshot.timers && snapshot.timers.length > 0) {
@@ -1750,7 +1766,10 @@ export function AppProvider({ children }) {
   const getTodaySchedule = useCallback(() => {
     if (!weeklySchedule || !weeklySchedule.enabled) return null;
     const dayData = weeklySchedule[getDayKey()];
-    return dayData || { fixed: [], plans: [] };
+    if (!dayData) return { fixed: [], plans: [] };
+    // '이번 주만'(onlyWeek) 계획은 해당 주에만 노출
+    const wk = getWeekStartStr(0);
+    return { ...dayData, plans: (dayData.plans || []).filter(p => !p.onlyWeek || p.onlyWeek === wk) };
   }, [weeklySchedule, getDayKey]);
 
   const getPlanCompletedSec = useCallback((planId) => {

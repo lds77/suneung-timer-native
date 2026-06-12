@@ -1,9 +1,25 @@
 // format.js 단위 테스트 — 날짜/시간 포맷의 자정·시간대 경계 회귀 방지
 import {
   formatTime, formatDuration, formatShort,
-  toDateStr, getToday, getYesterday,
+  toDateStr, getToday, getYesterday, getWeekStartStr,
   calcDDay, formatDDay, generateId,
 } from '../format';
+
+describe('getWeekStartStr — 일요일 시작, 로컬 기준', () => {
+  afterEach(() => { jest.useRealTimers(); });
+
+  test('목요일 기준 이번 주 일요일', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 5, 11, 14, 0, 0)); // 2026-06-11(목)
+    expect(getWeekStartStr(0)).toBe('2026-06-07');
+    expect(getWeekStartStr(1)).toBe('2026-06-14');
+    expect(getWeekStartStr(-1)).toBe('2026-05-31');
+  });
+
+  test('일요일 당일은 자기 자신', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 5, 14, 0, 30, 0)); // 일요일 새벽
+    expect(getWeekStartStr(0)).toBe('2026-06-14');
+  });
+});
 
 describe('formatTime', () => {
   test('1시간 미만은 MM:SS', () => {

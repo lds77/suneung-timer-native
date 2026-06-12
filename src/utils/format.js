@@ -63,6 +63,16 @@ export const getYesterday = () => {
 };
 
 /**
+ * 주 시작일(일요일, 로컬)을 YYYY-MM-DD로 — weekOffset만큼 주 단위 이동
+ * 플래너의 주 식별자('이번 주만' 계획, 임시 배치 저장 키)로 사용
+ */
+export const getWeekStartStr = (weekOffset = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay() + weekOffset * 7);
+  return toDateStr(d);
+};
+
+/**
  * D-Day 계산 (남은 일수)
  */
 export const calcDDay = (dateStr) => {

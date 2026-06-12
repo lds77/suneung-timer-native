@@ -1170,7 +1170,7 @@ export default function FocusScreen() {
           const ws = app.weeklySchedule;
           if (!ws || !ws.enabled) return null;
           const dayKey = app.getDayKey?.();
-          const dayData = dayKey && ws[dayKey];
+          const dayData = app.getTodaySchedule?.(); // onlyWeek('이번 주만') 필터 적용본
           if (!dayData || !dayData.plans || dayData.plans.length === 0) return null;
           const fixed = (dayData.fixed || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
           const plans = (dayData.plans || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -2011,7 +2011,7 @@ export default function FocusScreen() {
           const ws = app.weeklySchedule;
           if (!ws || !ws.enabled) return null;
           const dayKey = app.getDayKey?.();
-          const dayData = dayKey && ws[dayKey];
+          const dayData = app.getTodaySchedule?.(); // onlyWeek('이번 주만') 필터 적용본
           if (!dayData || !dayData.plans || dayData.plans.length === 0) return null;
           const fixed = (dayData.fixed || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
           const plans = (dayData.plans || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));

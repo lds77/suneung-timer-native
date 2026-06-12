@@ -13,7 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES } from '../constants/presets';
-import { generateId, formatDDay, calcDDay, getToday, toDateStr, formatShort } from '../utils/format';
+import { generateId, formatDDay, calcDDay, getToday, toDateStr, formatShort, getWeekStartStr } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import RunningTimersBar from '../components/RunningTimersBar';
 import TimePickerGrid from '../components/TimePickerGrid';
@@ -64,15 +64,11 @@ const getWeekDates = (weekOffset = 0) => {
   });
 };
 
-// 특정 weekOffset의 일요일 날짜를 YYYY-MM-DD 문자열로 반환 (로컬 기준 — toISOString은 KST 새벽에 하루 밀림)
-const getWeekStartStr = (weekOffset = 0) => {
-  const today = new Date();
-  const dow = today.getDay();
-  const sunday = new Date(today);
-  sunday.setDate(today.getDate() - dow + weekOffset * 7);
-  return `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
-};
+// getWeekStartStr는 utils/format에서 import (일요일 시작, 로컬 기준)
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+// '이번 주만'(onlyWeek) 계획이 해당 주에 표시돼야 하는지
+const isPlanInWeek = (p, weekStartStr) => !p.onlyWeek || p.onlyWeek === weekStartStr;
 
 // 현재 시간 → 그리드 상의 Y 위치 (px)
 const getNowY = () => {
@@ -104,7 +100,8 @@ const carryoverGeometry = (end) => {
 
 // ─── 블록 추가/수정 모달 ───
 // minStartTime: 이 시간 이전은 시작시간 선택 불가 (오늘의 현재 시간)
-function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly }) {
+// allowScopeChoice: 새 공부계획 추가 시 '이번 주만 / 매주 반복' 선택 표시 (onSave에 scope 포함)
+function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly, allowScopeChoice }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -116,7 +113,9 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   const [subjectId, setSid]       = useState(null);
   const [targetMin, setTargetMin] = useState(60);
   const [useSchedule, setUseSchedule] = useState(false);
-  const isEdit = !!initial;
+  const [scope, setScope]         = useState('once'); // 'once'(이번 주만) | 'weekly'(매주 반복)
+  // id가 있어야 진짜 수정 — 그리드 탭으로 시간만 프리필된 새 블록은 '추가'
+  const isEdit = !!(initial && initial.id);
 
   useEffect(() => {
     if (visible) {
@@ -139,6 +138,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
         setTargetMin(60);
         setUseSchedule(false);
       }
+      setScope('once');
     }
   }, [visible, initial]);
 
@@ -167,6 +167,8 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
       targetMin: computedTargetMin,
       color: type === 'plan' && subjectId ? (subjects.find(s => s.id === subjectId)?.color || color) : color,
       subjectId: type === 'plan' ? subjectId : null,
+      // 범위 선택이 표시된 새 계획만 scope 전달 (수정/고정일정은 undefined)
+      ...(allowScopeChoice && !isEdit && type === 'plan' ? { scope } : {}),
     });
   };
 
@@ -231,6 +233,26 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
             value={label}
             onChangeText={setLabel}
           />
+        )}
+
+        {/* 새 공부계획: 이번 주만 / 매주 반복 선택 */}
+        {allowScopeChoice && !isEdit && type === 'plan' && (
+          <View style={{ marginBottom: 10 }}>
+            <Text style={{ fontSize: 11, color: T.sub, fontWeight: '600', marginBottom: 5 }}>반복</Text>
+            <View style={{ flexDirection: 'row', backgroundColor: T.surface, borderRadius: 10, padding: 3 }}>
+              {[{ id: 'once', label: '이번 주만' }, { id: 'weekly', label: '매주 반복' }].map(s => (
+                <TouchableOpacity key={s.id} onPress={() => setScope(s.id)} style={{
+                  flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center',
+                  backgroundColor: scope === s.id ? T.accent : 'transparent',
+                }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: scope === s.id ? '#fff' : T.sub }}>{s.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 4 }}>
+              {scope === 'once' ? '이번 주에만 표시되는 일회성 계획이에요' : '매주 같은 요일에 반복되는 시간표 계획이에요'}
+            </Text>
+          </View>
         )}
 
         {/* 공부 계획 전용: 목표량 + 시간 배치 토글 */}
@@ -726,7 +748,7 @@ export default function PlannerScreen({ navigation, route }) {
   const weekSummary = useMemo(() => {
     let targetSec = 0, doneSec = 0;
     DAY_KEYS.forEach((key, i) => {
-      const plans = getDayData(key).plans || [];
+      const plans = (getDayData(key).plans || []).filter(p => isPlanInWeek(p, weekDateStrs[0]));
       const dateStr = weekDateStrs[i];
       plans.forEach(p => {
         const t = (p.targetMin || 0) * 60;
@@ -794,13 +816,15 @@ export default function PlannerScreen({ navigation, route }) {
     const endMin = startMin + 30; // 기본 30분
     setModal({
       dayKey,
+      allowScope: true, // 새 계획: '이번 주만 / 매주 반복' 선택 표시
+      weekStart: getWeekStartStr(weekOffset),
       initial: {
         blockType: 'plan',
         start: minToStr(Math.min(startMin, 23 * 60 + 50)),
         end:   minToStr(Math.min(endMin, 24 * 60)),
       },
     });
-  }, [isPastTimeMin]);
+  }, [isPastTimeMin, weekOffset]);
 
   // 주간 헤더 (요일 + 날짜)
   const renderWeekHeader = () => (
@@ -1019,9 +1043,9 @@ export default function PlannerScreen({ navigation, route }) {
               );
             })}
 
-            {/* 공부 계획 블록 (start 있는 것만) + 오늘만 임시 배치 */}
+            {/* 공부 계획 블록 (start 있는 것만, 이번 주 해당분만) + 오늘만 임시 배치 */}
             {[
-              ...(dayData.plans || []).filter(p => p.start && p.end && !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset)),
+              ...(dayData.plans || []).filter(p => isPlanInWeek(p, weekDateStrs[0]) && p.start && p.end && !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset)),
               ...Object.entries(tempAssignments)
                 .filter(([, v]) => v.dayKey === key && v.weekOffset === weekOffset)
                 .map(([planId, times]) => {
@@ -1478,11 +1502,11 @@ export default function PlannerScreen({ navigation, route }) {
   const unscheduledPlans = useMemo(() => {
     const result = {};
     DAY_KEYS.forEach(key => {
-      const plans = (getDayData(key).plans || []).filter(p => !p.start);
+      const plans = (getDayData(key).plans || []).filter(p => !p.start && isPlanInWeek(p, weekDateStrs[0]));
       if (plans.length > 0) result[key] = plans;
     });
     return result;
-  }, [getDayData, app.weeklySchedule]);
+  }, [getDayData, app.weeklySchedule, weekDateStrs]);
 
   const hasUnscheduled = Object.keys(unscheduledPlans).length > 0;
 
@@ -1497,7 +1521,7 @@ export default function PlannerScreen({ navigation, route }) {
       }).filter(Boolean);
     return [
       ...(dayData.fixed || []).map(f => ({ ...f, itemType: 'fixed' })),
-      ...(dayData.plans || []).filter(p => p.start && p.end && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0)).map(p => ({ ...p, itemType: 'plan' })),
+      ...(dayData.plans || []).filter(p => isPlanInWeek(p, getWeekStartStr(0)) && p.start && p.end && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0)).map(p => ({ ...p, itemType: 'plan' })),
       ...tempPlans,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
   }, [getDayData, todayKey, app.weeklySchedule, tempAssignments]);
@@ -1511,7 +1535,7 @@ export default function PlannerScreen({ navigation, route }) {
       .map(a => ({ start: a.start, end: a.end }));
     const items = [
       ...(dd.fixed || []).map(f => ({ ...f })),
-      ...(dd.plans || []).filter(p => p.start && p.end).map(p => ({ ...p })),
+      ...(dd.plans || []).filter(p => p.start && p.end && isPlanInWeek(p, weekDateStrs[0])).map(p => ({ ...p })),
       ...tempItems,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
     const MIN_GAP = 30;
@@ -1529,7 +1553,7 @@ export default function PlannerScreen({ navigation, route }) {
       slots.push({ start: minToStr(prevEnd), end: '24:00', durationMin: 24 * 60 - prevEnd });
     }
     return slots;
-  }, [getDayData, tempAssignments, weekOffset]);
+  }, [getDayData, tempAssignments, weekOffset, weekDateStrs]);
 
 
   // 주간 제목 문자열
@@ -1555,10 +1579,11 @@ export default function PlannerScreen({ navigation, route }) {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const allItems = todayAllItems;
-    const unscheduled = (dayData.plans || []).filter(p => !p.start && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0));
+    const curWeekStart = getWeekStartStr(0);
+    const unscheduled = (dayData.plans || []).filter(p => isPlanInWeek(p, curWeekStart) && !p.start && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0));
 
     // 전체 진행률
-    const plansWithTarget = (dayData.plans || []).filter(p => (p.targetMin || 0) > 0);
+    const plansWithTarget = (dayData.plans || []).filter(p => isPlanInWeek(p, curWeekStart) && (p.targetMin || 0) > 0);
     const totalTargetSec = plansWithTarget.reduce((sum, p) => sum + p.targetMin * 60, 0);
     const totalDoneSec = plansWithTarget.reduce((sum, p) => {
       const done = app.getPlanCompletedSec?.(p.id) || 0;
@@ -1602,6 +1627,18 @@ export default function PlannerScreen({ navigation, route }) {
             </>
           )}
         </View>
+
+        {/* ── 계획 추가 — 상시 진입점 (이번 주만/매주 선택 가능) ── */}
+        <TouchableOpacity
+          onPress={() => setModal({ dayKey: todayKey, allowScope: true, weekStart: getWeekStartStr(0) })}
+          style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+            borderWidth: 1.5, borderColor: T.accent + '50', borderStyle: 'dashed',
+            borderRadius: 12, paddingVertical: 10, marginBottom: 14, backgroundColor: T.accent + '08',
+          }}>
+          <Ionicons name="add-circle-outline" size={16} color={T.accent} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>오늘 계획 추가</Text>
+        </TouchableOpacity>
 
         {/* ── 첫 방문 안내 카드 ── */}
         {!app.settings.plannerGuideSeen && (
@@ -1709,8 +1746,13 @@ export default function PlannerScreen({ navigation, route }) {
               )}
 
               <TouchableOpacity
-                activeOpacity={isFixed ? 1 : 0.75}
-                onPress={isFixed ? undefined : () => setPlanSheet({ plan: item, dayKey: todayKey })}
+                activeOpacity={0.75}
+                onPress={isFixed
+                  ? () => Alert.alert(item.label, `${item.start} ~ ${item.end}${isMidnightCrossing(item.start, item.end) ? ' (익일)' : ''}\n고정 일정은 시간표 편집에서 수정할 수 있어요.`, [
+                      { text: '닫기', style: 'cancel' },
+                      { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
+                    ])
+                  : () => setPlanSheet({ plan: item, dayKey: todayKey })}
                 style={{
                   flexDirection: 'row', alignItems: 'center',
                   backgroundColor: isCurrent ? blockColor + '14' : (isDone ? T.surface : T.card),
@@ -2034,7 +2076,12 @@ export default function PlannerScreen({ navigation, route }) {
               setTempAssignments(prev => ({ ...prev, [block.id]: { start: block.start, end: block.end, dayKey: modal.dayKey, weekOffset } }));
               setModal(null);
             } else {
-              handleSave({ dayKey: modal.dayKey, block });
+              // scope 선택('이번 주만') → onlyWeek 마킹 (진입점이 기록한 주 기준)
+              const { scope, ...rest } = block;
+              const finalBlock = scope === 'once'
+                ? { ...rest, onlyWeek: modal.weekStart || getWeekStartStr(weekOffset) }
+                : rest;
+              handleSave({ dayKey: modal.dayKey, block: finalBlock });
             }
           }}
           onDelete={(id, type) => handleDelete(modal.dayKey, id, type)}
@@ -2042,6 +2089,7 @@ export default function PlannerScreen({ navigation, route }) {
           subjects={app.subjects || []}
           T={T}
           planOnly
+          allowScopeChoice={!!modal.allowScope}
           minStartTime={
             (modal.dayKey === todayKey && weekOffset === 0) ? getNowTimeStr() : undefined
           }
