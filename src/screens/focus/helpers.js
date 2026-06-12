@@ -18,7 +18,7 @@ export const getSchoolDefaultFavs = (school) => {
     pomo(10, 5, '뽀모 10+5'), cd(15, '15분', '#5CB85C'), cd(20, '20분', '#4A90D9'), cd(25, '25분', '#9B6FC3'),
   ];
   if (school === 'elementary_upper') return [
-    pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(25, '25분', '#4A90D9'), cd(30, '30분', '#9B6FC3'),
+    pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3'),
   ];
   if (school === 'middle') return [
     pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3'),

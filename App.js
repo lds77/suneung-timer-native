@@ -22,6 +22,7 @@ import { generateId } from './src/utils/format';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
+import { getSchoolDefaultFavs } from './src/screens/focus/helpers';
 
 import FocusScreen from './src/screens/FocusScreen';
 import SubjectsScreen from './src/screens/SubjectsScreen';
@@ -187,16 +188,7 @@ function OnboardingScreen() {
     ];
   })();
 
-  const getSchoolDefaultFavs = (school) => {
-    const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
-    const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏰', type: 'countdown', color: color, totalSec: min * 60 });
-    if (school === 'elementary_lower') return [pomo(10, 5, '뽀모 10+5'), cd(15, '15분', '#5CB85C'), cd(20, '20분', '#4A90D9'), cd(25, '25분', '#9B6FC3')];
-    if (school === 'elementary' || school === 'elementary_upper') return [pomo(15, 5, '뽀모 15+5'), cd(20, '20분', '#5CB85C'), cd(30, '30분', '#4A90D9'), cd(45, '45분', '#9B6FC3')];
-    if (school === 'middle') return [pomo(25, 5, '뽀모 25+5'), cd(30, '30분', '#5CB85C'), cd(45, '45분', '#4A90D9'), cd(60, '1시간', '#9B6FC3')];
-    if (school === 'university') return [pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3')];
-    if (school === 'exam_prep') return [pomo(50, 10, '뽀모 50+10'), cd(60, '1시간', '#5CB85C'), cd(90, '90분', '#4A90D9'), cd(120, '2시간', '#9B6FC3')];
-    return [pomo(25, 5, '뽀모 25+5'), cd(45, '45분', '#5CB85C'), cd(60, '1시간', '#4A90D9'), cd(90, '90분', '#9B6FC3')];
-  };
+  // getSchoolDefaultFavs는 src/screens/focus/helpers.js와 공유 (초등 고학년 20/30/45 기준으로 통일)
 
   const handleFinish = () => {
     const schoolLevel = selectedSchool === 'elementary'
