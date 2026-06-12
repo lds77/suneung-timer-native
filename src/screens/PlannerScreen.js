@@ -1485,7 +1485,7 @@ export default function PlannerScreen({ navigation, route }) {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>{dd.label}</Text>
                   <Text style={{ fontSize: 11, color: T.sub }}>
                     {dd.date}{dd.days > 1 ? ` · ${dd.days}일간` : ''}
-                    {examTodos.length > 0 ? `  ·  📝 ${examDone}/${examTodos.length}` : '  ·  탭해서 할 일 추가'}
+                    {examTodos.length > 0 ? `  ·  할 일 ${examDone}/${examTodos.length}` : '  ·  탭해서 할 일 추가'}
                   </Text>
                 </View>
 
@@ -2258,7 +2258,7 @@ export default function PlannerScreen({ navigation, route }) {
                         {daysLeft > 0 && remainTodos > 0 && (
                           <Text style={{ fontSize: 11, color: T.sub }}>하루 {perDay}개씩 하면 끝나요</Text>
                         )}
-                        {remainTodos === 0 && <Text style={{ fontSize: 11, color: T.green, fontWeight: '700' }}>🎉 준비 완료!</Text>}
+                        {remainTodos === 0 && <Text style={{ fontSize: 11, color: T.green, fontWeight: '700' }}>준비 완료!</Text>}
                       </View>
                       <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface, overflow: 'hidden' }}>
                         <View style={{ width: `${Math.round(doneCnt / todos.length * 100)}%`, height: '100%', backgroundColor: remainTodos === 0 ? T.green : T.accent }} />
