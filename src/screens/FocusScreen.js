@@ -1036,6 +1036,26 @@ export default function FocusScreen() {
           </View>
         )}
 
+        {/* 신규 사용자: 첫 공부 시작 카드 — 기록과 타이머가 전혀 없을 때만, 탭 한 번으로 추천 타이머 시작 */}
+        {app.sessions.length === 0 && nonLapTimers.length === 0 && (() => {
+          const rec = favs[0] || getSchoolDefaultFavs(school)[0];
+          return (
+            <TouchableOpacity activeOpacity={0.85} onPress={() => rec ? runFav(rec) : setShowAdd(true)}
+              style={[{ backgroundColor: T.accent, borderRadius: 16, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 }, isTablet && !isLandscape && S.tabletBlock]}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="play" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>첫 공부를 시작해볼까요?</Text>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', marginTop: 2 }}>
+                  {rec ? `추천 ${rec.label} · 탭 한 번이면 시작돼요` : '나만의 타이머를 만들어보세요'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          );
+        })()}
+
         {/* 헤더 */}
         {(() => {
           const hPreset = HEADER_BG_PRESETS[app.settings.headerBgPreset ?? 0] || HEADER_BG_PRESETS[0];
