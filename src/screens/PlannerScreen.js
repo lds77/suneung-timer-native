@@ -719,31 +719,6 @@ export default function PlannerScreen({ navigation, route }) {
     return m;
   }, [app.sessions, weekDateStrs]);
 
-  // 실행 레인(D): 날짜별 실제 공부 세션 → 그리드 Y 좌표 (요일 컬럼 오른쪽 가장자리에 가는 띠로 표시)
-  const subjectColorMap = useMemo(() => {
-    const m = {};
-    (app.subjects || []).forEach(s => { m[s.id] = s.color; });
-    return m;
-  }, [app.subjects]);
-  const weekSessionLanes = useMemo(() => {
-    const dateSet = new Set(weekDateStrs);
-    const byDate = {};
-    (app.sessions || []).forEach(s => {
-      if (!dateSet.has(s.date) || !s.startedAt) return;
-      const st = new Date(s.startedAt);
-      const startMin = st.getHours() * 60 + st.getMinutes() - START_HOUR * 60;
-      const durMin = Math.max(2, Math.round((s.durationSec || 0) / 60));
-      const top = Math.max(0, startMin);
-      const bottom = Math.min(GRID_H, startMin + durMin);
-      if (bottom <= top) return; // 그리드(06~24시) 밖 세션은 생략
-      (byDate[s.date] = byDate[s.date] || []).push({
-        id: s.id, top, height: Math.max(2, bottom - top),
-        color: subjectColorMap[s.subjectId] || T.accent,
-      });
-    });
-    return byDate;
-  }, [app.sessions, weekDateStrs, subjectColorMap, T.accent]);
-
   // 주간 요약: 계획 총량 vs 실행 총량 (계획·일자별로 목표 시간까지만 합산해 과달성 왜곡 방지)
   const weekSummary = useMemo(() => {
     let targetSec = 0, doneSec = 0;
@@ -1086,14 +1061,6 @@ export default function PlannerScreen({ navigation, route }) {
                 </TouchableOpacity>
               );
             })}
-
-            {/* 실행 레인 — 실제 공부 세션을 컬럼 오른쪽 가장자리에 가는 띠로 (계획 블록과 겹침 없이 비교 가능) */}
-            {(weekSessionLanes[dayDateStr] || []).map(l => (
-              <View key={l.id} pointerEvents="none" style={{
-                position: 'absolute', right: 1, width: 4, top: l.top, height: l.height,
-                borderRadius: 2, backgroundColor: l.color, opacity: 0.95, zIndex: 5, elevation: 3,
-              }} />
-            ))}
 
             {/* 오늘 현재 시간 선 */}
             {isToday && nowY >= 0 && nowY <= GRID_H && (
