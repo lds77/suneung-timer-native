@@ -17,7 +17,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '30',
+      buildNumber: '31',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -30,7 +30,7 @@ module.exports = {
         backgroundColor: '#FFF0F5',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 22,
+      versionCode: 24,
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
