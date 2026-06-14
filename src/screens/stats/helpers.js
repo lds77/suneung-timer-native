@@ -103,7 +103,7 @@ ${topSubject ? `최다 과목: ${topSubject}` : ''}
 export function buildHeatReportText({ studyDays, streak, longestStreak, yearTotal }) {
   return `열공메이트 공부 기록
 
-공부일 (최근 6개월): ${studyDays}일
+공부일 (최근 4개월): ${studyDays}일
 현재 연속: ${streak}일
 최장 연속: ${longestStreak}일
 올해 총 공부: ${formatDuration(yearTotal)}

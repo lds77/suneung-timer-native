@@ -331,7 +331,7 @@ export default function StatsScreen() {
     if (r < 0.75) return T.accent + 'CC'; return T.accent;
   };
 
-  // ─── 365일 히트맵 (깃허브 잔디) ──────────────────────────────
+  // ─── 16주(4개월) 히트맵 (깃허브 잔디) ──────────────────────────────
   const heatmap365 = useMemo(() => {
     const data = {};
     app.sessions.forEach(s => {
@@ -1142,7 +1142,7 @@ export default function StatsScreen() {
                 <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
                   style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
                   <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                    매일 공부하면 칸이 채워져요! 365일 빈칸 없이 채워보세요!
+                    매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
                   </Text>
                 </TouchableOpacity>
               )}
@@ -2304,7 +2304,7 @@ export default function StatsScreen() {
               <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
                 style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
                 <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                  매일 공부하면 칸이 채워져요! 365일 빈칸 없이 채워보세요!
+                  매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
                 </Text>
               </TouchableOpacity>
             )}
