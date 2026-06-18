@@ -496,6 +496,19 @@ export default function SettingsScreen() {
               />
               <Row
                 T={T}
+                label="플래너 알림"
+                sub="고정 일정(학교 등) 끝나고 공부 시작 시간을 알려줘요"
+                right={
+                  <Switch
+                    value={app.settings.plannerNotifEnabled}
+                    onValueChange={(v) => app.updateSettings({ plannerNotifEnabled: v })}
+                    trackColor={{ true: T.accent }}
+                    thumbColor="white"
+                  />
+                }
+              />
+              <Row
+                T={T}
                 label="주간 공부 리포트"
                 sub="매주 일요일 밤 이번 주 공부 리포트를 보내줘요"
                 right={

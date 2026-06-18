@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 54)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.27 (iOS 빌드 28, Android versionCode 20)
+- **현재 버전**: 1.0.29 (iOS 빌드 31, Android versionCode 26)
 
 ---
 
@@ -19,7 +19,7 @@
 | 항목 | 내용 |
 |------|------|
 | 프레임워크 | React Native 0.81 + Expo SDK 54 (New Architecture/Fabric) + React 19.1 |
-| 상태 관리 | Context API (`src/hooks/useAppState.js`, ~1900줄) |
+| 상태 관리 | Context API (`src/hooks/useAppState.js`, ~2100줄) |
 | 로컬 저장소 | AsyncStorage (`src/utils/storage.js`, `@yeolgong/*` 키) |
 | 네비게이션 | React Navigation v6 하단 탭 5개: 집중/과목/플래너/통계/설정 |
 | 빌드 | EAS Build (eas.json — development/preview/testflight/production 프로필) |
@@ -39,9 +39,9 @@ src/
   hooks/
     useAppState.js        전역 상태 (Context API) — sessions/timers/todos/settings/weeklySchedule 관리, 100ms 타이머 틱
   screens/
-    FocusScreen.js        타이머 메인 화면 (~3,500줄)
-    StatsScreen.js        통계 화면 (~3,800줄, 일간/주간/월간/잔디 탭)
-    PlannerScreen.js      플래너 화면 (~2,000줄)
+    FocusScreen.js        타이머 메인 화면 (~2,600줄, 중복 가로/세로 섹션 통합 후)
+    StatsScreen.js        통계 화면 (~4,000줄, 일간/주간/월간/잔디 탭)
+    PlannerScreen.js      플래너 화면 (~2,400줄, onlyWeek 일회성/반복 계획 구분)
     ScheduleEditorScreen.js 일정 편집
     SubjectsScreen.js     과목 관리 + 공부법 프리셋 (STUDY_METHODS, 학년별)
     SettingsScreen.js     설정
@@ -112,16 +112,24 @@ App.js                    앱 진입점 (~1,000줄), 온보딩, 네비게이션,
 - 공부법 프리셋: SubjectsScreen의 STUDY_METHODS (학년별 연속모드 템플릿, 출처 표기)
 
 ### 집중밀도
-- 20~103점 범위 (v5 기준), `src/utils/density.js`에서 계산
+- **56~103점 범위** (공식 v7, `src/utils/density.js`) — 최저 56점(C등급) 보장, 30초 미만 세션은 100점 고정
 - 입력: 일시정지/이탈 횟수, 집중모드, 완료율, 자가평가, 학년 등
+- 티어(`src/constants/presets.js`, `getTier`): **SS(전설, ≥100) > S+ > S > A > B > C(≥56)** — 최고는 SS, D/E/F 없음
 
 ### 통계 (StatsScreen)
 - 탭: 일간 | 주간 | 월간 | 잔디
-- 잔디: HM_WEEKS=26 (6개월)
+- 잔디: HM_WEEKS=16 (4개월, `src/screens/stats/styles.js`)
 - 날짜 클릭 → 날짜 상세 바텀시트 (주간/월간/잔디 공유)
 - 주간: weekOffset으로 이전/다음 주 탐색
 - GoalRing: 목표 달성률 도넛 링
 - 주간/월간 공부 리포트 알림 자동 예약
+
+### 플래너 (PlannerScreen)
+- 주간 시간표 그리드 + 미배치 행 + 주간요약(계획/실행/달성%) + 일간/월간 뷰
+- **onlyWeek 모델**: 계획에 `onlyWeek:'YYYY-MM-DD'`(주 시작 일요일) 마킹 → '이번 주만' 일회성 vs 매주 반복 구분. 지난 주 일회성 계획은 초기 로드에서 자동 삭제
+- 계획 블록 달성 미니바(계획 대비 실행량), 시험(D-Day)별 준비 할 일·진행률(todos scope:'exam')
+- BlockModal `scope`('once'/'weekly') 선택 → 호출부에서 onlyWeek 변환
+- 집중탭 계획 카드는 `getTodaySchedule` 사용 (onlyWeek 필터 반영)
 
 ### 알림 / 백그라운드
 - `timer-complete` 채널: AndroidImportance.MAX, DATE 트리거 (setExactAndAllowWhileIdle)
@@ -165,13 +173,14 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-06-11 기준)
+## 출시 현황 (2026-06-14 기준)
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 출시 중, TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 출시 중 |
+| iOS | App Store 출시 중, 1.0.28(빌드 31) 제출됨. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 출시 중, 1.0.28(versionCode 24) 검토 중 |
 | 사용자 수 | 초기 단계 (10~20명) |
+| 아이콘 | 스토어 등록정보는 네이비 회색곰(#1E2F50), 런처 아이콘은 아직 분홍 토끼 — 다음 빌드 때 통일 예정 |
 
 ---
 

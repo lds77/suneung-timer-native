@@ -74,12 +74,13 @@ const DEFAULT_SETTINGS = {
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
   lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
   // 공부 리마인더
-  dailyReminderEnabled: true, // 매일 공부 리마인더
+  dailyReminderEnabled: false, // 매일 공부 리마인더 (기본 OFF — 공부 안 했을 때 잔소리성, 필요시 켜기)
   dailyReminderHour: 20,       // 리마인더 시각 (시)
   dailyReminderMin: 0,         // 리마인더 시각 (분)
-  streakReminderEnabled: true, // 연속 끊김 위기 알림
-  weeklyReportEnabled: true,   // 주간 공부 리포트 (매주 일요일 밤)
-  monthlyReportEnabled: true,  // 월간 공부 리포트 (매월 마지막 날 밤)
+  streakReminderEnabled: false, // 연속 끊김 위기 알림 (기본 OFF)
+  plannerNotifEnabled: false,  // 플래너 알림 — 고정일정 종료/공부 시작 알림 (기본 OFF)
+  weeklyReportEnabled: true,   // 주간 공부 리포트 (매주 일요일 밤, 0분 주는 자동 스킵)
+  monthlyReportEnabled: true,  // 월간 공부 리포트 (매월 마지막 날 밤, 0분 달은 자동 스킵)
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
   headerBgPreset: 0, // 집중탭 헤더 배경 프리셋 인덱스
@@ -981,6 +982,7 @@ export function AppProvider({ children }) {
     plannerNotifIds.current = [];
 
     if (!settingsRef.current.notifEnabled) return;
+    if (!settingsRef.current.plannerNotifEnabled) return;
     const ws = weeklyScheduleRef.current;
     if (!ws || !ws.enabled) return;
 
@@ -1824,9 +1826,13 @@ export function AppProvider({ children }) {
     const tier = getTier(density);
     const verified = fm === 'screen_on' && exitCount === 0;
     const ultraLevel = settingsRef.current?.ultraFocusLevel || 'normal';
+    // 시작 기준: 종료 시각은 startedAt + 실제 집중시간으로 기록.
+    //   (endedAt에 Date.now()를 쓰면 일시정지/백그라운드 때문에 벽시계 간격이 집중시간과 어긋나
+    //    "16:59 ~ 06:38(40m)" 같이 시작~종료가 집중시간과 안 맞는 표시가 생김)
+    const sessStart = startedAt ?? Date.now() - durationSec * 1000;
     const newSess = {
       id: generateId('sess_'), date: getToday(), subjectId, label: label.trim(),
-      startedAt: startedAt ?? Date.now() - durationSec * 1000, endedAt: Date.now(),
+      startedAt: sessStart, endedAt: sessStart + durationSec * 1000,
       durationSec, mode, focusDensity: density, tier: tier.id,
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
       selfRating, memo: memo.trim(), planId: planId || null,
@@ -2019,7 +2025,7 @@ export function AppProvider({ children }) {
     plannerReminderDebounceRef.current = setTimeout(() => {
       schedulePlannerReminders();
     }, 1500);
-  }, [weeklySchedule, loading]);
+  }, [weeklySchedule, settings.plannerNotifEnabled, settings.notifEnabled, loading]);
 
   // 공부 리마인더: 앱 시작 + 세션/설정 변경 시 재예약
   const studyReminderDebounceRef = useRef(null);

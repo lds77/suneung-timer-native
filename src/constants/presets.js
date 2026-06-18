@@ -45,7 +45,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '21:00', end: '07:00', type: 'sleep',  icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '학교',     start: '08:40', end: '13:00', type: 'school', icon: 'school-outline',     color: '#95A5A6' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -57,7 +56,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '21:00', end: '07:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:40', end: '08:10', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -72,7 +70,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '21:30', end: '07:00', type: 'sleep',  icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '학교',     start: '08:40', end: '14:30', type: 'school', icon: 'school-outline',     color: '#95A5A6' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -85,7 +82,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '21:30', end: '07:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:40', end: '08:10', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -101,7 +97,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '22:30', end: '06:30', type: 'sleep',  icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '06:40', end: '07:10', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '학교',     start: '08:20', end: '15:30', type: 'school', icon: 'school-outline',     color: '#95A5A6' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -114,7 +109,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '22:30', end: '07:00', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -131,7 +125,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '23:00', end: '06:00', type: 'sleep',  icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '06:10', end: '06:40', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '학교',     start: '08:00', end: '16:30', type: 'school', icon: 'school-outline',     color: '#95A5A6' },
         { label: '저녁 식사', start: '18:00', end: '18:30', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -147,7 +140,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '23:00', end: '07:00', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -165,7 +157,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '23:00', end: '06:00', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '06:10', end: '06:40', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '점심 식사', start: '12:00', end: '12:30', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -180,7 +171,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '23:00', end: '07:00', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -198,7 +188,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '00:00', end: '07:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:40', end: '08:10', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -210,7 +199,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '00:00', end: '08:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '08:40', end: '09:10', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -225,7 +213,6 @@ export const DEFAULT_SCHEDULES = {
     weekday: {
       fixed: [
         { label: '취침',     start: '23:30', end: '06:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '06:40', end: '07:30', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '점심 식사', start: '12:00', end: '12:30', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
@@ -239,7 +226,6 @@ export const DEFAULT_SCHEDULES = {
     weekend: {
       fixed: [
         { label: '취침',     start: '23:30', end: '07:00', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
-        { label: '아침 식사', start: '07:10', end: '07:40', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [

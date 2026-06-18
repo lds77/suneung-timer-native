@@ -655,7 +655,7 @@ export default function StatsScreen() {
               const subj = app.subjects.find(s => s.id === sess.subjectId);
               const tier = getTier(sess.focusDensity || 0);
               const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-              const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+              const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
               return (
                 <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -1389,7 +1389,7 @@ export default function StatsScreen() {
                   {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
                     const subj = app.subjects.find(s => s.id === sess.subjectId);
                     const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                    const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+                    const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
                     const tier = getTier(sess.focusDensity || 0);
                     return (
                       <TouchableOpacity key={sess.id}
@@ -2000,7 +2000,7 @@ export default function StatsScreen() {
                 {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
                   const subj = app.subjects.find(s => s.id === sess.subjectId);
                   const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                  const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+                  const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
                   const tier = getTier(sess.focusDensity || 0);
                   return (
                     <TouchableOpacity key={sess.id}
@@ -3341,7 +3341,7 @@ export default function StatsScreen() {
                       const subj = app.subjects.find(s => s.id === sess.subjectId);
                       const tier = getTier(sess.focusDensity || 0);
                       const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                      const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+                      const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
                       return (
                         <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -3486,7 +3486,7 @@ export default function StatsScreen() {
                         const subj = app.subjects.find(s => s.id === sess.subjectId);
                         const tier = getTier(sess.focusDensity || 0);
                         const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                        const endH = sess.endedAt ? formatHM(sess.endedAt) : '';
+                        const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
                         return (
                           <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -3727,7 +3727,7 @@ export default function StatsScreen() {
               const subjColor = subj ? subj.color : '#B2BEC3';
               const tier = getTier(sess.focusDensity || 0);
               const startH = sess.startedAt ? formatHM(sess.startedAt) : null;
-              const endH = sess.endedAt ? formatHM(sess.endedAt) : null;
+              const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : null;
               const bd = getDensityBreakdown({
                 pausedCount: sess.pausedCount || 0,
                 totalSec: sess.durationSec || 0,

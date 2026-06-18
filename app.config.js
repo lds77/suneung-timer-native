@@ -4,7 +4,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.28',
+    version: '1.0.29',
     orientation: 'portrait',
     icon: './assets/icons/app-icon.png',
     userInterfaceStyle: 'light',
@@ -30,7 +30,7 @@ module.exports = {
         backgroundColor: '#FFF0F5',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 24,
+      versionCode: 26,
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
