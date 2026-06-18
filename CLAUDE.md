@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 54)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.29 (iOS 빌드 31, Android versionCode 26)
+- **현재 버전**: 1.0.29 (iOS 빌드 31, Android versionCode 28)
 
 ---
 
@@ -180,7 +180,7 @@ eas build --profile preview --platform android
 | iOS | App Store 출시 중, 1.0.28(빌드 31) 제출됨. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
 | Android | Google Play 출시 중, 1.0.28(versionCode 24) 검토 중 |
 | 사용자 수 | 초기 단계 (10~20명) |
-| 아이콘 | 스토어 등록정보는 네이비 회색곰(#1E2F50), 런처 아이콘은 아직 분홍 토끼 — 다음 빌드 때 통일 예정 |
+| 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
 
 ---
 

@@ -30,7 +30,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 26,
+      versionCode: 28,
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
