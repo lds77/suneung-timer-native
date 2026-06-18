@@ -27,7 +27,7 @@ module.exports = {
       softwareKeyboardLayoutMode: 'pan',
       adaptiveIcon: {
         foregroundImage: './assets/icons/adaptive-icon.png',
-        backgroundColor: '#0038D6',
+        backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
       versionCode: 26,
