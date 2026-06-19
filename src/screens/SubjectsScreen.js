@@ -797,8 +797,7 @@ export default function SubjectsScreen({ navigation }) {
                   </TouchableOpacity>
                 )}
                 <View>{sorted.map(renderSubjectCard)}</View>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginTop: 12, marginBottom: 6 }}>빠른 추가</Text>
-                {renderQuickAdd()}
+                <View style={{ marginTop: 12 }}>{renderQuickAdd()}</View>
               </>
             )}
 
