@@ -996,10 +996,11 @@ export function AppProvider({ children }) {
     // '이번 주만' 계획은 해당 주에만 알림 대상 + '이번 주만 삭제'(skipWeeks)된 주는 제외
     const wkStart = getWeekStartStr(0);
     const activePlans = (dayData.plans || []).filter(p => (!p.onlyWeek || p.onlyWeek === wkStart) && !(p.skipWeeks && p.skipWeeks.includes(wkStart)));
+    const activeFixed = (dayData.fixed || []).filter(f => (!f.onlyWeek || f.onlyWeek === wkStart) && !(f.skipWeeks && f.skipWeeks.includes(wkStart)));
 
-    // 1) 고정 일정 종료 + 10분 후 알림 (미완료 계획 있을 때만)
-    if (dayData.fixed?.length && activePlans.length) {
-      for (const fixed of dayData.fixed) {
+    // 1) 고정 일정 종료 + 10분 후 알림 (미완료 계획 있을 때만, 이번 주 휴무 고정일정 제외)
+    if (activeFixed.length && activePlans.length) {
+      for (const fixed of activeFixed) {
         if (!fixed.end) continue;
         const [endH, endM] = fixed.end.split(':').map(Number);
         const endDate = new Date();
@@ -1646,22 +1647,21 @@ export function AppProvider({ children }) {
       if (fv && fv.length > 0) setFavs(fv);
       const ws = await loadWeeklySchedule();
       if (ws) {
-        // '이번 주만'(onlyWeek) 계획 중 지난 주 항목 정리
+        // '이번 주만'(onlyWeek) 계획/고정일정 중 지난 주 항목 정리
         const wkStart0 = getWeekStartStr(0);
         let wsChanged = false;
         const cleaned = { ...ws };
+        // 지난 주 일회성(onlyWeek) 블록 제거 + 지난 주 건너뛰기(skipWeeks) 기록 정리 (무한 증가 방지)
+        const hasStale = (arr) => (arr || []).some(b => (b.onlyWeek && b.onlyWeek < wkStart0) || (b.skipWeeks && b.skipWeeks.some(w => w < wkStart0)));
+        const pruneStale = (arr) => (arr || [])
+          .filter(b => !b.onlyWeek || b.onlyWeek >= wkStart0)
+          .map(b => b.skipWeeks ? { ...b, skipWeeks: b.skipWeeks.filter(w => w >= wkStart0) } : b);
         ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(k => {
           const day = cleaned[k];
-          if (!day?.plans?.length) return;
-          const hasStaleOnce = day.plans.some(p => p.onlyWeek && p.onlyWeek < wkStart0);
-          const hasStaleSkip = day.plans.some(p => p.skipWeeks && p.skipWeeks.some(w => w < wkStart0));
-          if (!hasStaleOnce && !hasStaleSkip) return;
+          if (!day) return;
+          if (!hasStale(day.plans) && !hasStale(day.fixed)) return;
           wsChanged = true;
-          // 지난 주 일회성(onlyWeek) 계획 제거 + 지난 주 건너뛰기(skipWeeks) 기록 정리 (무한 증가 방지)
-          cleaned[k] = { ...day, plans: day.plans
-            .filter(p => !p.onlyWeek || p.onlyWeek >= wkStart0)
-            .map(p => p.skipWeeks ? { ...p, skipWeeks: p.skipWeeks.filter(w => w >= wkStart0) } : p)
-          };
+          cleaned[k] = { ...day, plans: pruneStale(day.plans), fixed: pruneStale(day.fixed) };
         });
         setWeeklySchedule(cleaned);
         if (wsChanged) saveWeeklySchedule(cleaned);
@@ -1776,9 +1776,10 @@ export function AppProvider({ children }) {
     if (!weeklySchedule || !weeklySchedule.enabled) return null;
     const dayData = weeklySchedule[getDayKey()];
     if (!dayData) return { fixed: [], plans: [] };
-    // '이번 주만'(onlyWeek) 계획은 해당 주에만 노출 + '이번 주만 삭제'(skipWeeks)된 주는 제외
+    // '이번 주만'(onlyWeek) 노출 + '이번 주만 삭제/휴무'(skipWeeks)된 주는 계획·고정일정 모두 제외
     const wk = getWeekStartStr(0);
-    return { ...dayData, plans: (dayData.plans || []).filter(p => (!p.onlyWeek || p.onlyWeek === wk) && !(p.skipWeeks && p.skipWeeks.includes(wk))) };
+    const inWeek = (b) => (!b.onlyWeek || b.onlyWeek === wk) && !(b.skipWeeks && b.skipWeeks.includes(wk));
+    return { ...dayData, fixed: (dayData.fixed || []).filter(inWeek), plans: (dayData.plans || []).filter(inWeek) };
   }, [weeklySchedule, getDayKey]);
 
   const getPlanCompletedSec = useCallback((planId) => {

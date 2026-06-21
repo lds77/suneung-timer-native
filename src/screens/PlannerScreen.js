@@ -804,32 +804,34 @@ export default function PlannerScreen({ navigation, route }) {
     setModal(null);
   }, [updateDayData]);
 
-  // 매주 반복 계획을 '이번 주만' 건너뛰기 (템플릿은 유지, skipWeeks에 해당 주 추가)
-  const handleDeleteThisWeek = useCallback((dayKey, blockId, weekStart) => {
+  // 매주 반복 계획/고정일정을 '이번 주만' 건너뛰기 (템플릿은 유지, skipWeeks에 해당 주 추가)
+  const handleDeleteThisWeek = useCallback((dayKey, blockId, weekStart, blockType = 'plan') => {
+    const arrKey = blockType === 'fixed' ? 'fixed' : 'plans';
     updateDayData(dayKey, (day) => ({
       ...day,
-      plans: (day.plans || []).map(p =>
-        p.id === blockId
-          ? { ...p, skipWeeks: [...new Set([...(p.skipWeeks || []), weekStart])] }
-          : p
+      [arrKey]: (day[arrKey] || []).map(b =>
+        b.id === blockId
+          ? { ...b, skipWeeks: [...new Set([...(b.skipWeeks || []), weekStart])] }
+          : b
       ),
     }));
     setModal(null);
   }, [updateDayData]);
 
-  // 매주 반복 계획을 '이번 주만' 수정 (원본은 이번 주 건너뛰고, 수정본을 일회성 onlyWeek 계획으로 생성)
+  // 매주 반복 계획/고정일정을 '이번 주만' 수정 (원본은 이번 주 건너뛰고, 수정본을 일회성 onlyWeek 블록으로 생성)
   const handleSaveThisWeek = useCallback((dayKey, originalId, block, weekStart) => {
+    const arrKey = block.blockType === 'fixed' ? 'fixed' : 'plans';
     updateDayData(dayKey, (day) => {
-      const plans = (day.plans || []).map(p =>
-        p.id === originalId
-          ? { ...p, skipWeeks: [...new Set([...(p.skipWeeks || []), weekStart])] }
-          : p
+      const arr = (day[arrKey] || []).map(b =>
+        b.id === originalId
+          ? { ...b, skipWeeks: [...new Set([...(b.skipWeeks || []), weekStart])] }
+          : b
       );
       const targetMin = block.start
         ? Math.round(parseTimeToMin(block.end) - parseTimeToMin(block.start))
         : (block.targetMin || 60);
       const override = { ...block, id: generateId('blk_'), onlyWeek: weekStart, skipWeeks: undefined, targetMin };
-      return { ...day, plans: [...plans, override] };
+      return { ...day, [arrKey]: [...arr, override] };
     });
     setModal(null);
   }, [updateDayData]);
@@ -965,7 +967,7 @@ export default function PlannerScreen({ navigation, route }) {
         const prevKey = DAY_KEYS[(di - 1 + 7) % 7];
         const prevData = getDayData(prevKey);
         const carryovers = [
-          ...(prevData.fixed || []).filter(f => f.start && f.end && isMidnightCrossing(f.start, f.end)),
+          ...(prevData.fixed || []).filter(f => f.start && f.end && isMidnightCrossing(f.start, f.end) && isPlanInWeek(f, weekDateStrs[0])),
           ...(prevData.plans || []).filter(p => p.start && p.end && isMidnightCrossing(p.start, p.end) && isPlanInWeek(p, weekDateStrs[0])),
         ];
 
@@ -1039,7 +1041,7 @@ export default function PlannerScreen({ navigation, route }) {
             })}
 
             {/* 고정 일정 블록 — 탭하면 정보 + 편집 화면 안내 (무반응이면 고장으로 느껴짐) */}
-            {(dayData.fixed || []).map(f => {
+            {(dayData.fixed || []).filter(f => isPlanInWeek(f, weekDateStrs[0])).map(f => {
               const { top, height } = blockGeometry(f.start, f.end);
               if (height < 4) return null;
               const blockColor = f.color || '#95A5A6';
@@ -1048,9 +1050,10 @@ export default function PlannerScreen({ navigation, route }) {
                   activeOpacity={0.75}
                   onPress={() => Alert.alert(
                     f.label,
-                    `${f.start} ~ ${f.end}${isMidnightCrossing(f.start, f.end) ? ' (익일)' : ''}\n고정 일정은 시간표 편집에서 수정할 수 있어요.`,
+                    `${f.start} ~ ${f.end}${isMidnightCrossing(f.start, f.end) ? ' (익일)' : ''}\n이번 주만 쉬거나, 시간표 편집에서 매주 일정을 바꿀 수 있어요.`,
                     [
                       { text: '닫기', style: 'cancel' },
+                      { text: '이번 주만 휴무', onPress: () => handleDeleteThisWeek(key, f.id, weekDateStrs[0], 'fixed') },
                       { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
                     ],
                   )}
@@ -1555,7 +1558,7 @@ export default function PlannerScreen({ navigation, route }) {
         return plan ? { ...plan, start: times.start, end: times.end, itemType: 'plan', _tempAssigned: true } : null;
       }).filter(Boolean);
     return [
-      ...(dayData.fixed || []).map(f => ({ ...f, itemType: 'fixed' })),
+      ...(dayData.fixed || []).filter(f => isPlanInWeek(f, getWeekStartStr(0))).map(f => ({ ...f, itemType: 'fixed' })),
       ...(dayData.plans || []).filter(p => isPlanInWeek(p, getWeekStartStr(0)) && p.start && p.end && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0)).map(p => ({ ...p, itemType: 'plan' })),
       ...tempPlans,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
@@ -1569,7 +1572,7 @@ export default function PlannerScreen({ navigation, route }) {
       .filter(a => a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
       .map(a => ({ start: a.start, end: a.end }));
     const items = [
-      ...(dd.fixed || []).map(f => ({ ...f })),
+      ...(dd.fixed || []).filter(f => isPlanInWeek(f, weekDateStrs[0])).map(f => ({ ...f })),
       ...(dd.plans || []).filter(p => p.start && p.end && isPlanInWeek(p, weekDateStrs[0])).map(p => ({ ...p })),
       ...tempItems,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
@@ -1783,8 +1786,9 @@ export default function PlannerScreen({ navigation, route }) {
               <TouchableOpacity
                 activeOpacity={0.75}
                 onPress={isFixed
-                  ? () => Alert.alert(item.label, `${item.start} ~ ${item.end}${isMidnightCrossing(item.start, item.end) ? ' (익일)' : ''}\n고정 일정은 시간표 편집에서 수정할 수 있어요.`, [
+                  ? () => Alert.alert(item.label, `${item.start} ~ ${item.end}${isMidnightCrossing(item.start, item.end) ? ' (익일)' : ''}\n이번 주만 쉬거나, 시간표 편집에서 매주 일정을 바꿀 수 있어요.`, [
                       { text: '닫기', style: 'cancel' },
+                      { text: '이번 주만 휴무', onPress: () => handleDeleteThisWeek(todayKey, item.id, getWeekStartStr(0), 'fixed') },
                       { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
                     ])
                   : () => setPlanSheet({ plan: item, dayKey: todayKey })}
@@ -2130,7 +2134,7 @@ export default function PlannerScreen({ navigation, route }) {
           }}
           onDelete={(id, type, editScope) =>
             editScope === 'thisWeek'
-              ? handleDeleteThisWeek(modal.dayKey, id, modal.weekStart || getWeekStartStr(weekOffset))
+              ? handleDeleteThisWeek(modal.dayKey, id, modal.weekStart || getWeekStartStr(weekOffset), type)
               : handleDelete(modal.dayKey, id, type)
           }
           initial={modal.initial || null}
