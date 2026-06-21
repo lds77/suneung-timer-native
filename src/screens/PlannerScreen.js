@@ -67,8 +67,9 @@ const getWeekDates = (weekOffset = 0) => {
 // getWeekStartStr는 utils/format에서 import (일요일 시작, 로컬 기준)
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
-// '이번 주만'(onlyWeek) 계획이 해당 주에 표시돼야 하는지
-const isPlanInWeek = (p, weekStartStr) => !p.onlyWeek || p.onlyWeek === weekStartStr;
+// '이번 주만'(onlyWeek) 계획이 해당 주에 표시돼야 하는지 + 반복 계획의 '이번 주만 삭제'(skipWeeks) 반영
+const isPlanInWeek = (p, weekStartStr) =>
+  (!p.onlyWeek || p.onlyWeek === weekStartStr) && !(p.skipWeeks && p.skipWeeks.includes(weekStartStr));
 
 // 현재 시간 → 그리드 상의 Y 위치 (px)
 const getNowY = () => {
@@ -101,7 +102,8 @@ const carryoverGeometry = (end) => {
 // ─── 블록 추가/수정 모달 ───
 // minStartTime: 이 시간 이전은 시작시간 선택 불가 (오늘의 현재 시간)
 // allowScopeChoice: 새 공부계획 추가 시 '이번 주만 / 매주 반복' 선택 표시 (onSave에 scope 포함)
-function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly, allowScopeChoice }) {
+// recurringEdit: 매주 반복 계획 수정 중 → 저장/삭제 시 '이번 주만 / 매주 전체' 범위 선택
+function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly, allowScopeChoice, recurringEdit }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -158,7 +160,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
     const computedTargetMin = needsTime
       ? Math.round(parseTimeToMin(end) - parseTimeToMin(start))
       : targetMin;
-    onSave({
+    const payload = {
       id: initial?.id || generateId('blk_'),
       blockType: type,
       label: label.trim(),
@@ -169,7 +171,17 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
       subjectId: type === 'plan' ? subjectId : null,
       // 범위 선택이 표시된 새 계획만 scope 전달 (수정/고정일정은 undefined)
       ...(allowScopeChoice && !isEdit && type === 'plan' ? { scope } : {}),
-    });
+    };
+    // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
+    if (recurringEdit) {
+      Alert.alert('수정 적용 범위', '매주 반복되는 계획이에요. 어떻게 적용할까요?', [
+        { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
+        { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
+        { text: '취소', style: 'cancel' },
+      ]);
+      return;
+    }
+    onSave(payload);
   };
 
   return (
@@ -348,10 +360,20 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
         {/* 버튼 */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           {isEdit && (
-            <TouchableOpacity onPress={() => { Alert.alert('삭제', '이 일정을 삭제할까요?', [
-              { text: '취소', style: 'cancel' },
-              { text: '삭제', style: 'destructive', onPress: () => onDelete(initial.id, initial.blockType) },
-            ]); }} style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+            <TouchableOpacity onPress={() => {
+              if (recurringEdit) {
+                Alert.alert('삭제', '매주 반복되는 계획이에요. 어떻게 삭제할까요?', [
+                  { text: '이번 주만 삭제', onPress: () => onDelete(initial.id, initial.blockType, 'thisWeek') },
+                  { text: '매주 삭제', style: 'destructive', onPress: () => onDelete(initial.id, initial.blockType, 'all') },
+                  { text: '취소', style: 'cancel' },
+                ]);
+              } else {
+                Alert.alert('삭제', '이 일정을 삭제할까요?', [
+                  { text: '취소', style: 'cancel' },
+                  { text: '삭제', style: 'destructive', onPress: () => onDelete(initial.id, initial.blockType) },
+                ]);
+              }
+            }} style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
               backgroundColor: T.red + '18', borderWidth: 1.5, borderColor: T.red + '50' }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: T.red }}>삭제</Text>
             </TouchableOpacity>
@@ -782,6 +804,36 @@ export default function PlannerScreen({ navigation, route }) {
     setModal(null);
   }, [updateDayData]);
 
+  // 매주 반복 계획을 '이번 주만' 건너뛰기 (템플릿은 유지, skipWeeks에 해당 주 추가)
+  const handleDeleteThisWeek = useCallback((dayKey, blockId, weekStart) => {
+    updateDayData(dayKey, (day) => ({
+      ...day,
+      plans: (day.plans || []).map(p =>
+        p.id === blockId
+          ? { ...p, skipWeeks: [...new Set([...(p.skipWeeks || []), weekStart])] }
+          : p
+      ),
+    }));
+    setModal(null);
+  }, [updateDayData]);
+
+  // 매주 반복 계획을 '이번 주만' 수정 (원본은 이번 주 건너뛰고, 수정본을 일회성 onlyWeek 계획으로 생성)
+  const handleSaveThisWeek = useCallback((dayKey, originalId, block, weekStart) => {
+    updateDayData(dayKey, (day) => {
+      const plans = (day.plans || []).map(p =>
+        p.id === originalId
+          ? { ...p, skipWeeks: [...new Set([...(p.skipWeeks || []), weekStart])] }
+          : p
+      );
+      const targetMin = block.start
+        ? Math.round(parseTimeToMin(block.end) - parseTimeToMin(block.start))
+        : (block.targetMin || 60);
+      const override = { ...block, id: generateId('blk_'), onlyWeek: weekStart, skipWeeks: undefined, targetMin };
+      return { ...day, plans: [...plans, override] };
+    });
+    setModal(null);
+  }, [updateDayData]);
+
   // 그리드 셀 탭 → 시간 계산 → 모달 열기
   const handleGridTap = useCallback((dayKey, tapY) => {
     const snappedMin = Math.floor(tapY / 10) * 10;
@@ -914,7 +966,7 @@ export default function PlannerScreen({ navigation, route }) {
         const prevData = getDayData(prevKey);
         const carryovers = [
           ...(prevData.fixed || []).filter(f => f.start && f.end && isMidnightCrossing(f.start, f.end)),
-          ...(prevData.plans || []).filter(p => p.start && p.end && isMidnightCrossing(p.start, p.end)),
+          ...(prevData.plans || []).filter(p => p.start && p.end && isMidnightCrossing(p.start, p.end) && isPlanInWeek(p, weekDateStrs[0])),
         ];
 
         return (
@@ -2059,20 +2111,34 @@ export default function PlannerScreen({ navigation, route }) {
               setTempAssignments(prev => ({ ...prev, [block.id]: { start: block.start, end: block.end, dayKey: modal.dayKey, weekOffset } }));
               setModal(null);
             } else {
-              // scope 선택('이번 주만') → onlyWeek 마킹 (진입점이 기록한 주 기준)
-              const { scope, ...rest } = block;
-              const finalBlock = scope === 'once'
-                ? { ...rest, onlyWeek: modal.weekStart || getWeekStartStr(weekOffset) }
-                : rest;
-              handleSave({ dayKey: modal.dayKey, block: finalBlock });
+              const weekStart = modal.weekStart || getWeekStartStr(weekOffset);
+              const { scope, editScope, ...rest } = block;
+              if (editScope === 'thisWeek') {
+                // 매주 반복 계획 → 이번 주만 수정
+                handleSaveThisWeek(modal.dayKey, rest.id, rest, weekStart);
+              } else if (editScope === 'all') {
+                // 매주 반복 계획 → 매주 전체 수정 (기존 동작)
+                handleSave({ dayKey: modal.dayKey, block: rest });
+              } else {
+                // 새 계획: scope 선택('이번 주만') → onlyWeek 마킹 (진입점이 기록한 주 기준)
+                const finalBlock = scope === 'once'
+                  ? { ...rest, onlyWeek: weekStart }
+                  : rest;
+                handleSave({ dayKey: modal.dayKey, block: finalBlock });
+              }
             }
           }}
-          onDelete={(id, type) => handleDelete(modal.dayKey, id, type)}
+          onDelete={(id, type, editScope) =>
+            editScope === 'thisWeek'
+              ? handleDeleteThisWeek(modal.dayKey, id, modal.weekStart || getWeekStartStr(weekOffset))
+              : handleDelete(modal.dayKey, id, type)
+          }
           initial={modal.initial || null}
           subjects={app.subjects || []}
           T={T}
           planOnly
           allowScopeChoice={!!modal.allowScope}
+          recurringEdit={!!(modal.initial?.id && !modal.tempOnly && !modal.initial?.onlyWeek)}
           minStartTime={
             (modal.dayKey === todayKey && weekOffset === 0) ? getNowTimeStr() : undefined
           }
@@ -2100,7 +2166,7 @@ export default function PlannerScreen({ navigation, route }) {
           const dk = planSheet.dayKey;
           const isTmp = !!p._tempAssigned;
           setPlanSheet(null);
-          setModal({ dayKey: dk, tempOnly: isTmp, initial: { ...p, blockType: 'plan' } });
+          setModal({ dayKey: dk, tempOnly: isTmp, weekStart: getWeekStartStr(weekOffset), initial: { ...p, blockType: 'plan' } });
         }}
         onStart={() => {
           const hasRunning = (app.timers || []).some(t => t.status === 'running' || t.status === 'paused');

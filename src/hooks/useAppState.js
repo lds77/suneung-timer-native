@@ -993,9 +993,9 @@ export function AppProvider({ children }) {
 
     const now = Date.now();
     const today = getToday();
-    // '이번 주만' 계획은 해당 주에만 알림 대상
+    // '이번 주만' 계획은 해당 주에만 알림 대상 + '이번 주만 삭제'(skipWeeks)된 주는 제외
     const wkStart = getWeekStartStr(0);
-    const activePlans = (dayData.plans || []).filter(p => !p.onlyWeek || p.onlyWeek === wkStart);
+    const activePlans = (dayData.plans || []).filter(p => (!p.onlyWeek || p.onlyWeek === wkStart) && !(p.skipWeeks && p.skipWeeks.includes(wkStart)));
 
     // 1) 고정 일정 종료 + 10분 후 알림 (미완료 계획 있을 때만)
     if (dayData.fixed?.length && activePlans.length) {
@@ -1652,9 +1652,16 @@ export function AppProvider({ children }) {
         const cleaned = { ...ws };
         ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(k => {
           const day = cleaned[k];
-          if (!day?.plans?.some(p => p.onlyWeek && p.onlyWeek < wkStart0)) return;
+          if (!day?.plans?.length) return;
+          const hasStaleOnce = day.plans.some(p => p.onlyWeek && p.onlyWeek < wkStart0);
+          const hasStaleSkip = day.plans.some(p => p.skipWeeks && p.skipWeeks.some(w => w < wkStart0));
+          if (!hasStaleOnce && !hasStaleSkip) return;
           wsChanged = true;
-          cleaned[k] = { ...day, plans: day.plans.filter(p => !p.onlyWeek || p.onlyWeek >= wkStart0) };
+          // 지난 주 일회성(onlyWeek) 계획 제거 + 지난 주 건너뛰기(skipWeeks) 기록 정리 (무한 증가 방지)
+          cleaned[k] = { ...day, plans: day.plans
+            .filter(p => !p.onlyWeek || p.onlyWeek >= wkStart0)
+            .map(p => p.skipWeeks ? { ...p, skipWeeks: p.skipWeeks.filter(w => w >= wkStart0) } : p)
+          };
         });
         setWeeklySchedule(cleaned);
         if (wsChanged) saveWeeklySchedule(cleaned);
@@ -1769,9 +1776,9 @@ export function AppProvider({ children }) {
     if (!weeklySchedule || !weeklySchedule.enabled) return null;
     const dayData = weeklySchedule[getDayKey()];
     if (!dayData) return { fixed: [], plans: [] };
-    // '이번 주만'(onlyWeek) 계획은 해당 주에만 노출
+    // '이번 주만'(onlyWeek) 계획은 해당 주에만 노출 + '이번 주만 삭제'(skipWeeks)된 주는 제외
     const wk = getWeekStartStr(0);
-    return { ...dayData, plans: (dayData.plans || []).filter(p => !p.onlyWeek || p.onlyWeek === wk) };
+    return { ...dayData, plans: (dayData.plans || []).filter(p => (!p.onlyWeek || p.onlyWeek === wk) && !(p.skipWeeks && p.skipWeeks.includes(wk))) };
   }, [weeklySchedule, getDayKey]);
 
   const getPlanCompletedSec = useCallback((planId) => {
