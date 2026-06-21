@@ -103,11 +103,12 @@ const carryoverGeometry = (end) => {
 // minStartTime: 이 시간 이전은 시작시간 선택 불가 (오늘의 현재 시간)
 // allowScopeChoice: 새 공부계획 추가 시 '이번 주만 / 매주 반복' 선택 표시 (onSave에 scope 포함)
 // recurringEdit: 매주 반복 계획 수정 중 → 저장/삭제 시 '이번 주만 / 매주 전체' 범위 선택
-function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly, allowScopeChoice, recurringEdit }) {
+// fixedOnly: 고정일정 편집 전용 (타입을 fixed로 고정, 타입 토글 숨김)
+function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, minStartTime, planOnly, fixedOnly, allowScopeChoice, recurringEdit }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
-  const [type, setType]           = useState(planOnly ? 'plan' : 'fixed');
+  const [type, setType]           = useState(fixedOnly ? 'fixed' : (planOnly ? 'plan' : 'fixed'));
   const [label, setLabel]         = useState('');
   const [start, setStart]         = useState('08:00');
   const [end, setEnd]             = useState('09:00');
@@ -122,7 +123,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   useEffect(() => {
     if (visible) {
       if (initial) {
-        setType(planOnly ? 'plan' : (initial.blockType || 'fixed'));
+        setType(fixedOnly ? 'fixed' : (planOnly ? 'plan' : (initial.blockType || 'fixed')));
         setLabel(initial.label || '');
         setStart(initial.start || '08:00');
         setEnd(initial.end || '09:00');
@@ -131,7 +132,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
         setTargetMin(initial.targetMin || 60);
         setUseSchedule(!!initial.start);
       } else {
-        setType(planOnly ? 'plan' : 'fixed');
+        setType(fixedOnly ? 'fixed' : (planOnly ? 'plan' : 'fixed'));
         setLabel('');
         setStart('08:00');
         setEnd('09:00');
@@ -174,7 +175,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
     };
     // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
     if (recurringEdit) {
-      Alert.alert('수정 적용 범위', '매주 반복되는 계획이에요. 어떻게 적용할까요?', [
+      Alert.alert('수정 적용 범위', '매주 반복되는 일정이에요. 어떻게 적용할까요?', [
         { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
         { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
         { text: '취소', style: 'cancel' },
@@ -199,8 +200,8 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
         </View>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* 타입 선택 — 공부계획 전용 모드에서는 숨김 */}
-        {!planOnly && (
+        {/* 타입 선택 — 공부계획/고정일정 전용 모드에서는 숨김 */}
+        {!planOnly && !fixedOnly && (
           <View style={{ flexDirection: 'row', backgroundColor: T.surface, borderRadius: 10, padding: 3, marginBottom: 12 }}>
             {[{ id: 'fixed', label: '고정 일정' }, { id: 'plan', label: '공부 계획' }].map(t => (
               <TouchableOpacity key={t.id} onPress={() => setType(t.id)} style={{
@@ -362,7 +363,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
           {isEdit && (
             <TouchableOpacity onPress={() => {
               if (recurringEdit) {
-                Alert.alert('삭제', '매주 반복되는 계획이에요. 어떻게 삭제할까요?', [
+                Alert.alert('삭제', '매주 반복되는 일정이에요. 어떻게 삭제할까요?', [
                   { text: '이번 주만 삭제', onPress: () => onDelete(initial.id, initial.blockType, 'thisWeek') },
                   { text: '매주 삭제', style: 'destructive', onPress: () => onDelete(initial.id, initial.blockType, 'all') },
                   { text: '취소', style: 'cancel' },
@@ -1050,11 +1051,12 @@ export default function PlannerScreen({ navigation, route }) {
                   activeOpacity={0.75}
                   onPress={() => Alert.alert(
                     f.label,
-                    `${f.start} ~ ${f.end}${isMidnightCrossing(f.start, f.end) ? ' (익일)' : ''}\n이번 주만 쉬거나, 시간표 편집에서 매주 일정을 바꿀 수 있어요.`,
+                    `${f.start} ~ ${f.end}${isMidnightCrossing(f.start, f.end) ? ' (익일)' : ''}`,
                     [
                       { text: '닫기', style: 'cancel' },
                       { text: '이번 주만 휴무', onPress: () => handleDeleteThisWeek(key, f.id, weekDateStrs[0], 'fixed') },
-                      { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
+                      { text: '수정', onPress: () => setModal({ dayKey: key, fixedEdit: true, weekStart: weekDateStrs[0], initial: { ...f, blockType: 'fixed' } }) },
+                      { text: '시간표 편집(매주)', onPress: () => setShowScheduleEditor(true) },
                     ],
                   )}
                   style={{
@@ -1786,10 +1788,11 @@ export default function PlannerScreen({ navigation, route }) {
               <TouchableOpacity
                 activeOpacity={0.75}
                 onPress={isFixed
-                  ? () => Alert.alert(item.label, `${item.start} ~ ${item.end}${isMidnightCrossing(item.start, item.end) ? ' (익일)' : ''}\n이번 주만 쉬거나, 시간표 편집에서 매주 일정을 바꿀 수 있어요.`, [
+                  ? () => Alert.alert(item.label, `${item.start} ~ ${item.end}${isMidnightCrossing(item.start, item.end) ? ' (익일)' : ''}`, [
                       { text: '닫기', style: 'cancel' },
                       { text: '이번 주만 휴무', onPress: () => handleDeleteThisWeek(todayKey, item.id, getWeekStartStr(0), 'fixed') },
-                      { text: '시간표 편집', onPress: () => setShowScheduleEditor(true) },
+                      { text: '수정', onPress: () => setModal({ dayKey: todayKey, fixedEdit: true, weekStart: getWeekStartStr(0), initial: { ...item, blockType: 'fixed' } }) },
+                      { text: '시간표 편집(매주)', onPress: () => setShowScheduleEditor(true) },
                     ])
                   : () => setPlanSheet({ plan: item, dayKey: todayKey })}
                 style={{
@@ -2140,7 +2143,8 @@ export default function PlannerScreen({ navigation, route }) {
           initial={modal.initial || null}
           subjects={app.subjects || []}
           T={T}
-          planOnly
+          planOnly={!modal.fixedEdit}
+          fixedOnly={!!modal.fixedEdit}
           allowScopeChoice={!!modal.allowScope}
           recurringEdit={!!(modal.initial?.id && !modal.tempOnly && !modal.initial?.onlyWeek)}
           minStartTime={
