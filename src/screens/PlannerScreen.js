@@ -71,6 +71,13 @@ const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 const isPlanInWeek = (p, weekStartStr) =>
   (!p.onlyWeek || p.onlyWeek === weekStartStr) && !(p.skipWeeks && p.skipWeeks.includes(weekStartStr));
 
+// 임의 날짜('YYYY-MM-DD')가 속한 주의 시작(일요일) 문자열
+const weekStartOf = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return toDateStr(d);
+};
+
 // 현재 시간 → 그리드 상의 Y 위치 (px)
 const getNowY = () => {
   const now = new Date();
@@ -391,7 +398,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 }
 
 // ─── 공부계획 실행 바텀시트 ───
-function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, T, getPlanCompletedSec }) {
+function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, onPostpone, T, getPlanCompletedSec }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -475,6 +482,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
             </TouchableOpacity>
           </View>
         ) : (
+          <>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity onPress={onEdit} style={{
               flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
@@ -494,8 +502,102 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
               </Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity onPress={onPostpone} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 }}>
+            <Ionicons name="calendar-outline" size={16} color={T.sub} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>다른 날로 미루기</Text>
+          </TouchableOpacity>
+          </>
         )}
       </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── 다른 날로 미루기 바텀시트 ───
+function PostponeSheet({ visible, plan, originDateStr, onClose, onPick, T }) {
+  const { width: winW } = useWindowDimensions();
+  const isTablet = winW >= 600;
+  const tabletModalW = Math.min(640, Math.round(winW * 0.8));
+  const [pickerMonth, setPickerMonth] = useState(new Date());
+  useEffect(() => {
+    if (visible) setPickerMonth(originDateStr ? new Date(originDateStr + 'T00:00:00') : new Date());
+  }, [visible, originDateStr]);
+  if (!plan) return null;
+
+  const todayStr = getToday();
+  const monthStr = `${pickerMonth.getFullYear()}년 ${pickerMonth.getMonth() + 1}월`;
+  const y = pickerMonth.getFullYear(), m = pickerMonth.getMonth();
+  const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+  const cells = Array(first.getDay()).fill(null);
+  for (let d = 1; d <= last.getDate(); d++) {
+    cells.push({ day: d, date: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
+  }
+  const offsetDate = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return toDateStr(d); };
+  const quick = [{ label: '내일', off: 1 }, { label: '모레', off: 2 }, { label: '다음 주', off: 7 }];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'flex-end' }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', borderRadius: 20 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>다른 날로 미루기</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={22} color={T.sub} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 13, color: T.sub, marginBottom: 14 }} numberOfLines={1}>{plan.label}</Text>
+
+          {/* 빠른 선택 */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            {quick.map(q => (
+              <TouchableOpacity key={q.label} onPress={() => onPick(offsetDate(q.off))} style={{
+                flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+                backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.border,
+              }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* 월 이동 */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <TouchableOpacity onPress={() => setPickerMonth(new Date(y, m - 1, 1))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="chevron-back" size={22} color={T.sub} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>{monthStr}</Text>
+            <TouchableOpacity onPress={() => setPickerMonth(new Date(y, m + 1, 1))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="chevron-forward" size={22} color={T.sub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* 요일 헤더 */}
+          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+            {['일', '월', '화', '수', '목', '금', '토'].map((w, i) => (
+              <Text key={w} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: i === 0 ? T.red : (i === 6 ? T.accent : T.sub) }}>{w}</Text>
+            ))}
+          </View>
+
+          {/* 날짜 그리드 */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {cells.map((c, i) => {
+              if (!c) return <View key={`e${i}`} style={{ width: `${100 / 7}%`, height: 40 }} />;
+              const disabled = c.date < todayStr || c.date === originDateStr;
+              const dow = (first.getDay() + (c.day - 1)) % 7;
+              return (
+                <TouchableOpacity key={c.date} disabled={disabled} onPress={() => onPick(c.date)}
+                  style={{ width: `${100 / 7}%`, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: c.date === todayStr ? T.accent + '18' : 'transparent' }}>
+                    <Text style={{ fontSize: 14, fontWeight: c.date === todayStr ? '800' : '600',
+                      color: disabled ? T.border : (dow === 0 ? T.red : (dow === 6 ? T.accent : T.text)) }}>{c.day}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -604,6 +706,7 @@ export default function PlannerScreen({ navigation, route }) {
   const [nowY, setNowY]             = useState(getNowY());
   const [modal, setModal]             = useState(null);
   const [planSheet, setPlanSheet]     = useState(null);
+  const [postponeSheet, setPostponeSheet] = useState(null);
   const [quickAssignPlan, setQuickAssignPlan] = useState(null);
   const [tempAssignments, setTempAssignments] = useState({});
   const tempLoadedRef = useRef(false);
@@ -836,6 +939,33 @@ export default function PlannerScreen({ navigation, route }) {
     });
     setModal(null);
   }, [updateDayData]);
+
+  // 계획을 다른 날짜로 미루기: 원래 회차는 그 주만 비우고(반복=skip / 일회성=제거), 옮길 날에 일회성 복사본 생성
+  const postponePlan = useCallback((plan, originDayKey, originDateStr, targetDateStr) => {
+    if (!targetDateStr || targetDateStr === originDateStr) return;
+    const ws = app.weeklySchedule || { enabled: true };
+    const originWeekStart = weekStartOf(originDateStr);
+    const td = new Date(targetDateStr + 'T00:00:00');
+    const targetDayKey = DAY_KEYS[td.getDay()];
+    const targetWeekStart = weekStartOf(targetDateStr);
+
+    // 1) 원래 날 처리
+    const originDay = ws[originDayKey] || { fixed: [], plans: [] };
+    const originPlans = plan.onlyWeek
+      ? (originDay.plans || []).filter(p => p.id !== plan.id)
+      : (originDay.plans || []).map(p =>
+          p.id === plan.id ? { ...p, skipWeeks: [...new Set([...(p.skipWeeks || []), originWeekStart])] } : p);
+    let next = { ...ws, enabled: true, [originDayKey]: { ...originDay, plans: originPlans } };
+
+    // 2) 옮길 날에 일회성 복사본 추가 (원래 날 갱신본 위에서 읽어 같은 요일이어도 안전)
+    const { _tempAssigned, itemType, onlyWeek, skipWeeks, ...base } = plan;
+    const moved = { ...base, id: generateId('blk_'), onlyWeek: targetWeekStart };
+    const targetDay = next[targetDayKey] || { fixed: [], plans: [] };
+    next = { ...next, [targetDayKey]: { ...targetDay, plans: [...(targetDay.plans || []), moved] } };
+
+    app.setWeeklySchedule(next);
+    app.showToastCustom?.(`${td.getMonth() + 1}월 ${td.getDate()}일로 미뤘어요`, 'taco');
+  }, [app.weeklySchedule, app.setWeeklySchedule, app.showToastCustom]);
 
   // 그리드 셀 탭 → 시간 계산 → 모달 열기
   const handleGridTap = useCallback((dayKey, tapY) => {
@@ -1098,7 +1228,7 @@ export default function PlannerScreen({ navigation, route }) {
                     paddingHorizontal: 3, paddingVertical: 2, overflow: 'hidden',
                     elevation: 2,
                   }}
-                  onPress={() => setPlanSheet({ plan: p, dayKey: key })}
+                  onPress={() => setPlanSheet({ plan: p, dayKey: key, dateStr: dayDateStr })}
                 >
                   <Text style={{ fontSize: 9, color: '#ffffffCC' }} numberOfLines={1}>{p.start}{height > 14 ? `~${p.end}` : ''}</Text>
                   {height > 20 && (
@@ -1794,7 +1924,7 @@ export default function PlannerScreen({ navigation, route }) {
                       { text: '수정', onPress: () => setModal({ dayKey: todayKey, fixedEdit: true, weekStart: getWeekStartStr(0), initial: { ...item, blockType: 'fixed' } }) },
                       { text: '시간표 편집(매주)', onPress: () => setShowScheduleEditor(true) },
                     ])
-                  : () => setPlanSheet({ plan: item, dayKey: todayKey })}
+                  : () => setPlanSheet({ plan: item, dayKey: todayKey, dateStr: getToday() })}
                 style={{
                   flexDirection: 'row', alignItems: 'center',
                   backgroundColor: isCurrent ? blockColor + '14' : (isDone ? T.surface : T.card),
@@ -2186,8 +2316,25 @@ export default function PlannerScreen({ navigation, route }) {
           setPlanSheet(null);
           navigation.navigate('Focus');
         }}
+        onPostpone={() => {
+          const { plan, dayKey, dateStr } = planSheet;
+          setPlanSheet(null);
+          setPostponeSheet({ plan, dayKey, dateStr: dateStr || weekDateStrs[DAY_KEYS.indexOf(dayKey)] });
+        }}
         T={T}
         getPlanCompletedSec={app.getPlanCompletedSec}
+      />
+
+      <PostponeSheet
+        visible={!!postponeSheet}
+        plan={postponeSheet?.plan}
+        originDateStr={postponeSheet?.dateStr}
+        onClose={() => setPostponeSheet(null)}
+        onPick={(targetDateStr) => {
+          postponePlan(postponeSheet.plan, postponeSheet.dayKey, postponeSheet.dateStr, targetDateStr);
+          setPostponeSheet(null);
+        }}
+        T={T}
       />
 
       <QuickAssignSheet
