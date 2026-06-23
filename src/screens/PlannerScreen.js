@@ -604,7 +604,7 @@ function PostponeSheet({ visible, plan, originDateStr, onClose, onPick, T }) {
 }
 
 // ─── 빈 시간 배치 바텀시트 ───
-function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignToday, onManual, T }) {
+function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignToday, onManual, onPostpone, T }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -673,6 +673,10 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
             borderWidth: 1.5, borderColor: T.border, marginTop: 8,
           }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>직접 시간 설정하기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onPostpone} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 }}>
+            <Ionicons name="calendar-outline" size={16} color={T.sub} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>다른 날로 미루기</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -2110,7 +2114,7 @@ export default function PlannerScreen({ navigation, route }) {
                       style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1.5, borderColor: pc }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: pc }}>실행</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setQuickAssignPlan({ plan: p, dayKey: todayKey })}
+                    <TouchableOpacity onPress={() => setQuickAssignPlan({ plan: p, dayKey: todayKey, dateStr: getToday() })}
                       style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: pc }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>배치</Text>
                     </TouchableOpacity>
@@ -2206,7 +2210,7 @@ export default function PlannerScreen({ navigation, route }) {
                         ) : (
                           // 오늘·미래 요일: 빈 시간 추천
                           <TouchableOpacity key={p.id}
-                            onPress={() => setQuickAssignPlan({ plan: p, dayKey: key })}
+                            onPress={() => setQuickAssignPlan({ plan: p, dayKey: key, dateStr: weekDateStrs[DAY_KEYS.indexOf(key)] })}
                             style={{
                               paddingHorizontal: 3, paddingVertical: 3, borderRadius: 4,
                               backgroundColor: (p.color || T.accent) + '22',
@@ -2360,6 +2364,11 @@ export default function PlannerScreen({ navigation, route }) {
               end: minToStr(Math.min(parseTimeToMin(defaultStart) + (quickAssignPlan.plan.targetMin || 60), 24 * 60)) },
           });
           setQuickAssignPlan(null);
+        }}
+        onPostpone={() => {
+          const { plan, dayKey, dateStr } = quickAssignPlan;
+          setQuickAssignPlan(null);
+          setPostponeSheet({ plan, dayKey, dateStr: dateStr || weekDateStrs[DAY_KEYS.indexOf(dayKey)] });
         }}
         T={T}
       />
