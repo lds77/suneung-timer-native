@@ -187,7 +187,7 @@ export const DEFAULT_SCHEDULES = {
   university: {
     weekday: {
       fixed: [
-        { label: '취침',     start: '00:00', end: '07:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
+        { label: '취침',     start: '23:00', end: '07:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
@@ -198,7 +198,7 @@ export const DEFAULT_SCHEDULES = {
     },
     weekend: {
       fixed: [
-        { label: '취침',     start: '00:00', end: '08:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
+        { label: '취침',     start: '23:00', end: '08:30', type: 'sleep', icon: 'moon-outline',       color: '#636E72' },
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
