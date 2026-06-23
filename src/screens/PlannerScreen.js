@@ -502,9 +502,13 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
               </Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={onPostpone} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 }}>
-            <Ionicons name="calendar-outline" size={16} color={T.sub} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>다른 날로 미루기</Text>
+          <TouchableOpacity onPress={onPostpone} activeOpacity={0.7} style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            paddingVertical: 12, borderRadius: 12, marginTop: 12,
+            backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
+          }}>
+            <Ionicons name="calendar-outline" size={16} color={T.accent} />
+            <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>계획 다른 날로 미루기</Text>
           </TouchableOpacity>
           </>
         )}
@@ -674,9 +678,13 @@ function QuickAssignSheet({ visible, plan, freeSlots, nowMin, onClose, onAssignT
           }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>직접 시간 설정하기</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={onPostpone} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 4 }}>
-            <Ionicons name="calendar-outline" size={16} color={T.sub} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>다른 날로 미루기</Text>
+          <TouchableOpacity onPress={onPostpone} activeOpacity={0.7} style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            paddingVertical: 12, borderRadius: 12, marginTop: 8,
+            backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
+          }}>
+            <Ionicons name="calendar-outline" size={16} color={T.accent} />
+            <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>계획 다른 날로 미루기</Text>
           </TouchableOpacity>
         </View>
       </View>
