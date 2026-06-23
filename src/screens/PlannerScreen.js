@@ -462,6 +462,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
 
         {/* 버튼 */}
         {isTempAssigned ? (
+          <>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity onPress={onUnassign} style={{
               flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
@@ -481,6 +482,15 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
               </Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity onPress={onPostpone} activeOpacity={0.7} style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            paddingVertical: 12, borderRadius: 12, marginTop: 12,
+            backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
+          }}>
+            <Ionicons name="calendar-outline" size={16} color={T.accent} />
+            <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>계획 다른 날로 미루기</Text>
+          </TouchableOpacity>
+          </>
         ) : (
           <>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -2343,7 +2353,12 @@ export default function PlannerScreen({ navigation, route }) {
         originDateStr={postponeSheet?.dateStr}
         onClose={() => setPostponeSheet(null)}
         onPick={(targetDateStr) => {
-          postponePlan(postponeSheet.plan, postponeSheet.dayKey, postponeSheet.dateStr, targetDateStr);
+          const p = postponeSheet.plan;
+          // 임시 배치된 계획은 원래 날의 임시 배치를 먼저 해제 (안 그러면 옮긴 뒤에도 원래 날에 남음)
+          if (p._tempAssigned) {
+            setTempAssignments(prev => { const n = { ...prev }; delete n[p.id]; return n; });
+          }
+          postponePlan(p, postponeSheet.dayKey, postponeSheet.dateStr, targetDateStr);
           setPostponeSheet(null);
         }}
         T={T}
