@@ -730,6 +730,7 @@ export default function PlannerScreen({ navigation, route }) {
   const [planSheet, setPlanSheet]     = useState(null);
   const [postponeSheet, setPostponeSheet] = useState(null);
   const [quickAssignPlan, setQuickAssignPlan] = useState(null);
+  const [unschedCollapsed, setUnschedCollapsed] = useState(false); // 미배치 행 접기/펴기
   const [tempAssignments, setTempAssignments] = useState({});
   const tempLoadedRef = useRef(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
@@ -1702,6 +1703,12 @@ export default function PlannerScreen({ navigation, route }) {
 
   const hasUnscheduled = Object.keys(unscheduledPlans).length > 0;
 
+  // 이번 주에 아직 안 옮긴(임시배치 제외) 미배치 계획 수 — 접힘 바 배지용
+  const unscheduledCount = useMemo(() =>
+    Object.entries(unscheduledPlans).reduce((sum, [key, plans]) =>
+      sum + plans.filter(p => !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset)).length, 0),
+    [unscheduledPlans, tempAssignments, weekOffset]);
+
   // 오늘 타임라인 아이템 (고정 + 시간배치 계획 + 오늘만 임시배치, 시간순)
   const todayAllItems = useMemo(() => {
     const dayData = getDayData(todayKey);
@@ -2197,12 +2204,45 @@ export default function PlannerScreen({ navigation, route }) {
         <>
           <View style={isTablet && { maxWidth: tabletMaxW, width: '100%', alignSelf: 'center' }}>
             {renderWeekHeader()}
-            {/* 미배치 계획 — 헤더 아래 고정 (스크롤과 무관하게 항상 보임) */}
-            {hasUnscheduled && (
-              <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
-                <View style={{ width: TIME_COL_W, paddingTop: 6, alignItems: 'flex-end', paddingRight: 4 }}>
-                  <Text style={{ fontSize: 8, color: T.sub, fontWeight: '600' }}>미배치</Text>
-                </View>
+            {/* 미배치 계획 — 헤더 아래 고정 (스크롤과 무관하게 항상 보임, 탭하여 접기/펴기) */}
+            {hasUnscheduled && unschedCollapsed && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setUnschedCollapsed(false)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6,
+                  borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
+                <Ionicons name="chevron-down" size={13} color={T.sub} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>미배치 계획</Text>
+                {unscheduledCount > 0 && (
+                  <View style={{ minWidth: 16, paddingHorizontal: 5, height: 16, borderRadius: 8, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{unscheduledCount}</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 9, color: T.sub, marginLeft: 'auto' }}>탭하여 펼치기</Text>
+              </TouchableOpacity>
+            )}
+            {hasUnscheduled && !unschedCollapsed && (
+              <View style={{ borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.card }}>
+                {/* 접기 헤더 — 전체 너비, '접기' 글자로 토글 가능함을 명시 */}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setUnschedCollapsed(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 4 }}>
+                  <Ionicons name="albums-outline" size={12} color={T.sub} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>미배치 계획</Text>
+                  {unscheduledCount > 0 && (
+                    <View style={{ minWidth: 16, paddingHorizontal: 5, height: 16, borderRadius: 8, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{unscheduledCount}</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: T.sub }}>접기</Text>
+                    <Ionicons name="chevron-up" size={13} color={T.sub} />
+                  </View>
+                </TouchableOpacity>
+                {/* 요일별 미배치 칩 행 */}
+                <View style={{ flexDirection: 'row' }}>
+                <View style={{ width: TIME_COL_W }} />
                 {DAY_KEYS.map((key) => {
                   const plans = (unscheduledPlans[key] || []).filter(p => !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset));
                   const past = isPastDay(key);
@@ -2244,6 +2284,7 @@ export default function PlannerScreen({ navigation, route }) {
                     </View>
                   );
                 })}
+                </View>
               </View>
             )}
           </View>

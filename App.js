@@ -44,19 +44,29 @@ const _TABLET_FONT_SCALE = 1.15;
 const _origCreateElement = React.createElement.bind(React);
 let _globalFont = null; // null = 시스템 폰트 | { base, bold, customFamilies, fontId }
 React.createElement = function (type, props, ...children) {
-  if (_globalFont && (type === Text || type === TextInput) && props) {
+  // 커스텀 폰트(_globalFont) 주입 또는 태블릿 폰트 보정(_isTablet) 둘 중 하나라도 필요하면 가로챈다.
+  if ((_globalFont || _isTablet) && (type === Text || type === TextInput) && props) {
     const { testID } = props;
     if (testID !== 'timer-text' && testID !== 'chevron' && testID !== 'font-preview') {
       const flat = StyleSheet.flatten(props.style) || {};
-      if (!flat.fontFamily || _globalFont.customFamilies.has(flat.fontFamily)) {
-        const isBold = flat.fontWeight && (flat.fontWeight === 'bold' || parseInt(flat.fontWeight, 10) >= 700);
-        const family = isBold ? _globalFont.bold : _globalFont.base;
-        const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : undefined;
-        const lineHeightFix = _globalFont.fontId === 'nanumSquare' && flat.fontSize && !flat.lineHeight
-          ? { lineHeight: Math.ceil((scaledSize || flat.fontSize) * 1.35) } : {};
+      const scaledSize = _isTablet && flat.fontSize ? Math.round(flat.fontSize * _TABLET_FONT_SCALE) : undefined;
+      if (_globalFont) {
+        // 커스텀 폰트: family 주입 + (태블릿이면) fontSize 보정
+        if (!flat.fontFamily || _globalFont.customFamilies.has(flat.fontFamily)) {
+          const isBold = flat.fontWeight && (flat.fontWeight === 'bold' || parseInt(flat.fontWeight, 10) >= 700);
+          const family = isBold ? _globalFont.bold : _globalFont.base;
+          const lineHeightFix = _globalFont.fontId === 'nanumSquare' && flat.fontSize && !flat.lineHeight
+            ? { lineHeight: Math.ceil((scaledSize || flat.fontSize) * 1.35) } : {};
+          return _origCreateElement(type, {
+            ...props,
+            style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }), ...lineHeightFix },
+          }, ...children);
+        }
+      } else if (scaledSize) {
+        // 기본 폰트 + 태블릿: family는 건드리지 않고 fontSize만 1.15배 보정 (6fcb6f5 원래 동작 복원)
         return _origCreateElement(type, {
           ...props,
-          style: { ...flat, fontFamily: family, fontWeight: 'normal', ...(scaledSize && { fontSize: scaledSize }), ...lineHeightFix },
+          style: { ...flat, fontSize: scaledSize },
         }, ...children);
       }
     }
