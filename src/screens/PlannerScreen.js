@@ -593,23 +593,28 @@ function PostponeSheet({ visible, plan, originDateStr, onClose, onPick, T }) {
             ))}
           </View>
 
-          {/* 날짜 그리드 */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {cells.map((c, i) => {
-              if (!c) return <View key={`e${i}`} style={{ width: `${100 / 7}%`, height: 40 }} />;
-              const disabled = c.date < todayStr || c.date === originDateStr;
-              const dow = (first.getDay() + (c.day - 1)) % 7;
-              return (
-                <TouchableOpacity key={c.date} disabled={disabled} onPress={() => onPick(c.date)}
-                  style={{ width: `${100 / 7}%`, height: 40, alignItems: 'center', justifyContent: 'center' }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: c.date === todayStr ? T.accent + '18' : 'transparent' }}>
-                    <Text style={{ fontSize: 14, fontWeight: c.date === todayStr ? '800' : '600',
-                      color: disabled ? T.border : (dow === 0 ? T.red : (dow === 6 ? T.accent : T.text)) }}>{c.day}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+          {/* 날짜 그리드 — 헤더와 동일하게 주 단위 행 + flex:1 (퍼센트+wrap 정렬 어긋남 방지) */}
+          <View>
+            {Array.from({ length: Math.ceil(cells.length / 7) }).map((_, wi) => (
+              <View key={`wk${wi}`} style={{ flexDirection: 'row' }}>
+                {Array.from({ length: 7 }).map((__, ci) => {
+                  const c = cells[wi * 7 + ci];
+                  if (!c) return <View key={`e${wi}-${ci}`} style={{ flex: 1, height: 40 }} />;
+                  const disabled = c.date < todayStr || c.date === originDateStr;
+                  const dow = (first.getDay() + (c.day - 1)) % 7;
+                  return (
+                    <TouchableOpacity key={c.date} disabled={disabled} onPress={() => onPick(c.date)}
+                      style={{ flex: 1, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: c.date === todayStr ? T.accent + '18' : 'transparent' }}>
+                        <Text style={{ fontSize: 14, fontWeight: c.date === todayStr ? '800' : '600',
+                          color: disabled ? T.border : (dow === 0 ? T.red : (dow === 6 ? T.accent : T.text)) }}>{c.day}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         </View>
       </View>
