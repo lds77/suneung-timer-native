@@ -1732,23 +1732,31 @@ export default function PlannerScreen({ navigation, route }) {
     const tempItems = Object.values(tempAssignments)
       .filter(a => a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
       .map(a => ({ start: a.start, end: a.end }));
+    // 전날에서 자정 넘어온 일정(예: 수면 23:00~07:00)은 이 날 오전을 점유 → 00:00~끝 블록으로 포함
+    const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
+    const prevDd = getDayData(prevKey);
+    const carryItems = [...(prevDd.fixed || []), ...(prevDd.plans || [])]
+      .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, weekDateStrs[0]))
+      .map(it => ({ start: '00:00', end: it.end }));
     const items = [
+      ...carryItems,
       ...(dd.fixed || []).filter(f => isPlanInWeek(f, weekDateStrs[0])).map(f => ({ ...f })),
       ...(dd.plans || []).filter(p => p.start && p.end && isPlanInWeek(p, weekDateStrs[0])).map(p => ({ ...p })),
       ...tempItems,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
     const MIN_GAP = 30;
     const slots = [];
-    let prevEnd = null;
+    // 하루 시작(06:00)부터 추적 → 첫 일정 이전 오전 빈 시간, 일정 없는 날 전체도 추천됨
+    let prevEnd = START_HOUR * 60;
     for (const item of items) {
       const s = parseTimeToMin(item.start);
       const e = isMidnightCrossing(item.start, item.end) ? 24 * 60 : parseTimeToMin(item.end);
-      if (prevEnd !== null && s - prevEnd >= MIN_GAP) {
+      if (s - prevEnd >= MIN_GAP) {
         slots.push({ start: minToStr(prevEnd), end: minToStr(s), durationMin: s - prevEnd });
       }
-      prevEnd = prevEnd === null ? e : Math.max(prevEnd, e);
+      prevEnd = Math.max(prevEnd, e);
     }
-    if (prevEnd !== null && 24 * 60 - prevEnd >= MIN_GAP) {
+    if (24 * 60 - prevEnd >= MIN_GAP) {
       slots.push({ start: minToStr(prevEnd), end: '24:00', durationMin: 24 * 60 - prevEnd });
     }
     return slots;
