@@ -1059,7 +1059,10 @@ export default function PlannerScreen({ navigation, route }) {
       const tempIv = Object.entries(tempAssignments)
         .filter(([id, a]) => id !== plan.id && a.start && a.end && a.dayKey === targetDayKey && getWeekStartStr(a.weekOffset) === targetWeekStart)
         .map(([, a]) => ({ start: parseTimeToMin(a.start), end: isMidnightCrossing(a.start, a.end) ? 24 * 60 : parseTimeToMin(a.end) }));
-      const intervals = [...occupiedIntervalsForDay(next, targetDayKey, targetWeekStart, plan.id), ...tempIv];
+      // 대상이 오늘이면 현재 시각 이전(지난 시간)은 점유로 취급 → 지난 시간에 배치 방지, 현재 이후 빈 시간으로 자동 이동
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      const pastIv = targetDateStr === getToday() ? [{ start: 0, end: nowMin }] : [];
+      const intervals = [...occupiedIntervalsForDay(next, targetDayKey, targetWeekStart, plan.id), ...tempIv, ...pastIv];
       if (intervalsOverlap(sMin, eMin, intervals)) {
         const slotStart = findFreeStartMin(durationMin, intervals, sMin);
         if (slotStart != null) {
