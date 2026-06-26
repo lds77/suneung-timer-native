@@ -8,7 +8,6 @@ import {
   TextInput, ScrollView, Platform, Dimensions,
   Animated, PanResponder, useWindowDimensions,
 } from 'react-native';
-import * as IntentLauncher from 'expo-intent-launcher';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -19,6 +18,7 @@ import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
 import { DEFAULT_SCHEDULES } from './src/constants/presets';
 import { generateId } from './src/utils/format';
+import { openExactAlarmSettings } from './src/utils/permissions';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
@@ -462,8 +462,7 @@ function OnboardingScreen() {
               <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>알림 설정 완료!</Text>
             </View>
             <Text style={{ fontSize: 12, color: T.sub, lineHeight: 18 }}>
-              타이머 완료 알림, 공부 리마인더가 자동으로 켜져 있어요.{'\n'}
-              알림이 오지 않으면 설정 탭 {'>'} 사용 가이드에서 확인해주세요.
+              타이머 완료 알림이 자동으로 켜져 있어요.{'\n'}알림이 오지 않으면 설정 탭 {'>'} 사용 가이드를 확인해주세요.
             </Text>
           </View>
           <View style={styles.obBtnRow}>
@@ -929,7 +928,7 @@ function MainApp() {
             <TouchableOpacity
               onPress={() => {
                 app.dismissExactAlarmModal();
-                IntentLauncher.startActivityAsync('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', { data: 'package:com.yeolgong.timer' }).catch(() => {});
+                openExactAlarmSettings();
               }}
               style={{ backgroundColor: T.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 10 }}>
               <Text style={{ fontSize: 16, fontWeight: '900', color: 'white' }}>설정하기 →</Text>

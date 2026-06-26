@@ -88,6 +88,55 @@ const getNowY = () => {
 // 자정 넘는 일정 여부 (end <= start)
 const isMidnightCrossing = (start, end) => parseTimeToMin(end) <= parseTimeToMin(start);
 
+// 특정 날짜(요일+주시작)에 이미 점유된 시간대(분 단위 구간) 목록
+// excludeId: 옮기는 계획 자신은 점유에서 제외 (같은 요일 다른 주로 옮길 때 자기충돌 방지)
+const occupiedIntervalsForDay = (ws, dayKey, weekStartStr, excludeId) => {
+  const dd = ws[dayKey] || { fixed: [], plans: [] };
+  const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
+  const prevDd = ws[prevKey] || { fixed: [], plans: [] };
+  const toIv = (it) => ({ start: parseTimeToMin(it.start), end: isMidnightCrossing(it.start, it.end) ? 24 * 60 : parseTimeToMin(it.end) });
+  // 전날 자정 넘어온 일정 → 이 날 오전 점유
+  const carry = [...(prevDd.fixed || []), ...(prevDd.plans || [])]
+    .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, weekStartStr))
+    .map(it => ({ start: 0, end: parseTimeToMin(it.end) }));
+  return [
+    ...carry,
+    ...(dd.fixed || []).filter(f => f.start && f.end && isPlanInWeek(f, weekStartStr)).map(toIv),
+    ...(dd.plans || []).filter(p => p.start && p.end && p.id !== excludeId && isPlanInWeek(p, weekStartStr)).map(toIv),
+  ];
+};
+
+// 구간 [s,e)가 점유 구간들과 겹치는지
+const intervalsOverlap = (s, e, intervals) => intervals.some(it => s < it.end && e > it.start);
+
+// durationMin 길이가 들어갈 빈 시간의 시작(분)을 preferStart에 가장 가깝게 찾기. 없으면 null
+const findFreeStartMin = (durationMin, intervals, preferStart) => {
+  const dayStart = START_HOUR * 60, dayEnd = END_HOUR * 60;
+  const merged = [];
+  [...intervals].sort((a, b) => a.start - b.start).forEach(it => {
+    const s = Math.max(it.start, dayStart), e = Math.min(it.end, dayEnd);
+    if (e <= s) return;
+    const lastIv = merged[merged.length - 1];
+    if (lastIv && s <= lastIv.end) lastIv.end = Math.max(lastIv.end, e);
+    else merged.push({ start: s, end: e });
+  });
+  const gaps = [];
+  let cur = dayStart;
+  for (const it of merged) {
+    if (it.start - cur >= durationMin) gaps.push({ start: cur, end: it.start });
+    cur = Math.max(cur, it.end);
+  }
+  if (dayEnd - cur >= durationMin) gaps.push({ start: cur, end: dayEnd });
+  if (!gaps.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const g of gaps) {
+    const cand = Math.min(Math.max(preferStart, g.start), g.end - durationMin);
+    const dist = Math.abs(cand - preferStart);
+    if (dist < bestDist) { bestDist = dist; best = cand; }
+  }
+  return best;
+};
+
 // 블록 top/height 계산
 // 자정 넘는 일정은 당일 그리드 끝(24:00)까지만 표시
 const blockGeometry = (start, end) => {
@@ -398,7 +447,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 }
 
 // ─── 공부계획 실행 바텀시트 ───
-function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, onPostpone, T, getPlanCompletedSec }) {
+function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onUnassign, onPostpone, onChangeTime, T, getPlanCompletedSec }) {
   const { width: winW } = useWindowDimensions();
   const isTablet = winW >= 600;
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
@@ -482,14 +531,24 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
               </Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={onPostpone} activeOpacity={0.7} style={{
-            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-            paddingVertical: 12, borderRadius: 12, marginTop: 12,
-            backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
-          }}>
-            <Ionicons name="calendar-outline" size={16} color={T.accent} />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>계획 다른 날로 미루기</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <TouchableOpacity onPress={onChangeTime} activeOpacity={0.7} style={{
+              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+              paddingVertical: 12, borderRadius: 12,
+              backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
+            }}>
+              <Ionicons name="time-outline" size={16} color={T.accent} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>시간 변경</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onPostpone} activeOpacity={0.7} style={{
+              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+              paddingVertical: 12, borderRadius: 12,
+              backgroundColor: T.accent + '12', borderWidth: 1.5, borderColor: T.accent + '55',
+            }}>
+              <Ionicons name="calendar-outline" size={16} color={T.accent} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>다른 날로</Text>
+            </TouchableOpacity>
+          </View>
           </>
         ) : (
           <>
@@ -988,12 +1047,39 @@ export default function PlannerScreen({ navigation, route }) {
     // 2) 옮길 날에 일회성 복사본 추가 (원래 날 갱신본 위에서 읽어 같은 요일이어도 안전)
     const { _tempAssigned, itemType, onlyWeek, skipWeeks, ...base } = plan;
     const moved = { ...base, id: generateId('blk_'), onlyWeek: targetWeekStart };
+
+    // 시간이 정해진 계획이면 옮길 날에 같은 시간이 비어있는지 확인 → 겹치면 가까운 빈 시간으로 자동 조정
+    let placeMsg = '';
+    if (base.start && base.end) {
+      const sMin = parseTimeToMin(base.start);
+      const eMin = isMidnightCrossing(base.start, base.end) ? 24 * 60 : parseTimeToMin(base.end);
+      const durationMin = Math.max(30, eMin - sMin);
+      // 옮길 날의 점유: weeklySchedule(고정+계획) + 임시배치(빈 시간에 배치)까지 포함
+      // (자기 자신은 제외 — 옮기는 계획이 임시배치였다면 onPick에서 해제 예약됐지만 클로저엔 아직 남아있음)
+      const tempIv = Object.entries(tempAssignments)
+        .filter(([id, a]) => id !== plan.id && a.start && a.end && a.dayKey === targetDayKey && getWeekStartStr(a.weekOffset) === targetWeekStart)
+        .map(([, a]) => ({ start: parseTimeToMin(a.start), end: isMidnightCrossing(a.start, a.end) ? 24 * 60 : parseTimeToMin(a.end) }));
+      const intervals = [...occupiedIntervalsForDay(next, targetDayKey, targetWeekStart, plan.id), ...tempIv];
+      if (intervalsOverlap(sMin, eMin, intervals)) {
+        const slotStart = findFreeStartMin(durationMin, intervals, sMin);
+        if (slotStart != null) {
+          moved.start = minToStr(slotStart);
+          moved.end = minToStr(slotStart + durationMin);
+          placeMsg = ` ${moved.start}로 조정`;
+        } else {
+          delete moved.start;
+          delete moved.end;
+          placeMsg = ' (빈 시간이 없어 미배치)';
+        }
+      }
+    }
+
     const targetDay = next[targetDayKey] || { fixed: [], plans: [] };
     next = { ...next, [targetDayKey]: { ...targetDay, plans: [...(targetDay.plans || []), moved] } };
 
     app.setWeeklySchedule(next);
-    app.showToastCustom?.(`${td.getMonth() + 1}월 ${td.getDate()}일로 미뤘어요`, 'taco');
-  }, [app.weeklySchedule, app.setWeeklySchedule, app.showToastCustom]);
+    app.showToastCustom?.(`${td.getMonth() + 1}월 ${td.getDate()}일로 미뤘어요${placeMsg}`, 'taco');
+  }, [app.weeklySchedule, app.setWeeklySchedule, app.showToastCustom, tempAssignments]);
 
   // 그리드 셀 탭 → 시간 계산 → 모달 열기
   const handleGridTap = useCallback((dayKey, tapY) => {
@@ -1731,12 +1817,13 @@ export default function PlannerScreen({ navigation, route }) {
   }, [getDayData, todayKey, app.weeklySchedule, tempAssignments]);
 
   // 특정 요일의 빈 시간 슬롯 계산 (30분 이상)
-  const getDayFreeSlots = useCallback((dayKey) => {
+  // excludeId: 시간 변경 중인 계획 자신은 점유에서 제외 → 현재 자리도 빈 시간으로 다시 보임
+  const getDayFreeSlots = useCallback((dayKey, excludeId) => {
     const dd = getDayData(dayKey);
     // tempAssignments 중 같은 요일/주차에 배치된 항목도 점유 시간으로 포함
-    const tempItems = Object.values(tempAssignments)
-      .filter(a => a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
-      .map(a => ({ start: a.start, end: a.end }));
+    const tempItems = Object.entries(tempAssignments)
+      .filter(([id, a]) => id !== excludeId && a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
+      .map(([, a]) => ({ start: a.start, end: a.end }));
     // 전날에서 자정 넘어온 일정(예: 수면 23:00~07:00)은 이 날 오전을 점유 → 00:00~끝 블록으로 포함
     const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
     const prevDd = getDayData(prevKey);
@@ -1746,7 +1833,7 @@ export default function PlannerScreen({ navigation, route }) {
     const items = [
       ...carryItems,
       ...(dd.fixed || []).filter(f => isPlanInWeek(f, weekDateStrs[0])).map(f => ({ ...f })),
-      ...(dd.plans || []).filter(p => p.start && p.end && isPlanInWeek(p, weekDateStrs[0])).map(p => ({ ...p })),
+      ...(dd.plans || []).filter(p => p.id !== excludeId && p.start && p.end && isPlanInWeek(p, weekDateStrs[0])).map(p => ({ ...p })),
       ...tempItems,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
     const MIN_GAP = 30;
@@ -2397,6 +2484,13 @@ export default function PlannerScreen({ navigation, route }) {
           setPlanSheet(null);
           setPostponeSheet({ plan, dayKey, dateStr: dateStr || weekDateStrs[DAY_KEYS.indexOf(dayKey)] });
         }}
+        onChangeTime={() => {
+          const { plan, dayKey, dateStr } = planSheet;
+          setPlanSheet(null);
+          // 임시 배치는 유지한 채 빈 시간 시트 재오픈 (취소해도 원래 배치 보존)
+          // freeSlots 계산에서 본인 자리는 제외 → 현재 위치도 다시 고를 수 있음
+          setQuickAssignPlan({ plan, dayKey, dateStr: dateStr || weekDateStrs[DAY_KEYS.indexOf(dayKey)] });
+        }}
         T={T}
         getPlanCompletedSec={app.getPlanCompletedSec}
       />
@@ -2421,7 +2515,7 @@ export default function PlannerScreen({ navigation, route }) {
       <QuickAssignSheet
         visible={!!quickAssignPlan}
         plan={quickAssignPlan?.plan}
-        freeSlots={quickAssignPlan ? getDayFreeSlots(quickAssignPlan.dayKey) : []}
+        freeSlots={quickAssignPlan ? getDayFreeSlots(quickAssignPlan.dayKey, quickAssignPlan.plan?.id) : []}
         // 오늘이면 현재 시각 이후만, 미래 요일이면 전체 표시
         nowMin={quickAssignPlan?.dayKey === todayKey ? new Date().getHours() * 60 + new Date().getMinutes() : 0}
         onClose={() => setQuickAssignPlan(null)}

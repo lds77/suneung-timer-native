@@ -21,6 +21,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
+import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import { Ionicons } from '@expo/vector-icons';
@@ -532,6 +533,20 @@ export default function SettingsScreen() {
                     thumbColor="white"
                   />
                 }
+              />
+            </>
+          )}
+          {Platform.OS === 'android' && Platform.Version >= 31 && (
+            <>
+              <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>권한 (알림이 늦게 오거나 몰려서 올 때)</Text>
+              </View>
+              <Row
+                T={T}
+                label="정확한 알람 권한"
+                sub="꺼져 있으면 절전 중 알림이 미뤄졌다 몰려서 와요"
+                right={<Text style={{ fontSize: 16, color: T.sub }}>›</Text>}
+                onPress={openExactAlarmSettings}
               />
             </>
           )}

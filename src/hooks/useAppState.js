@@ -1746,19 +1746,21 @@ export function AppProvider({ children }) {
     }
   }, [timers, loading]);
 
-  // Android 12 전용 정확한 알람 권한 안내 (최초 1회)
-  // Android 13+(API 33+)는 USE_EXACT_ALARM 권한이 자동 부여되므로 안내 불필요
+  // 정확한 알람 권한 안내 (Android 12+/API 31+, 최초 1회)
+  // 삼성 등 일부 기기는 Android 13+에서도 정확 알람 권한이 꺼져 있을 수 있어 13+도 노출
+  // 온보딩 완료 후 첫 홈화면에서만 뜨도록 게이트 (온보딩 중 방해 방지)
   useEffect(() => {
     if (loading) return;
     if (Platform.OS !== 'android') return;
-    if (Platform.Version < 31 || Platform.Version >= 33) return; // Android 12(31~32)만 해당
+    if (Platform.Version < 31) return; // Android 11 이하는 정확 알람 권한 불필요
+    if (!settings.onboardingDone) return; // 온보딩 끝난 뒤에만
     if (settings.exactAlarmGuideShown) return;
     const timer = setTimeout(() => {
       setShowExactAlarmModal(true);
       updateSettings({ exactAlarmGuideShown: true });
     }, 1500);
     return () => clearTimeout(timer);
-  }, [loading, settings.exactAlarmGuideShown]);
+  }, [loading, settings.onboardingDone, settings.exactAlarmGuideShown]);
 
   // 통계
   const todaySessions = sessions.filter(s => s.date === getToday());
