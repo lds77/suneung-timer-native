@@ -67,6 +67,20 @@ const getWeekDates = (weekOffset = 0) => {
 // getWeekStartStr는 utils/format에서 import (일요일 시작, 로컬 기준)
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
+// 임시배치(tempAssignments) 키: 절대 주차(weekStart='YYYY-MM-DD') + 계획 id
+// 같은 매주반복 계획을 서로 다른 주에 독립적으로 배치할 수 있도록 복합키 사용
+// (과거: planId만 키로 써서 여러 주 배치가 서로 덮어쓰여 랜덤하게 풀리는 버그)
+const TKEY_SEP = '@@';
+const makeTKey = (weekStart, planId) => `${weekStart}${TKEY_SEP}${planId}`;
+const tkeyWeek = (k) => k.slice(0, k.indexOf(TKEY_SEP));
+const tkeyPlan = (k) => k.slice(k.indexOf(TKEY_SEP) + TKEY_SEP.length);
+// 임의의 날짜 문자열이 속한 주(일요일 시작)의 시작일
+const weekStartOfDateStr = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return toDateStr(d);
+};
+
 // '이번 주만'(onlyWeek) 계획이 해당 주에 표시돼야 하는지 + 반복 계획의 '이번 주만 삭제'(skipWeeks) 반영
 const isPlanInWeek = (p, weekStartStr) =>
   (!p.onlyWeek || p.onlyWeek === weekStartStr) && !(p.skipWeeks && p.skipWeeks.includes(weekStartStr));
@@ -855,8 +869,8 @@ export default function PlannerScreen({ navigation, route }) {
       }
       const next = {};
       let changed = false;
-      Object.entries(prev).forEach(([id, val]) => {
-        if (validIds.has(id)) next[id] = val;
+      Object.entries(prev).forEach(([k, val]) => {
+        if (validIds.has(tkeyPlan(k))) next[k] = val;
         else changed = true;
       });
       return changed ? next : prev;
@@ -869,14 +883,13 @@ export default function PlannerScreen({ navigation, route }) {
       if (raw) {
         try {
           const stored = JSON.parse(raw);
-          const todaySunday = getWeekStartStr(0);
           const cutoff = getWeekStartStr(-1); // 지난 주까지만 유지
           const result = {};
           Object.entries(stored).forEach(([weekStart, assignments]) => {
             if (weekStart < cutoff) return; // 오래된 주 제거
-            const diff = Math.round((new Date(weekStart) - new Date(todaySunday)) / MS_PER_WEEK);
             Object.entries(assignments).forEach(([planId, val]) => {
-              result[planId] = { ...val, weekOffset: diff };
+              // 복합키(주차+계획)로 복원 → 같은 계획의 여러 주 배치가 서로 덮어쓰지 않음
+              result[makeTKey(weekStart, planId)] = { start: val.start, end: val.end, dayKey: val.dayKey };
             });
           });
           if (Object.keys(result).length > 0) setTempAssignments(result);
@@ -890,8 +903,9 @@ export default function PlannerScreen({ navigation, route }) {
   useEffect(() => {
     if (!tempLoadedRef.current) return;
     const byWeek = {};
-    Object.entries(tempAssignments).forEach(([planId, val]) => {
-      const weekStart = getWeekStartStr(val.weekOffset || 0);
+    Object.entries(tempAssignments).forEach(([k, val]) => {
+      const weekStart = tkeyWeek(k);
+      const planId = tkeyPlan(k);
       if (!byWeek[weekStart]) byWeek[weekStart] = {};
       byWeek[weekStart][planId] = { start: val.start, end: val.end, dayKey: val.dayKey };
     });
@@ -1057,7 +1071,7 @@ export default function PlannerScreen({ navigation, route }) {
       // 옮길 날의 점유: weeklySchedule(고정+계획) + 임시배치(빈 시간에 배치)까지 포함
       // (자기 자신은 제외 — 옮기는 계획이 임시배치였다면 onPick에서 해제 예약됐지만 클로저엔 아직 남아있음)
       const tempIv = Object.entries(tempAssignments)
-        .filter(([id, a]) => id !== plan.id && a.start && a.end && a.dayKey === targetDayKey && getWeekStartStr(a.weekOffset) === targetWeekStart)
+        .filter(([k, a]) => tkeyPlan(k) !== plan.id && a.start && a.end && a.dayKey === targetDayKey && tkeyWeek(k) === targetWeekStart)
         .map(([, a]) => ({ start: parseTimeToMin(a.start), end: isMidnightCrossing(a.start, a.end) ? 24 * 60 : parseTimeToMin(a.end) }));
       // 대상이 오늘이면 현재 시각 이전(지난 시간)은 점유로 취급 → 지난 시간에 배치 방지, 현재 이후 빈 시간으로 자동 이동
       const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
@@ -1324,11 +1338,11 @@ export default function PlannerScreen({ navigation, route }) {
 
             {/* 공부 계획 블록 (start 있는 것만, 이번 주 해당분만) + 오늘만 임시 배치 */}
             {[
-              ...(dayData.plans || []).filter(p => isPlanInWeek(p, weekDateStrs[0]) && p.start && p.end && !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset)),
+              ...(dayData.plans || []).filter(p => isPlanInWeek(p, weekDateStrs[0]) && p.start && p.end && tempAssignments[makeTKey(weekDateStrs[0], p.id)]?.dayKey !== key),
               ...Object.entries(tempAssignments)
-                .filter(([, v]) => v.dayKey === key && v.weekOffset === weekOffset)
-                .map(([planId, times]) => {
-                  const plan = (dayData.plans || []).find(p => p.id === planId);
+                .filter(([k, v]) => tkeyWeek(k) === weekDateStrs[0] && v.dayKey === key)
+                .map(([k, times]) => {
+                  const plan = (dayData.plans || []).find(p => p.id === tkeyPlan(k));
                   return plan ? { ...plan, start: times.start, end: times.end, _tempAssigned: true } : null;
                 })
                 .filter(Boolean),
@@ -1798,23 +1812,25 @@ export default function PlannerScreen({ navigation, route }) {
   const hasUnscheduled = Object.keys(unscheduledPlans).length > 0;
 
   // 이번 주에 아직 안 옮긴(임시배치 제외) 미배치 계획 수 — 접힘 바 배지용
-  const unscheduledCount = useMemo(() =>
-    Object.entries(unscheduledPlans).reduce((sum, [key, plans]) =>
-      sum + plans.filter(p => !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset)).length, 0),
-    [unscheduledPlans, tempAssignments, weekOffset]);
+  const unscheduledCount = useMemo(() => {
+    const ws = getWeekStartStr(weekOffset);
+    return Object.entries(unscheduledPlans).reduce((sum, [key, plans]) =>
+      sum + plans.filter(p => tempAssignments[makeTKey(ws, p.id)]?.dayKey !== key).length, 0);
+  }, [unscheduledPlans, tempAssignments, weekOffset]);
 
   // 오늘 타임라인 아이템 (고정 + 시간배치 계획 + 오늘만 임시배치, 시간순)
   const todayAllItems = useMemo(() => {
     const dayData = getDayData(todayKey);
+    const todayWeek = getWeekStartStr(0);
     const tempPlans = Object.entries(tempAssignments)
-      .filter(([, v]) => v.dayKey === todayKey && v.weekOffset === 0)
-      .map(([planId, times]) => {
-        const plan = (dayData.plans || []).find(p => p.id === planId);
+      .filter(([k, v]) => tkeyWeek(k) === todayWeek && v.dayKey === todayKey)
+      .map(([k, times]) => {
+        const plan = (dayData.plans || []).find(p => p.id === tkeyPlan(k));
         return plan ? { ...plan, start: times.start, end: times.end, itemType: 'plan', _tempAssigned: true } : null;
       }).filter(Boolean);
     return [
-      ...(dayData.fixed || []).filter(f => isPlanInWeek(f, getWeekStartStr(0))).map(f => ({ ...f, itemType: 'fixed' })),
-      ...(dayData.plans || []).filter(p => isPlanInWeek(p, getWeekStartStr(0)) && p.start && p.end && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0)).map(p => ({ ...p, itemType: 'plan' })),
+      ...(dayData.fixed || []).filter(f => isPlanInWeek(f, todayWeek)).map(f => ({ ...f, itemType: 'fixed' })),
+      ...(dayData.plans || []).filter(p => isPlanInWeek(p, todayWeek) && p.start && p.end && tempAssignments[makeTKey(todayWeek, p.id)]?.dayKey !== todayKey).map(p => ({ ...p, itemType: 'plan' })),
       ...tempPlans,
     ].sort((a, b) => parseTimeToMin(a.start) - parseTimeToMin(b.start));
   }, [getDayData, todayKey, app.weeklySchedule, tempAssignments]);
@@ -1825,7 +1841,7 @@ export default function PlannerScreen({ navigation, route }) {
     const dd = getDayData(dayKey);
     // tempAssignments 중 같은 요일/주차에 배치된 항목도 점유 시간으로 포함
     const tempItems = Object.entries(tempAssignments)
-      .filter(([id, a]) => id !== excludeId && a.dayKey === dayKey && a.weekOffset === weekOffset && a.start && a.end)
+      .filter(([k, a]) => tkeyPlan(k) !== excludeId && tkeyWeek(k) === weekDateStrs[0] && a.dayKey === dayKey && a.start && a.end)
       .map(([, a]) => ({ start: a.start, end: a.end }));
     // 전날에서 자정 넘어온 일정(예: 수면 23:00~07:00)은 이 날 오전을 점유 → 00:00~끝 블록으로 포함
     const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
@@ -1882,7 +1898,7 @@ export default function PlannerScreen({ navigation, route }) {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const allItems = todayAllItems;
     const curWeekStart = getWeekStartStr(0);
-    const unscheduled = (dayData.plans || []).filter(p => isPlanInWeek(p, curWeekStart) && !p.start && !(tempAssignments[p.id]?.dayKey === todayKey && tempAssignments[p.id]?.weekOffset === 0));
+    const unscheduled = (dayData.plans || []).filter(p => isPlanInWeek(p, curWeekStart) && !p.start && tempAssignments[makeTKey(curWeekStart, p.id)]?.dayKey !== todayKey);
 
     // 전체 진행률
     const plansWithTarget = (dayData.plans || []).filter(p => isPlanInWeek(p, curWeekStart) && (p.targetMin || 0) > 0);
@@ -2347,7 +2363,7 @@ export default function PlannerScreen({ navigation, route }) {
                 <View style={{ flexDirection: 'row' }}>
                 <View style={{ width: TIME_COL_W }} />
                 {DAY_KEYS.map((key) => {
-                  const plans = (unscheduledPlans[key] || []).filter(p => !(tempAssignments[p.id]?.dayKey === key && tempAssignments[p.id]?.weekOffset === weekOffset));
+                  const plans = (unscheduledPlans[key] || []).filter(p => tempAssignments[makeTKey(weekDateStrs[0], p.id)]?.dayKey !== key);
                   const past = isPastDay(key);
                   return (
                     <View key={key} style={{
@@ -2411,7 +2427,8 @@ export default function PlannerScreen({ navigation, route }) {
           onSave={(block) => {
             if (modal.tempOnly) {
               // 오늘만 임시 배치
-              setTempAssignments(prev => ({ ...prev, [block.id]: { start: block.start, end: block.end, dayKey: modal.dayKey, weekOffset } }));
+              const tws = modal.weekStart || getWeekStartStr(weekOffset);
+              setTempAssignments(prev => ({ ...prev, [makeTKey(tws, block.id)]: { start: block.start, end: block.end, dayKey: modal.dayKey } }));
               setModal(null);
             } else {
               const weekStart = modal.weekStart || getWeekStartStr(weekOffset);
@@ -2457,9 +2474,10 @@ export default function PlannerScreen({ navigation, route }) {
         onClose={() => setPlanSheet(null)}
         onUnassign={() => {
           if (planSheet?.plan?.id) {
+            const uws = weekStartOfDateStr(planSheet.dateStr || weekDateStrs[DAY_KEYS.indexOf(planSheet.dayKey)]);
             setTempAssignments(prev => {
               const next = { ...prev };
-              delete next[planSheet.plan.id];
+              delete next[makeTKey(uws, planSheet.plan.id)];
               return next;
             });
           }
@@ -2507,7 +2525,8 @@ export default function PlannerScreen({ navigation, route }) {
           const p = postponeSheet.plan;
           // 임시 배치된 계획은 원래 날의 임시 배치를 먼저 해제 (안 그러면 옮긴 뒤에도 원래 날에 남음)
           if (p._tempAssigned) {
-            setTempAssignments(prev => { const n = { ...prev }; delete n[p.id]; return n; });
+            const ows = weekStartOfDateStr(postponeSheet.dateStr || weekDateStrs[DAY_KEYS.indexOf(postponeSheet.dayKey)]);
+            setTempAssignments(prev => { const n = { ...prev }; delete n[makeTKey(ows, p.id)]; return n; });
           }
           postponePlan(p, postponeSheet.dayKey, postponeSheet.dateStr, targetDateStr);
           setPostponeSheet(null);
@@ -2525,7 +2544,8 @@ export default function PlannerScreen({ navigation, route }) {
         onClose={() => setQuickAssignPlan(null)}
         onAssignToday={(plan, start, end) => {
           if (start && end) {
-            setTempAssignments(prev => ({ ...prev, [plan.id]: { start, end, dayKey: quickAssignPlan.dayKey, weekOffset } }));
+            const aws = weekStartOfDateStr(quickAssignPlan.dateStr || weekDateStrs[DAY_KEYS.indexOf(quickAssignPlan.dayKey)]);
+            setTempAssignments(prev => ({ ...prev, [makeTKey(aws, plan.id)]: { start, end, dayKey: quickAssignPlan.dayKey } }));
           }
           setQuickAssignPlan(null);
         }}
