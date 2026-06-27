@@ -2519,8 +2519,9 @@ export default function PlannerScreen({ navigation, route }) {
         visible={!!quickAssignPlan}
         plan={quickAssignPlan?.plan}
         freeSlots={quickAssignPlan ? getDayFreeSlots(quickAssignPlan.dayKey, quickAssignPlan.plan?.id) : []}
-        // 오늘이면 현재 시각 이후만, 미래 요일이면 전체 표시
-        nowMin={quickAssignPlan?.dayKey === todayKey ? new Date().getHours() * 60 + new Date().getMinutes() : 0}
+        // 오늘(실제 날짜)이면 현재 시각 이후만, 미래 날짜면 전체 표시
+        // 주의: 요일(dayKey)만 비교하면 같은 요일의 미래 주차도 '오늘'로 오판 → 실제 날짜(dateStr)로 비교
+        nowMin={quickAssignPlan?.dateStr === getToday() ? new Date().getHours() * 60 + new Date().getMinutes() : 0}
         onClose={() => setQuickAssignPlan(null)}
         onAssignToday={(plan, start, end) => {
           if (start && end) {

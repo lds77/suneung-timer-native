@@ -887,6 +887,7 @@ function LockOverlay() {
 // ── 메인 ──
 function MainApp() {
   const app = useApp();
+  const insets = useSafeAreaInsets();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
 
   return (
@@ -896,9 +897,16 @@ function MainApp() {
         <NavigationContainer>
           <Tab.Navigator screenOptions={{
             headerShown: false,
-            tabBarStyle: { backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1, paddingTop: 4 },
+            // 태블릿에서는 폰트/아이콘이 1.15배 확대되므로(_TABLET_FONT_SCALE) 탭바 높이도 키워 잘림 방지
+            tabBarStyle: {
+              backgroundColor: T.tabBar, borderTopColor: T.tabBarBorder, borderTopWidth: 1,
+              paddingTop: _isTablet ? 8 : 4,
+              height: (_isTablet ? 64 : 50) + insets.bottom,
+              paddingBottom: insets.bottom,
+            },
             tabBarActiveTintColor: T.accent, tabBarInactiveTintColor: T.sub,
-            tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: -2 },
+            tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: _isTablet ? 0 : -2 },
+            tabBarIconStyle: _isTablet ? { marginTop: 2 } : undefined,
           }}>
             <Tab.Screen name="Focus" component={FocusScreen}
               options={{ tabBarLabel: '집중', tabBarIcon: ({ color, size }) => <Ionicons name="timer-outline" size={size} color={color} /> }} />
