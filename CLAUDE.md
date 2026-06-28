@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 54)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.30 (iOS 빌드 36, Android versionCode 32)
+- **현재 버전**: 1.0.31 (iOS 빌드 37, Android versionCode 32)
 
 ---
 
