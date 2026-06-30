@@ -59,7 +59,8 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
     );
   }
 
-  const headerLabel = isMedium && streak > 0 ? `오늘 공부 · 연속 ${streak}일` : '오늘 공부';
+  // 헤더 라벨은 항상 짧게 — 길면 좁은 폭에서 goal%를 밀어 % 잘림. 연속일은 아래 별도 줄.
+  const headerLabel = '오늘 공부';
 
   return (
     <FlexWidget clickAction="OPEN_APP" style={rootStyle(t, 'center')}>
@@ -90,6 +91,12 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
             <TextWidget text="하루 평균" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
             <TextWidget text={formatShort(weekAvgSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
           </FlexWidget>
+          {streak > 0 && (
+            <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+              <TextWidget text="연속" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
+              <TextWidget text={`${streak}일째`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
+            </FlexWidget>
+          )}
         </FlexWidget>
       )}
     </FlexWidget>
