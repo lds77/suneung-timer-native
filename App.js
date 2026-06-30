@@ -6,10 +6,10 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Modal,
   TextInput, ScrollView, Platform, Dimensions,
-  Animated, PanResponder, useWindowDimensions,
+  Animated, PanResponder, useWindowDimensions, Linking,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
@@ -884,17 +884,52 @@ function LockOverlay() {
   );
 }
 
+// ── 위젯 딥링크 ──
+// 위젯 탭(yeolgong://start?subjectId=...) → 집중탭 이동 + 해당 과목 타이머 시작
+const navigationRef = createNavigationContainerRef();
+
+function parseDeepLink(url) {
+  if (!url || typeof url !== 'string') return null;
+  // 예: yeolgong://start?subjectId=sub_123
+  const m = url.match(/[?&]subjectId=([^&]+)/);
+  const isStart = /:\/\/start(\b|\/|\?|$)/.test(url);
+  if (isStart && m) return { action: 'start', subjectId: decodeURIComponent(m[1]) };
+  return null;
+}
+
 // ── 메인 ──
 function MainApp() {
   const app = useApp();
   const insets = useSafeAreaInsets();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
 
+  // 위젯 딥링크 처리 (콜드스타트 + 실행 중 수신)
+  const appRef = useRef(app);
+  appRef.current = app;
+  useEffect(() => {
+    const handleUrl = (url) => {
+      const link = parseDeepLink(url);
+      if (!link || link.action !== 'start') return;
+      const a = appRef.current;
+      const subj = (a.subjects || []).find(s => s.id === link.subjectId);
+      if (!subj) return;
+      const go = () => {
+        if (navigationRef.isReady()) navigationRef.navigate('Focus');
+        a.addTimer({ type: 'free', subjectId: subj.id, label: subj.name, color: subj.color });
+      };
+      // 네비게이터가 아직 준비 전일 수 있어 약간 지연
+      setTimeout(go, navigationRef.isReady() ? 0 : 300);
+    };
+    Linking.getInitialURL().then((url) => { if (url) handleUrl(url); }).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handleUrl(e.url));
+    return () => sub.remove();
+  }, []);
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Tab.Navigator screenOptions={{
             headerShown: false,
             // 태블릿에서는 폰트/아이콘이 1.15배 확대되므로(_TABLET_FONT_SCALE) 탭바 높이도 키워 잘림 방지

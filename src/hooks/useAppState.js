@@ -20,6 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
+import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
 import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
@@ -432,6 +433,9 @@ export function AppProvider({ children }) {
         const awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
         bgTime.current = null;
         const wasAway = ultraRef.current.isAway;
+
+        // 안드로이드 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영)
+        updateAllWidgets();
 
         // 🔥모드 복귀 처리
         if (mode === 'screen_on' && wasAway && !ultraRef.current.gaveUp) {
@@ -1721,6 +1725,15 @@ export function AppProvider({ children }) {
     saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
   }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
 
+  // 안드로이드 위젯 갱신 — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
+  // 자동저장(500ms 디바운스)보다 늦게 읽도록 여유를 두고 호출 (위젯은 AsyncStorage를 직접 읽음).
+  const widgetUpdateRef = useRef(null);
+  useEffect(() => {
+    if (loading) return;
+    clearTimeout(widgetUpdateRef.current);
+    widgetUpdateRef.current = setTimeout(() => updateAllWidgets(), 900);
+  }, [sessions, subjects, ddays, settings, loading]);
+
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
   useEffect(() => {
@@ -1840,8 +1853,10 @@ export function AppProvider({ children }) {
     //   (endedAt에 Date.now()를 쓰면 일시정지/백그라운드 때문에 벽시계 간격이 집중시간과 어긋나
     //    "16:59 ~ 06:38(40m)" 같이 시작~종료가 집중시간과 안 맞는 표시가 생김)
     const sessStart = startedAt ?? Date.now() - durationSec * 1000;
+    // 소속 날짜는 '시작한 날' 기준 — 자정 직전 시작해 자정 넘겨 끝나도 시작일로 묶임
+    // (getToday()=기록시점이면 23:57~00:22 같은 세션이 다음 날로 넘어가 '전날 22시' 오표시 발생)
     const newSess = {
-      id: generateId('sess_'), date: getToday(), subjectId, label: label.trim(),
+      id: generateId('sess_'), date: toDateStr(new Date(sessStart)), subjectId, label: label.trim(),
       startedAt: sessStart, endedAt: sessStart + durationSec * 1000,
       durationSec, mode, focusDensity: density, tier: tier.id,
       pausedCount: pauseCount, exitCount, focusMode: fm, verified,
@@ -1853,6 +1868,7 @@ export function AppProvider({ children }) {
     setSessions(prev => [...prev, newSess]);
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
     updateStreak();
+    // 위젯 갱신은 아래 데이터 변경 감지 effect(디바운스)가 일괄 처리 — 여기선 호출 불필요
     // 울트라집중 스트릭 갱신
     if (ultraLevel === 'exam' && fm === 'screen_on') updateUltraStreak();
     if (dedupeKey) {
