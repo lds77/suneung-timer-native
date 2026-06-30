@@ -66,7 +66,7 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
       {/* 헤더 (라벨 flex:1로 폭 제약 → 좁은 폭에서 줄바꿈/밀림 방지) */}
       <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <TextWidget text={headerLabel} style={{ flex: 1, fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6 }} />}
+        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />}
       </FlexWidget>
 
       {/* 총 시간 */}
@@ -84,11 +84,11 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
         <FlexWidget style={{ width: 'match_parent', flexDirection: 'column', marginTop: 9 }}>
           <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <TextWidget text="이번 주" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
-            <TextWidget text={formatShort(weekTotalSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6 }} maxLines={1} />
+            <TextWidget text={formatShort(weekTotalSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
           </FlexWidget>
           <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
             <TextWidget text="하루 평균" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
-            <TextWidget text={formatShort(weekAvgSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6 }} maxLines={1} />
+            <TextWidget text={formatShort(weekAvgSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
           </FlexWidget>
         </FlexWidget>
       )}
