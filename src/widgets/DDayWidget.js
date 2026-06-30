@@ -62,13 +62,13 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
     );
   }
 
-  // 1x1: 라벨 + D-n
+  // 1x1: 라벨 + D-n (한 줄 고정 + 자동 축소로 잘림 방지)
   if (isCompact) {
     const d = list[0];
     return (
       <FlexWidget style={rootStyle(t, 'center', 'center')} clickAction="OPEN_APP">
         <TextWidget text={d.label || '시험'} style={{ fontSize: 10, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-        <TextWidget text={ddayLabel(d.n)} style={{ fontSize: 22, color: accent, fontWeight: '800', marginTop: 1 }} />
+        <TextWidget text={ddayLabel(d.n)} style={{ fontSize: 18, color: accent, fontWeight: '800', marginTop: 1 }} maxLines={1} adjustsFontSizeToFit />
       </FlexWidget>
     );
   }
@@ -78,14 +78,17 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
   const total = Math.max(1, Math.min(list.length, fit));
   const featured = list[0];
   const rest = list.slice(1, total);
-  const big = total === 1;   // 대표만 보일 땐 더 크게
+  const big = total === 1;                       // 대표만 보일 땐 더 크게
+  const shortH = height > 0 && height < 120;      // 2x1처럼 낮은 칸
+  const dnFont = shortH ? 24 : (big ? 34 : 28);
+  const showDate = height === 0 || height >= 112; // 낮으면 날짜 생략(공간)
 
   return (
     <FlexWidget style={rootStyle(t, 'center', 'flex-start')} clickAction="OPEN_APP">
       {/* 대표 시험 (크게) */}
       <TextWidget text={featured.label || '시험'} style={{ fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-      <TextWidget text={ddayLabel(featured.n)} style={{ fontSize: big ? 34 : 28, color: accent, fontWeight: '800', marginTop: 2 }} />
-      <TextWidget text={fmtDateFull(featured.date)} style={{ fontSize: 12, color: t.sub, marginTop: 3 }} />
+      <TextWidget text={ddayLabel(featured.n)} style={{ fontSize: dnFont, color: accent, fontWeight: '800', marginTop: 2 }} maxLines={1} adjustsFontSizeToFit />
+      {showDate && <TextWidget text={fmtDateFull(featured.date)} style={{ fontSize: 12, color: t.sub, marginTop: 3 }} maxLines={1} />}
 
       {/* 나머지 시험 줄 */}
       {rest.map((d, i) => <DDayRow key={i} item={d} accent={accent} t={t} />)}

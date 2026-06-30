@@ -36,7 +36,7 @@ function SubjectRow({ subject, accent, t }) {
   );
 }
 
-export function SubjectLauncherWidget({ data, width = 0 }) {
+export function SubjectLauncherWidget({ data, width = 0, height = 0 }) {
   const { launcherSubjects = [], accent = '#FF6B9D', darkMode = false } = data || {};
   const t = theme(darkMode);
   const isCompact = width > 0 && width < 110;
@@ -71,7 +71,10 @@ export function SubjectLauncherWidget({ data, width = 0 }) {
       {launcherSubjects.length === 0 ? (
         <TextWidget text="과목을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
       ) : (
-        launcherSubjects.map((s) => <SubjectRow key={s.id} subject={s} accent={accent} t={t} />)
+        // 높이에 맞는 개수만 노출(잘림 방지). 행 ≈ 36dp, 제목/패딩 ≈ 32dp 예약.
+        launcherSubjects
+          .slice(0, height ? Math.max(1, Math.floor((height - 32) / 36)) : launcherSubjects.length)
+          .map((s) => <SubjectRow key={s.id} subject={s} accent={accent} t={t} />)
       )}
     </FlexWidget>
   );
