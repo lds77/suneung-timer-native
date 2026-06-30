@@ -63,37 +63,34 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
 
   return (
     <FlexWidget clickAction="OPEN_APP" style={rootStyle(t, 'center')}>
-      {/* 헤더 */}
+      {/* 헤더 (라벨 flex:1로 폭 제약 → 좁은 폭에서 줄바꿈/밀림 방지) */}
       <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <TextWidget text={headerLabel} style={{ fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700' }} />}
+        <TextWidget text={headerLabel} style={{ flex: 1, fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
+        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6 }} />}
       </FlexWidget>
 
       {/* 총 시간 */}
-      <TextWidget text={timeText} style={{ fontSize: isMedium ? 30 : 26, color: t.text, fontWeight: '800', marginTop: 4 }} />
+      <TextWidget text={timeText} style={{ fontSize: isMedium ? 26 : 26, color: t.text, fontWeight: '800', marginTop: 4 }} maxLines={1} />
 
       {/* 목표 진행바 */}
       {hasGoal && (
-        <FlexWidget style={{ width: 'match_parent', marginTop: 8 }}>
+        <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
           <ProgressBar pct={goalPct} accent={accent} trackColor={t.track} height={isMedium ? 8 : 7} />
         </FlexWidget>
       )}
 
-      {/* 중형: 과목 top2 */}
-      {isMedium && subjects.length > 0 && (
-        <FlexWidget style={{ width: 'match_parent', flexDirection: 'column', marginTop: 8 }}>
-          {subjects.slice(0, 2).map((s, i) => <SubjectLine key={i} subject={s} accent={accent} t={t} />)}
-        </FlexWidget>
-      )}
-
-      {/* 중형: 이번 주 누적 · 하루 평균 */}
+      {/* 중형: 이번 주 누적 · 하루 평균 (좁은 폭에서 잘리지 않도록 두 줄로 분리) */}
       {isMedium && (
-        <TextWidget
-          text={`이번 주 ${formatShort(weekTotalSec)} · 하루 평균 ${formatShort(weekAvgSec)}`}
-          style={{ fontSize: 12, color: t.sub, fontWeight: '600', marginTop: 10 }}
-          maxLines={1}
-          truncate="END"
-        />
+        <FlexWidget style={{ width: 'match_parent', flexDirection: 'column', marginTop: 9 }}>
+          <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <TextWidget text="이번 주" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
+            <TextWidget text={formatShort(weekTotalSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6 }} maxLines={1} />
+          </FlexWidget>
+          <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+            <TextWidget text="하루 평균" style={{ fontSize: 12, color: t.sub, fontWeight: '600' }} maxLines={1} />
+            <TextWidget text={formatShort(weekAvgSec)} style={{ fontSize: 12, color: t.text, fontWeight: '700', marginLeft: 6 }} maxLines={1} />
+          </FlexWidget>
+        </FlexWidget>
       )}
     </FlexWidget>
   );
@@ -108,6 +105,6 @@ function rootStyle(t, justify = 'center', align) {
     ...(align ? { alignItems: align } : {}),
     backgroundColor: t.bg,
     borderRadius: 20,
-    padding: 14,
+    padding: 12,
   };
 }

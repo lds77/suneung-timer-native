@@ -126,10 +126,10 @@ export const getWidgetData = async () => {
   const daysElapsed = new Date().getDay() + 1;          // 일=1 … 토=7 (이번 주 경과 일수)
   const weekAvgSec = Math.round(weekTotalSec / daysElapsed);
 
-  // 과목 바로 시작: 즐겨찾기 우선, 없으면 앞에서부터 (최대 4개). 순서 고정(탭 위치 안정).
+  // 과목 바로 시작: 즐겨찾기 우선, 없으면 앞에서부터 (최대 6개, 2열×3행). 순서 고정(탭 위치 안정).
   const favs = subjArr.filter(s => s?.id && s.isFavorite);
   const launcherSubjects = (favs.length ? favs : subjArr)
-    .slice(0, 4)
+    .slice(0, 6)
     .map(s => ({ id: s.id, name: s.name, color: s.color, weekSec: weekSecBySubj[s.id] || 0 }));
 
   return {

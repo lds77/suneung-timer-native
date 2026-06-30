@@ -13,25 +13,26 @@ const theme = (darkMode) => darkMode
 
 const startUri = (id) => ({ uri: `yeolgong://start?subjectId=${encodeURIComponent(id)}` });
 
-function SubjectRow({ subject, accent, t }) {
+// 과목 칩 (그리드 셀). flex:1로 1열/2열 모두 대응.
+function SubjectChip({ subject, accent, t }) {
   const studied = (subject.weekSec || 0) > 0;
   return (
     <FlexWidget
       clickAction="OPEN_URI"
       clickActionData={startUri(subject.id)}
       style={{
-        width: 'match_parent', height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
-        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 11, marginTop: 5,
+        flex: 1, height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
+        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 10, margin: 3,
       }}
     >
       <FlexWidget style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: studied ? (subject.color || accent) : t.dim }} />
       <TextWidget
         text={subject.name}
-        style={{ flex: 1, fontSize: 13, color: studied ? t.text : t.sub, fontWeight: '600', marginLeft: 8 }}
+        style={{ flex: 1, fontSize: 13, color: studied ? t.text : t.sub, fontWeight: '600', marginLeft: 7 }}
         maxLines={1}
         truncate="END"
       />
-      <TextWidget text={formatShort(subject.weekSec || 0)} style={{ fontSize: 12, color: studied ? accent : t.dim, fontWeight: studied ? '700' : '500', marginLeft: 6 }} />
+      <TextWidget text={formatShort(subject.weekSec || 0)} style={{ fontSize: 12, color: studied ? accent : t.dim, fontWeight: studied ? '700' : '500', marginLeft: 5 }} />
     </FlexWidget>
   );
 }
@@ -70,12 +71,20 @@ export function SubjectLauncherWidget({ data, width = 0, height = 0 }) {
       <TextWidget text="이번 주 공부" style={{ fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} />
       {launcherSubjects.length === 0 ? (
         <TextWidget text="과목을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
-      ) : (
-        // 높이에 맞는 개수만 노출(잘림 방지). 행 ≈ 36dp, 제목/패딩 ≈ 32dp 예약.
-        launcherSubjects
-          .slice(0, height ? Math.max(1, Math.floor((height - 32) / 36)) : launcherSubjects.length)
-          .map((s) => <SubjectRow key={s.id} subject={s} accent={accent} t={t} />)
-      )}
+      ) : (() => {
+        // 너비로 열 수(넓으면 2열). 행은 최대 3 고정(1칸 높이일 때만 1행) → 2x2=3, 3x2=6.
+        const cols = width >= 200 ? 2 : 1;
+        const rowsFit = height && height < 130 ? 1 : 3;
+        const shown = launcherSubjects.slice(0, cols * rowsFit);
+        const rows = [];
+        for (let i = 0; i < shown.length; i += cols) rows.push(shown.slice(i, i + cols));
+        return rows.map((row, ri) => (
+          <FlexWidget key={ri} style={{ width: 'match_parent', flexDirection: 'row' }}>
+            {row.map((s) => <SubjectChip key={s.id} subject={s} accent={accent} t={t} />)}
+            {row.length < cols && <FlexWidget style={{ flex: 1, margin: 3 }} />}
+          </FlexWidget>
+        ));
+      })()}
     </FlexWidget>
   );
 }

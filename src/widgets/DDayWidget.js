@@ -62,13 +62,16 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
     );
   }
 
-  // 1x1: 라벨 + D-n (한 줄 고정 + 자동 축소로 잘림 방지)
+  // 1x1: 라벨 + D-n. 패딩 최소화 + 작은 고정 폰트로 'D-141' 잘림 방지.
   if (isCompact) {
     const d = list[0];
     return (
-      <FlexWidget style={rootStyle(t, 'center', 'center')} clickAction="OPEN_APP">
-        <TextWidget text={d.label || '시험'} style={{ fontSize: 10, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-        <TextWidget text={ddayLabel(d.n)} style={{ fontSize: 18, color: accent, fontWeight: '800', marginTop: 1 }} maxLines={1} adjustsFontSizeToFit />
+      <FlexWidget
+        clickAction="OPEN_APP"
+        style={{ height: 'match_parent', width: 'match_parent', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg, borderRadius: 20, padding: 6 }}
+      >
+        <TextWidget text={d.label || '시험'} style={{ fontSize: 9, color: t.sub, fontWeight: '600', textAlign: 'center', width: 'match_parent' }} maxLines={1} truncate="END" />
+        <TextWidget text={ddayLabel(d.n)} style={{ fontSize: 15, color: accent, fontWeight: '800', marginTop: 1, textAlign: 'center', width: 'match_parent' }} maxLines={1} />
       </FlexWidget>
     );
   }
