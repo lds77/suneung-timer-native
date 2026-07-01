@@ -12,7 +12,7 @@ export function hexLuminance(hex) {
 }
 
 export const getSchoolDefaultFavs = (school) => {
-  const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: '🍅', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
+  const pomo = (w, b, label) => ({ id: `def_pomo_${w}`, label: label, icon: 'nutrition-outline', type: 'pomodoro', color: '#E17055', totalSec: 0, pomoWorkMin: w, pomoBreakMin: b });
   const cd = (min, label, color) => ({ id: `def_cd_${min}`, label: label, icon: '⏰', type: 'countdown', color: color, totalSec: min * 60 });
   if (school === 'elementary_lower') return [
     pomo(10, 5, '뽀모 10+5'), cd(15, '15분', '#5CB85C'), cd(20, '20분', '#4A90D9'), cd(25, '25분', '#9B6FC3'),

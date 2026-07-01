@@ -153,7 +153,7 @@ export default function FocusScreen() {
   };
   const handleSaveSeq = () => {
     if (seqItems.filter(it => it.label.trim()).length < 2 || !seqName.trim()) { app.showToastCustom('이름과 2개 이상 필요!', 'paengi'); return; }
-    addToFav({ label: seqName.trim(), icon: '📋', type: 'sequence', color: '#6C5CE7', totalSec: 0, seqItems: seqItems.filter(it => it.label.trim()).map(it => ({ ...it })), seqBreak: 0 });
+    addToFav({ label: seqName.trim(), icon: 'clipboard-outline', type: 'sequence', color: '#6C5CE7', totalSec: 0, seqItems: seqItems.filter(it => it.label.trim()).map(it => ({ ...it })), seqBreak: 0 });
     setShowAdd(false);
   };
   const SEQ_LABELS = ['공부','숙제','수학','국어','영어','독서','운동','휴식','점심','저녁','복습','과학','사회'];
@@ -288,7 +288,7 @@ export default function FocusScreen() {
     handleAddTimer();
     const subj = addSubject ? app.subjects.find(s => s.id === addSubject) : null;
     const label = subj ? subj.name : (addType === 'countdown' ? `${addMin}분` : `뽀모 ${addPomoWork}+${addPomoBreak}`);
-    addToFav({ label, icon: addType === 'pomodoro' ? '🍅' : '⏰', type: addType, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, subjectId: addSubject, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
+    addToFav({ label, icon: addType === 'pomodoro' ? 'nutrition-outline' : 'alarm-outline', type: addType, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, subjectId: addSubject, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
   };
 
   // ── 할일 추가 모달 헬퍼 ──
@@ -490,9 +490,9 @@ export default function FocusScreen() {
       const seqLabel = t.seqName || '연속모드';
       const existingFav = favs.find(f => f.label === seqLabel);
       if (existingFav) {
-        opts.push({ text: `⭐ "${seqLabel}" 즐겨찾기 삭제`, style: 'destructive', onPress: () => removeFav(existingFav.id) });
+        opts.push({ text: `"${seqLabel}" 즐겨찾기 삭제`, style: 'destructive', onPress: () => removeFav(existingFav.id) });
       } else {
-        opts.push({ text: `⭐ "${seqLabel}" 세트 저장`, onPress: () => {
+        opts.push({ text: `"${seqLabel}" 세트 저장`, onPress: () => {
           if (favs.length >= 6) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
           if (t.seqItems?.length) {
             addToFav({ label: seqLabel, icon: t.seqIcon || 'clipboard-outline', type: 'sequence', color: t.seqColor || '#6C5CE7', totalSec: 0, seqItems: t.seqItems.map(it => ({ label: it.label, color: it.color, min: Math.round(it.totalSec / 60) })), seqBreak: t.seqBreakSec ? Math.round(t.seqBreakSec / 60) : 5 });
@@ -504,9 +504,9 @@ export default function FocusScreen() {
       if (isFreeLap) {
         const existingFav = countupFavs.find(f => f.label === t.label);
         if (existingFav) {
-          opts.push({ text: '⭐ 즐겨찾기 삭제', style: 'destructive', onPress: () => app.removeCountupFav(existingFav.id) });
+          opts.push({ text: '즐겨찾기 삭제', style: 'destructive', onPress: () => app.removeCountupFav(existingFav.id) });
         } else {
-          opts.push({ text: '⭐ 즐겨찾기 추가', onPress: () => {
+          opts.push({ text: '즐겨찾기 추가', onPress: () => {
             if (countupFavs.length >= 6) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
             app.addCountupFav?.({ label: t.label, color: t.color, subjectId: t.subjectId || null });
           }});
@@ -514,9 +514,9 @@ export default function FocusScreen() {
       } else {
         const existingFav = favs.find(f => f.label === t.label && f.type === t.type);
         if (existingFav) {
-          opts.push({ text: '⭐ 즐겨찾기 삭제', style: 'destructive', onPress: () => removeFav(existingFav.id) });
+          opts.push({ text: '즐겨찾기 삭제', style: 'destructive', onPress: () => removeFav(existingFav.id) });
         } else {
-          opts.push({ text: '⭐ 즐겨찾기 추가', onPress: () => {
+          opts.push({ text: '즐겨찾기 추가', onPress: () => {
             if (favs.length >= 6) { app.showToastCustom('즐겨찾기가 가득 찼어요! 기존 항목을 삭제해주세요', 'paengi'); return; }
             addToFav({ label: t.label, icon: t.type === 'pomodoro' ? 'nutrition-outline' : 'alarm-outline', type: t.type, color: t.color, totalSec: t.totalSec, pomoWorkMin: t.pomoWorkMin, pomoBreakMin: t.pomoBreakMin });
           }});
@@ -1713,7 +1713,7 @@ export default function FocusScreen() {
             if (activeSounds.includes(id)) {
               app.updateSettings({ activeSounds: activeSounds.filter(x => x !== id) });
             } else if (activeSounds.length >= 3) {
-              app.showToastCustom('최대 3개까지 선택할 수 있어요 🎵', 'paengi');
+              app.showToastCustom('최대 3개까지 선택할 수 있어요', 'paengi');
             } else {
               app.updateSettings({ activeSounds: [...activeSounds, id] });
             }

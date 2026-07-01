@@ -1,8 +1,8 @@
 // src/widgets/DDayWidget.js
 // 시험(D-Day) 위젯. 높이에 따라 여러 시험을 임박 순으로 노출.
-//  - 1x1: 라벨 + D-n
-//  - 2x1: 대표 1개 크게(라벨 + 큰 D-n + 날짜)
-//  - 2x2+: 대표 크게 + 나머지 시험 줄(날짜 포함)로 꽉 채움
+//  - 1x1: 라벨 + D-n (중앙)
+//  - 2x1+: 모든 시험을 동일한 2줄 카드로 (윗줄 이름 / 아랫줄 날짜·D-n).
+//          대표 시험은 맨 위 정렬로만 구분(폰트 크기 차이 없음).
 // 탭 시 앱 열기.
 
 import React from 'react';
@@ -21,12 +21,6 @@ const fmtDateFull = (dateStr) => {
   if (isNaN(d.getTime())) return '';
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`;
 };
-// "11/14(목)"
-const fmtDateShort = (dateStr) => {
-  const d = new Date(dateStr + 'T00:00:00');
-  if (isNaN(d.getTime())) return '';
-  return `${d.getMonth() + 1}/${d.getDate()}(${DOW[d.getDay()]})`;
-};
 
 function rootStyle(t, justify = 'center', align) {
   return {
@@ -36,13 +30,17 @@ function rootStyle(t, justify = 'center', align) {
   };
 }
 
-// 나머지 시험 한 줄: 라벨 … 날짜  D-n
-function DDayRow({ item, accent, t }) {
+// 시험 한 항목: 윗줄 이름 / 아랫줄 날짜(왼쪽) · D-n(오른쪽). 모든 항목 동일 크기.
+function DDayItem({ item, accent, t, isFirst, showDate }) {
   return (
-    <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', marginTop: 7 }}>
-      <TextWidget text={item.label || '시험'} style={{ flex: 1, fontSize: 13, color: t.text, fontWeight: '500' }} maxLines={1} truncate="END" />
-      <TextWidget text={fmtDateShort(item.date)} style={{ fontSize: 11, color: t.sub, marginLeft: 6 }} />
-      <TextWidget text={ddayLabel(item.n)} style={{ fontSize: 15, color: accent, fontWeight: '800', marginLeft: 8 }} />
+    <FlexWidget style={{ width: 'match_parent', flexDirection: 'column', marginTop: isFirst ? 0 : 11 }}>
+      <TextWidget text={item.label || '시험'} style={{ fontSize: 14, color: t.text, fontWeight: '700' }} maxLines={1} truncate="END" />
+      <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+        {showDate
+          ? <TextWidget text={fmtDateFull(item.date)} style={{ flex: 1, fontSize: 12, color: t.sub }} maxLines={1} truncate="END" />
+          : <FlexWidget style={{ flex: 1 }} />}
+        <TextWidget text={ddayLabel(item.n)} style={{ fontSize: 19, color: accent, fontWeight: '800', marginLeft: 8 }} maxLines={1} />
+      </FlexWidget>
     </FlexWidget>
   );
 }
@@ -76,25 +74,18 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
     );
   }
 
-  // 표시 개수: 높이 기준 (대표가 더 큼 → 한 칸 더 차지하는 셈)
-  const fit = height ? Math.floor((height - 20) / 38) : 3;
+  // 표시 개수: 높이 기준. 각 항목이 2줄 카드로 동일 크기(≈52px).
+  const perItem = 52;
+  const fit = height ? Math.max(1, Math.floor((height - 14) / perItem)) : 3;
   const total = Math.max(1, Math.min(list.length, fit));
-  const featured = list[0];
-  const rest = list.slice(1, total);
-  const big = total === 1;                       // 대표만 보일 땐 더 크게
-  const shortH = height > 0 && height < 120;      // 2x1처럼 낮은 칸
-  const dnFont = shortH ? 24 : (big ? 34 : 28);
-  const showDate = height === 0 || height >= 112; // 낮으면 날짜 생략(공간)
+  const shown = list.slice(0, total);
+  const showDate = height === 0 || height >= 96;  // 아주 낮으면 날짜 생략(공간)
 
   return (
     <FlexWidget style={rootStyle(t, 'center', 'flex-start')} clickAction="OPEN_APP">
-      {/* 대표 시험 (크게) */}
-      <TextWidget text={featured.label || '시험'} style={{ fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-      <TextWidget text={ddayLabel(featured.n)} style={{ fontSize: dnFont, color: accent, fontWeight: '800', marginTop: 2 }} maxLines={1} adjustsFontSizeToFit />
-      {showDate && <TextWidget text={fmtDateFull(featured.date)} style={{ fontSize: 12, color: t.sub, marginTop: 3 }} maxLines={1} />}
-
-      {/* 나머지 시험 줄 */}
-      {rest.map((d, i) => <DDayRow key={i} item={d} accent={accent} t={t} />)}
+      {shown.map((d, i) => (
+        <DDayItem key={i} item={d} accent={accent} t={t} isFirst={i === 0} showDate={showDate} />
+      ))}
     </FlexWidget>
   );
 }

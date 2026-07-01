@@ -474,7 +474,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
   const isTempAssigned = !!plan._tempAssigned;
 
   const startBtnColor = isDone ? T.green : (!isToday ? T.surface : (plan.color || T.accent));
-  const startBtnText = isDone ? '✅ 완료' : (!isToday ? '오늘 일정만 실행 가능' : '▶ 지금 시작');
+  const startBtnText = isDone ? '완료' : (!isToday ? '오늘 일정만 실행 가능' : '▶ 지금 시작');
   const startBtnTextColor = (isDone || !isToday) ? T.sub : '#fff';
 
   return (
@@ -499,7 +499,7 @@ function PlanActionSheet({ visible, plan, isToday, onClose, onEdit, onStart, onU
         {/* 시간 정보 */}
         {plan.start && plan.end && (
           <Text style={{ fontSize: 14, color: T.sub, marginBottom: 14 }}>
-            🕐 {plan.start} ~ {plan.end}  ({plan.targetMin}분 목표)
+            {plan.start} ~ {plan.end}  ({plan.targetMin}분 목표)
           </Text>
         )}
 
@@ -1940,7 +1940,7 @@ export default function PlannerScreen({ navigation, route }) {
               </View>
               <Text style={{ fontSize: 12, color: T.sub }}>
                 {totalDoneMin}분 완료 · {totalTargetMin}분 목표
-                {remainMin > 0 ? `  ·  ${remainMin}분 남음` : '  ·  🎉 달성!'}
+                {remainMin > 0 ? `  ·  ${remainMin}분 남음` : '  ·  달성!'}
               </Text>
             </>
           )}
@@ -2104,7 +2104,7 @@ export default function PlannerScreen({ navigation, route }) {
                     )}
                     {isRunning && (
                       <View style={{ backgroundColor: T.red, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 }}>
-                        <Text style={{ fontSize: 9, color: '#fff', fontWeight: '700' }}>🔥 실행 중</Text>
+                        <Text style={{ fontSize: 9, color: '#fff', fontWeight: '700' }}>실행 중</Text>
                       </View>
                     )}
                     {isDone && !isRunning && <Ionicons name="checkmark-circle" size={13} color={T.green} />}

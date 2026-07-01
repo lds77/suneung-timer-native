@@ -68,7 +68,7 @@ export function SubjectLauncherWidget({ data, width = 0, height = 0 }) {
         backgroundColor: t.bg, borderRadius: 20, padding: 11,
       }}
     >
-      <TextWidget text="이번 주 공부" style={{ fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} />
+      <TextWidget text="과목 바로 시작" style={{ fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} />
       {launcherSubjects.length === 0 ? (
         <TextWidget text="과목을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
       ) : (() => {

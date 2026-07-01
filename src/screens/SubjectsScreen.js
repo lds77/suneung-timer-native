@@ -396,7 +396,7 @@ export default function SubjectsScreen({ navigation }) {
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
             <TouchableOpacity onPress={() => toggleFavorite(subj)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 16 }}>{subj.isFavorite ? '⭐' : '☆'}</Text>
+              <Ionicons name={subj.isFavorite ? 'star' : 'star-outline'} size={18} color={subj.isFavorite ? '#F5A623' : T.sub} />
             </TouchableOpacity>
             <TouchableOpacity style={[S.labelBtn, { backgroundColor: T.surface2, borderWidth: 1, borderColor: subj.color + '60' }]}
               onPress={() => startCountup(subj)}>

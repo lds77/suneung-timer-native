@@ -36,15 +36,15 @@ const phaseTargetSec = (t) => {
 const buildSubtitle = (t) => {
   if (t.status === 'paused') return `일시정지 · ${formatDuration(t.elapsedSec)} 집중함`;
   if (t.type === 'pomodoro') {
-    if (t.pomoPhase === 'work') return `뽀모도로 ${t.pomoSet + 1}세트 집중 🔥`;
-    return t.pomoPhase === 'longbreak' ? '긴 휴식 시간 ☕' : '휴식 시간 ☕';
+    if (t.pomoPhase === 'work') return `뽀모도로 ${t.pomoSet + 1}세트 집중`;
+    return t.pomoPhase === 'longbreak' ? '긴 휴식 시간' : '휴식 시간';
   }
   if (t.type === 'sequence') {
-    if (t.seqPhase === 'work') return `연속 집중 ${(t.seqIndex || 0) + 1}/${t.seqTotal} 🔥`;
-    return '쉬는 시간 ☕';
+    if (t.seqPhase === 'work') return `연속 집중 ${(t.seqIndex || 0) + 1}/${t.seqTotal}`;
+    return '쉬는 시간';
   }
-  if (t.type === 'countdown') return `목표 ${formatDuration(t.totalSec)} 🔥`;
-  return '집중하는 중 🔥';
+  if (t.type === 'countdown') return `목표 ${formatDuration(t.totalSec)}`;
+  return '집중하는 중';
 };
 
 // 연속모드: 현재 페이즈 + 남은 항목/휴식을 전부 합산한 전체 종료 시각(ms)
@@ -142,5 +142,5 @@ export const endLiveActivity = () => {
   currentId = null;
   lastSig = null;
   AsyncStorage.removeItem(ID_KEY).catch(() => {});
-  try { LA.stopActivity(id, { title: '열공메이트', subtitle: '집중 완료! 수고했어요 🎉' }); } catch {}
+  try { LA.stopActivity(id, { title: '열공메이트', subtitle: '집중 완료! 수고했어요' }); } catch {}
 };

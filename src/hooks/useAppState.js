@@ -175,7 +175,7 @@ export function AppProvider({ children }) {
   }, [timers]);
 
   // 연속모드 시작 (단일 sequence 타이머 생성)
-  const startSequence = useCallback(({ items, breakSec = 600, seqName = '', seqIcon = '📋', seqColor = '#6C5CE7' }) => {
+  const startSequence = useCallback(({ items, breakSec = 600, seqName = '', seqIcon = 'clipboard-outline', seqColor = '#6C5CE7' }) => {
     if (!items.length) return;
     // 단일 타이머 제약
     const hasActive = timersRef.current.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
@@ -549,10 +549,10 @@ export function AppProvider({ children }) {
       const char = settingsRef.current.mainCharacter || 'toru';
       if (type === 'weeklyReport') {
         setPendingReportTab('weekly');
-        showToastCustom('이번 주 공부 리포트예요! 통계 탭에서 확인해봐요 📊', char);
+        showToastCustom('이번 주 공부 리포트예요! 통계 탭에서 확인해봐요', char);
       } else if (type === 'monthlyReport') {
         setPendingReportTab('monthly');
-        showToastCustom('이번 달 공부 리포트예요! 통계 탭에서 확인해봐요 📅', char);
+        showToastCustom('이번 달 공부 리포트예요! 통계 탭에서 확인해봐요', char);
       }
     });
     return () => sub.remove();
@@ -1061,7 +1061,7 @@ export function AppProvider({ children }) {
             : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(tenMinBeforeMs) };
           const id = await Notifications.scheduleNotificationAsync({
             content: {
-              title: '📚 공부 시작 10분 전',
+              title: '공부 시작 10분 전',
               body: `${plan.label} 시작 10분 남았어요! 준비해볼까요?`,
               sound: 'default',
               ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
@@ -1219,7 +1219,7 @@ export function AppProvider({ children }) {
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday };
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: '이번 주 공부 리포트 📊',
+          title: '이번 주 공부 리포트',
           body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
           data: { type: 'weeklyReport' },
           sound: 'default',
@@ -1289,7 +1289,7 @@ export function AppProvider({ children }) {
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: lastDayOfMonth };
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: `${MONTH_NAMES[month]} 공부 리포트 📅`,
+          title: `${MONTH_NAMES[month]} 공부 리포트`,
           body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
           data: { type: 'monthlyReport' },
           sound: 'default',

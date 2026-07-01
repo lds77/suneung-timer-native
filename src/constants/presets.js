@@ -253,10 +253,10 @@ export const FIXED_TYPES = [
 
 // 화이트노이즈 옵션
 export const SOUNDS = [
-  { id: 'none',   name: '끄기',   icon: '🔇' },
-  { id: 'rain',   name: '빗소리', icon: '🌧️' },
-  { id: 'cafe',   name: '카페',   icon: '☕' },
-  { id: 'fire',   name: '모닥불', icon: '🔥' },
-  { id: 'wave',   name: '파도',   icon: '🌊' },
-  { id: 'forest', name: '숲속',   icon: '🌲' },
+  { id: 'none',   name: '끄기',   icon: 'volume-mute-outline' },
+  { id: 'rain',   name: '빗소리', icon: 'rainy-outline' },
+  { id: 'cafe',   name: '카페',   icon: 'cafe-outline' },
+  { id: 'fire',   name: '모닥불', icon: 'flame-outline' },
+  { id: 'wave',   name: '파도',   icon: 'water-outline' },
+  { id: 'forest', name: '숲속',   icon: 'leaf-outline' },
 ];
