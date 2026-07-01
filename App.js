@@ -210,6 +210,7 @@ function OnboardingScreen() {
       elemGrade: selectedElemGrade,
       dailyGoalMin: selectedGoalMin,
       onboardingDone: true,
+      widgetGuideSeen: true, // 신규 사용자는 1회성 팝업 제외 (설정탭 안내로 대체)
     });
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
 
@@ -745,6 +746,76 @@ function OnboardingTrial({ T, selected, handleFinish, goBack }) {
 }
 
 // ── 잠금 오버레이 — Root 레벨에 배치하여 MainApp 리마운트(폰트 변경 등)에 영향받지 않음 ──
+// 업데이트 후 1회성 안내 — 홈 화면 위젯 (Android 전용, 기존 사용자에게만)
+function WidgetIntroOverlay() {
+  const app = useApp();
+  const insets = useSafeAreaInsets();
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
+
+  if (Platform.OS !== 'android') return null;
+  if (!app.settings.onboardingDone || app.settings.widgetGuideSeen) return null;
+
+  const dismiss = () => app.updateSettings({ widgetGuideSeen: true });
+  const WIDGETS = [
+    { icon: 'today-outline', title: '오늘 공부', desc: '오늘·이번 주 공부량과 목표 달성률' },
+    { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
+    { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
+  ];
+  const STEPS = [
+    '홈 화면 빈 곳을 길게 누르세요',
+    '"위젯"을 누르고 목록에서 열공메이트를 찾으세요',
+    '원하는 위젯을 홈 화면으로 끌어다 놓으세요',
+  ];
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={dismiss}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismiss} />
+        <View style={{ backgroundColor: T.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 22 + insets.bottom }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <View style={{ backgroundColor: T.accent + '20', borderRadius: 9, padding: 6, marginRight: 9 }}>
+              <Ionicons name="apps" size={18} color={T.accent} />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: T.accent }}>새 기능</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '900', color: T.text, marginBottom: 6 }}>홈 화면 위젯</Text>
+          <Text style={{ fontSize: 14, color: T.sub, lineHeight: 20, marginBottom: 18 }}>
+            앱을 열지 않아도 홈 화면에서 바로 공부 현황을 확인하고 타이머를 시작할 수 있어요.
+          </Text>
+
+          {WIDGETS.map((w) => (
+            <View key={w.title} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                <Ionicons name={w.icon} size={20} color={T.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{w.title}</Text>
+                <Text style={{ fontSize: 12, color: T.sub, marginTop: 1 }}>{w.desc}</Text>
+              </View>
+            </View>
+          ))}
+
+          <View style={{ backgroundColor: T.surface, borderRadius: 14, padding: 14, marginTop: 6, marginBottom: 18 }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 8 }}>추가하는 법</Text>
+            {STEPS.map((s, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: i < STEPS.length - 1 ? 7 : 0 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#fff' }}>{i + 1}</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, color: T.text, lineHeight: 19 }}>{s}</Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity onPress={dismiss} style={{ backgroundColor: T.accent, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>확인했어요</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function LockOverlay() {
   const app = useApp();
   const insets = useSafeAreaInsets();
@@ -1079,6 +1150,7 @@ function Root() {
       <MainApp key={loadedFont} />
       {/* LockOverlay는 MainApp 밖에 배치 — 폰트 변경으로 MainApp이 리마운트되어도 잠금화면 유지 */}
       <LockOverlay />
+      <WidgetIntroOverlay />
       {!fontsLoaded && (
         <View style={[StyleSheet.absoluteFill, styles.loading]}>
           <ActivityIndicator size="large" color="#FF6B9D" />

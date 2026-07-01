@@ -615,6 +615,47 @@ export default function SettingsScreen() {
           })()}
         </Section>
 
+        {/* 홈 화면 위젯 안내 (Android 전용) */}
+        {Platform.OS === 'android' && (
+          <Section T={T} title="홈 화면 위젯" icon="apps-outline">
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+              <Text style={{ fontSize: 13, color: T.sub, lineHeight: 19, marginBottom: 14 }}>
+                앱을 열지 않아도 홈 화면에서 바로 공부 현황을 확인하고 타이머를 시작할 수 있어요.
+              </Text>
+              {[
+                { icon: 'today-outline', title: '오늘 공부', desc: '오늘·이번 주 공부량과 목표 달성률' },
+                { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
+                { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
+              ].map((w) => (
+                <View key={w.title} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name={w.icon} size={19} color={T.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{w.title}</Text>
+                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 1 }}>{w.desc}</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={{ backgroundColor: T.surface, borderRadius: 14, padding: 14, marginTop: 4 }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 8 }}>추가하는 법</Text>
+                {[
+                  '홈 화면 빈 곳을 길게 누르세요',
+                  '"위젯"을 누르고 목록에서 열공메이트를 찾으세요',
+                  '원하는 위젯을 홈 화면으로 끌어다 놓으세요',
+                ].map((s, i, arr) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: i < arr.length - 1 ? 7 : 0 }}>
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '900', color: '#fff' }}>{i + 1}</Text>
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 13, color: T.text, lineHeight: 19 }}>{s}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </Section>
+        )}
+
 {/* 사용 가이드 */}
         <Section T={T} title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>

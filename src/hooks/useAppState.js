@@ -71,6 +71,7 @@ const DEFAULT_SETTINGS = {
   guideDensity: false,  // 집중밀도 설명
   guideHeatmap: false,  // 잔디 설명
   guideLock: false,     // 잠금 화면 설명
+  widgetGuideSeen: false, // 홈 화면 위젯 1회성 안내 표시 여부 (Android)
   exactAlarmGuideShown: false, // Android 12+ 정확한 알람 권한 안내 표시 여부
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
   lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
