@@ -234,6 +234,30 @@
       color: rgba(255,255,255,0.6);
     }
 
+    /* Gallery */
+    .gallery-section { padding: 80px 0 60px; overflow: hidden; }
+    .gallery-head { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    .gallery-scroll {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding: 32px 24px 24px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .gallery-scroll img {
+      height: 540px;
+      border-radius: 22px;
+      scroll-snap-align: center;
+      flex-shrink: 0;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .gallery-scroll::-webkit-scrollbar { height: 8px; }
+    .gallery-scroll::-webkit-scrollbar-track { background: transparent; }
+    .gallery-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    .gallery-hint { text-align: center; font-size: 0.85rem; color: rgba(255,255,255,0.4); margin-top: 8px; }
+
     /* Who */
     .who-list {
       list-style: none;
@@ -383,7 +407,7 @@
       <div class="label">잔디 기록</div>
     </div>
     <div class="stat-item">
-      <div class="number">S+~F</div>
+      <div class="number">SS~C</div>
       <div class="label">집중밀도 티어</div>
     </div>
     <div class="stat-item">
@@ -395,6 +419,28 @@
 
 <div class="divider"></div>
 
+<!-- Gallery -->
+<section class="gallery-section">
+  <div class="gallery-head">
+    <p class="section-label">Screenshots</p>
+    <h2 style="margin-bottom:0">화면으로 미리 보기</h2>
+  </div>
+  <div class="gallery-scroll">
+    <img src="screenshots/store_08.png" alt="오늘의 계획과 할 일을 한 화면에" loading="lazy">
+    <img src="screenshots/store_07.png" alt="원형 타이머와 집중 사운드 10종" loading="lazy">
+    <img src="screenshots/store_01.png" alt="집중 잠금과 이탈 챌린지 모드" loading="lazy">
+    <img src="screenshots/store_03.png" alt="월간 통계와 집중밀도 점수" loading="lazy">
+    <img src="screenshots/store_planner.png" alt="주간 플래너 계획 대 실행 비교" loading="lazy">
+    <img src="screenshots/store_06.png" alt="시험 D-Day 자동 카운트" loading="lazy">
+    <img src="screenshots/store_05.png" alt="실제 수능 시간표 연속 모드" loading="lazy">
+    <img src="screenshots/store_04.png" alt="과학적으로 검증된 학습법" loading="lazy">
+    <img src="screenshots/store_02.png" alt="타이머·플래너·통계 올인원" loading="lazy">
+  </div>
+  <p class="gallery-hint">← 옆으로 밀어서 더 보기 →</p>
+</section>
+
+<div class="divider"></div>
+
 <!-- Features -->
 <section class="section">
   <p class="section-label">Features</p>
@@ -402,7 +448,11 @@
   <div class="features-grid">
     <div class="feature-card">
       <h3>집중밀도 & 티어</h3>
-      <p>공부 후 집중도 점수(40~118점)와 S+~F 티어를 자동 분석. 오늘 공부가 진짜였는지 숫자로 확인하세요.</p>
+      <p>공부 후 집중도 점수(56~103점)와 SS~C 티어를 자동 분석. 오늘 공부가 진짜였는지 숫자로 확인하세요.</p>
+    </div>
+    <div class="feature-card">
+      <h3>홈 화면 위젯</h3>
+      <p>앱을 열지 않아도 오늘 공부량·D-Day·과목별 시간을 홈 화면에서 확인하고, 위젯을 눌러 바로 타이머를 시작하세요. (안드로이드)</p>
     </div>
     <div class="feature-card">
       <h3>4가지 타이머</h3>
@@ -472,7 +522,7 @@
     </div>
     <div class="faq-item">
       <h4>집중밀도 점수는 어떻게 계산되나요?</h4>
-      <p>타이머 완주 여부, 일시정지 횟수, 이탈 횟수를 종합해 40~118점으로 계산됩니다. S+(전설)~F 티어로 등급을 확인할 수 있어요.</p>
+      <p>타이머 완주 여부, 일시정지 횟수, 이탈 횟수를 종합해 56~103점으로 계산됩니다. SS(전설)~C 티어로 등급을 확인할 수 있어요.</p>
     </div>
     <div class="faq-item">
       <h4>데이터를 백업하거나 복구할 수 있나요?</h4>
@@ -483,7 +533,7 @@
 
 <!-- Footer -->
 <footer>
-  <p>© 2025 열공메이트 &nbsp;·&nbsp; <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
+  <p>© 2026 열공메이트 &nbsp;·&nbsp; <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
   <p style="margin-top: 8px;">
     <a href="https://apps.apple.com/app/id6759892516" target="_blank">App Store</a>
     &nbsp;·&nbsp;
