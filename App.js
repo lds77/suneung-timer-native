@@ -211,6 +211,7 @@ function OnboardingScreen() {
       dailyGoalMin: selectedGoalMin,
       onboardingDone: true,
       widgetGuideSeen: true, // 신규 사용자는 1회성 팝업 제외 (설정탭 안내로 대체)
+      iosWidgetGuideSeen: true, // iOS 신규 사용자도 1회성 팝업 제외 (설정탭 안내로 대체)
     });
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
 
@@ -752,16 +753,22 @@ function WidgetIntroOverlay() {
   const insets = useSafeAreaInsets();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale);
 
-  if (Platform.OS !== 'android') return null;
-  if (!app.settings.onboardingDone || app.settings.widgetGuideSeen) return null;
+  const isIos = Platform.OS === 'ios';
+  if (Platform.OS !== 'android' && !isIos) return null;
+  const seen = isIos ? app.settings.iosWidgetGuideSeen : app.settings.widgetGuideSeen;
+  if (!app.settings.onboardingDone || seen) return null;
 
-  const dismiss = () => app.updateSettings({ widgetGuideSeen: true });
+  const dismiss = () => app.updateSettings(isIos ? { iosWidgetGuideSeen: true } : { widgetGuideSeen: true });
   const WIDGETS = [
     { icon: 'today-outline', title: '오늘 공부', desc: '오늘·이번 주 공부량과 목표 달성률' },
     { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
     { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
   ];
-  const STEPS = [
+  const STEPS = isIos ? [
+    '홈 화면 빈 곳을 길게 누르세요',
+    '왼쪽 위 "+" 버튼을 누르세요',
+    '"열공메이트"를 검색해 원하는 위젯을 추가하세요',
+  ] : [
     '홈 화면 빈 곳을 길게 누르세요',
     '"위젯"을 누르고 목록에서 열공메이트를 찾으세요',
     '원하는 위젯을 홈 화면으로 끌어다 놓으세요',

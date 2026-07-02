@@ -615,8 +615,8 @@ export default function SettingsScreen() {
           })()}
         </Section>
 
-        {/* 홈 화면 위젯 안내 (Android 전용) */}
-        {Platform.OS === 'android' && (
+        {/* 홈 화면 위젯 안내 (iOS/Android) */}
+        {(Platform.OS === 'android' || Platform.OS === 'ios') && (
           <Section T={T} title="홈 화면 위젯" icon="apps-outline">
             <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
               <Text style={{ fontSize: 13, color: T.sub, lineHeight: 19, marginBottom: 14 }}>
@@ -639,11 +639,15 @@ export default function SettingsScreen() {
               ))}
               <View style={{ backgroundColor: T.surface, borderRadius: 14, padding: 14, marginTop: 4 }}>
                 <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginBottom: 8 }}>추가하는 법</Text>
-                {[
+                {(Platform.OS === 'ios' ? [
+                  '홈 화면 빈 곳을 길게 누르세요',
+                  '왼쪽 위 "+" 버튼을 누르세요',
+                  '"열공메이트"를 검색해 원하는 위젯을 추가하세요',
+                ] : [
                   '홈 화면 빈 곳을 길게 누르세요',
                   '"위젯"을 누르고 목록에서 열공메이트를 찾으세요',
                   '원하는 위젯을 홈 화면으로 끌어다 놓으세요',
-                ].map((s, i, arr) => (
+                ]).map((s, i, arr) => (
                   <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: i < arr.length - 1 ? 7 : 0 }}>
                     <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 1 }}>
                       <Text style={{ fontSize: 11, fontWeight: '900', color: '#fff' }}>{i + 1}</Text>
