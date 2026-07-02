@@ -1729,8 +1729,9 @@ export function AppProvider({ children }) {
     saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
   }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
 
-  // 안드로이드 위젯 갱신 — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
-  // 자동저장(500ms 디바운스)보다 늦게 읽도록 여유를 두고 호출 (위젯은 AsyncStorage를 직접 읽음).
+  // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
+  // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
+  // 자동저장(500ms 디바운스)보다 늦게 읽도록 여유를 두고 호출.
   const widgetUpdateRef = useRef(null);
   useEffect(() => {
     if (loading) return;

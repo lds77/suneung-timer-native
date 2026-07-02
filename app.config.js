@@ -1,5 +1,9 @@
 const IS_PREVIEW = process.env.APP_VARIANT === 'preview';
 
+// iOS 위젯(WidgetKit) ↔ 앱 데이터 공유용 App Group.
+// preview/prod 공통으로 하나만 사용 (App Group은 bundleId와 독립적으로 팀에 등록됨).
+const APP_GROUP = 'group.com.yeolgong.timer';
+
 module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
@@ -18,7 +22,13 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '37',
+      buildNumber: '38',
+      // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
+      appleTeamId: process.env.APPLE_TEAM_ID || undefined,
+      entitlements: {
+        // iOS 홈 화면 위젯 데이터 공유 (App Group)
+        'com.apple.security.application-groups': [APP_GROUP],
+      },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -115,6 +125,9 @@ module.exports = {
           ],
         },
       ],
+      // iOS 홈 화면 위젯 (WidgetKit) — targets/widgets/ 의 Swift 코드를 익스텐션 타겟으로 추가.
+      // Android에는 영향 없음(iOS prebuild 전용 플러그인).
+      '@bacons/apple-targets',
     ],
     extra: {
       eas: {
