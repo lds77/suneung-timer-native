@@ -964,12 +964,15 @@ export function AppProvider({ children }) {
       })
     )).filter(Boolean);
 
-    // Promise.all 완료 후 타이머가 이미 종료/삭제됐으면 방금 예약한 알림 즉시 취소
-    // (cancelTimerNotif가 Promise.all 진행 중에 호출됐을 경우의 레이스 컨디션 방어)
+    // Promise.all 완료 후 방금 예약한 알림을 즉시 취소해야 하는 두 경우:
+    // 1) 이 호출보다 더 최신 호출이 들어옴(runId 변경) → 그쪽이 새로 예약하므로 내 것은 중복(유령 알림)
+    //    ※ 앞선 runId 가드(취소 단계)만으로는 부족 — 예약 단계에서 겹친 동시 호출을 여기서 정리
+    // 2) 타이머가 이미 종료/삭제됨(cancelTimerNotif가 Promise.all 진행 중 호출된 레이스)
+    const superseded = phaseNotifRunId.current.get(timer.id) !== runId;
     const timerStillActive = timersRef.current.some(
       t => t.id === timer.id && (t.status === 'running' || t.status === 'paused')
     );
-    if (!timerStillActive) {
+    if (superseded || !timerStillActive) {
       ids.forEach(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {}));
       return;
     }
