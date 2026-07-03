@@ -148,7 +148,8 @@ export function AppProvider({ children }) {
           // 랩 스톱워치는 무한
           if (t.type === 'lap') return next;
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
-            const sessId = fireComplete(next);
+            // overshoot > 2초: bg 복귀 직후 stale 상태 → OS 예약 알림이 이미 발송됨 → skipNotif (sequence와 동일 가드)
+            const sessId = fireComplete(next, next.elapsedSec - t.totalSec > 2);
             return { ...next, status: 'completed', result: calcResult(next, next.elapsedSec), ...(sessId ? { memoSessionId: sessId } : {}) };
           }
           if (t.type === 'pomodoro') {
@@ -224,7 +225,7 @@ export function AppProvider({ children }) {
       if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: t.elapsedSec / Math.max(1, t.totalSec), dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)), dedupeKey: `complete|${t.id}|${t.startedAt}` });
       }
       return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
     }));
@@ -763,13 +764,15 @@ export function AppProvider({ children }) {
     if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       // 카운트다운: 중도 종료(그만하기 등)도 이 경로로 올 수 있으므로 실제 경과 시간만 기록
-      const realDurationSec = t.type === 'countdown' ? Math.min(t.elapsedSec, t.totalSec) : t.elapsedSec;
+      // 연속모드(그만하기 경로)는 항목 기준 카운트다운으로 기록 (seqFlip/stopTimer와 동일 규칙)
+      const recType = t.type === 'sequence' ? 'countdown' : t.type;
+      const realDurationSec = recType === 'countdown' ? Math.min(t.elapsedSec, t.totalSec) : t.elapsedSec;
       const sessId = recordSessionInternal({
         subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
         durationSec: realDurationSec,
-        mode: t.type, pauseCount: t.pauseCount, exitCount: exitCnt,
-        focusMode: mode, timerType: t.type,
-        completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
+        mode: recType, pauseCount: t.pauseCount, exitCount: exitCnt,
+        focusMode: mode, timerType: recType,
+        completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
         pomoSets: t.pomoSet || 0, planId: t.planId || null,
         dedupeKey: `complete|${t.id}|${t.startedAt}`,
       });
@@ -1403,7 +1406,9 @@ export function AppProvider({ children }) {
       if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        // 연속모드는 항목 기준 카운트다운으로 기록 (seqFlip/cancelSequence와 동일 규칙 — 밀도 공식·통계 라벨 일관)
+        const recType = t.type === 'sequence' ? 'countdown' : t.type;
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
         if (t.planId) {
@@ -1465,11 +1470,13 @@ export function AppProvider({ children }) {
       if (t && !inBreakPhase && (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
+        // 연속모드는 항목 기준 카운트다운으로 기록 (stopTimer/seqFlip과 동일 규칙)
+        const recType = t.type === 'sequence' ? 'countdown' : t.type;
         recordSessionInternal({
           subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-          durationSec: t.elapsedSec, mode: t.type, pauseCount: t.pauseCount,
+          durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount,
           focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
-          timerType: t.type, completionRatio: t.type === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
+          timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
           pomoSets: t.pomoSet || 0, planId: t.planId || null,
           dedupeKey: `complete|${t.id}|${t.startedAt}`,
         });
@@ -1576,7 +1583,15 @@ export function AppProvider({ children }) {
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
-      const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
+      let [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
+      // 형태 방어: 손상된 저장값(비배열 등)이 있으면 그 키만 무시 — .filter/.map 크래시로 앱이 먹통되는 것 방지
+      if (s && (typeof s !== 'object' || Array.isArray(s))) s = null;
+      if (!Array.isArray(subj)) subj = null;
+      if (!Array.isArray(sess)) sess = null;
+      if (!Array.isArray(dd)) dd = null;
+      if (!Array.isArray(td)) td = null;
+      if (cuf && !Array.isArray(cuf)) cuf = null;
+      if (!Array.isArray(fv)) fv = null;
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -1655,7 +1670,7 @@ export function AppProvider({ children }) {
       if (cuf) setCountupFavs(cuf);
       if (fv && fv.length > 0) setFavs(fv);
       const ws = await loadWeeklySchedule();
-      if (ws) {
+      if (ws && typeof ws === 'object' && !Array.isArray(ws)) {
         // '이번 주만'(onlyWeek) 계획/고정일정 중 지난 주 항목 정리
         const wkStart0 = getWeekStartStr(0);
         let wsChanged = false;

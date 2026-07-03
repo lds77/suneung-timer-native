@@ -101,11 +101,27 @@ const BACKUP_KEYS = [
   'DAILY_RECORDS', 'COUNTUP_FAVS', 'FAVS', 'WEEKLY_SCHEDULE',
 ];
 
+// 키별 기대 타입 — 잘못된 형태를 복원하면 로드 경로(.filter/.map)가 매 실행마다
+// 크래시해 앱이 재설치 전까지 먹통이 되므로, 형태가 안 맞는 키는 복원에서 제외한다.
+const BACKUP_KEY_SHAPES = {
+  SETTINGS: 'object', SUBJECTS: 'array', SESSIONS: 'array', DDAYS: 'array',
+  TODOS: 'array', DAILY_RECORDS: 'object', COUNTUP_FAVS: 'array', FAVS: 'array',
+  WEEKLY_SCHEDULE: 'object',
+};
+
+const matchesShape = (value, shape) => shape === 'array'
+  ? Array.isArray(value)
+  : (typeof value === 'object' && value !== null && !Array.isArray(value));
+
 export const exportBackupData = async () => {
   const data = {};
   for (const k of BACKUP_KEYS) {
-    const raw = await AsyncStorage.getItem(KEYS[k]);
-    if (raw !== null) data[k] = JSON.parse(raw);
+    try {
+      const raw = await AsyncStorage.getItem(KEYS[k]);
+      if (raw !== null) data[k] = JSON.parse(raw);
+    } catch {
+      // 한 키가 손상돼도 나머지는 백업 (손상 키는 제외)
+    }
   }
   data._meta = { version: 1, exportedAt: new Date().toISOString(), app: 'yeolgong' };
   return data;
@@ -114,7 +130,7 @@ export const exportBackupData = async () => {
 export const importBackupData = async (data) => {
   if (!data || data._meta?.app !== 'yeolgong') throw new Error('invalid_backup');
   for (const k of BACKUP_KEYS) {
-    if (data[k] !== undefined) {
+    if (data[k] !== undefined && matchesShape(data[k], BACKUP_KEY_SHAPES[k])) {
       await AsyncStorage.setItem(KEYS[k], JSON.stringify(data[k]));
     }
   }
