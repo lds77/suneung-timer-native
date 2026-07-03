@@ -10,6 +10,14 @@ module.exports = {
     slug: 'yeolgong-timer',
     version: '1.0.32',
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
+    // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
+    // 이 설정이 포함된 빌드(안드 1.0.33+, iOS 빌드 42+)부터 동작.
+    // 배포: eas update --channel production --message "..." (같은 앱 버전에만 적용됨 — appVersion 정책)
+    runtimeVersion: { policy: 'appVersion' },
+    updates: {
+      url: 'https://u.expo.dev/ff1ee02a-77f5-4799-96d9-accb8eab8b36',
+      fallbackToCacheTimeout: 0, // OTA 확인이 느려도 기존 번들로 즉시 시작 (시작 지연 없음)
+    },
     orientation: 'portrait',
     icon: './assets/icons/app-icon.png',
     userInterfaceStyle: 'light',
