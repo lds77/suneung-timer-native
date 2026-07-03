@@ -6,7 +6,9 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Keyb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { formatTime, formatDuration, formatDDay, calcDDay, getToday } from '../utils/format';
+import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
+import ChallengeModal from './focus/ChallengeModal';
+import NicknameModal from './focus/NicknameModal';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
 import GradientView from '../components/GradientView';
@@ -86,9 +88,7 @@ export default function FocusScreen() {
   // 할일 추가 모달
   const [showAddTodoModal, setShowAddTodoModal] = useState(false);
   const inlineInputRef = useRef(null);
-  const [showNicknameModal, setShowNicknameModal] = useState(false);
-  const [editNickname, setEditNickname] = useState('');
-  const [editMotto, setEditMotto] = useState('');
+  const [showNicknameModal, setShowNicknameModal] = useState(false); // 편집 상태는 NicknameModal 소유
   const [addTodoText, setAddTodoText] = useState('');
   const [addTodoSubjectId, setAddTodoSubjectId] = useState(null);
   const [addTodoSubjectLabel, setAddTodoSubjectLabel] = useState(null);
@@ -180,12 +180,7 @@ export default function FocusScreen() {
   // 플래너 달성률 (enabled이고 오늘 plans 있을 때만 숫자, 아니면 null)
   const plannerRate = app.weeklySchedule?.enabled ? app.getTodayPlanRate?.() : null;
 
-  // 챌린지
-  const [challengeInput, setChallengeInput] = useState('');
-  const challengeTarget = app.getChallengeText?.(app.settings.ultraFocusLevel || 'normal', app.ultraFocus?.challengeAwayMs || 0) || '집중';
-  const challengeMatch = challengeInput.trim() === challengeTarget;
-  const challengeAwayMin = Math.floor((app.ultraFocus?.challengeAwayMs || 0) / 60000);
-  const challengeAwaySec = Math.floor(((app.ultraFocus?.challengeAwayMs || 0) % 60000) / 1000);
+  // 챌린지 모달은 focus/ChallengeModal.js로 분리 (입력 상태 포함)
 
   // 완료 결과 모달 — 자기평가 입력
   const [resultSelfRating, setResultSelfRating] = useState(null);
@@ -1075,7 +1070,7 @@ export default function FocusScreen() {
               <View style={S.headerLeft}>
                 <TouchableOpacity
                   style={{ flex: 1, minWidth: 0 }}
-                  onLongPress={() => { setEditNickname(app.settings.nickname || ''); setEditMotto(app.settings.motto || ''); setShowNicknameModal(true); }}
+                  onLongPress={() => setShowNicknameModal(true)}
                   activeOpacity={1}
                 >
                   <Text style={[S.title, { color: hText }, hShadow]} numberOfLines={1}>
@@ -2433,45 +2428,8 @@ export default function FocusScreen() {
         </View></ScrollView></View>
       </Modal>
 
-      {/* 잠금 해제 챌린지 모달 */}
-      <Modal visible={!!app.ultraFocus?.showChallenge} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={S.chalOverlay}>
-          <View style={[S.chalBox, { backgroundColor: T.card }]}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={90} />
-            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text, marginTop: 10 }}>
-              {app.settings.mainCharacter === 'toru' ? '토루가 울고 있어...' : app.settings.mainCharacter === 'paengi' ? '팽이가 슬퍼하고 있어...' : app.settings.mainCharacter === 'taco' ? '타코가 실망했어...' : '토토루가 속상해...'}
-            </Text>
-            <View style={[S.chalInfo, { backgroundColor: '#FF6B6B12', borderColor: '#FF6B6B40' }]}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#FF6B6B' }}>이탈 시간</Text>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: '#FF6B6B', marginTop: 4 }}>
-                {challengeAwayMin > 0 ? `${challengeAwayMin}분 ${challengeAwaySec}초` : `${challengeAwaySec}초`}
-              </Text>
-              <Text style={{ fontSize: 12, color: T.sub, marginTop: 4 }}>총 {app.ultraFocus?.exitCount || 0}번 이탈</Text>
-            </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginTop: 14 }}>다시 집중하려면 아래 문구를 따라 쓰세요</Text>
-            <View style={[S.chalTargetBox, { backgroundColor: T.accent + '12', borderColor: T.accent + '40' }]}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: T.accent, letterSpacing: 0 }}>{challengeTarget}</Text>
-            </View>
-            <TextInput style={[S.chalInput, { color: T.text, borderColor: challengeMatch ? '#4CAF50' : T.border, backgroundColor: challengeMatch ? '#4CAF5010' : T.bg }]}
-              value={challengeInput} onChangeText={setChallengeInput} placeholder="여기에 입력..." placeholderTextColor={T.sub} autoFocus />
-            <TouchableOpacity style={[S.chalBtn, { backgroundColor: challengeMatch ? T.accent : T.border }]}
-              onPress={() => { if (challengeMatch) { setChallengeInput(''); app.dismissChallenge?.(); } }} disabled={!challengeMatch} activeOpacity={0.8}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: challengeMatch ? 'white' : T.sub }}>{challengeMatch ? '다시 집중하기!' : '문구를 정확히 입력하세요'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8 }} onPress={() => {
-                // giveUpDate는 로컬 날짜(getToday)로 저장됨 — UTC(toISOString)로 비교하면 KST 새벽에 카운트가 어긋남
-                const today = getToday();
-                const todayCount = app.settings.giveUpDate === today ? (app.settings.giveUpCount || 0) : 0;
-                const countMsg = todayCount > 0 ? `오늘 ${todayCount + 1}번째 그만하기예요.\n` : '';
-                Alert.alert('정말 그만할까요?', `${countMsg}모든 타이머가 중단돼요`, [{ text: '계속하기', style: 'cancel' }, { text: '그만하기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }]);
-              }}>
-              <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>그만하기</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* 잠금 해제 챌린지 모달 (focus/ChallengeModal.js) */}
+      <ChallengeModal app={app} T={T} S={S} />
 
       {/* 🔒 잠금 오버레이는 App.js의 LockOverlay 컴포넌트로 이동 (Root 레벨 렌더링 — 폰트 변경 리마운트에 영향받지 않음) */}
 
@@ -2565,56 +2523,8 @@ export default function FocusScreen() {
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
 
-      {/* 닉네임 / 한마디 편집 모달 */}
-      <Modal visible={showNicknameModal} transparent animationType="fade" onRequestClose={() => setShowNicknameModal(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'center', padding: 24 }} activeOpacity={1} onPress={() => setShowNicknameModal(false)}>
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={{ backgroundColor: T.card, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: T.border }}>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: T.text, marginBottom: 16 }}>내 정보 설정</Text>
-
-              <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 6 }}>닉네임</Text>
-              <TextInput
-                style={{ borderWidth: 1.5, borderColor: T.border, borderRadius: 10, padding: 10, fontSize: 15, color: T.text, backgroundColor: T.surface, marginBottom: 14 }}
-                placeholder="이름 또는 닉네임 (예: 민준, 수험생)"
-                placeholderTextColor={T.sub}
-                value={editNickname}
-                onChangeText={setEditNickname}
-                maxLength={12}
-                returnKeyType="next"
-              />
-
-              <Text style={{ fontSize: 12, fontWeight: '600', color: T.sub, marginBottom: 6 }}>오늘의 한마디</Text>
-              <TextInput
-                style={{ borderWidth: 1.5, borderColor: T.border, borderRadius: 10, padding: 10, fontSize: 14, color: T.text, backgroundColor: T.surface, marginBottom: 20 }}
-                placeholder="오늘의 목표나 다짐을 입력해요"
-                placeholderTextColor={T.sub}
-                value={editMotto}
-                onChangeText={setEditMotto}
-                maxLength={20}
-                returnKeyType="done"
-              />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity
-                  style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: T.surface, borderWidth: 1, borderColor: T.border }}
-                  onPress={() => setShowNicknameModal(false)}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent }}
-                  onPress={() => {
-                    app.updateSettings({ nickname: editNickname.trim(), motto: editMotto.trim() });
-                    setShowNicknameModal(false);
-                  }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>저장</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      {/* 닉네임 / 한마디 편집 모달 (focus/NicknameModal.js) */}
+      <NicknameModal visible={showNicknameModal} onClose={() => setShowNicknameModal(false)} app={app} T={T} />
     </KeyboardAvoidingView>
   );
 }
