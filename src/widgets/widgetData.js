@@ -78,6 +78,21 @@ export const getWidgetData = async () => {
   const todaySessions = sessArr.filter(s => s && s.date === today);
   const totalSec = todaySessions.reduce((acc, s) => acc + (s.durationSec || 0), 0);
 
+  // 세션 → 과목 매칭: subjectId 우선, 없으면 라벨=과목명 폴백.
+  // 연속모드 항목은 subjectId 없이 라벨만 있어서(예: '국어') 폴백 없이는 과목별 합산에서 빠진다.
+  const subjById = {};
+  const subjIdByName = {};
+  subjArr.forEach(sub => {
+    if (!sub?.id) return;
+    subjById[sub.id] = sub;
+    const nm = (sub.name || '').trim();
+    if (nm && !subjIdByName[nm]) subjIdByName[nm] = sub.id;
+  });
+  const sessionSubjectId = (s) => {
+    if (s.subjectId && subjById[s.subjectId]) return s.subjectId;
+    return subjIdByName[(s.label || '').trim()] || null;
+  };
+
   const goalMin = settings?.dailyGoalMin || 0;
   const goalSec = goalMin * 60;
   const goalPct = goalSec > 0 ? Math.min(999, Math.round((totalSec / goalSec) * 100)) : 0;
@@ -88,14 +103,12 @@ export const getWidgetData = async () => {
 
   // 과목별 오늘 합계 top3 (StudyTime 중형용)
   const subjMap = {};
-  const subjById = {};
-  subjArr.forEach(sub => { if (sub?.id) subjById[sub.id] = sub; });
   todaySessions.forEach(s => {
-    if (!s.subjectId) return;
-    const sub = subjById[s.subjectId];
-    if (!sub) return;
-    if (!subjMap[s.subjectId]) subjMap[s.subjectId] = { name: sub.name, color: sub.color, sec: 0 };
-    subjMap[s.subjectId].sec += (s.durationSec || 0);
+    const sid = sessionSubjectId(s);
+    if (!sid) return;
+    const sub = subjById[sid];
+    if (!subjMap[sid]) subjMap[sid] = { name: sub.name, color: sub.color, sec: 0 };
+    subjMap[sid].sec += (s.durationSec || 0);
   });
   const topSubjects = Object.values(subjMap).sort((a, b) => b.sec - a.sec).slice(0, 3);
 
@@ -121,7 +134,8 @@ export const getWidgetData = async () => {
   sessArr.forEach(s => {
     if (!s?.date || s.date < wkStartStr || s.date > today) return;
     weekTotalSec += (s.durationSec || 0);
-    if (s.subjectId) weekSecBySubj[s.subjectId] = (weekSecBySubj[s.subjectId] || 0) + (s.durationSec || 0);
+    const sid = sessionSubjectId(s);
+    if (sid) weekSecBySubj[sid] = (weekSecBySubj[sid] || 0) + (s.durationSec || 0);
   });
   const daysElapsed = new Date().getDay() + 1;          // 일=1 … 토=7 (이번 주 경과 일수)
   const weekAvgSec = Math.round(weekTotalSec / daysElapsed);
@@ -133,12 +147,13 @@ export const getWidgetData = async () => {
     .map(s => ({ id: s.id, name: s.name, color: s.color, weekSec: weekSecBySubj[s.id] || 0 }));
 
   return {
+    date: today,          // 스냅샷 계산 기준일 — iOS 위젯이 자정 경과 감지에 사용
     totalSec, goalSec, goalPct, accent, darkMode, streak,
     subjects: topSubjects,
     weekTotalSec,         // 이번 주(일~오늘) 누적
     weekAvgSec,           // 이번 주 하루 평균(경과일 기준)
     dday,                 // { label, date, n } | null (목록 첫 항목 = 대표/최근접)
     ddays: ddSorted,      // [{ label, date, n, isPrimary }] 정렬·최대 6
-    launcherSubjects,     // [{ id, name, color }]
+    launcherSubjects,     // [{ id, name, color, weekSec }]
   };
 };

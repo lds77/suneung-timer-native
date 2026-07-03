@@ -30,8 +30,8 @@ struct StudyTimeView: View {
         .widgetURL(URL(string: "yeolgong://open"))
     }
 
-    // 시간 + 목표 + 연속일 (소형/중형 좌측 공통)
-    private var summaryColumn: some View {
+    // 시간 + 목표 (소형/중형 좌측 공통). 연속일 표기는 소형만(중형은 우측 요약에 있음)
+    private func summaryColumn(showStreak: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("오늘 공부")
                 .font(.system(size: 13, weight: .semibold))
@@ -50,7 +50,7 @@ struct StudyTimeView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(d.subColor)
             }
-            if d.streak > 0 {
+            if showStreak && d.streak > 0 {
                 HStack(spacing: 3) {
                     Image(systemName: "flame.fill")
                         .font(.system(size: 11))
@@ -65,34 +65,37 @@ struct StudyTimeView: View {
     }
 
     private var smallBody: some View {
-        summaryColumn
+        summaryColumn(showStreak: true)
+    }
+
+    // 주간 요약 한 줄 (라벨 + 값) — 안드로이드 2x2와 동일 구성
+    private func statRow(_ label: String, _ value: String, valueColor: Color) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(d.subColor)
+            Spacer(minLength: 4)
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(valueColor)
+        }
     }
 
     private var mediumBody: some View {
         HStack(alignment: .top, spacing: 16) {
-            summaryColumn
-            if !d.subjects.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("과목별")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(d.subColor)
-                    ForEach(d.subjects.prefix(3)) { s in
-                        HStack(spacing: 6) {
-                            Circle().fill(s.color).frame(width: 8, height: 8)
-                            Text(s.name)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(d.textColor)
-                                .lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text(formatShort(s.sec))
-                                .font(.system(size: 12))
-                                .foregroundColor(d.subColor)
-                        }
-                    }
-                    Spacer(minLength: 0)
+            summaryColumn(showStreak: false)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("이번 주")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(d.subColor)
+                Spacer(minLength: 0)
+                statRow("누적", formatShort(d.weekTotalSec), valueColor: d.textColor)
+                statRow("하루 평균", formatShort(d.weekAvgSec), valueColor: d.textColor)
+                if d.streak > 0 {
+                    statRow("연속", "\(d.streak)일째", valueColor: d.accent)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 }

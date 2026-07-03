@@ -59,14 +59,22 @@ struct SubjectView: View {
                 .foregroundColor(d.subColor)
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(d.launcher.prefix(limit)) { s in
+                    // 이번 주 공부시간 표시 — 0이면 흐리게(방치 신호), 안드로이드 위젯과 동일
+                    let studied = s.weekSec > 0
                     Link(destination: subjectURL(s.id)) {
                         HStack(spacing: 6) {
-                            Circle().fill(s.color).frame(width: 9, height: 9)
+                            Circle()
+                                .fill(studied ? s.color : d.subColor.opacity(0.35))
+                                .frame(width: 9, height: 9)
                             Text(s.name)
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(d.textColor)
+                                .foregroundColor(studied ? d.textColor : d.subColor)
                                 .lineLimit(1)
-                            Spacer(minLength: 0)
+                            Spacer(minLength: 4)
+                            Text(formatShort(s.weekSec))
+                                .font(.system(size: 12, weight: studied ? .bold : .medium))
+                                .foregroundColor(studied ? d.accent : d.subColor.opacity(0.6))
+                                .lineLimit(1)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 10)

@@ -42,6 +42,28 @@ func ddayLabel(_ n: Int) -> String {
     return n > 0 ? "D-\(n)" : "D+\(-n)"
 }
 
+// MARK: - 날짜 유틸 (JS widgetData.js todayStr / daysUntil과 동일 규칙, 로컬 기준)
+
+func localDateStr(_ date: Date = Date()) -> String {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    f.timeZone = TimeZone.current
+    return f.string(from: date)
+}
+
+// "YYYY-MM-DD" → 오늘 자정 기준 남은 일수. 파싱 실패 시 nil.
+func daysUntil(_ dateStr: String) -> Int? {
+    guard !dateStr.isEmpty else { return nil }
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    f.timeZone = TimeZone.current
+    guard let target = f.date(from: dateStr) else { return nil }
+    let cal = Calendar.current
+    let from = cal.startOfDay(for: Date())
+    let to = cal.startOfDay(for: target)
+    return cal.dateComponents([.day], from: from, to: to).day
+}
+
 // MARK: - JSON 값 추출 헬퍼 (스키마 드리프트에 강하도록 관대하게)
 
 private func intVal(_ v: Any?) -> Int {
@@ -77,6 +99,7 @@ struct LauncherItem: Identifiable {
     let id: String   // subjectId (딥링크용)
     let name: String
     let color: Color
+    let weekSec: Int // 이번 주 공부시간 (0이면 흐리게 — 안드로이드와 동일)
 }
 
 struct WidgetData {
@@ -121,8 +144,9 @@ struct WidgetData {
         }
         if let arr = obj["ddays"] as? [[String: Any]] {
             data.ddays = arr.map {
+                // 목표일로 남은 일수를 매 렌더마다 재계산 → 앱을 안 열어도 자정에 D-Day 감소
                 DDayItem(label: strVal($0["label"]),
-                         n: intVal($0["n"]),
+                         n: daysUntil(strVal($0["date"])) ?? intVal($0["n"]),
                          isPrimary: boolVal($0["isPrimary"]))
             }
         }
@@ -132,8 +156,18 @@ struct WidgetData {
                 if sid.isEmpty { return nil }
                 return LauncherItem(id: sid,
                                     name: strVal($0["name"]),
-                                    color: Color(hexString: strVal($0["color"])))
+                                    color: Color(hexString: strVal($0["color"])),
+                                    weekSec: intVal($0["weekSec"]))
             }
+        }
+
+        // 자정 경과 보정: 스냅샷 기준일이 오늘이 아니면 '오늘' 통계는 0부터 다시
+        // (앱이 꺼져 있으면 스냅샷이 갱신되지 않으므로 위젯 쪽에서 리셋)
+        let snapshotDate = strVal(obj["date"])
+        if !snapshotDate.isEmpty && snapshotDate != localDateStr() {
+            data.totalSec = 0
+            data.goalPct = 0
+            data.subjects = []
         }
         return data
     }
@@ -160,8 +194,15 @@ struct DataProvider: TimelineProvider {
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<DataEntry>) -> Void) {
         let entry = DataEntry(date: Date(), data: WidgetData.load())
-        // 앱이 데이터 변동 시 reloadWidget()으로 즉시 갱신하지만, 자정 리셋 등을 위해 30분마다 보조 갱신
-        let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
+        // 앱이 데이터 변동 시 reloadWidget()으로 즉시 갱신하지만, 30분마다 보조 갱신.
+        // 자정 직후엔 즉시 리로드해 '오늘' 리셋/D-Day 감소가 최대 30분 밀리지 않도록.
+        let cal = Calendar.current
+        let in30 = cal.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
+        var next = in30
+        if let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) {
+            let justPastMidnight = cal.startOfDay(for: tomorrow).addingTimeInterval(5)
+            next = min(in30, justPastMidnight)
+        }
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 }
