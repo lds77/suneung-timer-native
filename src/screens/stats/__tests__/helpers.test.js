@@ -2,6 +2,7 @@
 import {
   dateStr, addDays, darkenColor, stripLeadingEmoji,
   getSessionSubject, fmtDiff, getStreakTitle, BUILTIN_SUBJECTS,
+  buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
 } from '../helpers';
 import { getTier } from '../../../constants/presets';
 
@@ -110,5 +111,75 @@ describe('getTier — 티어 경계 (presets)', () => {
     expect(getTier(65).id).toBe('C');
     expect(getTier(56).id).toBe('C');
     expect(getTier(0).id).toBe('C'); // 최저 폴백
+  });
+});
+
+describe('buildHeatmapWeeks — 잔디 히트맵', () => {
+  // 기준일 고정: 2026-07-01(수)
+  const NOW = new Date(2026, 6, 1, 12, 0, 0);
+
+  test('주 수·요일 구조: hmWeeks개 주 × 7일, 마지막 주 토요일로 끝남', () => {
+    const weeks = buildHeatmapWeeks([], 16, NOW);
+    expect(weeks).toHaveLength(16);
+    weeks.forEach(w => expect(w).toHaveLength(7));
+    const last = weeks[15][6];
+    expect(new Date(last.date + 'T00:00:00').getDay()).toBe(6); // 토
+    expect(last.date).toBe('2026-07-04'); // 이번 주 토요일
+  });
+
+  test('세션 합산 + 오늘/미래 플래그', () => {
+    const weeks = buildHeatmapWeeks([
+      { date: '2026-07-01', durationSec: 600 },
+      { date: '2026-07-01', durationSec: 300 },
+      { date: '2026-06-30', durationSec: 60 },
+    ], 2, NOW);
+    const days = weeks.flat();
+    const todayCell = days.find(d => d.date === '2026-07-01');
+    expect(todayCell).toEqual(expect.objectContaining({ sec: 900, isToday: true, isFuture: false }));
+    expect(days.find(d => d.date === '2026-06-30').sec).toBe(60);
+    // 오늘(정오) 이후인 7/2~7/4은 미래
+    expect(days.find(d => d.date === '2026-07-02').isFuture).toBe(true);
+    expect(days.find(d => d.date === '2026-07-04').isFuture).toBe(true);
+  });
+});
+
+describe('calcLongestStreak', () => {
+  const mk = (secs) => [secs.map((sec, i) => ({ date: `d${i}`, sec, isFuture: false }))];
+
+  test('중간 공백으로 끊긴 연속을 정확히 센다', () => {
+    expect(calcLongestStreak(mk([100, 100, 0, 100, 100, 100]))).toBe(3);
+    expect(calcLongestStreak(mk([0, 0, 0]))).toBe(0);
+    expect(calcLongestStreak(mk([100]))).toBe(1);
+  });
+
+  test('미래 칸은 연속 계산에서 제외', () => {
+    const weeks = [[
+      { date: 'a', sec: 100, isFuture: false },
+      { date: 'b', sec: 0, isFuture: true },   // 미래 0은 끊김 아님
+      { date: 'c', sec: 100, isFuture: false },
+    ]];
+    expect(calcLongestStreak(weeks)).toBe(2);
+  });
+});
+
+describe('calcPersonalBests — 역대 기록', () => {
+  test('세션 없으면 null', () => {
+    expect(calcPersonalBests([])).toBeNull();
+    expect(calcPersonalBests(null)).toBeNull();
+  });
+
+  test('하루 최장/최다 세션/최장 단일/최고 밀도(10분 이상만)', () => {
+    const bests = calcPersonalBests([
+      { date: '2026-07-01', durationSec: 3600, focusDensity: 90 },
+      { date: '2026-07-01', durationSec: 1800, focusDensity: 80 },
+      { date: '2026-07-02', durationSec: 4000, focusDensity: 70 },
+      { date: '2026-07-03', durationSec: 120, focusDensity: 103 }, // 10분 미만 → 밀도 기록 제외
+    ]);
+    expect(bests.bestDayDate).toBe('2026-07-01'); // 5400초
+    expect(bests.bestDaySec).toBe(5400);
+    expect(bests.mostSessDate).toBe('2026-07-01');
+    expect(bests.mostSessCount).toBe(2);
+    expect(bests.longestSess.durationSec).toBe(4000);
+    expect(bests.bestDensitySess.focusDensity).toBe(90); // 103짜리는 120초라 제외
   });
 });

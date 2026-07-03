@@ -21,6 +21,7 @@ import {
   DAYS_KR, dateStr, addDays, CHEER_MSGS, getInsight, TIME_ZONES,
   buildReportText, buildDayReportText, buildMonthReportText, buildHeatReportText,
   getSessionSubject, fmtDiff, getStreakTitle, stripLeadingEmoji,
+  buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
 } from './stats/helpers';
 import GoalRing from './stats/components/GoalRing';
 import SubjectDonut from './stats/components/SubjectDonut';
@@ -331,33 +332,8 @@ export default function StatsScreen() {
     if (r < 0.75) return T.accent + 'CC'; return T.accent;
   };
 
-  // ─── 16주(4개월) 히트맵 (깃허브 잔디) ──────────────────────────────
-  const heatmap365 = useMemo(() => {
-    const data = {};
-    app.sessions.forEach(s => {
-      if (!s.date) return;
-      if (!data[s.date]) data[s.date] = { sec: 0 };
-      data[s.date].sec += (s.durationSec || 0);
-    });
-    const end = new Date();
-    const endDow = end.getDay();
-    const endSat = addDays(end, 6 - endDow);
-    const startSun = addDays(endSat, -HM_WEEKS * 7 + 1);
-    const weeks = [];
-    let cur = new Date(startSun);
-    while (cur <= endSat) {
-      const week = [];
-      for (let d = 0; d < 7; d++) {
-        const ds = dateStr(cur);
-        const dd = data[ds] || { sec: 0 };
-        const isFuture = cur > end;
-        week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today });
-        cur = addDays(cur, 1);
-      }
-      weeks.push(week);
-    }
-    return weeks;
-  }, [app.sessions, today]);
+  // ─── 16주(4개월) 히트맵 (깃허브 잔디) — 계산은 stats/helpers.buildHeatmapWeeks ───
+  const heatmap365 = useMemo(() => buildHeatmapWeeks(app.sessions, HM_WEEKS), [app.sessions, today]);
 
   // 잔디 색상 — accent 계열 4단계 (30분/1시간/2시간/4시간)
   const HEAT_STEPS = [1800, 3600, 7200, 14400]; // 30m, 1h, 2h, 4h
@@ -419,14 +395,8 @@ export default function StatsScreen() {
     return { date: dayDetailDate, sessions: sess, totalSec, avgDensity, tier, subjects };
   }, [dayDetailDate, app.sessions, app.subjects]);
 
-  // ─── 잔디 요약: 최장 연속 ─────────────────────────────────────
-  const longestStreak = useMemo(() => {
-    let max = 0, cur = 0;
-    heatmap365.flat().filter(d => !d.isFuture).forEach(d => {
-      if (d.sec > 0) { cur++; max = Math.max(max, cur); } else cur = 0;
-    });
-    return max;
-  }, [heatmap365]);
+  // ─── 잔디 요약: 최장 연속 (stats/helpers.calcLongestStreak) ───
+  const longestStreak = useMemo(() => calcLongestStreak(heatmap365), [heatmap365]);
 
   // ─── 잔디 요약: 올해 총 공부시간 + 평균밀도 ──────────────────
   const yearTotalSec = useMemo(() => {
@@ -439,46 +409,8 @@ export default function StatsScreen() {
     return ySess.length > 0 ? Math.round(ySess.reduce((s, x) => s + (x.focusDensity || 0), 0) / ySess.length) : 0;
   }, [app.sessions]);
 
-  // ─── 역대 기록 (Personal Bests) ─────────────────────────────
-  const personalBests = useMemo(() => {
-    const sessions = app.sessions || [];
-    if (sessions.length === 0) return null;
-
-    // 날짜별 집계
-    const byDate = {};
-    sessions.forEach(s => {
-      if (!s.date) return;
-      if (!byDate[s.date]) byDate[s.date] = { sec: 0, count: 0 };
-      byDate[s.date].sec += (s.durationSec || 0);
-      byDate[s.date].count++;
-    });
-
-    // 하루 최장 공부시간
-    let bestDayDate = null, bestDaySec = 0;
-    Object.entries(byDate).forEach(([date, v]) => {
-      if (v.sec > bestDaySec) { bestDaySec = v.sec; bestDayDate = date; }
-    });
-
-    // 하루 최다 세션
-    let mostSessDate = null, mostSessCount = 0;
-    Object.entries(byDate).forEach(([date, v]) => {
-      if (v.count > mostSessCount) { mostSessCount = v.count; mostSessDate = date; }
-    });
-
-    // 최장 단일 세션
-    let longestSess = null;
-    sessions.forEach(s => {
-      if ((s.durationSec || 0) > (longestSess?.durationSec || 0)) longestSess = s;
-    });
-
-    // 최고 집중밀도 세션 (최소 10분 이상)
-    let bestDensitySess = null;
-    sessions.forEach(s => {
-      if ((s.durationSec || 0) >= 600 && (s.focusDensity || 0) > (bestDensitySess?.focusDensity || 0)) bestDensitySess = s;
-    });
-
-    return { bestDayDate, bestDaySec, mostSessDate, mostSessCount, longestSess, bestDensitySess };
-  }, [app.sessions]);
+  // ─── 역대 기록 (stats/helpers.calcPersonalBests) ───
+  const personalBests = useMemo(() => calcPersonalBests(app.sessions), [app.sessions]);
 
   // ─── 오늘 플래너 달성률 ──────────────────────────────────────
   const todayPlanRate = app.weeklySchedule?.enabled ? app.getTodayPlanRate?.() : null;

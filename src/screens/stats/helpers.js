@@ -6,6 +6,82 @@ export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 export const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
+// ─── 잔디(히트맵) 계산 — StatsScreen에서 코드 무변경 이동 (순수 함수, 테스트 대상) ───
+
+// 최근 hmWeeks주(끝은 이번 주 토요일) 히트맵 주 배열: [[{date, sec, isFuture, isToday} ×7] ×hmWeeks]
+export function buildHeatmapWeeks(sessions, hmWeeks, now = new Date()) {
+  const data = {};
+  (sessions || []).forEach(s => {
+    if (!s.date) return;
+    if (!data[s.date]) data[s.date] = { sec: 0 };
+    data[s.date].sec += (s.durationSec || 0);
+  });
+  const today = dateStr(now);
+  const end = now;
+  const endDow = end.getDay();
+  const endSat = addDays(end, 6 - endDow);
+  const startSun = addDays(endSat, -hmWeeks * 7 + 1);
+  const weeks = [];
+  let cur = new Date(startSun);
+  while (cur <= endSat) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const ds = dateStr(cur);
+      const dd = data[ds] || { sec: 0 };
+      const isFuture = cur > end;
+      week.push({ date: ds, sec: dd.sec, isFuture, isToday: ds === today });
+      cur = addDays(cur, 1);
+    }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+// 히트맵 기간 내 최장 연속 공부일
+export function calcLongestStreak(heatmapWeeks) {
+  let max = 0, cur = 0;
+  heatmapWeeks.flat().filter(d => !d.isFuture).forEach(d => {
+    if (d.sec > 0) { cur++; max = Math.max(max, cur); } else cur = 0;
+  });
+  return max;
+}
+
+// 역대 기록 (하루 최장/최다 세션/최장 단일 세션/최고 밀도(10분 이상))
+export function calcPersonalBests(sessions) {
+  const list = sessions || [];
+  if (list.length === 0) return null;
+
+  const byDate = {};
+  list.forEach(s => {
+    if (!s.date) return;
+    if (!byDate[s.date]) byDate[s.date] = { sec: 0, count: 0 };
+    byDate[s.date].sec += (s.durationSec || 0);
+    byDate[s.date].count++;
+  });
+
+  let bestDayDate = null, bestDaySec = 0;
+  Object.entries(byDate).forEach(([date, v]) => {
+    if (v.sec > bestDaySec) { bestDaySec = v.sec; bestDayDate = date; }
+  });
+
+  let mostSessDate = null, mostSessCount = 0;
+  Object.entries(byDate).forEach(([date, v]) => {
+    if (v.count > mostSessCount) { mostSessCount = v.count; mostSessDate = date; }
+  });
+
+  let longestSess = null;
+  list.forEach(s => {
+    if ((s.durationSec || 0) > (longestSess?.durationSec || 0)) longestSess = s;
+  });
+
+  let bestDensitySess = null;
+  list.forEach(s => {
+    if ((s.durationSec || 0) >= 600 && (s.focusDensity || 0) > (bestDensitySess?.focusDensity || 0)) bestDensitySess = s;
+  });
+
+  return { bestDayDate, bestDaySec, mostSessDate, mostSessCount, longestSess, bestDensitySess };
+}
+
 // ─── 리포트 카드 색상 헬퍼 ───
 export const darkenColor = (hex, amount = 0.3) => {
   const c = hex.replace('#', '');
