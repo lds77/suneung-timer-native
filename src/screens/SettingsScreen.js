@@ -658,7 +658,7 @@ export default function SettingsScreen() {
                 ))}
                 {Platform.OS === 'ios' && (
                   <Text style={{ fontSize: 12, color: T.sub, lineHeight: 18, marginTop: 10 }}>
-                    잠금화면에도 넣을 수 있어요. 잠금화면을 길게 눌러 사용자화 → 위젯 영역에서 열공메이트를 선택하세요.
+                    잠금화면에도 넣을 수 있어요. 홈 화면이 아니라 시계가 보이는 잠금화면을 길게 누르고 사용자화 → 시계 아래 위젯 영역을 탭해 열공메이트를 추가하세요.
                   </Text>
                 )}
               </View>

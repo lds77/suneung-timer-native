@@ -763,6 +763,7 @@ function WidgetIntroOverlay() {
     { icon: 'today-outline', title: '오늘 공부', desc: '오늘·이번 주 공부량과 목표 달성률' },
     { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
     { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
+    { icon: 'checkbox-outline', title: '오늘 계획', desc: '플래너의 오늘 계획을 눌러서 바로 시작' },
   ];
   const STEPS = isIos ? [
     '홈 화면 빈 곳을 길게 누르세요',
@@ -812,6 +813,14 @@ function WidgetIntroOverlay() {
                 <Text style={{ flex: 1, fontSize: 13, color: T.text, lineHeight: 19 }}>{s}</Text>
               </View>
             ))}
+            {isIos && (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: T.border }}>
+                <Ionicons name="lock-closed-outline" size={14} color={T.accent} style={{ marginRight: 6, marginTop: 2 }} />
+                <Text style={{ flex: 1, fontSize: 12, color: T.sub, lineHeight: 18 }}>
+                  잠금화면에도 넣을 수 있어요. 홈 화면이 아니라 시계가 보이는 잠금화면을 길게 누르고 사용자화 → 시계 아래 위젯 영역을 탭해 열공메이트를 추가하세요.
+                </Text>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity onPress={dismiss} style={{ backgroundColor: T.accent, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
