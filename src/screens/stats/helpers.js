@@ -1,6 +1,7 @@
 // stats/helpers.js — StatsScreen 공통 유틸/상수
 import { getTier } from '../../constants/presets';
 import { formatDuration, formatShort } from '../../utils/format';
+import { calcAverageDensity } from '../../utils/density';
 
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 export const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -44,6 +45,75 @@ export function calcLongestStreak(heatmapWeeks) {
     if (d.sec > 0) { cur++; max = Math.max(max, cur); } else cur = 0;
   });
   return max;
+}
+
+// 시간대별 집중력 분석 — 주간/월간 탭 공용 (호출부가 기간 필터링한 세션을 전달)
+export function analyzeTimeZones(sessions) {
+  const withStart = (sessions || []).filter(s => s.startedAt);
+  return TIME_ZONES.map(zone => {
+    const zoneSess = withStart.filter(s => zone.hours.includes(new Date(s.startedAt).getHours()));
+    const totalSec = zoneSess.reduce((s, x) => s + (x.durationSec || 0), 0);
+    const avgDensity = calcAverageDensity(zoneSess);
+    const tier = zoneSess.length > 0 ? getTier(avgDensity) : null;
+    return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length, sessions: zoneSess };
+  });
+}
+
+// 월간 캘린더 히트맵 셀 (앞뒤 null 패딩으로 7의 배수, 일요일 시작)
+export function buildMonthCalendarCells(sessions, year, month, todayStr) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const dim = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= dim; d++) {
+    const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const sess = (sessions || []).filter(s => s.date === ds);
+    cells.push({ day: d, date: ds, sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), sessions: sess.length, density: calcAverageDensity(sess), isToday: ds === todayStr });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+// 시간대별 상세 (타임라인 팝업) — 세션이 여러 시간에 걸쳐도 분 단위로 정확히 분배
+export function buildHourlyDetail(sessions, subjects) {
+  return Array.from({ length: 24 }, (_, h) => {
+    const hourSessMap = {};
+    let totalSec = 0;
+    (sessions || []).filter(s => s.startedAt).forEach(s => {
+      const startDate = new Date(s.startedAt);
+      const midnightMs = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
+      const sessStartSec = (s.startedAt - midnightMs) / 1000;
+      const sessEndSec = sessStartSec + (s.durationSec || 0);
+      const hStartSec = h * 3600;
+      const hEndSec = (h + 1) * 3600;
+      const overlapStart = Math.max(sessStartSec, hStartSec);
+      const overlapEnd = Math.min(sessEndSec, hEndSec);
+      if (overlapEnd > overlapStart) {
+        const overlapSec = overlapEnd - overlapStart;
+        totalSec += overlapSec;
+        const sesSubj = getSessionSubject(s, subjects);
+        const k = sesSubj.id;
+        if (!hourSessMap[k]) hourSessMap[k] = { name: sesSubj.name, color: sesSubj.color, sec: 0 };
+        hourSessMap[k].sec += overlapSec;
+      }
+    });
+    const subjectsSorted = Object.values(hourSessMap).sort((a, b) => b.sec - a.sec);
+    return { hour: h, sec: totalSec, subjects: subjectsSorted };
+  });
+}
+
+// 과목별 합계 집계 (일간/주간/월간 공용) — [{name, color, sec, pct}] 시간 내림차순
+export function aggregateSubjectTotals(sessions, subjects) {
+  const map = {};
+  (sessions || []).forEach(s => {
+    const { id, name, color } = getSessionSubject(s, subjects);
+    if (!map[id]) map[id] = { sec: 0, name, color };
+    map[id].sec += (s.durationSec || 0);
+  });
+  const total = Object.values(map).reduce((a, b) => a + b.sec, 0);
+  return Object.values(map).map(({ sec, name, color }) => ({
+    name, color, sec, pct: total > 0 ? Math.round((sec / total) * 100) : 0,
+  })).sort((a, b) => b.sec - a.sec);
 }
 
 // 역대 기록 (하루 최장/최다 세션/최장 단일 세션/최고 밀도(10분 이상))

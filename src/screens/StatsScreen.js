@@ -22,6 +22,7 @@ import {
   buildReportText, buildDayReportText, buildMonthReportText, buildHeatReportText,
   getSessionSubject, fmtDiff, getStreakTitle, stripLeadingEmoji,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
+  analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
 } from './stats/helpers';
 import GoalRing from './stats/components/GoalRing';
 import SubjectDonut from './stats/components/SubjectDonut';
@@ -198,19 +199,10 @@ export default function StatsScreen() {
     return { studyDays, avgDensity: calcAverageDensity(sess) };
   }, [app.sessions, weekOffset]);
 
-  // 주간 과목별
+  // 주간 과목별 (stats/helpers.aggregateSubjectTotals)
   const weekSubjects = useMemo(() => {
     const weekDates = new Set(weekData.map(d => d.date));
-    const map = {};
-    app.sessions.filter(s => weekDates.has(s.date)).forEach(s => {
-      const { id, name, color } = getSessionSubject(s, app.subjects);
-      if (!map[id]) map[id] = { sec: 0, name, color };
-      map[id].sec += (s.durationSec || 0);
-    });
-    const total = Object.values(map).reduce((a, b) => a + b.sec, 0);
-    return Object.values(map).map(({ sec, name, color }) => ({
-      name, color, sec, pct: total > 0 ? Math.round((sec / total) * 100) : 0,
-    })).sort((a, b) => b.sec - a.sec);
+    return aggregateSubjectTotals(app.sessions.filter(s => weekDates.has(s.date)), app.subjects);
   }, [weekData, app.sessions, app.subjects]);
   const topSubject = weekSubjects[0]?.name || '';
 
@@ -226,19 +218,8 @@ export default function StatsScreen() {
     return { screenOnSessions, screenOffSessions, verifiedSessions, ultraSessions, totalExits, totalSessions: ws.length };
   }, [weekData, app.sessions]);
 
-  // 일간 과목별
-  const daySubjects = useMemo(() => {
-    const map = {};
-    todaySessions.forEach(s => {
-      const { id, name, color } = getSessionSubject(s, app.subjects);
-      if (!map[id]) map[id] = { sec: 0, name, color };
-      map[id].sec += (s.durationSec || 0);
-    });
-    const total = Object.values(map).reduce((a, b) => a + b.sec, 0);
-    return Object.values(map).map(({ sec, name, color }) => ({
-      name, color, sec, pct: total > 0 ? Math.round((sec / total) * 100) : 0,
-    })).sort((a, b) => b.sec - a.sec);
-  }, [todaySessions, todayTotalSec]);
+  // 일간 과목별 (stats/helpers.aggregateSubjectTotals)
+  const daySubjects = useMemo(() => aggregateSubjectTotals(todaySessions, app.subjects), [todaySessions, todayTotalSec]);
 
   // 타임라인 (시간별 24칸)
   const timeline = useMemo(() => {
@@ -248,79 +229,30 @@ export default function StatsScreen() {
   }, [todaySessions]);
   const timelineMax = Math.max(...timeline, 1800);
 
-  // 시간대별 상세 (타임라인 팝업) — 세션이 여러 시간에 걸쳐도 분 단위로 정확히 분배
-  const hourlyDetail = useMemo(() => {
-    return Array.from({ length: 24 }, (_, h) => {
-      const hourSessMap = {};
-      let totalSec = 0;
-      todaySessions.filter(s => s.startedAt).forEach(s => {
-        const startDate = new Date(s.startedAt);
-        const midnightMs = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
-        const sessStartSec = (s.startedAt - midnightMs) / 1000;
-        const sessEndSec = sessStartSec + (s.durationSec || 0);
-        const hStartSec = h * 3600;
-        const hEndSec = (h + 1) * 3600;
-        const overlapStart = Math.max(sessStartSec, hStartSec);
-        const overlapEnd = Math.min(sessEndSec, hEndSec);
-        if (overlapEnd > overlapStart) {
-          const overlapSec = overlapEnd - overlapStart;
-          totalSec += overlapSec;
-          const sesSubj = getSessionSubject(s, app.subjects);
-          const k = sesSubj.id;
-          if (!hourSessMap[k]) hourSessMap[k] = { name: sesSubj.name, color: sesSubj.color, sec: 0 };
-          hourSessMap[k].sec += overlapSec;
-        }
-      });
-      const subjects = Object.values(hourSessMap).sort((a, b) => b.sec - a.sec);
-      return { hour: h, sec: totalSec, subjects };
-    });
-  }, [todaySessions, app.subjects]);
+  // 시간대별 상세 (타임라인 팝업) — 계산은 stats/helpers.buildHourlyDetail
+  const hourlyDetail = useMemo(() => buildHourlyDetail(todaySessions, app.subjects), [todaySessions, app.subjects]);
 
-  // ─── 시간대별 집중력 분석 (주간 탭 — 해당 주 7일) ──────────────
+  // ─── 시간대별 집중력 분석 (주간 탭 — 해당 주 7일, stats/helpers.analyzeTimeZones) ───
   const timeZoneAnalysis = useMemo(() => {
     const weekDates = new Set(weekData.map(d => d.date));
-    const recent = app.sessions.filter(s => weekDates.has(s.date) && s.startedAt);
-    return TIME_ZONES.map(zone => {
-      const zoneSess = recent.filter(s => zone.hours.includes(new Date(s.startedAt).getHours()));
-      const totalSec = zoneSess.reduce((s, x) => s + (x.durationSec || 0), 0);
-      const avgDensity = calcAverageDensity(zoneSess);
-      const tier = zoneSess.length > 0 ? getTier(avgDensity) : null;
-      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length, sessions: zoneSess };
-    });
+    return analyzeTimeZones(app.sessions.filter(s => weekDates.has(s.date)));
   }, [weekData, app.sessions]);
   const bestZone = [...timeZoneAnalysis].filter(z => z.count > 0).sort((a, b) => b.avgDensity - a.avgDensity)[0];
 
   // ─── 시간대별 집중력 분석 (월간 탭 — 선택된 월) ─────────────────
   const monthTimeZoneAnalysis = useMemo(() => {
     const monthPrefix = viewMonthStr.replace('.', '-');
-    const recent = app.sessions.filter(s => s.date?.startsWith(monthPrefix) && s.startedAt);
-    return TIME_ZONES.map(zone => {
-      const zoneSess = recent.filter(s => zone.hours.includes(new Date(s.startedAt).getHours()));
-      const totalSec = zoneSess.reduce((s, x) => s + (x.durationSec || 0), 0);
-      const avgDensity = calcAverageDensity(zoneSess);
-      const tier = zoneSess.length > 0 ? getTier(avgDensity) : null;
-      return { ...zone, totalSec, avgDensity, tier, count: zoneSess.length, sessions: zoneSess };
-    });
+    return analyzeTimeZones(app.sessions.filter(s => s.date?.startsWith(monthPrefix)));
   }, [app.sessions, viewMonthStr]);
   const monthBestZone = [...monthTimeZoneAnalysis].filter(z => z.count > 0).sort((a, b) => b.avgDensity - a.avgDensity)[0];
 
   // ─── 취약 과목 분석 ────────────────────────────────────────────
 
-  // ─── 월간 캘린더 히트맵 ───────────────────────────────────────
-  const calendarData = useMemo(() => {
-    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-    const firstDay = new Date(y, m, 1).getDay();
-    const dim = new Date(y, m + 1, 0).getDate();
-    const cells = [];
-    for (let i = 0; i < firstDay; i++) cells.push(null);
-    for (let d = 1; d <= dim; d++) {
-      const ds = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const sess = app.sessions.filter(s => s.date === ds);
-      cells.push({ day: d, date: ds, sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), sessions: sess.length, density: calcAverageDensity(sess), isToday: ds === today });
-    }
-    while (cells.length % 7 !== 0) cells.push(null);
-    return cells;
-  }, [app.sessions, viewMonth, today]);
+  // ─── 월간 캘린더 히트맵 (stats/helpers.buildMonthCalendarCells) ───
+  const calendarData = useMemo(
+    () => buildMonthCalendarCells(app.sessions, viewMonth.getFullYear(), viewMonth.getMonth(), today),
+    [app.sessions, viewMonth, today]
+  );
   const monthTotalSec = calendarData.filter(Boolean).reduce((s, d) => s + d.sec, 0);
   const monthStudyDays = calendarData.filter(d => d && d.sec > 0).length;
   const monthTotalDays = calendarData.filter(Boolean).length;
@@ -360,20 +292,10 @@ export default function StatsScreen() {
     return labels;
   }, [heatmap365]);
 
-  // 월간 과목별
+  // 월간 과목별 (stats/helpers.aggregateSubjectTotals)
   const monthSubjects = useMemo(() => {
-    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-    const prefix = `${y}-${String(m + 1).padStart(2, '0')}`;
-    const map = {};
-    app.sessions.filter(s => s.date?.startsWith(prefix)).forEach(s => {
-      const { id, name, color } = getSessionSubject(s, app.subjects);
-      if (!map[id]) map[id] = { sec: 0, name, color };
-      map[id].sec += (s.durationSec || 0);
-    });
-    const total = Object.values(map).reduce((a, b) => a + b.sec, 0);
-    return Object.values(map).map(({ sec, name, color }) => ({
-      name, color, sec, pct: total > 0 ? Math.round((sec / total) * 100) : 0,
-    })).sort((a, b) => b.sec - a.sec);
+    const prefix = `${viewMonth.getFullYear()}-${String(viewMonth.getMonth() + 1).padStart(2, '0')}`;
+    return aggregateSubjectTotals(app.sessions.filter(s => s.date?.startsWith(prefix)), app.subjects);
   }, [app.sessions, viewMonth, app.subjects]);
 
   // ─── 날짜 클릭 상세 모달 데이터 ──────────────────────────────
@@ -383,15 +305,7 @@ export default function StatsScreen() {
     const totalSec = sess.reduce((s, x) => s + (x.durationSec || 0), 0);
     const avgDensity = calcAverageDensity(sess);
     const tier = getTier(avgDensity);
-    const map = {};
-    sess.forEach(s => {
-      const { id, name, color } = getSessionSubject(s, app.subjects);
-      if (!map[id]) map[id] = { sec: 0, name, color };
-      map[id].sec += (s.durationSec || 0);
-    });
-    const subjects = Object.values(map).map(({ sec, name, color }) => ({
-      name, color, sec, pct: totalSec > 0 ? Math.round((sec / totalSec) * 100) : 0,
-    })).sort((a, b) => b.sec - a.sec);
+    const subjects = aggregateSubjectTotals(sess, app.subjects);
     return { date: dayDetailDate, sessions: sess, totalSec, avgDensity, tier, subjects };
   }, [dayDetailDate, app.sessions, app.subjects]);
 

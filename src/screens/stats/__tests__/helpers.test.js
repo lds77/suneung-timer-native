@@ -3,6 +3,7 @@ import {
   dateStr, addDays, darkenColor, stripLeadingEmoji,
   getSessionSubject, fmtDiff, getStreakTitle, BUILTIN_SUBJECTS,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
+  analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
 } from '../helpers';
 import { getTier } from '../../../constants/presets';
 
@@ -181,5 +182,69 @@ describe('calcPersonalBests — 역대 기록', () => {
     expect(bests.mostSessCount).toBe(2);
     expect(bests.longestSess.durationSec).toBe(4000);
     expect(bests.bestDensitySess.focusDensity).toBe(90); // 103짜리는 120초라 제외
+  });
+});
+
+describe('analyzeTimeZones — 시간대별 집중력', () => {
+  const at = (h) => new Date(2026, 6, 1, h, 30).getTime();
+
+  test('시간대별로 세션을 분류하고 합계/개수를 계산', () => {
+    const zones = analyzeTimeZones([
+      { startedAt: at(7), durationSec: 600, focusDensity: 90 },   // 아침
+      { startedAt: at(15), durationSec: 1200, focusDensity: 80 }, // 오후
+      { startedAt: at(15), durationSec: 299, focusDensity: 70 },  // 오후 (5분 미만 — 밀도 평균 제외 대상)
+      { startedAt: null, durationSec: 999 },                       // startedAt 없음 → 제외
+    ]);
+    const total = zones.reduce((s, z) => s + z.totalSec, 0);
+    expect(total).toBe(2099);
+    const afternoon = zones.find(z => z.sessions.length === 2);
+    expect(afternoon.totalSec).toBe(1499);
+    expect(afternoon.count).toBe(2);
+    // 5분 미만 세션은 calcAverageDensity에서 제외 → 평균은 80
+    expect(afternoon.avgDensity).toBe(80);
+    // 세션 없는 시간대는 tier null
+    expect(zones.some(z => z.count === 0 && z.tier === null)).toBe(true);
+  });
+});
+
+describe('buildMonthCalendarCells — 월간 캘린더', () => {
+  test('2026년 7월: 1일(수) 앞 패딩 3칸 + 31일 + 뒤 패딩, 7의 배수', () => {
+    const cells = buildMonthCalendarCells([{ date: '2026-07-15', durationSec: 1800 }], 2026, 6, '2026-07-04');
+    expect(cells.length % 7).toBe(0);
+    expect(cells.slice(0, 3)).toEqual([null, null, null]); // 일~화 패딩
+    expect(cells[3]).toEqual(expect.objectContaining({ day: 1, date: '2026-07-01' }));
+    expect(cells.filter(Boolean)).toHaveLength(31);
+    expect(cells.find(c => c && c.day === 15).sec).toBe(1800);
+    expect(cells.find(c => c && c.day === 4).isToday).toBe(true);
+  });
+});
+
+describe('buildHourlyDetail — 시간 경계 분 단위 분배', () => {
+  test('두 시간에 걸친 세션이 시간별로 정확히 나뉜다', () => {
+    // 9:30 시작 60분 세션 → 9시대 30분 + 10시대 30분
+    const start = new Date(2026, 6, 1, 9, 30, 0).getTime();
+    const hours = buildHourlyDetail([{ startedAt: start, durationSec: 3600, label: '수학', subjectId: null }], []);
+    expect(hours[9].sec).toBe(1800);
+    expect(hours[10].sec).toBe(1800);
+    expect(hours[8].sec).toBe(0);
+    expect(hours[9].subjects[0].sec).toBe(1800);
+  });
+});
+
+describe('aggregateSubjectTotals — 과목 합계/비율', () => {
+  test('과목별 합산 + 비율 + 내림차순 정렬', () => {
+    const subjects = [{ id: 's1', name: '국어', color: '#111111' }];
+    const rows = aggregateSubjectTotals([
+      { subjectId: 's1', durationSec: 900 },
+      { subjectId: 's1', durationSec: 600 },
+      { subjectId: null, label: '수학', durationSec: 3000 },
+    ], subjects);
+    // 수학 3000 > 국어 1500 내림차순, 비율 67/33
+    expect(rows[0]).toEqual(expect.objectContaining({ name: '수학', sec: 3000, pct: 67 }));
+    expect(rows[1]).toEqual(expect.objectContaining({ name: '국어', sec: 1500, pct: 33 }));
+  });
+
+  test('빈 입력이면 빈 배열', () => {
+    expect(aggregateSubjectTotals([], [])).toEqual([]);
   });
 });
