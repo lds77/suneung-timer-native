@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 54)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.31 (iOS 빌드 37, Android versionCode 34)
+- **현재 버전**: 1.0.32 (iOS 빌드 41 심사 중, Android versionCode 36 검토 중)
 
 ---
 
@@ -26,6 +26,8 @@
 | 설정 파일 | `app.config.js` (app.json 아님 — `APP_VARIANT=preview` 분기) |
 | 알림 | expo-notifications (Android Foreground Service 포함) |
 | 잠금화면 | expo-live-activity 0.5.0-alpha1 **정확히 고정** (iOS Live Activity) |
+| 홈 위젯 (iOS) | WidgetKit + @bacons/apple-targets (`targets/widgets/` SwiftUI, App Group `group.com.yeolgong.timer`) |
+| 홈 위젯 (Android) | react-native-android-widget (`src/widgets/`, 헤드리스 태스크 핸들러) |
 | 차트/그래픽 | react-native-svg, react-native-chart-kit |
 
 > **개발 환경 주의**: Windows — `expo prebuild -p ios` 불가, iOS 네이티브 검증은 EAS 클라우드 빌드로만 가능
@@ -56,6 +58,11 @@ src/
     CharacterAvatar.js    캐릭터 아바타
     TimePickerGrid.js     시간 피커
     GradientView.js / Stepper.js / Toast.js
+  widgets/                Android 홈 위젯 + 양 플랫폼 위젯 데이터 (widgetData.js는 iOS 스냅샷도 계산)
+    widgetData.js         getWidgetData() — AsyncStorage 직접 읽어 위젯 데이터 계산 (헤드리스 안전)
+    updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록
+    widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
+    StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
   utils/
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
@@ -66,7 +73,9 @@ src/
     presets.js            getTier(density) → 티어 라벨/색상
     characters.js         캐릭터 데이터 (toru, paengi 등 + 상황별 메시지)
     fonts.js              폰트 상수
-App.js                    앱 진입점 (~1,000줄), 온보딩, 네비게이션, 잠금화면 오버레이
+App.js                    앱 진입점 (~1,100줄), 온보딩, 네비게이션, 잠금화면 오버레이, 위젯 딥링크(subjectId/planId)
+targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) — index.swift(번들), SharedData.swift(파서/공용),
+                          StudyTime/DDay/Subject/TodayPlan 4종. EAS 빌드로만 검증 가능
 ```
 
 ---
@@ -98,6 +107,19 @@ App.js                    앱 진입점 (~1,000줄), 온보딩, 네비게이션,
   activeSounds, soundVolume, notifEnabled, dailyReminder*, weeklyReportEnabled,
   monthlyReportEnabled, guide* 플래그, headerBgPreset, ... }
 ```
+
+### 타이머·세션 불변식 (깨뜨리면 데이터 정확성 버그 — 수정 전 반드시 확인)
+
+1. **경과 시간은 벽시계 기준**: `elapsed = elapsedSecAtResume + (now - resumedAt)/1000`.
+   `elapsedSec` 필드는 표시용 캐시일 뿐 직접 누적하지 말 것 (백그라운드에서 어긋남)
+2. **페이즈 전환 시각은 `resumedAt` 기반 계산** (`Date.now()` 금지 — 틱 오버슈트가 누적됨)
+3. **세션 기록은 `recordSessionInternal` + `dedupeKey`** — 틱이 setTimers 업데이터 안에서 부수효과를
+   내므로 재실행 대비 멱등 가드가 필수. 키 규칙: `complete|id|startedAt`, `pomo|id|startedAt|세트`, `seq|id|인덱스|startedAt`
+4. **세션 date는 시작일 기준** (`toDateStr(new Date(startedAt))`) — 자정 걸친 세션은 시작한 날에 귀속
+5. **휴식 페이즈는 세션 기록 금지** (`inBreakPhase` 가드 — 뽀모/연속 break 중 종료 시)
+6. **연속모드 세션은 `timerType: 'countdown'`으로 기록** (모든 종료 경로 동일 — 밀도 공식·통계 라벨 일관)
+7. **5분(300초) 미만 세션 미기록** (계획 연결 시 30초), 30초 미만은 밀도 100점 고정
+8. **bg 복귀/틱의 완료 처리**: overshoot > 2초면 `skipNotif` (OS 예약 알림이 이미 발송됨 — 중복 방지)
 
 ---
 
@@ -141,10 +163,20 @@ App.js                    앱 진입점 (~1,000줄), 온보딩, 네비게이션,
   - useAppState의 동기화 useEffect 1개가 시그니처 비교로 start/update/end 판단 (초당 호출 없음)
   - expo-live-activity는 deprecated → **SDK 56 업그레이드 시 공식 expo-widgets로 마이그레이션 필요**
 
+### 홈 화면 위젯 (iOS + Android, 1.0.32~)
+- 4종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 — 양 플랫폼 동일 구성
+- 데이터 흐름: `getWidgetData()`가 AsyncStorage를 직접 계산 → 안드는 헤드리스 렌더,
+  iOS는 `updateAllWidgets()`가 App Group(UserDefaults `widgetData` 키)에 JSON 기록 후 reloadWidget
+- iOS 전용: 잠금화면 위젯(accessory 패밀리), 실행 중 실시간 카운팅(`runningAnchorMs` + `Text(style:.timer)`),
+  자정 리셋(스냅샷 `date` 비교), D-Day는 위젯이 목표일로 매 렌더 재계산
+- 딥링크: `yeolgong://start?subjectId=` (과목 자유 타이머) / `yeolgong://start?planId=` (계획 카운트다운) — App.js 처리
+- 갱신 트리거: 세션/과목/D-Day/설정 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
+- ※iOS 위젯 타겟명은 디렉터리와 같은 ASCII('widgets') 필수, apple-targets는 patch-package 패치 유지 필요
+
 ### 기타
 - 아날로그 시계 모드 (수능 시험장 벽시계, 가로 전체화면 모달 지원)
 - 캐릭터 시스템 (토루/팽이 등) + 상황별 토스트 메시지
-- 데이터 백업/복원 (JSON 내보내기/가져오기)
+- 데이터 백업/복원 (JSON 내보내기/가져오기 — 키별 형태 검증으로 손상 백업 방어)
 
 ---
 
@@ -173,12 +205,13 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-06-14 기준)
+## 출시 현황 (2026-07-04 기준)
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 출시 중, 1.0.28(빌드 31) 제출됨. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 출시 중, 1.0.28(versionCode 24) 검토 중 |
+| iOS | App Store 출시 중 (1.0.31 배포됨), 1.0.32 빌드 41 심사 중 (위젯 4종+잠금화면). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 출시 중, 1.0.32(versionCode 36, 위젯 3종) 검토 중. 1.0.33에 오늘계획 위젯+집중중 표시 예정 |
+| 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 초기 단계 (10~20명) |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
 
@@ -192,3 +225,7 @@ eas build --profile preview --platform android
 4. **테마**: `getTheme()`으로 항상 T 객체를 통해 색상 참조, 하드코딩 금지
 5. **스타일**: StyleSheet.create 사용, 인라인 스타일 최소화
 6. **알림 테스트**: 실기기 + EAS 빌드로만 검증 가능
+7. **날짜 코드는 반드시 `format.js`의 `getToday()`/`toDateStr()` 사용** — `toISOString()`은 UTC라
+   KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
+8. **로직 변경 후 `npm test`** (Jest 207개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기)
+9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
