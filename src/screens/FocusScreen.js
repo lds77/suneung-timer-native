@@ -6,7 +6,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Keyb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
+import { formatTime, formatDuration, formatDDay, calcDDay, getToday } from '../utils/format';
 import Stepper from '../components/Stepper';
 import CharacterAvatar from '../components/CharacterAvatar';
 import GradientView from '../components/GradientView';
@@ -2460,7 +2460,8 @@ export default function FocusScreen() {
               <Text style={{ fontSize: 15, fontWeight: '900', color: challengeMatch ? 'white' : T.sub }}>{challengeMatch ? '다시 집중하기!' : '문구를 정확히 입력하세요'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8 }} onPress={() => {
-                const today = new Date().toISOString().split('T')[0];
+                // giveUpDate는 로컬 날짜(getToday)로 저장됨 — UTC(toISOString)로 비교하면 KST 새벽에 카운트가 어긋남
+                const today = getToday();
                 const todayCount = app.settings.giveUpDate === today ? (app.settings.giveUpCount || 0) : 0;
                 const countMsg = todayCount > 0 ? `오늘 ${todayCount + 1}번째 그만하기예요.\n` : '';
                 Alert.alert('정말 그만할까요?', `${countMsg}모든 타이머가 중단돼요`, [{ text: '계속하기', style: 'cancel' }, { text: '그만하기', style: 'destructive', onPress: () => { setChallengeInput(''); app.giveUpFocus?.(); } }]);

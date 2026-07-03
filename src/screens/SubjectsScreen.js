@@ -8,7 +8,7 @@ import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
-import { formatShort, formatTime } from '../utils/format';
+import { formatShort, formatTime, toDateStr } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import { Ionicons } from '@expo/vector-icons';
@@ -188,7 +188,7 @@ export default function SubjectsScreen({ navigation }) {
     const day = now.getDay();
     const mon = new Date(now);
     mon.setDate(mon.getDate() - ((day + 6) % 7));
-    const monStr = mon.toISOString().slice(0, 10);
+    const monStr = toDateStr(mon); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀려 지난주 일요일이 섞임
     const map = {};
     (app.sessions || []).forEach(s => {
       if (s.date >= monStr && s.subjectId) {

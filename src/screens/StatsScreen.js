@@ -10,7 +10,7 @@ import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import { CHARACTERS } from '../constants/characters';
 import { getTier, TIERS } from '../constants/presets';
-import { formatDuration, formatShort, formatDDay, getToday } from '../utils/format';
+import { formatDuration, formatShort, formatDDay, getToday, toDateStr } from '../utils/format';
 import RunningTimersBar from '../components/RunningTimersBar';
 import { calcAverageDensity, getDensityBreakdown } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -375,7 +375,7 @@ export default function StatsScreen() {
     heatmap365.forEach((week, wi) => {
       const firstDay = week[0];
       if (firstDay && firstDay.date) {
-        const d = new Date(firstDay.date);
+        const d = new Date(firstDay.date + 'T00:00:00'); // 로컬 자정 (UTC 파싱 시 서쪽 시간대에서 날짜 밀림)
         if (d.getDate() <= 7) {
           labels.push({ wi, label: `${d.getMonth() + 1}월` });
         }
@@ -519,7 +519,7 @@ export default function StatsScreen() {
       const day = now.getDay();
       const monday = new Date(now);
       monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      cutoff = monday.toISOString().slice(0, 10);
+      cutoff = toDateStr(monday); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀림
     } else if (subjPeriod === 'month') {
       cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
@@ -553,7 +553,7 @@ export default function StatsScreen() {
       const day = now.getDay();
       const monday = new Date(now);
       monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      cutoff = monday.toISOString().slice(0, 10);
+      cutoff = toDateStr(monday); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀림
     } else if (subjPeriod === 'month') {
       cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
@@ -1623,7 +1623,7 @@ export default function StatsScreen() {
                       <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
                     </View>
                     {Object.entries(grouped).map(([date, sess]) => {
-                      const d = new Date(date);
+                      const d = new Date(date + 'T00:00:00');
                       const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
                       return (
                         <View key={date} style={S.diaryGroup}>
@@ -2407,7 +2407,7 @@ export default function StatsScreen() {
                     <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
                   </View>
                   {Object.entries(grouped).map(([date, sess]) => {
-                    const d = new Date(date);
+                    const d = new Date(date + 'T00:00:00');
                     const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
                     return (
                       <View key={date} style={S.diaryGroup}>
@@ -3055,7 +3055,7 @@ export default function StatsScreen() {
                   if (studiedDays.length === 0) return null;
                   const bestDay = [...studiedDays].sort((a, b) => b.sec - a.sec)[0];
                   const wdSecs = [0,0,0,0,0,0,0];
-                  studiedDays.forEach(d => { wdSecs[new Date(d.date).getDay()] += d.sec; });
+                  studiedDays.forEach(d => { wdSecs[new Date(d.date + 'T00:00:00').getDay()] += d.sec; });
                   const wdMax = Math.max(...wdSecs, 1);
                   const bestTier = getTier(bestDay.density || 0);
                   return (
@@ -3067,7 +3067,7 @@ export default function StatsScreen() {
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
                           <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }}>
-                            {bestDay.date.slice(5).replace('-', '/')}({DAYS_KR[new Date(bestDay.date).getDay()]})
+                            {bestDay.date.slice(5).replace('-', '/')}({DAYS_KR[new Date(bestDay.date + 'T00:00:00').getDay()]})
                           </Text>
                           <Text style={{ fontSize: 14, fontWeight: '700', color: T.accent }}>{formatShort(bestDay.sec)}</Text>
                           {bestDay.density > 0 && (

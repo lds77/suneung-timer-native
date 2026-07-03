@@ -21,6 +21,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
+import { getToday } from '../utils/format';
 import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
@@ -679,7 +680,7 @@ export default function SettingsScreen() {
             try {
               const data = await exportBackupData();
               const json = JSON.stringify(data, null, 2);
-              const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+              const date = getToday().replace(/-/g, ''); // 로컬 날짜 (UTC는 KST 새벽에 하루 밀림)
               const path = `${FileSystem.cacheDirectory}yeolgong_backup_${date}.json`;
               await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
               await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
