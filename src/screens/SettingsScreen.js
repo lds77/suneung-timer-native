@@ -626,9 +626,7 @@ export default function SettingsScreen() {
                 { icon: 'today-outline', title: '오늘 공부', desc: '오늘·이번 주 공부량과 목표 달성률' },
                 { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
                 { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
-                ...(Platform.OS === 'ios' ? [
-                  { icon: 'checkbox-outline', title: '오늘 계획', desc: '플래너의 오늘 계획을 눌러서 바로 시작' },
-                ] : []),
+                { icon: 'checkbox-outline', title: '오늘 계획', desc: '플래너의 오늘 계획을 눌러서 바로 시작' },
               ].map((w) => (
                 <View key={w.title} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                   <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>

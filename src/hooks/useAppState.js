@@ -1733,10 +1733,9 @@ export function AppProvider({ children }) {
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
   // 자동저장(500ms 디바운스)보다 늦게 읽도록 여유를 두고 호출.
-  // iOS는 실행 중 타이머의 상태 변화(시작/일시정지/페이즈 전환)도 시그니처로 감지해
-  // 오늘공부 위젯 실시간 카운팅 앵커를 갱신 (elapsedSec 틱은 제외 → 초당 호출 없음).
+  // 실행 중 타이머의 상태 변화(시작/일시정지/페이즈 전환)도 시그니처로 감지해 갱신
+  // — iOS는 실시간 카운팅 앵커, Android는 '집중 중' 표시 (elapsedSec 틱은 제외 → 초당 호출 없음).
   const widgetTimerSig = useMemo(() => {
-    if (Platform.OS !== 'ios') return '';
     const t = timers.find(x => x.type !== 'lap' && (x.status === 'running' || x.status === 'paused'));
     if (!t) return '';
     const phase = t.type === 'pomodoro' ? t.pomoPhase : (t.type === 'sequence' ? t.seqPhase : '');

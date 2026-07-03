@@ -41,20 +41,24 @@ function SubjectLine({ subject, accent, t }) {
 }
 
 export function StudyTimeWidget({ data, width = 0, height = 0 }) {
-  const { totalSec = 0, goalSec = 0, goalPct = 0, accent = '#FF6B9D', darkMode = false, subjects = [], streak = 0, weekTotalSec = 0, weekAvgSec = 0 } = data || {};
+  const { totalSec = 0, goalSec = 0, goalPct = 0, accent = '#FF6B9D', darkMode = false, subjects = [], streak = 0, weekTotalSec = 0, weekAvgSec = 0, runningSec = 0 } = data || {};
   const t = theme(darkMode);
   const isCompact = width > 0 && width < COMPACT_MAX_WIDTH;
   // 2x2 이상(높이 충분)이면 과목/주간요약 노출. 높이 모르면 너비로 폴백.
   const isMedium = height === 0 ? width >= 200 : height >= TALL_MIN_HEIGHT;
   const hasGoal = goalSec > 0;
-  const timeText = totalSec > 0 ? formatShort(totalSec) : '0m';
+  // 실행 중 타이머 경과 포함 (렌더 시점 기준) — 시작/정지 때마다 위젯이 갱신돼 최신 유지
+  const isRunning = runningSec > 0;
+  const liveTotalSec = totalSec + runningSec;
+  const livePct = hasGoal ? Math.min(999, Math.round((liveTotalSec / goalSec) * 100)) : goalPct;
+  const timeText = liveTotalSec > 0 ? formatShort(liveTotalSec) : '0m';
 
   // 1x1 컴팩트: 총시간만 (+목표%)
   if (isCompact) {
     return (
       <FlexWidget clickAction="OPEN_APP" style={rootStyle(t, 'center', 'center')}>
         <TextWidget text={timeText} style={{ fontSize: 22, color: t.text, fontWeight: '800' }} />
-        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 11, color: accent, fontWeight: '700', marginTop: 2 }} />}
+        {hasGoal && <TextWidget text={`목표 ${livePct}%`} style={{ fontSize: 11, color: accent, fontWeight: '700', marginTop: 2 }} />}
       </FlexWidget>
     );
   }
@@ -66,8 +70,11 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
     <FlexWidget clickAction="OPEN_APP" style={rootStyle(t, 'center')}>
       {/* 헤더 (라벨 flex:1로 폭 제약 → 좁은 폭에서 줄바꿈/밀림 방지) */}
       <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <TextWidget text={headerLabel} style={{ flex: 1, fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
-        {hasGoal && <TextWidget text={`목표 ${goalPct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />}
+        <FlexWidget style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <TextWidget text={headerLabel} style={{ fontSize: 13, color: t.sub, fontWeight: '600' }} maxLines={1} truncate="END" />
+          {isRunning && <FlexWidget style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: accent, marginLeft: 5 }} />}
+        </FlexWidget>
+        {hasGoal && <TextWidget text={`목표 ${livePct}%`} style={{ fontSize: 12, color: accent, fontWeight: '700', marginLeft: 6, paddingRight: 3 }} maxLines={1} />}
       </FlexWidget>
 
       {/* 총 시간 */}
@@ -76,7 +83,7 @@ export function StudyTimeWidget({ data, width = 0, height = 0 }) {
       {/* 목표 진행바 */}
       {hasGoal && (
         <FlexWidget style={{ width: 'match_parent', marginTop: 7 }}>
-          <ProgressBar pct={goalPct} accent={accent} trackColor={t.track} height={isMedium ? 8 : 7} />
+          <ProgressBar pct={livePct} accent={accent} trackColor={t.track} height={isMedium ? 8 : 7} />
         </FlexWidget>
       )}
 

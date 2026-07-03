@@ -6,12 +6,14 @@ import React from 'react';
 import { StudyTimeWidget } from './StudyTimeWidget';
 import { DDayWidget } from './DDayWidget';
 import { SubjectLauncherWidget } from './SubjectLauncherWidget';
+import { TodayPlanWidget } from './TodayPlanWidget';
 import { getWidgetData } from './widgetData';
 
 const nameToWidget = {
   StudyTime: StudyTimeWidget,
   DDay: DDayWidget,
   SubjectLauncher: SubjectLauncherWidget,
+  TodayPlan: TodayPlanWidget,
 };
 
 export async function widgetTaskHandler(props) {

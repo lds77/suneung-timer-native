@@ -122,6 +122,19 @@ module.exports = {
               resizeMode: 'horizontal|vertical',
               updatePeriodMillis: 1800000,
             },
+            {
+              name: 'TodayPlan',
+              label: '오늘 계획',
+              description: '플래너의 오늘 계획을 확인하고 눌러서 바로 시작해요',
+              minWidth: '70dp',                   // 1x1까지 축소 가능
+              minHeight: '70dp',
+              targetCellWidth: 2,
+              targetCellHeight: 2,                // 기본 2x2 (계획 목록)
+              maxResizeWidth: '320dp',
+              maxResizeHeight: '320dp',           // 세로로 키워 계획 더 노출 가능
+              resizeMode: 'horizontal|vertical',
+              updatePeriodMillis: 1800000,
+            },
           ],
         },
       ],

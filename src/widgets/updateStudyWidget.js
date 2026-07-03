@@ -43,6 +43,7 @@ const WIDGET_RENDERERS = {
   StudyTime: (React, W, data, info) => React.createElement(W.StudyTimeWidget, { data, width: info.width, height: info.height }),
   DDay: (React, W, data, info) => React.createElement(W.DDayWidget, { data, width: info.width, height: info.height }),
   SubjectLauncher: (React, W, data, info) => React.createElement(W.SubjectLauncherWidget, { data, width: info.width, height: info.height }),
+  TodayPlan: (React, W, data, info) => React.createElement(W.TodayPlanWidget, { data, width: info.width, height: info.height }),
 };
 
 // 모든 열공메이트 위젯을 한 번에 갱신 (activeTimer: iOS 실시간 카운팅용, 옵션)
@@ -56,9 +57,14 @@ export async function updateAllWidgets(activeTimer = null) {
       StudyTimeWidget: require('./StudyTimeWidget').StudyTimeWidget,
       DDayWidget: require('./DDayWidget').DDayWidget,
       SubjectLauncherWidget: require('./SubjectLauncherWidget').SubjectLauncherWidget,
+      TodayPlanWidget: require('./TodayPlanWidget').TodayPlanWidget,
     };
-    const { getWidgetData } = require('./widgetData');
+    const { getWidgetData, activeRunningInfo } = require('./widgetData');
     const data = await getWidgetData();
+    // 앱에서 호출된 경우 메모리 타이머가 스냅샷(5초 스로틀)보다 정확 → 실행 중 상태 덮어쓰기
+    const run = activeRunningInfo(activeTimer);
+    data.runningSec = run ? run.sec : 0;
+    data.runningLabel = run ? run.label : '';
 
     await Promise.all(Object.keys(WIDGET_RENDERERS).map((widgetName) =>
       requestWidgetUpdate({

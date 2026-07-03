@@ -7,20 +7,21 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   default: { getItem: jest.fn((k) => Promise.resolve(mockStore[k] ?? null)) },
 }));
 
-const { getWidgetData } = require('../widgetData');
+const { getWidgetData, activeRunningInfo } = require('../widgetData');
 
 const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const seed = ({ sessions = [], subjects = [], settings = {}, ddays = [], weekly = null }) => {
+const seed = ({ sessions = [], subjects = [], settings = {}, ddays = [], weekly = null, timerSnap = null }) => {
   mockStore = {
     '@yeolgong/sessions': JSON.stringify(sessions),
     '@yeolgong/subjects': JSON.stringify(subjects),
     '@yeolgong/settings': JSON.stringify(settings),
     '@yeolgong/ddays': JSON.stringify(ddays),
     '@yeolgong/weeklySchedule': weekly === null ? null : JSON.stringify(weekly),
+    '@yeolgong/timerSnapshot': timerSnap === null ? null : JSON.stringify(timerSnap),
   };
 };
 
@@ -146,5 +147,38 @@ describe('getWidgetData 오늘 계획', () => {
     seed({ subjects: SUBJECTS, weekly: { enabled: false, [dayKey]: { plans: [{ id: 'p1', label: 'x', targetMin: 30 }] } } });
     const d2 = await getWidgetData();
     expect(d2.plans).toEqual([]);
+  });
+});
+
+describe('실행 중 타이머 (집중 중 표시)', () => {
+  test('activeRunningInfo: 실행 중 work 페이즈만 벽시계 기준 경과 계산', () => {
+    const NOW = 1_800_000_000_000;
+    // 10분 전 재개 + 재개 시점까지 5분
+    expect(activeRunningInfo({ status: 'running', type: 'free', resumedAt: NOW - 600_000, elapsedSecAtResume: 300 }, NOW))
+      .toEqual({ sec: 900, label: '' });
+    expect(activeRunningInfo({ status: 'paused', type: 'free', resumedAt: NOW }, NOW)).toBeNull();
+    expect(activeRunningInfo({ status: 'running', type: 'lap', resumedAt: NOW }, NOW)).toBeNull();
+    expect(activeRunningInfo({ status: 'running', type: 'pomodoro', pomoPhase: 'break', resumedAt: NOW }, NOW)).toBeNull();
+    // 24시간 초과 좀비 스냅샷 방어
+    expect(activeRunningInfo({ status: 'running', type: 'free', resumedAt: NOW - 25 * 3600 * 1000 }, NOW)).toBeNull();
+  });
+
+  test('getWidgetData: 타이머 스냅샷에서 runningSec/runningLabel 계산 (헤드리스 갱신용)', async () => {
+    seed({
+      subjects: SUBJECTS,
+      timerSnap: {
+        savedAt: Date.now(),
+        timers: [{ id: 't1', type: 'free', status: 'running', label: '수학', resumedAt: Date.now() - 120_000, elapsedSecAtResume: 60 }],
+      },
+    });
+    const d = await getWidgetData();
+    expect(d.runningSec).toBeGreaterThanOrEqual(180);
+    expect(d.runningSec).toBeLessThan(190);
+    expect(d.runningLabel).toBe('수학');
+
+    seed({ subjects: SUBJECTS });
+    const d2 = await getWidgetData();
+    expect(d2.runningSec).toBe(0);
+    expect(d2.runningLabel).toBe('');
   });
 });

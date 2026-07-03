@@ -11,6 +11,20 @@ const K = {
   SESSIONS: '@yeolgong/sessions',
   DDAYS: '@yeolgong/ddays',
   WEEKLY: '@yeolgong/weeklySchedule',
+  TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
+};
+
+// 실행 중(work 페이즈) 타이머의 현재 경과(초) — 벽시계 기준이라 스냅샷이 오래돼도 정확.
+// 쉬는시간(뽀모/연속 break)·일시정지·랩은 제외 (iOS runningAnchorMs와 동일 규칙).
+export const activeRunningInfo = (t, nowMs = Date.now()) => {
+  if (!t || t.status !== 'running' || t.type === 'lap') return null;
+  if (t.type === 'pomodoro' && t.pomoPhase !== 'work') return null;
+  if (t.type === 'sequence' && t.seqPhase !== 'work') return null;
+  const resumedAt = t.resumedAt || t.startedAt;
+  if (!resumedAt) return null;
+  const sec = Math.round((nowMs - resumedAt) / 1000) + (t.elapsedSecAtResume || 0);
+  if (sec < 0 || sec > 24 * 3600) return null; // 시계 이상/좀비 스냅샷 방어
+  return { sec, label: t.label || '' };
 };
 
 // 로컬 기준 YYYY-MM-DD (format.js의 toDateStr와 동일 규칙 — UTC 사용 금지)
@@ -66,12 +80,13 @@ export const ddayLabel = (n) => {
  * 세 위젯(StudyTime/DDay/SubjectLauncher)이 공유한다.
  */
 export const getWidgetData = async () => {
-  const [sessions, settings, subjects, ddays, weekly] = await Promise.all([
+  const [sessions, settings, subjects, ddays, weekly, timerSnap] = await Promise.all([
     loadJSON(K.SESSIONS, []),
     loadJSON(K.SETTINGS, null),
     loadJSON(K.SUBJECTS, []),
     loadJSON(K.DDAYS, []),
     loadJSON(K.WEEKLY, null),
+    loadJSON(K.TIMER_SNAPSHOT, null),
   ]);
 
   const today = todayStr();
@@ -178,6 +193,13 @@ export const getWidgetData = async () => {
     }
   }
 
+  // 실행 중 타이머 (강제종료 대비 스냅샷 기반 — 앱이 꺼진 헤드리스 갱신에서도 '집중 중' 표시).
+  // 앱에서 직접 호출할 땐 updateAllWidgets가 메모리 타이머로 이 값을 덮어쓴다(스냅샷은 5초 스로틀).
+  const snapTimers = Array.isArray(timerSnap?.timers) ? timerSnap.timers : [];
+  const runInfo = activeRunningInfo(snapTimers.find(t => t && t.type !== 'lap' && t.status === 'running'));
+  const runningSec = runInfo ? runInfo.sec : 0;
+  const runningLabel = runInfo ? runInfo.label : '';
+
   return {
     date: today,          // 스냅샷 계산 기준일 — iOS 위젯이 자정 경과 감지에 사용
     totalSec, goalSec, goalPct, accent, darkMode, streak,
@@ -189,5 +211,7 @@ export const getWidgetData = async () => {
     launcherSubjects,     // [{ id, name, color, weekSec }]
     plans,                // 오늘 계획 [{ id, label, color, targetMin, doneSec, done }] 최대 6
     planPct,              // 오늘 계획 전체 달성률 0~100, -1이면 계획 없음
+    runningSec,           // 실행 중 타이머 현재 경과(초), 0이면 없음 — 안드 위젯 '집중 중' 표시용
+    runningLabel,         // 실행 중 타이머 라벨
   };
 };
