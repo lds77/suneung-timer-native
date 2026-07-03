@@ -22,6 +22,7 @@ import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, l
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
+import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
 
@@ -153,7 +154,7 @@ export function AppProvider({ children }) {
             return { ...next, status: 'completed', result: calcResult(next, next.elapsedSec), ...(sessId ? { memoSessionId: sessId } : {}) };
           }
           if (t.type === 'pomodoro') {
-            const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;
+            const target = pomoPhaseTargetSec(t); // 긴 휴식(4세트마다)은 15분
             if (next.elapsedSec >= target) return pomoFlip(next);
           }
           if (t.type === 'sequence') {
@@ -506,7 +507,7 @@ export function AppProvider({ children }) {
             if (t.type === 'pomodoro') {
               let tt = { ...t, elapsedSec: e };
               while (true) {
-                const target = tt.pomoPhase === 'work' ? tt.pomoWorkMin * 60 : tt.pomoBreakMin * 60;
+                const target = pomoPhaseTargetSec(tt);
                 if (tt.elapsedSec >= target) {
                   const leftover = tt.elapsedSec - target;
                   tt = pomoFlip({ ...tt, elapsedSec: target }, true);
@@ -649,8 +650,8 @@ export function AppProvider({ children }) {
       return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
     }
     if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-    // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
-    const breakPhaseEndAt = (t.resumedAt || Date.now()) + (t.pomoBreakMin * 60 - (t.elapsedSecAtResume || 0)) * 1000;
+    // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지). 긴 휴식은 15분
+    const breakPhaseEndAt = (t.resumedAt || Date.now()) + (pomoBreakMinOf(t) * 60 - (t.elapsedSecAtResume || 0)) * 1000;
     return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0, resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0 };
   };
 
@@ -825,8 +826,7 @@ export function AppProvider({ children }) {
       : t.elapsedSec;
     if (t.type === 'countdown') return Math.max(0, t.totalSec - realElapsedSec);
     if (t.type === 'pomodoro') {
-      const target = t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60;
-      return Math.max(0, target - realElapsedSec);
+      return Math.max(0, pomoPhaseTargetSec(t) - realElapsedSec);
     }
     return 0;
   };
@@ -898,18 +898,18 @@ export function AppProvider({ children }) {
     // Step 1: 알림 스펙 목록 동기적으로 수집 (await 없음 → 누적 지연 없음)
     const specs = [];
     if (timer.type === 'pomodoro') {
-      const firstTarget = timer.pomoPhase === 'work' ? timer.pomoWorkMin * 60 : timer.pomoBreakMin * 60;
+      const firstTarget = pomoPhaseTargetSec(timer);
       let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
       let phase = timer.pomoPhase;
       let set = timer.pomoSet;
       let count = 0;
       while (absMs > Date.now() && count < 16) {
         if (phase === 'work') {
-          specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: '기지개 한 번 펴자!' });
-          // 휴식 길이: 앱 내 틱/표시/Live Activity 모두 longbreak도 pomoBreakMin을 쓰므로 알림도 동일하게
+          // 휴식 길이: 4세트마다 긴 휴식(15분) — 틱/표시/LA와 동일하게 pomoBreakMinOf 사용
           phase = (set + 1) % 4 === 0 ? 'longbreak' : 'break';
           set++;
-          absMs += timer.pomoBreakMin * 60 * 1000;
+          specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: phase === 'longbreak' ? '긴 휴식이에요, 푹 쉬자!' : '기지개 한 번 펴자!' });
+          absMs += pomoBreakMinOf({ pomoPhase: phase, pomoBreakMin: timer.pomoBreakMin }) * 60 * 1000;
         } else {
           specs.push({ absMs, title: `${timer.label} 휴식 끝!`, body: '다시 달려보자!' });
           phase = 'work';

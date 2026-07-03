@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
+import { pomoPhaseTargetSec } from '../utils/pomo';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
 import Stepper from '../components/Stepper';
@@ -423,7 +424,7 @@ export default function FocusScreen() {
       if (t.seqPhase === 'break') return Math.max(0, t.seqBreakSec - live);
       return Math.max(0, t.totalSec - live);
     }
-    return Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - live);
+    return Math.max(0, pomoPhaseTargetSec(t) - live);
   };
   // 전체 누적 경과 (포모도로·연속모드용 — 완료된 페이즈 합산)
   // 순수 공부 시간만 누적 (쉬는 시간 제외)
@@ -453,7 +454,7 @@ export default function FocusScreen() {
       const target = t.seqPhase === 'break' ? t.seqBreakSec : t.totalSec;
       return (live / Math.max(1, target)) * 100;
     }
-    return (live / Math.max(1, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60))) * 100;
+    return (live / Math.max(1, pomoPhaseTargetSec(t))) * 100;
   };
 
   // 타이머 카드 즐겨찾기 토글
@@ -560,7 +561,7 @@ export default function FocusScreen() {
             hitSlop={{top:8,bottom:8,left:8,right:8}}>
             <Text style={[S.tcClose, { color: (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60 ? T.border : T.sub }]}>✕</Text>
           </TouchableOpacity></View>
-        {t.type === 'pomodoro' && !isD && <Text style={[S.tcPhase, { color: t.pomoPhase === 'work' ? t.color : T.green }]}>{t.pomoPhase === 'work' ? `집중·${t.pomoSet+1}세트` : '휴식'}</Text>}
+        {t.type === 'pomodoro' && !isD && <Text style={[S.tcPhase, { color: t.pomoPhase === 'work' ? t.color : T.green }]}>{t.pomoPhase === 'work' ? `집중·${t.pomoSet+1}세트` : t.pomoPhase === 'longbreak' ? '긴 휴식' : '휴식'}</Text>}
         {isD ? (
           <View style={S.resArea}>
             {(!t.memoSessionId && t.elapsedSec < 300) ? (
@@ -718,7 +719,7 @@ export default function FocusScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 8 }}>
             <Ionicons name={t.pomoPhase === 'work' ? 'timer-outline' : 'cafe-outline'} size={13} color={ringColor} />
             <Text style={{ fontSize: 13, fontWeight: '700', color: ringColor, textAlign: 'center' }}>
-              {t.pomoPhase === 'work' ? `집중·${(t.pomoSet || 0) + 1}세트` : '휴식 중'}
+              {t.pomoPhase === 'work' ? `집중·${(t.pomoSet || 0) + 1}세트` : t.pomoPhase === 'longbreak' ? '긴 휴식 중' : '휴식 중'}
             </Text>
           </View>
         )}
@@ -859,7 +860,7 @@ export default function FocusScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 }}>
             <Ionicons name={t.pomoPhase === 'work' ? 'timer-outline' : 'cafe-outline'} size={14} color={ringColor} />
             <Text style={{ fontSize: 14, fontWeight: '700', color: ringColor }}>
-              {t.pomoPhase === 'work' ? `집중·${(t.pomoSet || 0) + 1}세트` : '휴식 중'}
+              {t.pomoPhase === 'work' ? `집중·${(t.pomoSet || 0) + 1}세트` : t.pomoPhase === 'longbreak' ? '긴 휴식 중' : '휴식 중'}
             </Text>
           </View>
         )}

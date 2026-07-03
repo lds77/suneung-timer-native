@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK } from '../constants/colors';
 import { formatTime } from '../utils/format';
+import { pomoPhaseTargetSec } from '../utils/pomo';
 
 export default function RunningTimersBar() {
   const app = useApp();
@@ -18,7 +19,7 @@ export default function RunningTimersBar() {
       <View style={styles.scroll}>
         {active.map(t => {
           const display = (t.type === 'free' || t.type === 'lap') ? t.elapsedSec
-            : t.type === 'pomodoro' ? Math.max(0, (t.pomoPhase === 'work' ? t.pomoWorkMin * 60 : t.pomoBreakMin * 60) - t.elapsedSec)
+            : t.type === 'pomodoro' ? Math.max(0, pomoPhaseTargetSec(t) - t.elapsedSec)
             : t.type === 'sequence' ? Math.max(0, (t.seqPhase === 'break' ? t.seqBreakSec : t.totalSec) - t.elapsedSec)
             : Math.max(0, t.totalSec - t.elapsedSec);
           const icon = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? 'nutrition-outline' : 'cafe-outline')

@@ -8,6 +8,7 @@ import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTheme } from '../constants/colors';
 import { formatDuration } from './format';
+import { pomoPhaseTargetSec } from './pomo';
 
 let LA = null;
 if (Platform.OS === 'ios') {
@@ -28,7 +29,7 @@ export const initLiveActivity = async () => {
 // 현재 페이즈의 목표 시간 (자유/랩은 0 → 카운트업)
 const phaseTargetSec = (t) => {
   if (t.type === 'countdown') return t.totalSec;
-  if (t.type === 'pomodoro') return (t.pomoPhase === 'work' ? t.pomoWorkMin : t.pomoBreakMin) * 60;
+  if (t.type === 'pomodoro') return pomoPhaseTargetSec(t); // 긴 휴식(4세트마다)은 15분
   if (t.type === 'sequence') return t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
   return 0;
 };
