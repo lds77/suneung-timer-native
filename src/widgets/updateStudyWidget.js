@@ -8,13 +8,29 @@ import { Platform } from 'react-native';
 // iOS 위젯 데이터 공유용 App Group (app.config.js APP_GROUP과 반드시 일치)
 const IOS_APP_GROUP = 'group.com.yeolgong.timer';
 
+// 실행 중(work 페이즈) 타이머 → 오늘공부 위젯 실시간 카운팅용 앵커(ms epoch).
+// 위젯은 Text(style: .timer)로 (지금 - 앵커)를 OS가 직접 그리므로,
+// 앵커 = resumedAt - 이미 쌓인 초*1000 - 완료 세션 합계*1000 이면
+// 표시값 = 완료 세션 합계 + 현재 타이머 경과 = 오늘 누적이 실시간으로 올라간다.
+// 쉬는시간(뽀모/연속 break)·일시정지·랩은 앵커 없음 → 정적 표시.
+export function runningAnchorMs(t, totalSec) {
+  if (!t || t.status !== 'running' || t.type === 'lap') return null;
+  if (t.type === 'pomodoro' && t.pomoPhase !== 'work') return null;
+  if (t.type === 'sequence' && t.seqPhase !== 'work') return null;
+  const resumedAt = t.resumedAt || t.startedAt;
+  if (!resumedAt) return null;
+  return resumedAt - (t.elapsedSecAtResume || 0) * 1000 - (totalSec || 0) * 1000;
+}
+
 // iOS: getWidgetData()로 계산한 스냅샷을 App Group에 JSON 문자열로 기록 후 위젯 리로드.
 // SwiftUI 위젯(targets/widgets)이 이 JSON을 읽어 렌더한다.
-async function updateIosWidgets() {
+async function updateIosWidgets(activeTimer) {
   try {
     const { ExtensionStorage } = require('@bacons/apple-targets');
     const { getWidgetData } = require('./widgetData');
     const data = await getWidgetData();
+    const anchor = runningAnchorMs(activeTimer, data.totalSec);
+    if (anchor) data.runningAnchorMs = anchor;
     const storage = new ExtensionStorage(IOS_APP_GROUP);
     storage.set('widgetData', JSON.stringify(data));
     ExtensionStorage.reloadWidget();
@@ -29,9 +45,9 @@ const WIDGET_RENDERERS = {
   SubjectLauncher: (React, W, data, info) => React.createElement(W.SubjectLauncherWidget, { data, width: info.width, height: info.height }),
 };
 
-// 모든 열공메이트 위젯을 한 번에 갱신
-export async function updateAllWidgets() {
-  if (Platform.OS === 'ios') { await updateIosWidgets(); return; }
+// 모든 열공메이트 위젯을 한 번에 갱신 (activeTimer: iOS 실시간 카운팅용, 옵션)
+export async function updateAllWidgets(activeTimer = null) {
+  if (Platform.OS === 'ios') { await updateIosWidgets(activeTimer); return; }
   if (Platform.OS !== 'android') return;
   try {
     const React = require('react');

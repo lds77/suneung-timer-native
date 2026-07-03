@@ -9,7 +9,7 @@ struct DDayWidget: Widget {
         }
         .configurationDisplayName("시험 D-Day")
         .description("시험까지 남은 날을 임박한 순으로 보여줘요.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
 
@@ -18,9 +18,17 @@ struct DDayView: View {
     let entry: DataEntry
     var d: WidgetData { entry.data }
 
+    private var isAccessory: Bool {
+        family == .accessoryCircular || family == .accessoryRectangular
+    }
+
     var body: some View {
         Group {
-            if d.ddays.isEmpty {
+            if family == .accessoryCircular {
+                circularBody
+            } else if family == .accessoryRectangular {
+                rectangularBody
+            } else if d.ddays.isEmpty {
                 emptyBody
             } else if family == .systemSmall {
                 smallBody
@@ -28,8 +36,67 @@ struct DDayView: View {
                 listBody
             }
         }
-        .containerBackground(d.bg, for: .widget)
+        // 잠금화면(accessory)은 시스템이 배경/색을 그리므로 투명 + 시스템 전경색 사용
+        .containerBackground(isAccessory ? Color.clear : d.bg, for: .widget)
         .widgetURL(URL(string: "yeolgong://open"))
+    }
+
+    // 잠금화면 원형: 대표 시험 이름(축약) + D-숫자
+    private var circularBody: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            if let dd = d.ddays.first {
+                VStack(spacing: 0) {
+                    Text(dd.label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(ddayLabel(dd.n))
+                        .font(.system(size: 16, weight: .heavy))
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 3)
+            } else {
+                Image(systemName: "calendar")
+                    .font(.system(size: 16))
+            }
+        }
+    }
+
+    // 잠금화면 직사각형: 대표 시험 D-Day + 오늘 공부시간 한 줄 (핵심 동기 2개 결합)
+    private var rectangularBody: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let dd = d.ddays.first {
+                Text(dd.label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(ddayLabel(dd.n))
+                    .font(.system(size: 20, weight: .heavy))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Group {
+                    if let anchor = d.runningAnchor {
+                        // 공부 중이면 초 단위 실시간 카운팅 (OS가 직접 그림)
+                        Text("오늘 공부 ") + Text(anchor, style: .timer)
+                    } else {
+                        Text("오늘 공부 \(formatShort(d.totalSec))")
+                    }
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            } else {
+                Text("시험 D-Day")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("등록된 시험이 없어요")
+                    .font(.system(size: 13, weight: .medium))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var emptyBody: some View {

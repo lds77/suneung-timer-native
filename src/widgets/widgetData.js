@@ -10,6 +10,7 @@ const K = {
   SUBJECTS: '@yeolgong/subjects',
   SESSIONS: '@yeolgong/sessions',
   DDAYS: '@yeolgong/ddays',
+  WEEKLY: '@yeolgong/weeklySchedule',
 };
 
 // 로컬 기준 YYYY-MM-DD (format.js의 toDateStr와 동일 규칙 — UTC 사용 금지)
@@ -65,11 +66,12 @@ export const ddayLabel = (n) => {
  * 세 위젯(StudyTime/DDay/SubjectLauncher)이 공유한다.
  */
 export const getWidgetData = async () => {
-  const [sessions, settings, subjects, ddays] = await Promise.all([
+  const [sessions, settings, subjects, ddays, weekly] = await Promise.all([
     loadJSON(K.SESSIONS, []),
     loadJSON(K.SETTINGS, null),
     loadJSON(K.SUBJECTS, []),
     loadJSON(K.DDAYS, []),
+    loadJSON(K.WEEKLY, null),
   ]);
 
   const today = todayStr();
@@ -146,6 +148,36 @@ export const getWidgetData = async () => {
     .slice(0, 6)
     .map(s => ({ id: s.id, name: s.name, color: s.color, weekSec: weekSecBySubj[s.id] || 0 }));
 
+  // 오늘 계획 (플래너) — useAppState.getTodaySchedule과 동일 규칙
+  // (onlyWeek '이번 주만' 노출 + skipWeeks '이번 주만 삭제/휴무' 제외, order 정렬)
+  let plans = [];
+  let planPct = -1; // -1 = 계획 없음/플래너 미사용
+  if (weekly && weekly.enabled) {
+    const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+    const inWeek = (b) => (!b.onlyWeek || b.onlyWeek === wkStartStr) && !(b.skipWeeks && b.skipWeeks.includes(wkStartStr));
+    const rawPlans = ((weekly[dayKey] && weekly[dayKey].plans) || [])
+      .filter(p => p && p.id && inWeek(p))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    const doneByPlan = {};
+    todaySessions.forEach(s => {
+      if (s.planId) doneByPlan[s.planId] = (doneByPlan[s.planId] || 0) + (s.durationSec || 0);
+    });
+    plans = rawPlans.slice(0, 6).map(p => {
+      const targetSec = (p.targetMin || 0) * 60;
+      const doneSec = doneByPlan[p.id] || 0;
+      return {
+        id: p.id, label: p.label || '', color: p.color || '',
+        targetMin: p.targetMin || 0, doneSec,
+        done: targetSec > 0 && doneSec >= targetSec * 0.8, // 집중탭 계획 카드와 동일 기준
+      };
+    });
+    const totalTargetSec = rawPlans.reduce((s, p) => s + (p.targetMin || 0) * 60, 0);
+    if (totalTargetSec > 0) {
+      const totalDoneSec = rawPlans.reduce((s, p) => s + (doneByPlan[p.id] || 0), 0);
+      planPct = Math.min(100, Math.round((totalDoneSec / totalTargetSec) * 100));
+    }
+  }
+
   return {
     date: today,          // 스냅샷 계산 기준일 — iOS 위젯이 자정 경과 감지에 사용
     totalSec, goalSec, goalPct, accent, darkMode, streak,
@@ -155,5 +187,7 @@ export const getWidgetData = async () => {
     dday,                 // { label, date, n } | null (목록 첫 항목 = 대표/최근접)
     ddays: ddSorted,      // [{ label, date, n, isPrimary }] 정렬·최대 6
     launcherSubjects,     // [{ id, name, color, weekSec }]
+    plans,                // 오늘 계획 [{ id, label, color, targetMin, doneSec, done }] 최대 6
+    planPct,              // 오늘 계획 전체 달성률 0~100, -1이면 계획 없음
   };
 };

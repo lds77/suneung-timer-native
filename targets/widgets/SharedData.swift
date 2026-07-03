@@ -42,6 +42,14 @@ func ddayLabel(_ n: Int) -> String {
     return n > 0 ? "D-\(n)" : "D+\(-n)"
 }
 
+// 잠금화면 원형 등 아주 좁은 자리용: "3h" / "45m" (1시간 이상이면 분 생략)
+func formatTiny(_ totalSec: Int) -> String {
+    let sec = max(0, totalSec)
+    let h = sec / 3600
+    if h > 0 { return "\(h)h" }
+    return "\((sec % 3600) / 60)m"
+}
+
 // MARK: - 날짜 유틸 (JS widgetData.js todayStr / daysUntil과 동일 규칙, 로컬 기준)
 
 func localDateStr(_ date: Date = Date()) -> String {
@@ -73,6 +81,11 @@ private func intVal(_ v: Any?) -> Int {
     return 0
 }
 private func strVal(_ v: Any?) -> String { (v as? String) ?? "" }
+private func dblVal(_ v: Any?) -> Double {
+    if let d = v as? Double { return d }
+    if let n = v as? NSNumber { return n.doubleValue }
+    return 0
+}
 private func boolVal(_ v: Any?) -> Bool {
     if let b = v as? Bool { return b }
     if let n = v as? NSNumber { return n.boolValue }
@@ -102,6 +115,15 @@ struct LauncherItem: Identifiable {
     let weekSec: Int // 이번 주 공부시간 (0이면 흐리게 — 안드로이드와 동일)
 }
 
+struct PlanItem: Identifiable {
+    let id: String    // planId (딥링크용)
+    let label: String
+    let color: Color? // 없으면 앱 액센트 사용
+    let targetMin: Int
+    let doneSec: Int
+    let done: Bool    // 목표 80% 이상 (집중탭 계획 카드와 동일 기준)
+}
+
 struct WidgetData {
     var totalSec: Int = 0
     var goalSec: Int = 0
@@ -114,6 +136,10 @@ struct WidgetData {
     var weekAvgSec: Int = 0
     var ddays: [DDayItem] = []
     var launcher: [LauncherItem] = []
+    var plans: [PlanItem] = []
+    var planPct: Int = -1 // 오늘 계획 달성률 0~100, -1이면 계획 없음
+    // 실행 중 타이머 앵커 — 있으면 오늘공부 시간을 Text(style: .timer)로 실시간 카운팅
+    var runningAnchor: Date? = nil
 
     // App Group UserDefaults에서 JSON 문자열을 읽어 파싱. 실패 시 빈 데이터.
     static func load() -> WidgetData {
@@ -160,14 +186,42 @@ struct WidgetData {
                                     weekSec: intVal($0["weekSec"]))
             }
         }
+        if let arr = obj["plans"] as? [[String: Any]] {
+            data.plans = arr.compactMap {
+                let pid = strVal($0["id"])
+                if pid.isEmpty { return nil }
+                let hex = strVal($0["color"])
+                return PlanItem(id: pid,
+                                label: strVal($0["label"]),
+                                color: hex.isEmpty ? nil : Color(hexString: hex),
+                                targetMin: intVal($0["targetMin"]),
+                                doneSec: intVal($0["doneSec"]),
+                                done: boolVal($0["done"]))
+            }
+        }
+        if obj["planPct"] != nil { data.planPct = intVal(obj["planPct"]) }
+
+        let anchorMs = dblVal(obj["runningAnchorMs"])
+        if anchorMs > 0 {
+            let anchor = Date(timeIntervalSince1970: anchorMs / 1000)
+            // 미래 앵커(시계 이상)는 무시
+            if anchor <= Date() { data.runningAnchor = anchor }
+        }
 
         // 자정 경과 보정: 스냅샷 기준일이 오늘이 아니면 '오늘' 통계는 0부터 다시
         // (앱이 꺼져 있으면 스냅샷이 갱신되지 않으므로 위젯 쪽에서 리셋)
+        // 단, 타이머 실행 중(앵커 존재)에 자정을 넘긴 경우는 카운팅 유지 —
+        // 그 세션은 종료 시 오늘 날짜로 기록되므로 계속 세는 쪽이 맞다.
         let snapshotDate = strVal(obj["date"])
         if !snapshotDate.isEmpty && snapshotDate != localDateStr() {
-            data.totalSec = 0
-            data.goalPct = 0
-            data.subjects = []
+            // 오늘 계획은 요일이 바뀌면 목록 자체가 달라지므로 비움 (앱 열면 갱신)
+            data.plans = []
+            data.planPct = -1
+            if data.runningAnchor == nil {
+                data.totalSec = 0
+                data.goalPct = 0
+                data.subjects = []
+            }
         }
         return data
     }

@@ -963,15 +963,19 @@ function LockOverlay() {
 }
 
 // ── 위젯 딥링크 ──
-// 위젯 탭(yeolgong://start?subjectId=...) → 집중탭 이동 + 해당 과목 타이머 시작
+// 위젯 탭 → 집중탭 이동 + 타이머 시작
+//  yeolgong://start?subjectId=... : 해당 과목 자유 타이머 시작
+//  yeolgong://start?planId=...    : 오늘 계획 블록에서 남은 시간 카운트다운 시작
 const navigationRef = createNavigationContainerRef();
 
 function parseDeepLink(url) {
   if (!url || typeof url !== 'string') return null;
-  // 예: yeolgong://start?subjectId=sub_123
-  const m = url.match(/[?&]subjectId=([^&]+)/);
   const isStart = /:\/\/start(\b|\/|\?|$)/.test(url);
-  if (isStart && m) return { action: 'start', subjectId: decodeURIComponent(m[1]) };
+  if (!isStart) return null;
+  const subj = url.match(/[?&]subjectId=([^&]+)/);
+  if (subj) return { action: 'start', subjectId: decodeURIComponent(subj[1]) };
+  const plan = url.match(/[?&]planId=([^&]+)/);
+  if (plan) return { action: 'startPlan', planId: decodeURIComponent(plan[1]) };
   return null;
 }
 
@@ -987,14 +991,26 @@ function MainApp() {
   useEffect(() => {
     const handleUrl = (url) => {
       const link = parseDeepLink(url);
-      if (!link || link.action !== 'start') return;
+      if (!link) return;
       const a = appRef.current;
-      const subj = (a.subjects || []).find(s => s.id === link.subjectId);
-      if (!subj) return;
-      const go = () => {
-        if (navigationRef.isReady()) navigationRef.navigate('Focus');
-        a.addTimer({ type: 'free', subjectId: subj.id, label: subj.name, color: subj.color });
-      };
+      let go = null;
+      if (link.action === 'start') {
+        const subj = (a.subjects || []).find(s => s.id === link.subjectId);
+        if (!subj) return;
+        go = () => {
+          if (navigationRef.isReady()) navigationRef.navigate('Focus');
+          a.addTimer({ type: 'free', subjectId: subj.id, label: subj.name, color: subj.color });
+        };
+      } else if (link.action === 'startPlan') {
+        // 오늘 계획 위젯 탭 → 해당 계획으로 시작 (남은 시간 카운트다운, 달성 시 토스트는 startFromPlan이 처리)
+        const plan = (a.getTodaySchedule?.()?.plans || []).find(p => p.id === link.planId);
+        if (!plan) return;
+        go = () => {
+          if (navigationRef.isReady()) navigationRef.navigate('Focus');
+          a.startFromPlan?.(plan);
+        };
+      }
+      if (!go) return;
       // 네비게이터가 아직 준비 전일 수 있어 약간 지연
       setTimeout(go, navigationRef.isReady() ? 0 : 300);
     };

@@ -1,5 +1,5 @@
 // src/hooks/useAppState.js
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { AppState, Vibration, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
@@ -436,8 +436,8 @@ export function AppProvider({ children }) {
         bgTime.current = null;
         const wasAway = ultraRef.current.isAway;
 
-        // 안드로이드 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영)
-        updateAllWidgets();
+        // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
+        updateAllWidgets(timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null);
 
         // 🔥모드 복귀 처리
         if (mode === 'screen_on' && wasAway && !ultraRef.current.gaveUp) {
@@ -1733,12 +1733,24 @@ export function AppProvider({ children }) {
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
   // 자동저장(500ms 디바운스)보다 늦게 읽도록 여유를 두고 호출.
+  // iOS는 실행 중 타이머의 상태 변화(시작/일시정지/페이즈 전환)도 시그니처로 감지해
+  // 오늘공부 위젯 실시간 카운팅 앵커를 갱신 (elapsedSec 틱은 제외 → 초당 호출 없음).
+  const widgetTimerSig = useMemo(() => {
+    if (Platform.OS !== 'ios') return '';
+    const t = timers.find(x => x.type !== 'lap' && (x.status === 'running' || x.status === 'paused'));
+    if (!t) return '';
+    const phase = t.type === 'pomodoro' ? t.pomoPhase : (t.type === 'sequence' ? t.seqPhase : '');
+    return `${t.id}|${t.status}|${phase}|${t.resumedAt || 0}|${t.elapsedSecAtResume || 0}`;
+  }, [timers]);
   const widgetUpdateRef = useRef(null);
   useEffect(() => {
     if (loading) return;
     clearTimeout(widgetUpdateRef.current);
-    widgetUpdateRef.current = setTimeout(() => updateAllWidgets(), 900);
-  }, [sessions, subjects, ddays, settings, loading]);
+    widgetUpdateRef.current = setTimeout(() => {
+      const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+      updateAllWidgets(active);
+    }, 900);
+  }, [sessions, subjects, ddays, settings, widgetTimerSig, loading]);
 
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
