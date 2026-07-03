@@ -41,8 +41,12 @@ function PlanRow({ plan, accent, t }) {
       />
       <TextWidget
         text={planTimeText(plan)}
-        style={{ fontSize: 12, color: plan.done ? t.sub : accent, fontWeight: '700', marginLeft: 5, paddingRight: 3 }}
+        style={{ fontSize: 12, color: plan.done ? t.sub : accent, fontWeight: '700', marginLeft: 5 }}
       />
+      {/* 미완료 항목엔 재생 표시 → '눌러서 실행' 어포던스 */}
+      {!plan.done && (
+        <TextWidget text="▶" style={{ fontSize: 9, color: accent, marginLeft: 4, paddingRight: 3 }} />
+      )}
     </FlexWidget>
   );
 }

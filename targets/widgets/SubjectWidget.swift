@@ -54,9 +54,16 @@ struct SubjectView: View {
     private var gridBody: some View {
         let limit = family == .systemLarge ? 6 : 4
         return VStack(alignment: .leading, spacing: 8) {
-            Text("과목 바로 시작")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(d.subColor)
+            HStack(spacing: 6) {
+                Text("과목 바로 시작")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(d.subColor)
+                Spacer(minLength: 4)
+                // 칩 우측 숫자가 무엇인지 안내
+                Text("이번 주 공부량")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(d.subColor.opacity(0.8))
+            }
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(d.launcher.prefix(limit)) { s in
                     // 이번 주 공부시간 표시 — 0이면 흐리게(방치 신호), 안드로이드 위젯과 동일

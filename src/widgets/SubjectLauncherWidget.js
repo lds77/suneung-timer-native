@@ -68,7 +68,11 @@ export function SubjectLauncherWidget({ data, width = 0, height = 0 }) {
         backgroundColor: t.bg, borderRadius: 20, padding: 11,
       }}
     >
-      <TextWidget text="과목 바로 시작" style={{ fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} />
+      {/* 헤더: 제목 + 칩 우측 숫자가 무엇인지 안내 */}
+      <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TextWidget text="과목 바로 시작" style={{ flex: 1, fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} maxLines={1} />
+        <TextWidget text="이번 주 공부량" style={{ fontSize: 10, color: t.sub, fontWeight: '500', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
+      </FlexWidget>
       {launcherSubjects.length === 0 ? (
         <TextWidget text="과목을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
       ) : (() => {

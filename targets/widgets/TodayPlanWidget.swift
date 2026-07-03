@@ -81,17 +81,32 @@ struct TodayPlanView: View {
                 Text("다음 할 일")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(d.subColor)
-                HStack(spacing: 6) {
-                    Circle().fill(p.color ?? d.accent).frame(width: 9, height: 9)
-                    Text(p.label)
-                        .font(.system(size: 17, weight: .heavy))
-                        .foregroundColor(d.textColor)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.7)
+                // 색 틴트 박스 + 재생 아이콘 → 탭하면 바로 시작한다는 어포던스
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Circle().fill(p.color ?? d.accent).frame(width: 9, height: 9)
+                        Text(p.label)
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundColor(d.textColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    HStack(spacing: 4) {
+                        Text(planTimeText(p))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(d.accent)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(d.accent)
+                    }
                 }
-                Text(planTimeText(p))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(d.accent)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill((p.color ?? d.accent).opacity(d.darkMode ? 0.22 : 0.12))
+                )
             }
             if d.planPct >= 0 {
                 ProgressView(value: min(1.0, Double(d.planPct) / 100.0))
@@ -103,9 +118,10 @@ struct TodayPlanView: View {
     }
 
     // 중형/대형: 계획 목록 (탭 → 해당 계획 시작)
+    // 과목바로시작 위젯과 동일한 색 틴트 박스 + 재생 아이콘 → '눌러서 실행' 어포던스
     private var listBody: some View {
         let limit = family == .systemLarge ? 6 : 3
-        return VStack(alignment: .leading, spacing: family == .systemLarge ? 10 : 8) {
+        return VStack(alignment: .leading, spacing: 6) {
             header
             ForEach(d.plans.prefix(limit)) { p in
                 Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open")!) {
@@ -127,7 +143,21 @@ struct TodayPlanView: View {
                         Text(p.done ? "완료" : planTimeText(p))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(p.done ? d.subColor : d.accent)
+                        if !p.done {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(d.accent)
+                        }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(p.done
+                                  ? d.subColor.opacity(d.darkMode ? 0.12 : 0.07)
+                                  : (p.color ?? d.accent).opacity(d.darkMode ? 0.22 : 0.12))
+                    )
                 }
             }
             Spacer(minLength: 0)
