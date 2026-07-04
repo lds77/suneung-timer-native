@@ -24,7 +24,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
-import { pinScreen, unpinScreen } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned } from '../utils/screenPin';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -255,6 +255,12 @@ export function AppProvider({ children }) {
   const setScreenLocked = useCallback((locked) => {
     screenLockedRef.current = locked;
     setScreenLockedState(locked);
+    // 시험 강도(안드): 수동으로 화면 고정을 푼 뒤 잠금화면을 다시 켜면 재고정
+    if (locked && Platform.OS === 'android'
+        && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam'
+        && focusModeRef.current === 'screen_on' && !isScreenPinned()) {
+      pinScreen();
+    }
   }, []);
   const notifyScreenLocked = setScreenLocked; // 하위 호환 유지
 
@@ -466,6 +472,16 @@ export function AppProvider({ children }) {
         cancelAwayNudges();
         dismissAwaySticky();
         setLiveActivityAway(false);
+
+        // 시험 강도(안드): 고정을 풀고 나갔다 돌아오면 자동 재고정 (세션이 살아있는 동안)
+        if (Platform.OS === 'android'
+            && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam'
+            && focusModeRef.current === 'screen_on'
+            && !ultraRef.current.gaveUp
+            && timersRef.current.some(t => t.status === 'running' || t.status === 'paused')
+            && !isScreenPinned()) {
+          pinScreen();
+        }
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
         updateAllWidgets(timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null);
