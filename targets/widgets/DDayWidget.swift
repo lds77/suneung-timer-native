@@ -66,37 +66,44 @@ struct DDayView: View {
     }
 
     // 잠금화면 직사각형: 대표 시험 D-Day + 오늘 공부시간 한 줄 (핵심 동기 2개 결합)
+    // 밝은 배경화면에서 글자가 묻히지 않도록 시스템 블러 배경(AccessoryWidgetBackground)을 깐다
     private var rectangularBody: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            if let dd = d.ddays.first {
-                Text(dd.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text(ddayLabel(dd.n))
-                    .font(.system(size: 20, weight: .heavy))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                Group {
-                    if let anchor = d.runningAnchor {
-                        // 공부 중이면 초 단위 실시간 카운팅 (OS가 직접 그림)
-                        Text("오늘 공부 ") + Text(anchor, style: .timer)
-                    } else {
-                        Text("오늘 공부 \(formatShort(d.totalSec))")
+        ZStack {
+            AccessoryWidgetBackground()
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 1) {
+                if let dd = d.ddays.first {
+                    Text(dd.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(ddayLabel(dd.n))
+                        .font(.system(size: 20, weight: .heavy))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                    Group {
+                        if let anchor = d.runningAnchor {
+                            // 공부 중이면 초 단위 실시간 카운팅 (OS가 직접 그림)
+                            Text("오늘 공부 ") + Text(anchor, style: .timer)
+                        } else {
+                            Text("오늘 공부 \(formatShort(d.totalSec))")
+                        }
                     }
-                }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            } else {
-                Text("시험 D-Day")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("등록된 시험이 없어요")
-                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                } else {
+                    Text("시험 D-Day")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("등록된 시험이 없어요")
+                        .font(.system(size: 13, weight: .medium))
+                }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var emptyBody: some View {

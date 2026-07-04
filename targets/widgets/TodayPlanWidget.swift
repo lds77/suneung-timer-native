@@ -2,7 +2,7 @@ import WidgetKit
 import SwiftUI
 
 // 오늘 계획 위젯 — 플래너의 오늘 계획 블록 + 달성률. 항목 탭 → 그 계획으로 타이머 바로 시작.
-// 소형: 다음 할 계획 1개 크게. 중형: 3개 목록. 대형: 6개 목록.
+// 소형: 다음 할 계획 1개 크게. 중형: 2열 6개 그리드. 대형: 6개 목록. 완료 항목은 하단으로.
 struct TodayPlanWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TodayPlanWidget", provider: DataProvider()) { entry in
@@ -66,6 +66,11 @@ struct TodayPlanView: View {
         d.plans.first(where: { !$0.done }) ?? d.plans[0]
     }
 
+    // 완료된 계획은 하단으로 (남은 할 일이 먼저 보이도록, 원래 순서는 유지)
+    private var sortedPlans: [PlanItem] {
+        d.plans.filter { !$0.done } + d.plans.filter { $0.done }
+    }
+
     // 소형: 다음 계획 하나 크게 + 전체 달성률 바 (탭 → 그 계획 시작)
     private var smallBody: some View {
         let p = nextPlan
@@ -120,10 +125,65 @@ struct TodayPlanView: View {
     // 중형/대형: 계획 목록 (탭 → 해당 계획 시작)
     // 과목바로시작 위젯과 동일한 색 틴트 박스 + 재생 아이콘 → '눌러서 실행' 어포던스
     private var listBody: some View {
-        let limit = family == .systemLarge ? 6 : 3
-        return VStack(alignment: .leading, spacing: 6) {
+        Group {
+            if family == .systemMedium {
+                mediumGridBody
+            } else {
+                largeListBody
+            }
+        }
+    }
+
+    // 중형(4x2): 2열 x 3행 그리드로 6개 표시 — 칩을 컴팩트하게 줄여 3행 확보
+    private var mediumGridBody: some View {
+        let gap: CGFloat = 6
+        let cols = [GridItem(.flexible(), spacing: gap), GridItem(.flexible(), spacing: gap)]
+        return VStack(alignment: .leading, spacing: gap) {
             header
-            ForEach(d.plans.prefix(limit)) { p in
+            LazyVGrid(columns: cols, spacing: gap) {
+                ForEach(sortedPlans.prefix(6)) { p in
+                    Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open")!) {
+                        HStack(spacing: 5) {
+                            if p.done {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(hexString: "#4CAF50"))
+                            } else {
+                                Circle().fill(p.color ?? d.accent).frame(width: 8, height: 8)
+                                    .padding(.horizontal, 2)
+                            }
+                            Text(p.label)
+                                .font(.system(size: 12, weight: p.done ? .medium : .semibold))
+                                .foregroundColor(p.done ? d.subColor : d.textColor)
+                                .strikethrough(p.done, color: d.subColor)
+                                .lineLimit(1)
+                            Spacer(minLength: 3)
+                            Text(p.done ? "완료" : planTimeText(p))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(p.done ? d.subColor : d.accent)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(p.done
+                                      ? d.subColor.opacity(d.darkMode ? 0.12 : 0.07)
+                                      : (p.color ?? d.accent).opacity(d.darkMode ? 0.22 : 0.12))
+                        )
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var largeListBody: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            header
+            ForEach(sortedPlans.prefix(6)) { p in
                 Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open")!) {
                     HStack(spacing: 8) {
                         if p.done {

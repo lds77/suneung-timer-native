@@ -64,24 +64,31 @@ struct StudyTimeView: View {
     }
 
     // 잠금화면 직사각형: 오늘 공부 시간 + 목표/연속 한 줄
+    // 밝은 배경화면에서 글자가 묻히지 않도록 시스템 블러 배경(AccessoryWidgetBackground)을 깐다
     private var rectangularBody: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 4) {
-                Image(systemName: "book.fill")
-                    .font(.system(size: 10))
-                Text("오늘 공부")
-                    .font(.system(size: 12, weight: .semibold))
+        ZStack {
+            AccessoryWidgetBackground()
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 10))
+                    Text("오늘 공부")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+                todayTimeText(size: 20, color: .primary)
+                if d.goalSec > 0 || d.streak > 0 {
+                    Text(rectangularSubline)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
-            .foregroundStyle(.secondary)
-            todayTimeText(size: 20, color: .primary)
-            if d.goalSec > 0 || d.streak > 0 {
-                Text(rectangularSubline)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var rectangularSubline: String {

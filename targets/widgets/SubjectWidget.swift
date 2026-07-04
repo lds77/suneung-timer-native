@@ -19,11 +19,6 @@ struct SubjectView: View {
     let entry: DataEntry
     var d: WidgetData { entry.data }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-    ]
-
     var body: some View {
         Group {
             if d.launcher.isEmpty {
@@ -52,8 +47,11 @@ struct SubjectView: View {
     }
 
     private var gridBody: some View {
-        let limit = family == .systemLarge ? 6 : 4
-        return VStack(alignment: .leading, spacing: 8) {
+        // 중형(4x2)도 6과목 (2열 x 3행) — 칩 높이/간격을 컴팩트하게 줄여 3행 확보
+        let compact = family != .systemLarge
+        let gap: CGFloat = compact ? 6 : 8
+        let columns = [GridItem(.flexible(), spacing: gap), GridItem(.flexible(), spacing: gap)]
+        return VStack(alignment: .leading, spacing: gap) {
             HStack(spacing: 6) {
                 Text("과목 바로 시작")
                     .font(.system(size: 13, weight: .semibold))
@@ -64,8 +62,8 @@ struct SubjectView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(d.subColor.opacity(0.8))
             }
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(d.launcher.prefix(limit)) { s in
+            LazyVGrid(columns: columns, spacing: gap) {
+                ForEach(d.launcher.prefix(6)) { s in
                     // 이번 주 공부시간 표시 — 0이면 흐리게(방치 신호), 안드로이드 위젯과 동일
                     let studied = s.weekSec > 0
                     Link(destination: subjectURL(s.id)) {
@@ -84,7 +82,7 @@ struct SubjectView: View {
                                 .lineLimit(1)
                         }
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, compact ? 6 : 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
