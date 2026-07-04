@@ -2,6 +2,7 @@
 // 오늘 계획 위젯 — 플래너의 오늘 계획 블록 + 달성률. 항목 탭 → 그 계획으로 타이머 바로 시작.
 // 탭 → OPEN_URI 딥링크(yeolgong://start?planId=...) → App.js가 startFromPlan으로 남은 시간 카운트다운.
 // iOS TodayPlanWidget.swift와 동일 구성 (done=80%, 집중탭 계획 카드와 같은 기준).
+// 3칸 이상 너비면 과목바로시작처럼 2열 그리드(3x2=6개), 완료 계획은 하단 정렬.
 
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
@@ -22,14 +23,15 @@ const planTimeText = (p) => {
   return `${p.targetMin}분`;
 };
 
-function PlanRow({ plan, accent, t }) {
+function PlanRow({ plan, accent, t, grid = false }) {
   return (
     <FlexWidget
       clickAction="OPEN_URI"
       clickActionData={planUri(plan.id)}
       style={{
-        width: 'match_parent', height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
-        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10, marginTop: 5,
+        height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
+        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10,
+        ...(grid ? { flex: 1, margin: 3 } : { width: 'match_parent', marginTop: 5 }),
       }}
     >
       <FlexWidget style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: plan.done ? DONE_GREEN : (plan.color || accent) }} />
@@ -94,12 +96,28 @@ export function TodayPlanWidget({ data, width = 0, height = 0 }) {
         <FlexWidget clickAction="OPEN_APP" style={{ width: 'match_parent', height: 'wrap_content' }}>
           <TextWidget text="플래너에서 오늘 계획을 세워보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
         </FlexWidget>
-      ) : (
-        // 높이에 맞춰 행 수 결정 (행 ≈ 38dp + 헤더 여유). 높이 모르면 3개.
-        plans
-          .slice(0, height > 0 ? Math.max(1, Math.floor((height - 28) / 38)) : 3)
-          .map((p) => <PlanRow key={p.id} plan={p} accent={accent} t={t} />)
-      )}
+      ) : (() => {
+        // 완료 계획은 하단으로 (남은 할 일이 먼저, 원래 순서 유지)
+        const sorted = [...plans.filter(p => !p.done), ...plans.filter(p => p.done)];
+        // 너비로 열 수 결정 (과목바로시작과 동일 기준) — 3칸 이상이면 2열 x 3행 = 6개
+        const cols = width >= 200 ? 2 : 1;
+        if (cols === 1) {
+          // 1열: 높이에 맞춰 행 수 결정 (행 ≈ 38dp + 헤더 여유). 높이 모르면 3개.
+          return sorted
+            .slice(0, height > 0 ? Math.max(1, Math.floor((height - 28) / 38)) : 3)
+            .map((p) => <PlanRow key={p.id} plan={p} accent={accent} t={t} />);
+        }
+        const rowsFit = height && height < 130 ? 1 : 3;
+        const shown = sorted.slice(0, cols * rowsFit);
+        const rows = [];
+        for (let i = 0; i < shown.length; i += cols) rows.push(shown.slice(i, i + cols));
+        return rows.map((row, ri) => (
+          <FlexWidget key={ri} style={{ width: 'match_parent', flexDirection: 'row' }}>
+            {row.map((p) => <PlanRow key={p.id} plan={p} accent={accent} t={t} grid />)}
+            {row.length < cols && <FlexWidget style={{ flex: 1, margin: 3 }} />}
+          </FlexWidget>
+        ));
+      })()}
     </FlexWidget>
   );
 }
