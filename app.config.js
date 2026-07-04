@@ -36,9 +36,11 @@ module.exports = {
       entitlements: {
         // iOS 홈 화면 위젯 데이터 공유 (App Group)
         'com.apple.security.application-groups': [APP_GROUP],
-        // 이탈 넛지 알림이 방해금지/집중모드를 뚫도록 (interruptionLevel: 'timeSensitive')
-        // 엔타이틀먼트 없이도 알림은 가되 일반(active) 레벨로 강등됨
-        'com.apple.developer.usernotifications.time-sensitive': true,
+        // TODO(빌드 43+): 이탈 넛지의 방해금지 뚫기용 Time Sensitive 엔타이틀먼트.
+        // 프로비저닝 프로파일에 이 capability가 없어 빌드 42에서 서명 실패 → 임시 제외.
+        // 재활성화: 터미널에서 eas build 실행 중 Apple 계정 로그인(2FA)을 거치면
+        // EAS가 App ID capability 동기화 + 프로파일 재생성을 자동 수행. 그 빌드부터 아래 주석 해제.
+        // 'com.apple.developer.usernotifications.time-sensitive': true,
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
