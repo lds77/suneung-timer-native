@@ -1044,7 +1044,9 @@ function MainApp() {
             },
             tabBarActiveTintColor: T.accent, tabBarInactiveTintColor: T.sub,
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: _isTablet ? 0 : -2 },
-            tabBarIconStyle: _isTablet ? { marginTop: 2 } : undefined,
+            // 태블릿: 폰트 인터셉터가 아이콘 글리프도 1.15배(25→29pt)로 키우는데,
+            // 아이패드 beside-icon 레이아웃의 아이콘 래퍼는 minWidth 25뿐이라 우측이 잘림 → 래퍼를 30pt로 명시
+            tabBarIconStyle: _isTablet ? { marginTop: 2, width: 30, height: 30 } : undefined,
           }}>
             <Tab.Screen name="Focus" component={FocusScreen}
               options={{ tabBarLabel: '집중', tabBarIcon: ({ color, size }) => <Ionicons name="timer-outline" size={size} color={color} /> }} />
