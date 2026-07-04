@@ -436,7 +436,10 @@ export function AppProvider({ children }) {
         }
 
         // 🔥모드에서만 이탈 감지 (keep-awake라서 background = 진짜 이탈)
-        if (mode === 'screen_on' && hasRunning && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
+        // 단, 안드 화면 고정 중의 배경 전환은 화면 끄기/전화 수신 등 OS 이벤트뿐이고
+        // 다른 앱 사용이 불가능하므로 이탈로 치지 않는다 (고정 해제 후 나간 경우만 이탈)
+        const pinnedNow = Platform.OS === 'android' && isScreenPinned();
+        if (mode === 'screen_on' && hasRunning && !pinnedNow && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
           const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
           fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
