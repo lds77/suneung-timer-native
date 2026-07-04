@@ -4,7 +4,7 @@
 
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
-const { runningAnchorMs } = require('../updateStudyWidget');
+const { runningAnchorMs, runningEndMs } = require('../updateStudyWidget');
 
 describe('runningAnchorMs', () => {
   const NOW = 1_800_000_000_000;
@@ -29,5 +29,34 @@ describe('runningAnchorMs', () => {
     // work 페이즈는 카운팅
     expect(runningAnchorMs({ status: 'running', type: 'pomodoro', pomoPhase: 'work', resumedAt: NOW, elapsedSecAtResume: 0 }, 0)).toBe(NOW);
     expect(runningAnchorMs({ status: 'running', type: 'sequence', seqPhase: 'work', resumedAt: NOW, elapsedSecAtResume: 0 }, 0)).toBe(NOW);
+  });
+});
+
+// runningEndMs — 잠금 중 앱이 스냅샷을 못 갱신해도 위젯 카운팅이 종료 시각에 멈추도록
+// 종료 예정 시각을 계산. 종료 = (resumedAt - 이미쌓인초*1000) + 페이즈목표초*1000
+describe('runningEndMs', () => {
+  const NOW = 1_800_000_000_000;
+
+  test('카운트다운: 가상 시작 시각 + totalSec', () => {
+    // 10분 전 재개, 재개 시점까지 5분 쌓임, 목표 1시간 → 가상 시작 = NOW-900초, 종료 = +3600초
+    const t = { status: 'running', type: 'countdown', resumedAt: NOW - 600_000, elapsedSecAtResume: 300, totalSec: 3600 };
+    expect(runningEndMs(t)).toBe(NOW - 900_000 + 3_600_000);
+  });
+
+  test('자유 타이머/일시정지/타이머 없음은 null (끝이 없거나 정적)', () => {
+    expect(runningEndMs(null)).toBeNull();
+    expect(runningEndMs({ status: 'running', type: 'free', resumedAt: NOW })).toBeNull();
+    expect(runningEndMs({ status: 'paused', type: 'countdown', resumedAt: NOW, totalSec: 60 })).toBeNull();
+  });
+
+  test('뽀모도로 work는 워크 목표 기준, break는 null', () => {
+    const w = { status: 'running', type: 'pomodoro', pomoPhase: 'work', pomoWorkMin: 25, resumedAt: NOW, elapsedSecAtResume: 0 };
+    expect(runningEndMs(w)).toBe(NOW + 25 * 60_000);
+    expect(runningEndMs({ ...w, pomoPhase: 'break' })).toBeNull();
+  });
+
+  test('연속모드 work는 현재 항목 totalSec 기준', () => {
+    const t = { status: 'running', type: 'sequence', seqPhase: 'work', totalSec: 2400, resumedAt: NOW, elapsedSecAtResume: 600 };
+    expect(runningEndMs(t)).toBe(NOW - 600_000 + 2_400_000);
   });
 });

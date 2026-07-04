@@ -83,8 +83,13 @@ struct DDayView: View {
                         .lineLimit(1)
                     Group {
                         if let anchor = d.runningAnchor {
-                            // 공부 중이면 초 단위 실시간 카운팅 (OS가 직접 그림)
-                            Text("오늘 공부 ") + Text(anchor, style: .timer)
+                            // 공부 중이면 초 단위 실시간 카운팅 (OS가 직접 그림).
+                            // 종료 시각을 알면 그 시각에 자동 정지 (완료 후 과카운팅 방지)
+                            if #available(iOS 16.0, *), let end = d.runningEnd {
+                                Text("오늘 공부 ") + Text(timerInterval: anchor...end, countsDown: false)
+                            } else {
+                                Text("오늘 공부 ") + Text(anchor, style: .timer)
+                            }
                         } else {
                             Text("오늘 공부 \(formatShort(d.totalSec))")
                         }

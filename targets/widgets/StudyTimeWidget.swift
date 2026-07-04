@@ -100,15 +100,26 @@ struct StudyTimeView: View {
 
     // 오늘 누적 시간 — 타이머 실행 중이면 OS가 초 단위로 직접 그리는 실시간 카운팅
     // (Text(_:style:.timer)는 타임라인 갱신 없이도 계속 올라간다)
+    // 종료 시각을 아는 타입(카운트다운/뽀모·연속 work)은 Text(timerInterval:)로 그 시각에 자동 정지
+    // — 잠금 중 앱이 스냅샷을 못 갱신해도 완료 후 계속 올라가지 않는다
     @ViewBuilder
     private func todayTimeText(size: CGFloat, color: Color) -> some View {
         if let anchor = d.runningAnchor {
-            Text(anchor, style: .timer)
-                .font(.system(size: size, weight: .heavy))
-                .monospacedDigit()
-                .foregroundColor(color)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
+            if #available(iOS 16.0, *), let end = d.runningEnd {
+                Text(timerInterval: anchor...end, countsDown: false)
+                    .font(.system(size: size, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundColor(color)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+            } else {
+                Text(anchor, style: .timer)
+                    .font(.system(size: size, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundColor(color)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+            }
         } else {
             Text(formatShort(d.totalSec))
                 .font(.system(size: size, weight: .heavy))

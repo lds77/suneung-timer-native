@@ -140,6 +140,9 @@ struct WidgetData {
     var planPct: Int = -1 // 오늘 계획 달성률 0~100, -1이면 계획 없음
     // 실행 중 타이머 앵커 — 있으면 오늘공부 시간을 Text(style: .timer)로 실시간 카운팅
     var runningAnchor: Date? = nil
+    // 현재 페이즈 종료 예정 시각 — 있으면 카운팅이 이 시각에 자동 정지 (Text(timerInterval:))
+    // 잠금 중 앱이 스냅샷을 못 갱신해도 타이머 종료 후 계속 올라가지 않도록
+    var runningEnd: Date? = nil
 
     // App Group UserDefaults에서 JSON 문자열을 읽어 파싱. 실패 시 빈 데이터.
     static func load() -> WidgetData {
@@ -206,6 +209,11 @@ struct WidgetData {
             let anchor = Date(timeIntervalSince1970: anchorMs / 1000)
             // 미래 앵커(시계 이상)는 무시
             if anchor <= Date() { data.runningAnchor = anchor }
+        }
+        let endMs = dblVal(obj["runningEndMs"])
+        if endMs > 0, let anchor = data.runningAnchor {
+            let end = Date(timeIntervalSince1970: endMs / 1000)
+            if end > anchor { data.runningEnd = end }
         }
 
         // 자정 경과 보정: 스냅샷 기준일이 오늘이 아니면 '오늘' 통계는 0부터 다시

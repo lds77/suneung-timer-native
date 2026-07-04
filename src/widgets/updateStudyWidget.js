@@ -4,6 +4,7 @@
 // iOS: App Group(UserDefaults)에 스냅샷을 기록하고 WidgetKit 타임라인 리로드.
 
 import { Platform } from 'react-native';
+import { pomoPhaseTargetSec } from '../utils/pomo';
 
 // iOS 위젯 데이터 공유용 App Group (app.config.js APP_GROUP과 반드시 일치)
 const IOS_APP_GROUP = 'group.com.yeolgong.timer';
@@ -22,6 +23,22 @@ export function runningAnchorMs(t, totalSec) {
   return resumedAt - (t.elapsedSecAtResume || 0) * 1000 - (totalSec || 0) * 1000;
 }
 
+// 실행 중 타이머의 현재 페이즈 종료 시각(ms epoch) — 끝나는 시각을 미리 아는 타입만.
+// 잠금 중엔 앱이 스냅샷을 못 갱신하므로, iOS 위젯이 Text(timerInterval:)로 이 시각에
+// 카운팅을 스스로 멈추게 한다 (타이머 종료 후에도 계속 올라가던 문제 방지).
+// 자유 타이머는 끝이 없어 null (계속 올라가는 게 맞음).
+export function runningEndMs(t) {
+  if (!t || t.status !== 'running') return null;
+  const resumedAt = t.resumedAt || t.startedAt;
+  if (!resumedAt) return null;
+  let targetSec = 0;
+  if (t.type === 'countdown') targetSec = t.totalSec || 0;
+  else if (t.type === 'pomodoro' && t.pomoPhase === 'work') targetSec = pomoPhaseTargetSec(t);
+  else if (t.type === 'sequence' && t.seqPhase === 'work') targetSec = t.totalSec || 0;
+  if (targetSec <= 0) return null;
+  return resumedAt - (t.elapsedSecAtResume || 0) * 1000 + targetSec * 1000;
+}
+
 // iOS: getWidgetData()로 계산한 스냅샷을 App Group에 JSON 문자열로 기록 후 위젯 리로드.
 // SwiftUI 위젯(targets/widgets)이 이 JSON을 읽어 렌더한다.
 async function updateIosWidgets(activeTimer) {
@@ -30,7 +47,11 @@ async function updateIosWidgets(activeTimer) {
     const { getWidgetData } = require('./widgetData');
     const data = await getWidgetData();
     const anchor = runningAnchorMs(activeTimer, data.totalSec);
-    if (anchor) data.runningAnchorMs = anchor;
+    if (anchor) {
+      data.runningAnchorMs = anchor;
+      const endMs = runningEndMs(activeTimer);
+      if (endMs && endMs > anchor) data.runningEndMs = endMs;
+    }
     const storage = new ExtensionStorage(IOS_APP_GROUP);
     storage.set('widgetData', JSON.stringify(data));
     ExtensionStorage.reloadWidget();
