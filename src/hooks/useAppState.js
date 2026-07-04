@@ -24,7 +24,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
-import { pinScreen, unpinScreen, isScreenPinned } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -970,12 +970,27 @@ export function AppProvider({ children }) {
         trigger,
       });
       notifIdMap.current.set(timerId, id);
+
+      // 시험 강도(안드): 화면 고정 중엔 OS가 알림 소리/진동을 차단 → 완료 시각에 네이티브 진동 알람 병행
+      // (리시버가 고정 중일 때만 울리므로, 고정이 풀린 경우엔 일반 알림만 울림)
+      if (Platform.OS === 'android' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+        const aid = `pin-${timerId}`;
+        scheduleLockAlarm(aid, Date.now() + sec * 1000);
+        const prev = lockAlarmIds.current.get(timerId) || [];
+        if (!prev.includes(aid)) lockAlarmIds.current.set(timerId, [...prev, aid]);
+      }
     } catch {}
   };
 
   // 예약 알림 취소 — 일시정지/중지/삭제 시
+  const lockAlarmIds = useRef(new Map()); // timerId -> [네이티브 진동 알람 id]
   const cancelTimerNotif = async (timerId) => {
     try {
+      // 화면 고정용 네이티브 진동 알람도 함께 취소
+      const alarmIds = lockAlarmIds.current.get(timerId) || [];
+      lockAlarmIds.current.delete(timerId);
+      alarmIds.forEach(aid => cancelLockAlarm(aid));
+
       const id = notifIdMap.current.get(timerId);
       if (id) {
         await Notifications.cancelScheduledNotificationAsync(id);
@@ -1095,6 +1110,20 @@ export function AppProvider({ children }) {
     }
 
     if (ids.length > 0) phaseNotifMap.current.set(timer.id, ids);
+
+    // 시험 강도(안드): 화면 고정 중 알림 소리/진동 차단 대비 — 각 페이즈 시각에 네이티브 진동 알람 병행
+    // (리시버가 고정 중일 때만 울리므로 고정 해제 상태에선 일반 알림만 울림)
+    if (Platform.OS === 'android' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+      (lockAlarmIds.current.get(timer.id) || []).forEach(aid => cancelLockAlarm(aid));
+      const aids = [];
+      specs.forEach(({ absMs }, i) => {
+        if (absMs <= now) return;
+        const aid = `pin-${timer.id}#${i}`;
+        scheduleLockAlarm(aid, absMs);
+        aids.push(aid);
+      });
+      lockAlarmIds.current.set(timer.id, aids);
+    }
   };
 
   // ═══ 플래너 리마인더 알림 예약 ═══

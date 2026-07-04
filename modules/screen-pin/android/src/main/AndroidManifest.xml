@@ -1,1 +1,6 @@
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- 화면 고정 중 알림 차단 대비 — AlarmManager가 직접 깨우는 진동/알림음 리시버 -->
+    <receiver android:name="expo.modules.screenpin.AlarmReceiver" android:exported="false" />
+  </application>
+</manifest>

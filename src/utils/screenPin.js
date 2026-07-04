@@ -24,3 +24,15 @@ export const isScreenPinned = () => {
   if (!mod) return false;
   try { return mod.isPinned(); } catch { return false; }
 };
+
+// 고정 중에는 OS가 알림 소리/진동을 차단하므로, 완료/페이즈 시각에 네이티브 알람으로
+// 직접 진동+알림음을 울린다. 리시버가 고정 중일 때만 울리므로(자체 게이트) 중복 걱정 없음.
+export const scheduleLockAlarm = async (id, atMs) => {
+  if (!mod) return false;
+  try { return await mod.scheduleAlarm(id, atMs); } catch { return false; }
+};
+
+export const cancelLockAlarm = async (id) => {
+  if (!mod) return false;
+  try { return await mod.cancelAlarm(id); } catch { return false; }
+};
