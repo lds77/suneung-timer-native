@@ -30,12 +30,15 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '41',
+      buildNumber: '42',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
         // iOS 홈 화면 위젯 데이터 공유 (App Group)
         'com.apple.security.application-groups': [APP_GROUP],
+        // 이탈 넛지 알림이 방해금지/집중모드를 뚫도록 (interruptionLevel: 'timeSensitive')
+        // 엔타이틀먼트 없이도 알림은 가되 일반(active) 레벨로 강등됨
+        'com.apple.developer.usernotifications.time-sensitive': true,
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,

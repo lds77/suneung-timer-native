@@ -23,7 +23,7 @@ import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
-import { initLiveActivity, syncLiveActivity } from '../utils/liveActivity';
+import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -416,6 +416,10 @@ export function AppProvider({ children }) {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
           const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
           fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
+          // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
+          scheduleAwayNudges(charName);
+          // Live Activity 부제를 '이탈 중' 문구로 전환 (아래 laTimerBg 동기화에서 반영)
+          setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
         }
@@ -437,6 +441,10 @@ export function AppProvider({ children }) {
         const awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
         bgTime.current = null;
         const wasAway = ultraRef.current.isAway;
+
+        // 이탈 넛지 취소 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
+        cancelAwayNudges();
+        setLiveActivityAway(false);
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
         updateAllWidgets(timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null);
@@ -816,6 +824,47 @@ export function AppProvider({ children }) {
         trigger: null,
       });
     } catch {}
+  };
+
+  // 🔥모드 이탈 중 에스컬레이팅 넛지 — 이탈이 길어질수록 단계별 복귀 유도 알림 (복귀 시 전부 취소)
+  // 백그라운드 진입 직후 OS에 미리 예약해 두므로 JS가 중단돼도 발송된다
+  const awayNudgeIds = useRef([]);
+  const scheduleAwayNudges = async (charName) => {
+    if (!settingsRef.current.notifEnabled) return;
+    // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
+    const cdRemains = timersRef.current
+      .filter(t => t.status === 'running' && t.type === 'countdown')
+      .map(t => getRealRemainingSec(t));
+    const limitSec = cdRemains.length ? Math.min(...cdRemains) : Infinity;
+    const NUDGES = [
+      { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
+      { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
+      { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
+      { sec: 300, title: '이탈 5분째', body: '오늘 목표를 잊지 않았죠? 지금 돌아오면 충분해요!' },
+    ];
+    for (const n of NUDGES) {
+      if (n.sec >= limitSec) break;
+      try {
+        const trigger = Platform.OS === 'android'
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + n.sec * 1000), channelId: 'timer-complete' }
+          : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: n.sec };
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: n.title, body: n.body, sound: 'default',
+            // iOS: 방해금지/집중모드도 뚫는 Time Sensitive (entitlement 필요 — app.config.js)
+            ...(Platform.OS === 'ios' && { interruptionLevel: 'timeSensitive' }),
+            ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
+          },
+          trigger,
+        });
+        awayNudgeIds.current.push(id);
+      } catch {}
+    }
+  };
+  const cancelAwayNudges = () => {
+    const ids = awayNudgeIds.current;
+    awayNudgeIds.current = [];
+    ids.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
   };
 
   // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함)

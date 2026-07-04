@@ -19,6 +19,11 @@ const ID_KEY = '@yeolgong/liveActivityId';
 
 let currentId = null;
 let lastSig = null;
+// 🔥모드 이탈 상태 — true면 잠금화면/Dynamic Island 부제를 '이탈 중' 문구로 교체
+// (스타일 변경은 startActivity 시점에만 가능하므로 색상 대신 문구로 상태 전달)
+let awayMode = false;
+
+export const setLiveActivityAway = (away) => { awayMode = !!away; };
 
 // 앱 시작 시 이전 세션의 activity id 복원 — 강제종료 후 잔존 activity를 재사용하거나 정리
 export const initLiveActivity = async () => {
@@ -66,26 +71,32 @@ const getSequenceTotalEndMs = (t) => {
 };
 
 const buildState = (t) => {
+  let state;
   // 백그라운드: JS가 중단돼 페이즈 자동 전환이 불가능 → 연속모드는 페이즈 종료 시각이 지나면
   // 0:00에 멈추거나 카운트업으로 보이는 문제가 생김 → 전체 남은 시간 카운트다운으로 전환
   // (포그라운드 복귀 시 sig의 fg/bg 구분으로 즉시 항목별 표시로 복원됨)
   if (AppState.currentState === 'background' && t.type === 'sequence' && t.status === 'running') {
-    return {
+    state = {
       title: t.seqName || t.label || '연속모드',
       subtitle: `연속 집중 ${(t.seqIndex || 0) + 1}/${t.seqTotal} 진행 중 · 전체 남은 시간`,
       progressBar: { date: getSequenceTotalEndMs(t) },
     };
+  } else {
+    state = { title: t.label || '타이머', subtitle: buildSubtitle(t) };
+    if (t.status === 'running') {
+      const target = phaseTargetSec(t);
+      // 누적 경과를 반영한 가상 시작 시각 (일시정지 시간 제외)
+      const baseMs = (t.resumedAt || Date.now()) - (t.elapsedSecAtResume || 0) * 1000;
+      state.progressBar = target > 0
+        ? { date: baseMs + target * 1000 }
+        : { elapsedTimer: { startDate: baseMs } };
+    }
+    // 일시정지: progressBar 생략 — 경과 시간은 subtitle에 정적으로 표시
   }
-  const state = { title: t.label || '타이머', subtitle: buildSubtitle(t) };
-  if (t.status === 'running') {
-    const target = phaseTargetSec(t);
-    // 누적 경과를 반영한 가상 시작 시각 (일시정지 시간 제외)
-    const baseMs = (t.resumedAt || Date.now()) - (t.elapsedSecAtResume || 0) * 1000;
-    state.progressBar = target > 0
-      ? { date: baseMs + target * 1000 }
-      : { elapsedTimer: { startDate: baseMs } };
+  // 🔥모드 이탈 중: 잠금화면에서 바로 보이도록 부제를 복귀 유도 문구로 교체
+  if (awayMode && t.status === 'running') {
+    state.subtitle = '이탈 중 · 돌아와서 다시 집중해요!';
   }
-  // 일시정지: progressBar 생략 — 경과 시간은 subtitle에 정적으로 표시
   return state;
 };
 
@@ -93,6 +104,7 @@ const buildState = (t) => {
 // fg/bg 구분 포함 — 백그라운드 진입/복귀 시 연속모드 표시 모드 전환이 갱신되도록
 const makeSig = (t) => [
   AppState.currentState === 'background' ? 'bg' : 'fg',
+  awayMode ? 'away' : 'here',
   t.id, t.status, t.type, t.label, t.color, t.resumedAt, t.elapsedSecAtResume,
   t.totalSec, t.pomoPhase, t.pomoSet, t.seqPhase, t.seqIndex,
 ].join('|');
@@ -138,6 +150,7 @@ export const syncLiveActivity = (timer, themeOpts = {}) => {
 };
 
 export const endLiveActivity = () => {
+  awayMode = false;
   if (!LA || !currentId) return;
   const id = currentId;
   currentId = null;

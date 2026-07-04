@@ -938,10 +938,18 @@ function LockOverlay() {
         <Text style={{ fontSize: timerFontSize, fontWeight: '900', color: 'white', letterSpacing: 4, marginBottom: 6 }}>
           {timerDisplay}
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
-          <Ionicons name="flash" size={isTabletLock ? 18 : 14} color="#FF6B6B" />
-          <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#FF6B6B' }}>집중 도전 중 · 이탈 {app.ultraFocus?.exitCount || 0}회</Text>
-        </View>
+        {/* Verified 상태 — 이탈 0회면 '진행 중'(얻을 것), 이탈하면 '놓침'(잃은 것)을 명시해 손실 회피 자극 */}
+        {(app.ultraFocus?.exitCount || 0) === 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
+            <Ionicons name="shield-checkmark" size={isTabletLock ? 18 : 14} color="#4CAF50" />
+            <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#4CAF50' }}>Verified 진행 중 · 이탈 없이 완료하면 인증 획득</Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
+            <Ionicons name="alert-circle" size={isTabletLock ? 18 : 14} color="#FF6B6B" />
+            <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#FF6B6B' }}>Verified 놓침 · 이탈 {app.ultraFocus?.exitCount}회 · 밀도 감점 중</Text>
+          </View>
+        )}
 
         {/* 잠깐 쉬기 */}
         {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
