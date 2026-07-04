@@ -129,7 +129,8 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - 모드: 카운트다운 / 자유(카운트업) / 뽀모도로 / 랩 스탑워치 / 연속(sequence, 여러 항목 자동 이어달리기)
 - **단일 활성 타이머 제약**: 랩을 제외하고 한 번에 하나만 실행 가능
 - 집중모드: 🔥(screen_on, 화면 켜짐 + 잠금 오버레이) / 📖(screen_off, 화면 꺼짐)
-- 울트라집중 잠금강도: normal / focus / exam (exam은 일시정지 차단, 이탈 시 exitCount 기록)
+- 울트라집중 잠금강도: normal / focus / exam (exam은 일시정지 차단, 이탈 시 exitCount 기록,
+  안드로이드는 OS 화면 고정 `startLockTask` — `modules/screen-pin` 로컬 Expo 모듈 + `src/utils/screenPin.js` 래퍼)
 - 100ms 틱 + `resumedAt`/`elapsedSecAtResume` 벽시계 기준 계산 → 백그라운드에서도 정확
 - 공부법 프리셋: SubjectsScreen의 STUDY_METHODS (학년별 연속모드 템플릿, 출처 표기)
 
@@ -155,7 +156,9 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 
 ### 알림 / 백그라운드
 - `timer-complete` 채널: AndroidImportance.MAX, DATE 트리거 (setExactAndAllowWhileIdle)
-- `timer-progress` 채널: AndroidImportance.LOW, sticky 진행 알림 (Foreground Service 신호)
+- `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
+- 🔥모드 이탈 시: 즉시 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
+  iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
 - **iOS Live Activity**: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`)

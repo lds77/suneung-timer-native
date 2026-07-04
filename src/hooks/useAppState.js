@@ -24,6 +24,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
+import { pinScreen, unpinScreen } from '../utils/screenPin';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -53,6 +54,12 @@ if (Platform.OS === 'android') {
     importance: Notifications.AndroidImportance.DEFAULT,
     sound: 'default',
     enableVibrate: true,
+  });
+  // 이탈 중 상태 알림용 무음 채널 (즉시 알림 fireNotif와 사운드 중복 방지)
+  Notifications.setNotificationChannelAsync('focus-status', {
+    name: '집중 상태',
+    importance: Notifications.AndroidImportance.LOW,
+    enableVibrate: false,
   });
 }
 
@@ -287,6 +294,16 @@ export function AppProvider({ children }) {
     } catch {}
     setFocusMode('screen_on');
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
+    // 시험 강도(안드로이드): OS 화면 고정 — 홈/최근앱 버튼 차단으로 무의식적 이탈 방지
+    // (첫 호출 시 OS가 자체 확인 다이얼로그를 띄움. iOS/Expo Go는 no-op)
+    if (Platform.OS === 'android' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+      pinScreen().then(ok => {
+        if (ok && !settingsRef.current.guidePin) {
+          updateSettings({ guidePin: true });
+          showToastCustom('화면이 고정돼요. 해제: 뒤로+최근앱 동시에 길게', 'toru');
+        }
+      });
+    }
   }, []);
 
   // 📖모드 활성화
@@ -302,6 +319,7 @@ export function AppProvider({ children }) {
     if (wasScreenOn) {
       try { deactivateKeepAwake('focus'); } catch {}
       originalBrightness.current = null;
+      unpinScreen(); // 시험 강도 화면 고정 해제 (미고정 상태면 no-op)
     }
     // setFocusMode는 await 전에 호출 — focusModeRef가 빨리 null이 되도록 (race condition 방지)
     setFocusMode(null);
@@ -418,6 +436,8 @@ export function AppProvider({ children }) {
           fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
           scheduleAwayNudges(charName);
+          // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거)
+          presentAwaySticky();
           // Live Activity 부제를 '이탈 중' 문구로 전환 (아래 laTimerBg 동기화에서 반영)
           setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
@@ -442,8 +462,9 @@ export function AppProvider({ children }) {
         bgTime.current = null;
         const wasAway = ultraRef.current.isAway;
 
-        // 이탈 넛지 취소 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
+        // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
         cancelAwayNudges();
+        dismissAwaySticky();
         setLiveActivityAway(false);
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
@@ -865,6 +886,30 @@ export function AppProvider({ children }) {
     const ids = awayNudgeIds.current;
     awayNudgeIds.current = [];
     ids.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
+  };
+
+  // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
+  // 스와이프로 지울 수 없고, 복귀하면 코드로 제거한다. 탭하면 앱이 열린다.
+  const awayStickyId = useRef(null);
+  const presentAwaySticky = async () => {
+    if (Platform.OS !== 'android' || !settingsRef.current.notifEnabled) return;
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '집중 이탈 중',
+          body: '열공메이트로 돌아와서 집중을 이어가요',
+          sticky: true,
+          channelId: 'focus-status',
+        },
+        trigger: null,
+      });
+      awayStickyId.current = id;
+    } catch {}
+  };
+  const dismissAwaySticky = () => {
+    const id = awayStickyId.current;
+    awayStickyId.current = null;
+    if (id) Notifications.dismissNotificationAsync(id).catch(() => {});
   };
 
   // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함)

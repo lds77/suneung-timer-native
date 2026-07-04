@@ -50,3 +50,6 @@ prebuild_*.txt
 
 # 사운드 백업 파일
 assets/sounds/_backup/
+
+# 로컬 Expo 모듈 빌드 산출물
+modules/**/android/build/
