@@ -10,8 +10,16 @@ if (Platform.OS === 'android') {
   try { mod = require('../../modules/screen-pin').default; } catch { mod = null; }
 }
 
+// 고정 요청 디바운스 — 시작 직후 activateScreenOnMode와 잠금화면 점등(setScreenLocked)이
+// 연달아 pin을 호출할 수 있는데, OS 확인 다이얼로그가 떠 있는 동안 isPinned()는 false라
+// 중복 요청을 못 거른다 → 짧은 간격의 재요청은 무시
+let lastPinRequestAt = 0;
+
 export const pinScreen = async () => {
   if (!mod) return false;
+  const now = Date.now();
+  if (now - lastPinRequestAt < 2000) return false;
+  lastPinRequestAt = now;
   try { return await mod.pin(); } catch { return false; }
 };
 

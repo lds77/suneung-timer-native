@@ -827,8 +827,12 @@ export function AppProvider({ children }) {
   // 🔥모드 이탈 중 에스컬레이팅 넛지 — 이탈이 길어질수록 단계별 복귀 유도 알림 (복귀 시 전부 취소)
   // 백그라운드 진입 직후 OS에 미리 예약해 두므로 JS가 중단돼도 발송된다
   const awayNudgeIds = useRef([]);
+  // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
+  // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
+  const awayNudgeCancelGen = useRef(0);
   const scheduleAwayNudges = async (charName) => {
     if (!settingsRef.current.notifEnabled) return;
+    const gen = awayNudgeCancelGen.current;
     // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
     const cdRemains = timersRef.current
       .filter(t => t.status === 'running' && t.type === 'countdown')
@@ -855,11 +859,17 @@ export function AppProvider({ children }) {
           },
           trigger,
         });
+        if (awayNudgeCancelGen.current !== gen) {
+          // 예약 도중 복귀함 → 방금 예약분 즉시 취소하고 중단
+          Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+          return;
+        }
         awayNudgeIds.current.push(id);
       } catch {}
     }
   };
   const cancelAwayNudges = () => {
+    awayNudgeCancelGen.current++;
     const ids = awayNudgeIds.current;
     awayNudgeIds.current = [];
     ids.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
@@ -868,8 +878,10 @@ export function AppProvider({ children }) {
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
   // 스와이프로 지울 수 없고, 복귀하면 코드로 제거한다. 탭하면 앱이 열린다.
   const awayStickyId = useRef(null);
+  const awayStickyCancelGen = useRef(0);
   const presentAwaySticky = async () => {
     if (Platform.OS !== 'android' || !settingsRef.current.notifEnabled) return;
+    const gen = awayStickyCancelGen.current;
     try {
       const id = await Notifications.scheduleNotificationAsync({
         content: {
@@ -880,10 +892,16 @@ export function AppProvider({ children }) {
         },
         trigger: null,
       });
+      if (awayStickyCancelGen.current !== gen) {
+        // 게시 도중 복귀함 → sticky가 영구히 남지 않도록 즉시 제거
+        Notifications.dismissNotificationAsync(id).catch(() => {});
+        return;
+      }
       awayStickyId.current = id;
     } catch {}
   };
   const dismissAwaySticky = () => {
+    awayStickyCancelGen.current++;
     const id = awayStickyId.current;
     awayStickyId.current = null;
     if (id) Notifications.dismissNotificationAsync(id).catch(() => {});
@@ -1944,9 +1962,12 @@ export function AppProvider({ children }) {
       if (s.id !== sessionId) return s;
       const oldBonus = s.selfRating === 'fire' || s.selfRating === 'perfect' ? 3 : 0;
       const newBonus = selfRating === 'fire' || selfRating === 'perfect' ? 3 : 0;
-      const newDensity = Math.max(56, Math.min(103, (s.focusDensity || 0) - oldBonus + newBonus));
+      // 보너스 미적용 기준점을 저장해 재적용을 멱등하게 — 103 클램프 상태에서
+      // 보너스를 뺐다 다시 주면 점수가 3점씩 흘러내리던 비가역 문제 방지
+      const base = s.baseDensity ?? ((s.focusDensity || 0) - oldBonus);
+      const newDensity = Math.max(56, Math.min(103, base + newBonus));
       const { getTier } = require('../constants/presets');
-      return { ...s, selfRating, focusDensity: newDensity, tier: getTier(newDensity).id, ...(memo !== undefined && memo !== null ? { memo } : {}) };
+      return { ...s, selfRating, baseDensity: base, focusDensity: newDensity, tier: getTier(newDensity).id, ...(memo !== undefined && memo !== null ? { memo } : {}) };
     }));
   }, []);
 
