@@ -64,6 +64,10 @@ src/
     widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
     StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
   utils/
+    timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
+                          페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
+                          불변식 1~7의 구현부이자 테스트 대상 (__tests__/timerCore.test.js).
+                          useAppState는 여기에 상태를 주입하고 부수효과만 수행
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
     format.js             formatDuration, formatShort, getToday, generateId 등
@@ -109,6 +113,9 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 ```
 
 ### 타이머·세션 불변식 (깨뜨리면 데이터 정확성 버그 — 수정 전 반드시 확인)
+
+> 구현부: 불변식 1~7의 계산 로직은 `src/utils/timerCore.js`(순수 함수, 테스트 有)에 있다.
+> 이 규칙들을 수정할 땐 timerCore와 그 테스트를 함께 고칠 것 — useAppState에서 우회 구현 금지.
 
 1. **경과 시간은 벽시계 기준**: `elapsed = elapsedSecAtResume + (now - resumedAt)/1000`.
    `elapsedSec` 필드는 표시용 캐시일 뿐 직접 누적하지 말 것 (백그라운드에서 어긋남)
