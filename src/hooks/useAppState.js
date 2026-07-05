@@ -320,18 +320,18 @@ export function AppProvider({ children }) {
         }
       });
     }
-    // 시험 강도(iOS): Screen Time 앱 차단 — 설정에서 켠 경우 세션 동안 선택한 앱에 방패
-    // (미지원/entitlement 미포함 빌드에서는 no-op)
-    if (Platform.OS === 'ios' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+    // iOS: 집중 도전(🔥) 세션 동안 Screen Time 앱 차단 — 잠금 강도와 무관하게
+    // 설정에서 켠 경우 항상 적용 (미지원/entitlement 미포함 빌드에서는 no-op)
+    if (Platform.OS === 'ios') {
       if (settingsRef.current.appBlockEnabled) {
         setShield(true);
       } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
-        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 울트라집중 시작 때 1회 안내
+        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중 도전 시작 때 1회 안내
         updateSettings({ guideAppBlock: true });
         setTimeout(() => {
           Alert.alert(
             '앱 차단',
-            '울트라집중 중에 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 집중 도전 모드 > 앱 차단에서 켜보세요.',
+            '집중 도전 중에 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 집중 도전 모드 > 앱 차단에서 켜보세요.',
           );
         }, 800);
       }

@@ -67,7 +67,7 @@ function AppBlockSettings({ T, app }) {
         <Ionicons name="shield-checkmark-outline" size={18} color={T.accent} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>앱 차단</Text>
-          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라집중 중에는 선택한 앱이 잠겨요</Text>
+          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중 도전 중에는 선택한 앱이 잠겨요</Text>
         </View>
         <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} />
       </View>
@@ -827,7 +827,7 @@ export default function SettingsScreen() {
                 + '\n집중 강도 3단계 (설정에서 변경 가능):\n\n일반: 편하게 공부가 자동 시작돼요.\n이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중: 집중 도전 / 편하게 공부를 직접 선택해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 집중 도전이 자동 시작돼요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
                 + (Platform.OS === 'android'
                   ? '화면이 고정돼 홈·최근앱 버튼도 잠겨요.\n(해제: 뒤로+최근앱 버튼을 동시에 길게 누르기)\n고정을 풀어도 앱에 돌아오면 다시 고정돼요.\n'
-                  : '앱 차단을 켜두면 선택한 앱이 세션 동안 잠겨요.\n(설정 > 집중 도전 모드 > 앱 차단)\n')
+                  : '앱 차단을 켜두면 집중 도전 중에는 강도와 무관하게 선택한 앱이 잠겨요.\n(설정 > 집중 도전 모드 > 앱 차단)\n')
                 + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요\n타이머 실행 중에는 잠금 강도를 변경할 수 없어요'}
               </GuideSection>
 
