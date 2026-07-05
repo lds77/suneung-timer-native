@@ -8,7 +8,7 @@ import {
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
-import { shieldSupported, requestShieldAuth, presentShieldPicker, getShieldBlockedCount } from '../utils/focusShield';
+import { shieldSupported, requestShieldAuth, presentShieldPicker, getShieldBlockedCount, presentAllowPicker, getShieldAllowedCount, allowAllSupported } from '../utils/focusShield';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 
@@ -44,11 +44,16 @@ const FOCUS_LEVELS = [
 // 미지원(안드/Expo Go/iOS 15 이하/entitlement 미포함 빌드)이면 아무것도 렌더하지 않음.
 function AppBlockSettings({ T, app }) {
   const [blockedCount, setBlockedCount] = useState(() => getShieldBlockedCount());
+  const [allowedCount, setAllowedCount] = useState(() => getShieldAllowedCount());
   if (Platform.OS !== 'ios' || !shieldSupported()) return null;
 
   const pickApps = async () => {
     const cnt = await presentShieldPicker();
     if (cnt >= 0) setBlockedCount(cnt);
+  };
+  const pickAllowedApps = async () => {
+    const cnt = await presentAllowPicker();
+    if (cnt >= 0) setAllowedCount(cnt);
   };
   const onToggle = async (v) => {
     if (!v) { app.updateSettings({ appBlockEnabled: false }); return; }
@@ -59,6 +64,24 @@ function AppBlockSettings({ T, app }) {
     }
     app.updateSettings({ appBlockEnabled: true });
     await pickApps();
+  };
+  // 시험 모드 전체 차단: 켜기 전에 필수 앱(전화·메시지 등) 허용을 반드시 안내
+  const onToggleExamAll = (v) => {
+    if (!v) { app.updateSettings({ appBlockExamAll: false }); return; }
+    Alert.alert(
+      '시험 모드 전체 차단',
+      '시험 모드로 집중 도전을 시작하면 허용 목록에 없는 앱이 모두 잠겨요.\n\n전화, 메시지처럼 꼭 필요한 앱을 먼저 허용 목록에 추가해주세요.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '허용할 앱 선택',
+          onPress: async () => {
+            app.updateSettings({ appBlockExamAll: true });
+            await pickAllowedApps();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -77,6 +100,24 @@ function AppBlockSettings({ T, app }) {
           <Text style={{ fontSize: 13, color: T.text, fontWeight: '600' }}>차단할 앱 선택</Text>
           <Text style={{ fontSize: 12, color: T.sub }}>{blockedCount}개 선택됨</Text>
         </TouchableOpacity>
+      )}
+      {!!app.settings.appBlockEnabled && allowAllSupported() && (
+        <>
+          <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.border }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>시험 모드 전체 차단</Text>
+              <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>시험 모드에서는 허용한 앱 빼고 모두 잠겨요</Text>
+            </View>
+            <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} />
+          </View>
+          {!!app.settings.appBlockExamAll && (
+            <TouchableOpacity onPress={pickAllowedApps}
+              style={{ marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: T.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 13, color: T.text, fontWeight: '600' }}>허용할 앱 선택</Text>
+              <Text style={{ fontSize: 12, color: T.sub }}>{allowedCount}개 허용됨</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
     </View>
   );
@@ -834,7 +875,7 @@ export default function SettingsScreen() {
               {/* 앱 차단 (iOS 전용) */}
               {Platform.OS === 'ios' && (
                 <GuideSection id="appblock" title="앱 차단" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                  {'집중 도전 중에 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 집중 도전 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중 도전으로 타이머가 도는 동안 선택한 앱이 잠겨요 (잠금 강도와 무관)\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n차단 목록은 설정 > 집중 도전 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n편하게 공부(화면 꺼짐) 모드에서는 차단이 적용되지 않아요.'}
+                  {'집중 도전 중에 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 집중 도전 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중 도전으로 타이머가 도는 동안 선택한 앱이 잠겨요 (잠금 강도와 무관)\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n시험 모드 전체 차단:\n더 강하게 막고 싶다면 "시험 모드 전체 차단"을 켜보세요.\n잠금 강도가 시험일 때는 허용 목록에 넣은 앱만 남기고 모든 앱이 잠겨요. 폰이 공부폰이 되는 거죠!\n• 전화, 메시지처럼 꼭 필요한 앱은 미리 허용 목록에 추가하세요\n• 허용 목록에는 개별 앱만 적용돼요 (카테고리 선택은 반영되지 않아요)\n• 일반·집중 강도에서는 기존처럼 선택한 앱만 차단돼요\n\n차단 목록은 설정 > 집중 도전 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n편하게 공부(화면 꺼짐) 모드에서는 차단이 적용되지 않아요.'}
                 </GuideSection>
               )}
 

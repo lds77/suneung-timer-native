@@ -28,9 +28,16 @@ export const requestShieldAuth = async () => {
 };
 
 // 차단 앱 선택 모달 → 선택 항목 수 resolve (-1: 미지원/실패)
+// ※ 인자 없이 호출 유지 — 구 네이티브(빌드 44/45)에 OTA로 내려가도 차단 피커는 계속 동작해야 함
 export const presentShieldPicker = async () => {
   if (!mod) return -1;
   try { return await mod.presentPicker(); } catch { return -1; }
+};
+
+// 허용 앱 선택 모달 (전체 차단의 예외 목록) → 선택 항목 수 resolve (-1: 미지원/실패)
+export const presentAllowPicker = async () => {
+  if (!mod) return -1;
+  try { return await mod.presentPicker('allow'); } catch { return -1; }
 };
 
 export const getShieldBlockedCount = () => {
@@ -38,7 +45,20 @@ export const getShieldBlockedCount = () => {
   try { return mod.getBlockedCount(); } catch { return 0; }
 };
 
-export const setShield = (on) => {
+export const getShieldAllowedCount = () => {
+  if (!mod) return 0;
+  try { return mod.getAllowedCount(); } catch { return 0; }
+};
+
+// 전체 차단(allowAll) 모드 지원 여부 — 구 네이티브 빌드에는 getAllowedCount가 없음
+export const allowAllSupported = () => {
+  return !!mod && typeof mod.getAllowedCount === 'function';
+};
+
+// mode: 'block'(선택한 앱만 차단, 기본) | 'allowAll'(허용 앱 빼고 전부 차단)
+// 구 네이티브에는 setShieldMode가 없어 조용히 무시됨 → 항상 block으로 동작 (OTA 안전)
+export const setShield = (on, mode = 'block') => {
   if (!mod) return false;
+  if (on) { try { mod.setShieldMode(mode); } catch {} }
   try { return mod.setShield(on); } catch { return false; }
 };

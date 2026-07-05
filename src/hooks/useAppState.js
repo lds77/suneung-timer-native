@@ -322,9 +322,12 @@ export function AppProvider({ children }) {
     }
     // iOS: 집중 도전(🔥) 세션 동안 Screen Time 앱 차단 — 잠금 강도와 무관하게
     // 설정에서 켠 경우 항상 적용 (미지원/entitlement 미포함 빌드에서는 no-op)
+    // 시험 강도 + 전체 차단 옵션이 켜져 있으면 허용 앱 빼고 모두 차단(allowAll)
     if (Platform.OS === 'ios') {
       if (settingsRef.current.appBlockEnabled) {
-        setShield(true);
+        const allowAll = !!settingsRef.current.appBlockExamAll
+          && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam';
+        setShield(true, allowAll ? 'allowAll' : 'block');
       } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
         // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중 도전 시작 때 1회 안내
         updateSettings({ guideAppBlock: true });
