@@ -831,6 +831,13 @@ export default function SettingsScreen() {
                 + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요\n타이머 실행 중에는 잠금 강도를 변경할 수 없어요'}
               </GuideSection>
 
+              {/* 앱 차단 (iOS 전용) */}
+              {Platform.OS === 'ios' && (
+                <GuideSection id="appblock" title="앱 차단" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                  {'집중 도전 중에 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 집중 도전 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중 도전으로 타이머가 도는 동안 선택한 앱이 잠겨요 (잠금 강도와 무관)\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n차단 목록은 설정 > 집중 도전 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n편하게 공부(화면 꺼짐) 모드에서는 차단이 적용되지 않아요.'}
+                </GuideSection>
+              )}
+
               {/* 오늘의 계획 */}
               <GuideSection id="plan" title="오늘의 계획 & 주간 플래너" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
                 {'집중탭 상단 "오늘의 계획" 카드에서 그날의 공부 계획을 관리해요.\n\n주간 플래너 설정:\n① 설정 > 주간 플래너에서 요일별 계획을 만들어요\n② 각 계획에 과목·목표 시간·아이콘을 설정해요\n③ 매일 해당 요일의 계획이 자동으로 불러와져요\n\n계획 타이머 사용법:\n• 재생 버튼을 누르면 해당 과목의 타이머가 바로 시작돼요\n• 목표 시간의 80% 이상 달성하면 완료 표시\n• 진행 상황은 통계 > 주간 탭에서 달성률로 확인할 수 있어요\n\n계획 없는 날도 탭에서 직접 추가할 수 있어요'}
