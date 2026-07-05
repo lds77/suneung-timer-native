@@ -1,6 +1,6 @@
 // src/hooks/useAppState.js
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AppState, Vibration, Platform } from 'react-native';
+import { AppState, Vibration, Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -24,7 +24,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
-import { setShield } from '../utils/focusShield';
+import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
@@ -300,7 +300,11 @@ export function AppProvider({ children }) {
   // 🔥모드 활성화
   const activateScreenOnMode = useCallback(async () => {
     try {
-      try { originalBrightness.current = await Brightness.getBrightnessAsync(); } catch { originalBrightness.current = 0.5; }
+      // 이미 어두운 값(≤0.06)을 원본으로 캡처하면 복원해도 계속 어두움 → 0.4 폴백
+      try {
+        const b = await Brightness.getBrightnessAsync();
+        originalBrightness.current = b > 0.06 ? b : 0.4;
+      } catch { originalBrightness.current = 0.4; }
       await activateKeepAwakeAsync('focus');
       try { await Brightness.setBrightnessAsync(0.05); } catch {}
     } catch {}
@@ -318,9 +322,19 @@ export function AppProvider({ children }) {
     }
     // 시험 강도(iOS): Screen Time 앱 차단 — 설정에서 켠 경우 세션 동안 선택한 앱에 방패
     // (미지원/entitlement 미포함 빌드에서는 no-op)
-    if (Platform.OS === 'ios' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam'
-        && settingsRef.current.appBlockEnabled) {
-      setShield(true);
+    if (Platform.OS === 'ios' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+      if (settingsRef.current.appBlockEnabled) {
+        setShield(true);
+      } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
+        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 울트라집중 시작 때 1회 안내
+        updateSettings({ guideAppBlock: true });
+        setTimeout(() => {
+          Alert.alert(
+            '앱 차단',
+            '울트라집중 중에 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 집중 도전 모드 > 앱 차단에서 켜보세요.',
+          );
+        }, 800);
+      }
     }
   }, []);
 
@@ -382,6 +396,14 @@ export function AppProvider({ children }) {
     if (originalBrightness.current !== null) { try { await Brightness.setBrightnessAsync(originalBrightness.current); } catch {} }
   };
   const applyFocusBrightness = async () => {
+    // 원래 밝기 미확보 상태면 먼저 캡처 — 어둡게 적용이 캡처보다 먼저 끝나는 레이스로
+    // 0.05가 '원본'으로 저장되면 해제해도 계속 어두운 문제 방지 (iOS에서 보고됨)
+    if (originalBrightness.current === null) {
+      try {
+        const b = await Brightness.getBrightnessAsync();
+        originalBrightness.current = b > 0.06 ? b : 0.4;
+      } catch { originalBrightness.current = 0.4; }
+    }
     try { await Brightness.setBrightnessAsync(0.05); } catch {}
   };
 
@@ -437,7 +459,13 @@ export function AppProvider({ children }) {
       const level = uf.ultraFocusLevel || 'normal';
       const isStrict = level === 'exam';
 
-      if (state === 'inactive') { /* 무시 */ }
+      if (state === 'inactive') {
+        // iOS: 백그라운드 진입 '후'에는 시스템 밝기 변경이 무시될 수 있어 inactive 시점에 미리 복원
+        // (제어센터/알림센터 때문에 inactive가 온 경우엔 active 복귀 시 다시 어둡게 적용됨)
+        if (Platform.OS === 'ios' && mode === 'screen_on' && screenLockedRef.current) {
+          restoreBrightness();
+        }
+      }
       else if (state === 'background') {
         bgTime.current = Date.now();
 
@@ -497,6 +525,13 @@ export function AppProvider({ children }) {
             && timersRef.current.some(t => t.status === 'running' || t.status === 'paused')
             && !isScreenPinned()) {
           pinScreen();
+        }
+
+        // iOS: inactive 시점에 복원했던 밝기를, 잠금화면이 유지 중이면 다시 어둡게
+        // (제어센터/알림센터를 내렸다 올린 경우 등 — 챌린지 표시 중엔 입력해야 하므로 제외)
+        if (Platform.OS === 'ios' && screenLockedRef.current && focusModeRef.current === 'screen_on'
+            && !ultraRef.current.showChallenge) {
+          applyFocusBrightness();
         }
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
