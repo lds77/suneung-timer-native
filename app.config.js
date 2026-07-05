@@ -30,20 +30,18 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '43',
+      buildNumber: '44',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
         // iOS 홈 화면 위젯 데이터 공유 (App Group)
         'com.apple.security.application-groups': [APP_GROUP],
-        // TODO(다음 Apple 로그인 빌드): 아래 두 entitlement 주석 해제.
-        // 프로비저닝 프로파일에 capability가 없으면 서명 실패(빌드 42에서 확인) →
-        // 터미널에서 eas build 실행 중 Apple 계정 로그인(2FA)을 거치면
-        // EAS가 App ID capability 동기화 + 프로파일 재생성을 자동 수행. 그 빌드부터 유효.
-        // 1) 이탈 넛지의 방해금지 뚫기 (Time Sensitive 알림):
-        // 'com.apple.developer.usernotifications.time-sensitive': true,
-        // 2) 울트라집중 앱 차단 (Screen Time / FamilyControls — 2026-07-05 계정 승인 완료):
-        // 'com.apple.developer.family-controls': true,
+        // ※ 아래 두 entitlement는 프로비저닝 프로파일에 capability가 있어야 서명됨 —
+        //   Apple 로그인(2FA) 상태의 eas build에서 capability 동기화 + 프로파일 재생성 필요 (빌드 44에서 수행)
+        // 이탈 넛지의 방해금지 뚫기 (Time Sensitive 알림):
+        'com.apple.developer.usernotifications.time-sensitive': true,
+        // 울트라집중 앱 차단 (Screen Time / FamilyControls — 2026-07-05 계정 승인):
+        'com.apple.developer.family-controls': true,
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
