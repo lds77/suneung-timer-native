@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -164,5 +164,60 @@ describe('seqFlipCore', () => {
     expect(r.kind).toBe('completed');
     expect(r.endedPhase).toBe('break');
     expect(r.session).toBeNull();
+  });
+});
+
+describe('buildPhaseNotifSpecs', () => {
+  test('뽀모도로: 시작 직후 work 종료→휴식 종료가 번갈아, 기준은 resumedAt', () => {
+    const t = {
+      type: 'pomodoro', label: '수학', pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5, resumedAt: NOW, elapsedSecAtResume: 0,
+    };
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    expect(specs[0]).toMatchObject({ absMs: NOW + 25 * 60_000, title: '수학 집중 완료!' });
+    expect(specs[1]).toMatchObject({ absMs: NOW + 30 * 60_000, title: '수학 휴식 끝!' });
+    // 4세트째 work 종료(4번째 집중완료 알림)는 긴 휴식 문구 + 이후 간격 15분
+    const fourthWorkEnd = specs.filter(s => s.title === '수학 집중 완료!')[3];
+    expect(fourthWorkEnd.body).toContain('긴 휴식');
+    expect(specs.length).toBeLessThanOrEqual(16);
+  });
+
+  test('뽀모도로: 페이즈 중간 재개 — 첫 알림은 남은 시간 기준 (오버슈트 비반영)', () => {
+    const t = {
+      type: 'pomodoro', label: '수학', pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5,
+      resumedAt: NOW - 60_000, elapsedSecAtResume: 600, // 10분 지점에서 재개, 1분 경과
+    };
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    // 첫 종료 = resumedAt + (1500-600)초
+    expect(specs[0].absMs).toBe(NOW - 60_000 + 900_000);
+  });
+
+  test('연속모드: 휴식 알림(breakSec>0) + 다음 과목 시작 + 마지막 완료 알림', () => {
+    const t = {
+      type: 'sequence', seqPhase: 'work', seqIndex: 0, seqTotal: 2, seqBreakSec: 600,
+      totalSec: 2400, resumedAt: NOW, elapsedSecAtResume: 0,
+      seqItems: [{ label: '수학', totalSec: 2400 }, { label: '영어', totalSec: 1800 }],
+    };
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    expect(specs.map(s => s.title)).toEqual(['수학 완료!', '▶ 영어 시작!', '연속 실행 완료!']);
+    expect(specs[0].absMs).toBe(NOW + 2400_000);
+    expect(specs[1].absMs).toBe(NOW + 3000_000);          // +휴식 10분
+    expect(specs[2].absMs).toBe(NOW + 3000_000 + 1800_000); // +영어 30분
+  });
+
+  test('연속모드: breakSec=0이면 휴식 알림 생략, 시작 알림만', () => {
+    const t = {
+      type: 'sequence', seqPhase: 'work', seqIndex: 0, seqTotal: 2, seqBreakSec: 0,
+      totalSec: 2400, resumedAt: NOW, elapsedSecAtResume: 0,
+      seqItems: [{ label: '수학', totalSec: 2400 }, { label: '영어', totalSec: 1800 }],
+    };
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    expect(specs.map(s => s.title)).toEqual(['▶ 영어 시작!', '연속 실행 완료!']);
+  });
+
+  test('countdown/free 타입은 빈 배열', () => {
+    expect(buildPhaseNotifSpecs({ type: 'countdown', totalSec: 60, resumedAt: NOW }, NOW)).toEqual([]);
+    expect(buildPhaseNotifSpecs({ type: 'free', resumedAt: NOW }, NOW)).toEqual([]);
   });
 });

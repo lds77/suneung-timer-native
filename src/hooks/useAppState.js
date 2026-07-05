@@ -25,7 +25,7 @@ import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
-import { realRemainingSec, pomoFlipCore, seqFlipCore } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -982,59 +982,8 @@ export function AppProvider({ children }) {
     // 취소하는 동안 더 최신 호출이 들어왔으면 중단 (그쪽이 새로 예약함)
     if (phaseNotifRunId.current.get(timer.id) !== runId) return;
 
-    // 기준 시각: timer.resumedAt (페이즈 실제 시작 시각)
-    const baseTime = timer.resumedAt || Date.now();
-
-    // Step 1: 알림 스펙 목록 동기적으로 수집 (await 없음 → 누적 지연 없음)
-    const specs = [];
-    if (timer.type === 'pomodoro') {
-      const firstTarget = pomoPhaseTargetSec(timer);
-      let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
-      let phase = timer.pomoPhase;
-      let set = timer.pomoSet;
-      let count = 0;
-      while (absMs > Date.now() && count < 16) {
-        if (phase === 'work') {
-          // 휴식 길이: 4세트마다 긴 휴식(15분) — 틱/표시/LA와 동일하게 pomoBreakMinOf 사용
-          phase = (set + 1) % 4 === 0 ? 'longbreak' : 'break';
-          set++;
-          specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: phase === 'longbreak' ? '긴 휴식이에요, 푹 쉬자!' : '기지개 한 번 펴자!' });
-          absMs += pomoBreakMinOf({ pomoPhase: phase, pomoBreakMin: timer.pomoBreakMin }) * 60 * 1000;
-        } else {
-          specs.push({ absMs, title: `${timer.label} 휴식 끝!`, body: '다시 달려보자!' });
-          phase = 'work';
-          absMs += timer.pomoWorkMin * 60 * 1000;
-        }
-        count++;
-      }
-    } else if (timer.type === 'sequence') {
-      const firstTarget = timer.seqPhase === 'work' ? timer.totalSec : timer.seqBreakSec;
-      let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
-      let idx = timer.seqIndex;
-      let phase = timer.seqPhase;
-      while (absMs > Date.now()) {
-        if (phase === 'work') {
-          const nextIdx = idx + 1;
-          if (nextIdx >= timer.seqTotal) {
-            specs.push({ absMs, title: '연속 실행 완료!', body: '모든 과목을 끝냈어!' });
-            break;
-          }
-          if (timer.seqBreakSec > 0) {
-            specs.push({ absMs, title: `${timer.seqItems[idx].label} 완료!`, body: `물 한 잔 마시고 와요 (${Math.round(timer.seqBreakSec / 60)}분)` });
-          }
-          phase = 'break';
-          absMs += timer.seqBreakSec * 1000;
-        } else {
-          idx++;
-          if (idx >= timer.seqTotal) break;
-          const ni = timer.seqItems[idx];
-          const niSec = ni.totalSec || ((ni.min || 0) * 60);
-          specs.push({ absMs, title: `▶ ${ni.label} 시작!`, body: '다음 과목 시작! 집중!' });
-          phase = 'work';
-          absMs += niSec * 1000;
-        }
-      }
-    }
+    // Step 1: 알림 스펙 목록 계산 (순수 — timerCore.buildPhaseNotifSpecs, 기준 시각은 resumedAt)
+    const specs = buildPhaseNotifSpecs(timer);
 
     // Step 2: 모든 알림을 병렬 예약 (Promise.all)
     // — 순차 await 시 scheduleNotificationAsync 호출마다 누적 지연이 발생해

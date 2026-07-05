@@ -72,6 +72,63 @@ export const pomoFlipCore = (t, nowMs = Date.now()) => {
   };
 };
 
+// 실행 중 뽀모/연속 타이머의 남은 페이즈 전환 알림 스펙 목록 — 순수 계산부.
+// 반환: [{ absMs: 발송 절대시각, title, body }] (nowMs 이후 것만, 뽀모는 최대 16개)
+// 기준 시각은 resumedAt(페이즈 실제 시작) — Date.now() 기준이면 오버슈트만큼 알림이 밀린다 (불변식 2).
+export const buildPhaseNotifSpecs = (timer, nowMs = Date.now()) => {
+  const baseTime = timer.resumedAt || nowMs;
+  const specs = [];
+  if (timer.type === 'pomodoro') {
+    const firstTarget = pomoPhaseTargetSec(timer);
+    let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
+    let phase = timer.pomoPhase;
+    let set = timer.pomoSet;
+    let count = 0;
+    while (absMs > nowMs && count < 16) {
+      if (phase === 'work') {
+        // 휴식 길이: 4세트마다 긴 휴식(15분) — 틱/표시/LA와 동일하게 pomoBreakMinOf 사용
+        phase = (set + 1) % 4 === 0 ? 'longbreak' : 'break';
+        set++;
+        specs.push({ absMs, title: `${timer.label} 집중 완료!`, body: phase === 'longbreak' ? '긴 휴식이에요, 푹 쉬자!' : '기지개 한 번 펴자!' });
+        absMs += pomoBreakMinOf({ pomoPhase: phase, pomoBreakMin: timer.pomoBreakMin }) * 60 * 1000;
+      } else {
+        specs.push({ absMs, title: `${timer.label} 휴식 끝!`, body: '다시 달려보자!' });
+        phase = 'work';
+        absMs += timer.pomoWorkMin * 60 * 1000;
+      }
+      count++;
+    }
+  } else if (timer.type === 'sequence') {
+    const firstTarget = timer.seqPhase === 'work' ? timer.totalSec : timer.seqBreakSec;
+    let absMs = baseTime + (firstTarget - (timer.elapsedSecAtResume || 0)) * 1000;
+    let idx = timer.seqIndex;
+    let phase = timer.seqPhase;
+    while (absMs > nowMs) {
+      if (phase === 'work') {
+        const nextIdx = idx + 1;
+        if (nextIdx >= timer.seqTotal) {
+          specs.push({ absMs, title: '연속 실행 완료!', body: '모든 과목을 끝냈어!' });
+          break;
+        }
+        if (timer.seqBreakSec > 0) {
+          specs.push({ absMs, title: `${timer.seqItems[idx].label} 완료!`, body: `물 한 잔 마시고 와요 (${Math.round(timer.seqBreakSec / 60)}분)` });
+        }
+        phase = 'break';
+        absMs += timer.seqBreakSec * 1000;
+      } else {
+        idx++;
+        if (idx >= timer.seqTotal) break;
+        const ni = timer.seqItems[idx];
+        const niSec = ni.totalSec || ((ni.min || 0) * 60);
+        specs.push({ absMs, title: `▶ ${ni.label} 시작!`, body: '다음 과목 시작! 집중!' });
+        phase = 'work';
+        absMs += niSec * 1000;
+      }
+    }
+  }
+  return specs;
+};
+
 // 연속모드 페이즈 전환 — 순수 계산부.
 // 반환: {
 //   kind: 'completed' | 'toBreak' | 'toWork'
