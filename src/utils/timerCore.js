@@ -71,3 +71,65 @@ export const pomoFlipCore = (t, nowMs = Date.now()) => {
     },
   };
 };
+
+// 연속모드 페이즈 전환 — 순수 계산부.
+// 반환: {
+//   kind: 'completed' | 'toBreak' | 'toWork'
+//   endedPhase: 'work' | 'break'    (completed일 때 result 계산 기준: work 완주=totalSec, break 안전장치=0)
+//   session: 세션 스펙 | null        (work 종료 시 기록 — focusMode/exitCount/densityOverride는 호출부가 채움)
+//   notif: { title, body } | null   (즉시 발송할 알림 — 발송 여부/조건은 호출부 담당)
+//   next: 다음 타이머 상태            (completed의 result/seqSessionIds는 호출부가 채움)
+// }
+// 세션은 5분(300초) 이상 + 쉬는시간 항목(isBreak)이 아닐 때만 (불변식 5·7).
+// 연속모드 세션은 timerType 'countdown'으로 기록 (불변식 6).
+export const seqFlipCore = (t, nowMs = Date.now()) => {
+  if (t.seqPhase === 'work') {
+    const currentItem = (t.seqItems || [])[t.seqIndex];
+    const isLastItem = t.seqIndex + 1 >= t.seqTotal;
+    const session = (t.elapsedSec >= 300 && !currentItem?.isBreak) ? {
+      subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+      durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
+      timerType: 'countdown', completionRatio: 1,
+      dedupeKey: `seq|${t.id}|${t.seqIndex}|${t.startedAt}`,
+    } : null;
+    if (isLastItem) {
+      return {
+        kind: 'completed', endedPhase: 'work', session, notif: null,
+        next: { ...t, elapsedSec: 0, status: 'completed' },
+      };
+    }
+    const nextItem = t.seqItems[t.seqIndex + 1];
+    return {
+      kind: 'toBreak', endedPhase: 'work', session,
+      notif: nextItem ? {
+        title: `${t.label} 완료!`,
+        body: `다음: ${nextItem.isBreak ? `${Math.round((nextItem.totalSec || 60) / 60)}분 휴식` : nextItem.label}`,
+      } : null,
+      next: {
+        ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0,
+        resumedAt: phaseEndAtMs(t, t.totalSec, nowMs), elapsedSecAtResume: 0,
+      },
+    };
+  }
+  // 쉬는시간 끝 → 다음 항목 시작
+  const nextItem = (t.seqItems || [])[t.seqIndex + 1];
+  if (!nextItem) {
+    // 안전장치 (정상 흐름에선 도달하지 않음)
+    return {
+      kind: 'completed', endedPhase: 'break', session: null, notif: null,
+      next: { ...t, status: 'completed' },
+    };
+  }
+  const breakPhaseEndAt = phaseEndAtMs(t, t.seqBreakSec, nowMs);
+  return {
+    kind: 'toWork', endedPhase: 'break', session: null,
+    // seqBreakSec > 0인 실제 쉬는시간 종료 시만 알림 (0이면 work→break에서 이미 발송)
+    notif: t.seqBreakSec > 0 ? { title: `${nextItem.label} 시작!`, body: '집중!' } : null,
+    next: {
+      ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
+      label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
+      subjectId: nextItem.subjectId || null, startedAt: breakPhaseEndAt, pauseCount: 0,
+      resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0,
+    },
+  };
+};

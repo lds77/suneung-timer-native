@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -96,5 +96,73 @@ describe('pomoFlipCore', () => {
     const t = { ...base, pomoPhase: 'longbreak', pomoSet: 4, resumedAt: NOW - 900_000, elapsedSecAtResume: 0 };
     const { next } = pomoFlipCore(t, NOW);
     expect(next.resumedAt).toBe(t.resumedAt + 15 * 60 * 1000);
+  });
+});
+
+describe('seqFlipCore', () => {
+  const items = [
+    { label: '수학', color: '#111111', totalSec: 2400, subjectId: 'subj_m' },
+    { label: '영어', color: '#222222', totalSec: 1800, subjectId: 'subj_e' },
+  ];
+  const base = {
+    id: 'tmr_s', type: 'sequence', label: '수학', color: '#111111', subjectId: 'subj_m',
+    totalSec: 2400, elapsedSec: 2400, pauseCount: 1,
+    startedAt: NOW - 2_400_000, resumedAt: NOW - 2_400_000, elapsedSecAtResume: 0,
+    seqItems: items, seqIndex: 0, seqTotal: 2, seqBreakSec: 600, seqPhase: 'work',
+    seqSessionIds: [],
+  };
+
+  test('work 종료(중간 항목): 세션 스펙 + break 전환 + 다음 항목 안내 알림', () => {
+    const r = seqFlipCore(base, NOW);
+    expect(r.kind).toBe('toBreak');
+    // 불변식 3·6: dedupeKey seq|id|인덱스|startedAt, timerType countdown
+    expect(r.session.dedupeKey).toBe(`seq|tmr_s|0|${base.startedAt}`);
+    expect(r.session.timerType).toBe('countdown');
+    expect(r.session.durationSec).toBe(2400);
+    expect(r.notif).toEqual({ title: '수학 완료!', body: '다음: 영어' });
+    // 불변식 2: break 시작점 = work의 정확한 종료 시각
+    expect(r.next.resumedAt).toBe(base.resumedAt + 2400 * 1000);
+    expect(r.next.seqPhase).toBe('break');
+    expect(r.next.elapsedSec).toBe(0);
+  });
+
+  test('5분 미만/쉬는시간 항목은 세션 기록 안 함 (불변식 5·7)', () => {
+    expect(seqFlipCore({ ...base, elapsedSec: 200 }, NOW).session).toBeNull();
+    const breakItems = [{ label: '휴식', totalSec: 600, isBreak: true }, items[1]];
+    expect(seqFlipCore({ ...base, seqItems: breakItems, elapsedSec: 600 }, NOW).session).toBeNull();
+  });
+
+  test('마지막 항목 work 종료: completed + 세션 스펙 (result는 호출부가 채움)', () => {
+    const t = { ...base, seqIndex: 1, label: '영어', totalSec: 1800, elapsedSec: 1800 };
+    const r = seqFlipCore(t, NOW);
+    expect(r.kind).toBe('completed');
+    expect(r.endedPhase).toBe('work');
+    expect(r.session.dedupeKey).toBe(`seq|tmr_s|1|${t.startedAt}`);
+    expect(r.next.status).toBe('completed');
+  });
+
+  test('break 종료: 다음 항목으로 전환 — 라벨/색/목표/과목 교체, startedAt=resumedAt=break 종료 시각', () => {
+    const t = { ...base, seqPhase: 'break', elapsedSec: 600, resumedAt: NOW - 600_000 };
+    const r = seqFlipCore(t, NOW);
+    expect(r.kind).toBe('toWork');
+    const endAt = t.resumedAt + 600 * 1000;
+    expect(r.next).toMatchObject({
+      seqPhase: 'work', seqIndex: 1, label: '영어', totalSec: 1800,
+      subjectId: 'subj_e', startedAt: endAt, resumedAt: endAt, elapsedSecAtResume: 0, elapsedSec: 0,
+    });
+    expect(r.notif).toEqual({ title: '영어 시작!', body: '집중!' });
+  });
+
+  test('seqBreakSec=0이면 break 종료 알림 없음 (work→break에서 이미 발송)', () => {
+    const t = { ...base, seqPhase: 'break', seqBreakSec: 0 };
+    expect(seqFlipCore(t, NOW).notif).toBeNull();
+  });
+
+  test('break인데 다음 항목 없음(안전장치): completed, endedPhase=break', () => {
+    const t = { ...base, seqPhase: 'break', seqIndex: 1 };
+    const r = seqFlipCore(t, NOW);
+    expect(r.kind).toBe('completed');
+    expect(r.endedPhase).toBe('break');
+    expect(r.session).toBeNull();
   });
 });

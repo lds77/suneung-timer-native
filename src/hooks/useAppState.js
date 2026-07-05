@@ -25,7 +25,7 @@ import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
-import { realRemainingSec, pomoFlipCore } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -697,84 +697,62 @@ export function AppProvider({ children }) {
     return next;
   };
 
-  // 연속모드 페이즈 전환 (pomoFlip 패턴)
+  // 연속모드 페이즈 전환 — 순수 계산은 timerCore.seqFlipCore, 여기서는 부수효과만
+  // (세션 기록, 완료 result/모달, 진동, 즉시 알림, phase 알림 취소/재예약 큐)
   const seqFlip = (t, skipNotif = false) => {
-    if (t.seqPhase === 'work') {
-      // 현재 항목 세션 기록 (쉬는시간 항목은 제외)
-      const currentItem = t.seqItems[t.seqIndex];
-      const isBreakItem = currentItem?.isBreak;
-      let updatedSeqSessionIds = t.seqSessionIds || [];
-      const nextIndex = t.seqIndex + 1;
-      const isLastItem = nextIndex >= t.seqTotal;
-      // 마지막 항목이면 미리 result 계산 → densityOverride로 모달/세션 밀도 일치
-      const result = isLastItem ? calcResult(t, t.totalSec) : null;
-      if (t.elapsedSec >= 300 && !isBreakItem) {
-        const mode = focusModeRef.current || 'screen_off';
-        const ufState = ultraRef.current;
-        const sessId = recordSessionInternal({
-          subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-          durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount,
-          exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
-          focusMode: mode, timerType: 'countdown', completionRatio: 1,
-          dedupeKey: `seq|${t.id}|${t.seqIndex}|${t.startedAt}`,
-          ...(result ? { densityOverride: result.density } : {}),
-        });
-        if (sessId) updatedSeqSessionIds = [...updatedSeqSessionIds, sessId];
-      }
-      if (isLastItem) {
-        // 마지막 항목 완료 → 전체 완료 (예약 알림이 처리, 잔여 phase notif 정리)
+    const core = seqFlipCore(t);
+    const mode = focusModeRef.current || 'screen_off';
+    const ufState = ultraRef.current;
+
+    // 완료 경로면 세션 기록 전에 result 확정 → densityOverride로 모달/세션 밀도 일치
+    // (work 완주 완료는 totalSec, break 안전장치 완료는 0 기준)
+    const result = core.kind === 'completed'
+      ? calcResult(t, core.endedPhase === 'work' ? t.totalSec : 0)
+      : null;
+
+    let updatedSeqSessionIds = t.seqSessionIds || [];
+    if (core.session) {
+      const sessId = recordSessionInternal({
+        ...core.session,
+        focusMode: mode,
+        exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
+        ...(result ? { densityOverride: result.density } : {}),
+      });
+      if (sessId) updatedSeqSessionIds = [...updatedSeqSessionIds, sessId];
+    }
+
+    if (core.kind === 'completed') {
+      // 전체 완료 (예약 알림이 처리, 잔여 phase notif 정리)
+      if (core.endedPhase === 'work') {
         if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500]);
         phaseNotifMap.current.delete(t.id);
-        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
-        return { ...t, elapsedSec: 0, status: 'completed', result, seqSessionIds: updatedSeqSessionIds };
       }
-      // 쉬는시간 전환
+      setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
+      return { ...core.next, result, seqSessionIds: updatedSeqSessionIds };
+    }
+
+    if (core.kind === 'toBreak') {
       if (!skipNotif && settingsRef.current.notifEnabled) {
         Vibration.vibrate([0, 200, 100, 200]);
         // 포그라운드: 기존 예약 phase 알림 취소 후 즉시 알림 발송 (예약 알림 취소 race condition 방지)
         const oldPhaseIds = phaseNotifMap.current.get(t.id) || [];
         phaseNotifMap.current.delete(t.id);
         oldPhaseIds.forEach(pid => Notifications.cancelScheduledNotificationAsync(pid).catch(() => {}));
-        const nextItem = t.seqItems[t.seqIndex + 1];
-        if (nextItem) {
-          const nextLabel = nextItem.isBreak
-            ? `${Math.round((nextItem.totalSec || 60) / 60)}분 휴식`
-            : nextItem.label;
-          fireNotif(`${t.label} 완료!`, `다음: ${nextLabel}`);
-        }
+        if (core.notif) fireNotif(core.notif.title, core.notif.body);
       }
-      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
-      const workPhaseEndAt = (t.resumedAt || Date.now()) + (t.totalSec - (t.elapsedSecAtResume || 0)) * 1000;
-      const newBreakTimer = { ...t, elapsedSec: 0, seqPhase: 'break', pauseCount: 0, seqSessionIds: updatedSeqSessionIds, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
+      const newBreakTimer = { ...core.next, seqSessionIds: updatedSeqSessionIds };
       seqRescheduleQueue.current.push(newBreakTimer);
       return newBreakTimer;
-    } else {
-      // 쉬는시간 끝 → 다음 항목 시작
-      const nextItem = t.seqItems[t.seqIndex + 1];
-      if (!nextItem) {
-        // 안전장치
-        const result = calcResult(t, 0);
-        setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: t.seqSessionIds || [] });
-        return { ...t, status: 'completed', result };
-      }
-      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
-      const breakPhaseEndAt = (t.resumedAt || Date.now()) + (t.seqBreakSec - (t.elapsedSecAtResume || 0)) * 1000;
-      if (!skipNotif && settingsRef.current.notifEnabled) {
-        Vibration.vibrate([0, 200, 100, 200]);
-        // seqBreakSec > 0인 실제 쉬는시간 종료 시만 알림 (0이면 work→break에서 이미 발송)
-        if (t.seqBreakSec > 0 && nextItem) {
-          fireNotif(`${nextItem.label} 시작!`, '집중!');
-        }
-      }
-      // break→work 전환 시에는 재예약 하지 않음
-      // (break 시작 시점에 이미 재예약됐고, 재예약하면 break-end 알림이 취소될 수 있음)
-      return {
-        ...t, elapsedSec: 0, seqPhase: 'work', seqIndex: t.seqIndex + 1,
-        label: nextItem.label, color: nextItem.color, totalSec: nextItem.totalSec,
-        subjectId: nextItem.subjectId || null, startedAt: breakPhaseEndAt, pauseCount: 0,
-        resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0,
-      };
     }
+
+    // toWork (쉬는시간 끝 → 다음 항목 시작)
+    // break→work 전환 시에는 재예약 하지 않음
+    // (break 시작 시점에 이미 재예약됐고, 재예약하면 break-end 알림이 취소될 수 있음)
+    if (!skipNotif && settingsRef.current.notifEnabled) {
+      Vibration.vibrate([0, 200, 100, 200]);
+      if (core.notif) fireNotif(core.notif.title, core.notif.body);
+    }
+    return core.next;
   };
 
   const fireComplete = (t, skipNotif = false) => {
