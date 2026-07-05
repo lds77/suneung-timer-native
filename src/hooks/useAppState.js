@@ -24,6 +24,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
+import { setShield } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
@@ -69,6 +70,7 @@ Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
+  appBlockEnabled: false, // iOS 울트라집중 앱 차단 (Screen Time) — 설정탭에서 켬
   ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
@@ -314,6 +316,12 @@ export function AppProvider({ children }) {
         }
       });
     }
+    // 시험 강도(iOS): Screen Time 앱 차단 — 설정에서 켠 경우 세션 동안 선택한 앱에 방패
+    // (미지원/entitlement 미포함 빌드에서는 no-op)
+    if (Platform.OS === 'ios' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam'
+        && settingsRef.current.appBlockEnabled) {
+      setShield(true);
+    }
   }, []);
 
   // 📖모드 활성화
@@ -330,6 +338,7 @@ export function AppProvider({ children }) {
       try { deactivateKeepAwake('focus'); } catch {}
       originalBrightness.current = null;
       unpinScreen(); // 시험 강도 화면 고정 해제 (미고정 상태면 no-op)
+      setShield(false); // iOS 앱 차단 방패 해제 (미적용 상태면 no-op)
     }
     // setFocusMode는 await 전에 호출 — focusModeRef가 빨리 null이 되도록 (race condition 방지)
     setFocusMode(null);

@@ -8,6 +8,7 @@ import {
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
+import { shieldSupported, requestShieldAuth, presentShieldPicker, getShieldBlockedCount } from '../utils/focusShield';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { DAILY_GOAL_OPTIONS } from '../constants/presets';
 
@@ -38,6 +39,48 @@ const FOCUS_LEVELS = [
   { id: 'exam',   label: '울트라집중',  desc: '자동 집중모드 · 일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지'
       + (Platform.OS === 'android' ? ' · 화면 고정(홈 버튼 차단)' : ''), color: '#FF6B6B' },
 ];
+
+// iOS 앱 차단(Screen Time) 설정 블록 — 울트라집중 세션 중 선택한 앱을 실제 차단.
+// 미지원(안드/Expo Go/iOS 15 이하/entitlement 미포함 빌드)이면 아무것도 렌더하지 않음.
+function AppBlockSettings({ T, app }) {
+  const [blockedCount, setBlockedCount] = useState(() => getShieldBlockedCount());
+  if (Platform.OS !== 'ios' || !shieldSupported()) return null;
+
+  const pickApps = async () => {
+    const cnt = await presentShieldPicker();
+    if (cnt >= 0) setBlockedCount(cnt);
+  };
+  const onToggle = async (v) => {
+    if (!v) { app.updateSettings({ appBlockEnabled: false }); return; }
+    const status = await requestShieldAuth();
+    if (status !== 'approved') {
+      Alert.alert('권한 필요', '앱 차단을 쓰려면 스크린 타임 접근을 허용해야 해요.\n설정 > 스크린 타임에서 열공메이트를 허용해주세요.');
+      return;
+    }
+    app.updateSettings({ appBlockEnabled: true });
+    await pickApps();
+  };
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.surface2, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.border }}>
+        <Ionicons name="shield-checkmark-outline" size={18} color={T.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>앱 차단</Text>
+          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라집중 중에는 선택한 앱이 잠겨요</Text>
+        </View>
+        <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} />
+      </View>
+      {!!app.settings.appBlockEnabled && (
+        <TouchableOpacity onPress={pickApps}
+          style={{ marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: T.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontSize: 13, color: T.text, fontWeight: '600' }}>차단할 앱 선택</Text>
+          <Text style={{ fontSize: 12, color: T.sub }}>{blockedCount}개 선택됨</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 const THEME_COLORS = [
   { id: 'pink',   color: '#FF6B9D', label: '핑크' },
@@ -423,6 +466,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           )}
+          <AppBlockSettings T={T} app={app} />
           <View ref={challengeViewRef} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: 6 }}>
               <Ionicons name="pencil-outline" size={13} color={T.text} />
@@ -782,7 +826,8 @@ export default function SettingsScreen() {
                   : '• 잠금화면의 실시간 타이머(Live Activity)에 "이탈 중"이 표시돼요\n')
                 + '\n집중 강도 3단계 (설정에서 변경 가능):\n\n일반: 편하게 공부가 자동 시작돼요.\n이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중: 집중 도전 / 편하게 공부를 직접 선택해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 집중 도전이 자동 시작돼요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
                 + (Platform.OS === 'android'
-                  ? '화면이 고정돼 홈·최근앱 버튼도 잠겨요.\n(해제: 뒤로+최근앱 버튼을 동시에 길게 누르기)\n고정을 풀어도 앱에 돌아오면 다시 고정돼요.\n' : '')
+                  ? '화면이 고정돼 홈·최근앱 버튼도 잠겨요.\n(해제: 뒤로+최근앱 버튼을 동시에 길게 누르기)\n고정을 풀어도 앱에 돌아오면 다시 고정돼요.\n'
+                  : '앱 차단을 켜두면 선택한 앱이 세션 동안 잠겨요.\n(설정 > 집중 도전 모드 > 앱 차단)\n')
                 + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요\n타이머 실행 중에는 잠금 강도를 변경할 수 없어요'}
               </GuideSection>
 
