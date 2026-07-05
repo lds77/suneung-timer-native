@@ -25,6 +25,7 @@ import { calculateDensity } from '../utils/density';
 import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
+import { realRemainingSec, pomoFlipCore } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -679,28 +680,21 @@ export function AppProvider({ children }) {
     return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
   };
 
+  // 뽀모도로 페이즈 전환 — 순수 계산은 timerCore.pomoFlipCore, 여기서는 부수효과(세션 기록/진동)만
   const pomoFlip = (t, skipNotif = false) => {
-    if (t.pomoPhase === 'work') {
+    const { endedPhase, workSession, next } = pomoFlipCore(t);
+    if (workSession) {
       recordSessionInternal({
-        subjectId: t.subjectId, label: t.label,
-        startedAt: Date.now() - t.pomoWorkMin * 60 * 1000,
-        durationSec: t.pomoWorkMin * 60, mode: 'pomodoro',
-        pauseCount: t.pauseCount, timerType: 'pomodoro',
+        ...workSession,
         focusMode: focusModeRef.current || 'screen_off',
         exitCount: focusModeRef.current === 'screen_on' ? (ultraRef.current?.exitCount || 0) : 0,
-        pomoSets: t.pomoSet + 1,
-        dedupeKey: `pomo|${t.id}|${t.startedAt}|${t.pomoSet}`,
       });
-      // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
-      if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300]);
-      // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지)
-      const workPhaseEndAt = (t.resumedAt || Date.now()) + (t.pomoWorkMin * 60 - (t.elapsedSecAtResume || 0)) * 1000;
-      return { ...t, elapsedSec: 0, pomoPhase: (t.pomoSet + 1) % 4 === 0 ? 'longbreak' : 'break', pomoSet: t.pomoSet + 1, pauseCount: 0, resumedAt: workPhaseEndAt, elapsedSecAtResume: 0 };
     }
-    if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 200, 100, 200]);
-    // 페이즈 종료 정확한 시각 계산 (Date.now() 대신 사용 → 틱 오버슈트 누적 방지). 긴 휴식은 15분
-    const breakPhaseEndAt = (t.resumedAt || Date.now()) + (pomoBreakMinOf(t) * 60 - (t.elapsedSecAtResume || 0)) * 1000;
-    return { ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0, resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0 };
+    // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
+    if (!skipNotif && settingsRef.current.notifEnabled) {
+      Vibration.vibrate(endedPhase === 'work' ? [0, 300, 100, 300] : [0, 200, 100, 200]);
+    }
+    return next;
   };
 
   // 연속모드 페이즈 전환 (pomoFlip 패턴)
@@ -931,18 +925,8 @@ export function AppProvider({ children }) {
     if (id) Notifications.dismissNotificationAsync(id).catch(() => {});
   };
 
-  // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함)
-  const getRealRemainingSec = (t) => {
-    const now = Date.now();
-    const realElapsedSec = t.resumedAt
-      ? (t.elapsedSecAtResume || 0) + (now - t.resumedAt) / 1000
-      : t.elapsedSec;
-    if (t.type === 'countdown') return Math.max(0, t.totalSec - realElapsedSec);
-    if (t.type === 'pomodoro') {
-      return Math.max(0, pomoPhaseTargetSec(t) - realElapsedSec);
-    }
-    return 0;
-  };
+  // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함) — timerCore.realRemainingSec 위임
+  const getRealRemainingSec = (t) => realRemainingSec(t);
 
   // 백그라운드 알림 예약 — 타이머 시작/재개 시 OS에 미리 등록
   const scheduleTimerNotif = async (timerId, label, seconds, customTitle, customBody) => {
