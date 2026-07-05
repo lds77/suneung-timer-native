@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -219,5 +219,71 @@ describe('buildPhaseNotifSpecs', () => {
   test('countdown/free 타입은 빈 배열', () => {
     expect(buildPhaseNotifSpecs({ type: 'countdown', totalSec: 60, resumedAt: NOW }, NOW)).toEqual([]);
     expect(buildPhaseNotifSpecs({ type: 'free', resumedAt: NOW }, NOW)).toEqual([]);
+  });
+});
+
+describe('calcTimerResult', () => {
+  test('밀도는 56~103 범위, verified는 screen_on + 이탈 0회일 때만', () => {
+    const t = { type: 'countdown', totalSec: 3600, pauseCount: 0 };
+    const r = calcTimerResult(t, 3600, { focusMode: 'screen_on', exitCount: 0 });
+    expect(r.density).toBeGreaterThanOrEqual(56);
+    expect(r.density).toBeLessThanOrEqual(103);
+    expect(r.verified).toBe(true);
+    expect(r.tier).toHaveProperty('id');
+    expect(calcTimerResult(t, 3600, { focusMode: 'screen_on', exitCount: 2 }).verified).toBe(false);
+    expect(calcTimerResult(t, 3600, { focusMode: 'screen_off', exitCount: 0 }).verified).toBe(false);
+  });
+
+  test('연속모드: 전체 항목 합산 + countdown 기준 (불변식 6)', () => {
+    const t = {
+      type: 'sequence', totalSec: 1800, pauseCount: 0,
+      seqItems: [{ totalSec: 2400 }, { totalSec: 1800 }], seqIndex: 1, seqTotal: 2,
+    };
+    const r = calcTimerResult(t, 1800, { focusMode: 'screen_off' });
+    expect(r.durationSec).toBe(4200); // 합산
+  });
+
+  test('카운트다운 중도 종료: 밀도 입력에 완료율 반영 (완주 대비 낮거나 같음)', () => {
+    const t = { type: 'countdown', totalSec: 3600, pauseCount: 0 };
+    const full = calcTimerResult(t, 3600, { focusMode: 'screen_off' });
+    const half = calcTimerResult(t, 1800, { focusMode: 'screen_off' });
+    expect(half.density).toBeLessThanOrEqual(full.density);
+  });
+});
+
+describe('buildSessionRecord', () => {
+  const spec = {
+    subjectId: 'subj_1', label: ' 수학 ', durationSec: 1800,
+    mode: 'countdown', timerType: 'countdown', completionRatio: 1,
+    focusMode: 'screen_on', exitCount: 0, memo: ' 메모 ',
+  };
+
+  test('불변식 4: date는 시작일 기준 — 자정 걸친 세션은 시작한 날 귀속', () => {
+    const start = new Date(2026, 6, 4, 23, 50, 0).getTime(); // 로컬 7/4 23:50
+    const s = buildSessionRecord({ ...spec, startedAt: start, durationSec: 1800 });
+    expect(s.date).toBe('2026-07-04');
+    expect(s.endedAt).toBe(start + 1800 * 1000); // 종료는 시작+집중시간 (벽시계 아님)
+  });
+
+  test('verified/ultraFocusLevel은 screen_on일 때만, label/memo 트림', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: NOW }, { ultraFocusLevel: 'exam' });
+    expect(s.verified).toBe(true);
+    expect(s.ultraFocusLevel).toBe('exam');
+    expect(s.label).toBe('수학');
+    expect(s.memo).toBe('메모');
+    const off = buildSessionRecord({ ...spec, focusMode: 'screen_off', startedAt: NOW }, { ultraFocusLevel: 'exam' });
+    expect(off.verified).toBe(false);
+    expect(off.ultraFocusLevel).toBeNull();
+  });
+
+  test('densityOverride가 있으면 밀도 계산을 건너뛰고 그대로 사용', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: NOW, densityOverride: 99 });
+    expect(s.focusDensity).toBe(99);
+  });
+
+  test('startedAt 없으면 nowMs - durationSec으로 역산', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: null }, { nowMs: NOW });
+    expect(s.startedAt).toBe(NOW - 1800 * 1000);
+    expect(s.endedAt).toBe(NOW);
   });
 });

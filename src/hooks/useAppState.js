@@ -21,11 +21,10 @@ const SOUND_FILES = {
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
-import { calculateDensity } from '../utils/density';
-import { pomoBreakMinOf, pomoPhaseTargetSec } from '../utils/pomo';
+import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -656,28 +655,15 @@ export function AppProvider({ children }) {
     showToastCustom('오늘은 여기까지! 내일 다시 도전해봐요', 'totoru');
   }, []);
 
+  // 타이머 결과 계산 — 순수 계산은 timerCore.calcTimerResult, 여기서는 현재 모드/이탈 상태만 주입
   const calcResult = (t, dur) => {
     const mode = focusModeRef.current || 'screen_off';
-    const ufState = ultraRef.current;
-    // sequence 타입: 전체 항목 합산 시간 + countdown 기준으로 계산
-    let timerType = t.type;
-    let totalSec = dur;
-    let completionRatio = t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1;
-    if (t.type === 'sequence') {
-      timerType = 'countdown';
-      totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
-      completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
-    }
-    const d = calculateDensity({
-      pausedCount: t.pauseCount, totalSec,
-      timerType, completionRatio,
-      pomoSets: t.pomoSet || 0, focusMode: mode,
-      exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
+    return calcTimerResult(t, dur, {
+      focusMode: mode,
+      exitCount: mode === 'screen_on' ? (ultraRef.current.exitCount || 0) : 0,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
       ultraFocusLevel: mode === 'screen_on' ? (settingsRef.current?.ultraFocusLevel || 'normal') : 'normal',
     });
-    const { getTier } = require('../constants/presets');
-    return { density: d, tier: getTier(d), focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, verified: mode === 'screen_on' && (ufState.exitCount || 0) === 0, durationSec: totalSec };
   };
 
   // 뽀모도로 페이즈 전환 — 순수 계산은 timerCore.pomoFlipCore, 여기서는 부수효과(세션 기록/진동)만
@@ -1919,37 +1905,19 @@ export function AppProvider({ children }) {
   // React가 업데이터를 재실행하면 같은 세션이 두 번 기록될 수 있음 → 같은 키는 기존 세션 id 반환
   const sessionDedupeRef = useRef(new Map());
 
-  const recordSessionInternal = useCallback(({ subjectId = null, label = '', startedAt = null, durationSec, mode = 'free', pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off', timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null, planId = null, densityOverride = null, dedupeKey = null }) => {
+  // 세션 기록 — 레코드 생성(밀도/날짜/verified 규칙)은 timerCore.buildSessionRecord,
+  // 여기서는 멱등 가드(dedupeKey)와 상태 반영(sessions/subjects/스트릭)만 담당
+  const recordSessionInternal = useCallback((spec) => {
+    const { dedupeKey = null, subjectId = null, durationSec, focusMode: fm = 'screen_off' } = spec;
     if (dedupeKey) {
       const cached = sessionDedupeRef.current.get(dedupeKey);
       if (cached) return cached;
     }
-    const density = densityOverride ?? calculateDensity({
-      pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
-      focusMode: fm, exitCount, selfRating,
-      schoolLevel: settingsRef.current?.schoolLevel || 'high',
-      ultraFocusLevel: fm === 'screen_on' ? (settingsRef.current?.ultraFocusLevel || 'normal') : 'normal',
-    });
-    const { getTier } = require('../constants/presets');
-    const tier = getTier(density);
-    const verified = fm === 'screen_on' && exitCount === 0;
     const ultraLevel = settingsRef.current?.ultraFocusLevel || 'normal';
-    // 시작 기준: 종료 시각은 startedAt + 실제 집중시간으로 기록.
-    //   (endedAt에 Date.now()를 쓰면 일시정지/백그라운드 때문에 벽시계 간격이 집중시간과 어긋나
-    //    "16:59 ~ 06:38(40m)" 같이 시작~종료가 집중시간과 안 맞는 표시가 생김)
-    const sessStart = startedAt ?? Date.now() - durationSec * 1000;
-    // 소속 날짜는 '시작한 날' 기준 — 자정 직전 시작해 자정 넘겨 끝나도 시작일로 묶임
-    // (getToday()=기록시점이면 23:57~00:22 같은 세션이 다음 날로 넘어가 '전날 22시' 오표시 발생)
-    const newSess = {
-      id: generateId('sess_'), date: toDateStr(new Date(sessStart)), subjectId, label: label.trim(),
-      startedAt: sessStart, endedAt: sessStart + durationSec * 1000,
-      durationSec, mode, focusDensity: density, tier: tier.id,
-      pausedCount: pauseCount, exitCount, focusMode: fm, verified,
-      selfRating, memo: memo.trim(), planId: planId || null,
+    const newSess = buildSessionRecord(spec, {
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
-      ultraFocusLevel: fm === 'screen_on' ? ultraLevel : null,
-      timerType, completionRatio, pomoSets,
-    };
+      ultraFocusLevel: ultraLevel,
+    });
     setSessions(prev => [...prev, newSess]);
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
     updateStreak();

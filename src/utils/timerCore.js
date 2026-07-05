@@ -7,6 +7,9 @@
 // 부수효과(세션 기록, 진동, 알림, 모달)는 호출부(useAppState)가 반환값을 해석해서 수행한다.
 
 import { pomoBreakMinOf, pomoPhaseTargetSec } from './pomo';
+import { calculateDensity } from './density';
+import { getTier } from '../constants/presets';
+import { toDateStr, generateId } from './format';
 
 // 벽시계 기준 실제 경과 초 (정수, 틱과 동일 규칙).
 // elapsedSec 필드는 표시용 캐시일 뿐 — 경과는 항상 이 함수로 계산해야 백그라운드에서 안 어긋난다.
@@ -69,6 +72,62 @@ export const pomoFlipCore = (t, nowMs = Date.now()) => {
       ...t, elapsedSec: 0, pomoPhase: 'work', pauseCount: 0,
       resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0,
     },
+  };
+};
+
+// 타이머 완료/종료 시 결과(밀도·티어·인증) 계산 — 순수 계산부.
+// focusMode/exitCount/ultraFocusLevel 게이팅(screen_on일 때만 반영)은 호출부 책임.
+// 연속모드는 전체 항목 합산 + countdown 기준으로 계산 (불변식 6).
+export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 0, schoolLevel = 'high', ultraFocusLevel = 'normal' } = {}) => {
+  let timerType = t.type;
+  let totalSec = dur;
+  let completionRatio = t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1;
+  if (t.type === 'sequence') {
+    timerType = 'countdown';
+    totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
+    completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+  }
+  const d = calculateDensity({
+    pausedCount: t.pauseCount, totalSec,
+    timerType, completionRatio,
+    pomoSets: t.pomoSet || 0, focusMode,
+    exitCount, schoolLevel, ultraFocusLevel,
+  });
+  return {
+    density: d, tier: getTier(d), focusMode, exitCount,
+    verified: focusMode === 'screen_on' && exitCount === 0,
+    durationSec: totalSec,
+  };
+};
+
+// 세션 레코드 생성 — 순수 계산부 (id 생성 제외하면 결정적).
+// 불변식 4: date는 '시작한 날' 기준 (자정 걸친 세션은 시작일 귀속).
+// endedAt = startedAt + durationSec (Date.now()면 일시정지/백그라운드 때문에 집중시간과 어긋남).
+export const buildSessionRecord = (spec, ctx = {}) => {
+  const {
+    subjectId = null, label = '', startedAt = null, durationSec, mode = 'free',
+    pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off',
+    timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null,
+    planId = null, densityOverride = null,
+  } = spec;
+  const { schoolLevel = 'high', ultraFocusLevel = 'normal', nowMs = Date.now() } = ctx;
+  const density = densityOverride ?? calculateDensity({
+    pausedCount: pauseCount, totalSec: durationSec, timerType, completionRatio, pomoSets,
+    focusMode: fm, exitCount, selfRating,
+    schoolLevel,
+    ultraFocusLevel: fm === 'screen_on' ? ultraFocusLevel : 'normal',
+  });
+  const sessStart = startedAt ?? nowMs - durationSec * 1000;
+  return {
+    id: generateId('sess_'), date: toDateStr(new Date(sessStart)), subjectId, label: label.trim(),
+    startedAt: sessStart, endedAt: sessStart + durationSec * 1000,
+    durationSec, mode, focusDensity: density, tier: getTier(density).id,
+    pausedCount: pauseCount, exitCount, focusMode: fm,
+    verified: fm === 'screen_on' && exitCount === 0,
+    selfRating, memo: memo.trim(), planId: planId || null,
+    schoolLevel,
+    ultraFocusLevel: fm === 'screen_on' ? ultraFocusLevel : null,
+    timerType, completionRatio, pomoSets,
   };
 };
 
