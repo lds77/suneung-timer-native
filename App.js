@@ -11,6 +11,7 @@ import {
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { enableFreeze } from 'react-native-screens';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
@@ -29,6 +30,10 @@ import SubjectsScreen from './src/screens/SubjectsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import PlannerScreen from './src/screens/PlannerScreen';
+
+// 비활성 탭 화면 동결 — 타이머 실행 중 매초 Context가 갱신될 때 보이지 않는 탭
+// (StatsScreen 등 무거운 화면)까지 리렌더되는 것을 차단 (배터리/버벅임 개선)
+enableFreeze(true);
 
 const Tab = createBottomTabNavigator();
 

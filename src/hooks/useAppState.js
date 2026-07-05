@@ -135,7 +135,11 @@ export function AppProvider({ children }) {
   const [pendingReportTab, setPendingReportTab] = useState(null);
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
+  // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
+  // (안드는 백그라운드에서도 JS가 돌므로) 대기 상태 배터리를 하루 종일 소모한다
+  const hasRunningTimer = timers.some(t => t.status === 'running');
   useEffect(() => {
+    if (!hasRunningTimer) return undefined;
     const id = setInterval(() => {
       // 일반 타이머 틱
       setTimers(prev => {
@@ -176,7 +180,7 @@ export function AppProvider({ children }) {
       });
     }, 100);
     return () => clearInterval(id);
-  }, []);
+  }, [hasRunningTimer]);
 
   // seqFlip 페이즈 전환 후 실제 resumedAt 기준으로 남은 알림 재예약
   useEffect(() => {
