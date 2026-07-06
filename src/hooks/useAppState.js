@@ -64,8 +64,11 @@ if (Platform.OS === 'android') {
   });
 }
 
-// 앱 시작 시 이전 세션의 잔여 예약 알람 제거 (강제종료/재부팅 후 유령 알람 방지)
-Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+// 앱 시작 시 이전 세션의 잔여 예약 알람 제거 플래그 (강제종료/재부팅 후 유령 알람 방지).
+// 모듈 스코프에서 바로 실행하면 위젯 헤드리스 실행(번들 로드)에서도 돌아
+// 실행 중 타이머의 예약 알람을 지워버리므로, 첫 마운트의 로드 effect에서 1회만 실행한다
+// (JS 컨텍스트당 1회 — 액티비티 재생성 리마운트에서는 재실행하지 않음).
+let staleNotifCleanupDone = false;
 
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
@@ -287,9 +290,7 @@ export function AppProvider({ children }) {
   const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
-  const reminderNotifIds = useRef([]); // 공부 리마인더 알림 id 목록
-  const weeklyReportNotifId = useRef(null); // 주간 리포트 알림 id
-  const monthlyReportNotifId = useRef(null); // 월간 리포트 알림 id
+  // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
   // ref: 최신 weeklySchedule / sessions (schedulePlannerReminders에서 사용)
   const weeklyScheduleRef = useRef(null);
@@ -877,7 +878,6 @@ export function AppProvider({ children }) {
 
   // 🔥모드 이탈 중 에스컬레이팅 넛지 — 이탈이 길어질수록 단계별 복귀 유도 알림 (복귀 시 전부 취소)
   // 백그라운드 진입 직후 OS에 미리 예약해 두므로 JS가 중단돼도 발송된다
-  const awayNudgeIds = useRef([]);
   // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
   // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
   const awayNudgeCancelGen = useRef(0);
@@ -902,6 +902,8 @@ export function AppProvider({ children }) {
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + n.sec * 1000), channelId: 'timer-complete' }
           : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: n.sec };
         const id = await Notifications.scheduleNotificationAsync({
+          // 고정 identifier: 리마운트로 id 목록이 유실돼도 재이탈 시 대체 + 복귀 시 항상 취소 가능
+          identifier: `away-nudge-${n.sec}`,
           content: {
             title: n.title, body: n.body, sound: 'default',
             // iOS: 방해금지/집중모드도 뚫는 Time Sensitive (entitlement 필요 — app.config.js)
@@ -915,26 +917,24 @@ export function AppProvider({ children }) {
           Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
           return;
         }
-        awayNudgeIds.current.push(id);
       } catch {}
     }
   };
   const cancelAwayNudges = () => {
     awayNudgeCancelGen.current++;
-    const ids = awayNudgeIds.current;
-    awayNudgeIds.current = [];
-    ids.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
+    // 고정 identifier 전체를 취소 — 리마운트로 세션이 바뀌어도 이전 세션의 넛지까지 정리됨
+    [30, 60, 180, 300].forEach(sec => { Notifications.cancelScheduledNotificationAsync(`away-nudge-${sec}`).catch(() => {}); });
   };
 
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
   // 스와이프로 지울 수 없고, 복귀하면 코드로 제거한다. 탭하면 앱이 열린다.
-  const awayStickyId = useRef(null);
   const awayStickyCancelGen = useRef(0);
   const presentAwaySticky = async () => {
     if (Platform.OS !== 'android' || !settingsRef.current.notifEnabled) return;
     const gen = awayStickyCancelGen.current;
     try {
       const id = await Notifications.scheduleNotificationAsync({
+        identifier: 'away-sticky',
         content: {
           title: '집중 이탈 중',
           body: '열공메이트로 돌아와서 집중을 이어가요',
@@ -946,16 +946,13 @@ export function AppProvider({ children }) {
       if (awayStickyCancelGen.current !== gen) {
         // 게시 도중 복귀함 → sticky가 영구히 남지 않도록 즉시 제거
         Notifications.dismissNotificationAsync(id).catch(() => {});
-        return;
       }
-      awayStickyId.current = id;
     } catch {}
   };
   const dismissAwaySticky = () => {
     awayStickyCancelGen.current++;
-    const id = awayStickyId.current;
-    awayStickyId.current = null;
-    if (id) Notifications.dismissNotificationAsync(id).catch(() => {});
+    // 고정 identifier로 제거 — 리마운트로 세션이 바뀌어도 sticky가 영구히 남지 않음
+    Notifications.dismissNotificationAsync('away-sticky').catch(() => {});
   };
 
   // 실제 남은 초 정밀 계산 (wall clock 기반, 소수점 포함) — timerCore.realRemainingSec 위임
@@ -970,6 +967,8 @@ export function AppProvider({ children }) {
         await Notifications.cancelScheduledNotificationAsync(existingId);
         notifIdMap.current.delete(timerId);
       }
+      // 맵 유실(리마운트/복원) 시에도 이전 완료 알림이 중복 예약되지 않도록 저장소 스캔
+      await cancelTaggedNotifs(timerId, ['complete']);
       if (seconds <= 0) return;
       const sec = Math.max(1, Math.ceil(seconds));
       // Android: DATE 트리거 → USE_EXACT_ALARM/SCHEDULE_EXACT_ALARM 권한 시 setExactAndAllowWhileIdle 사용
@@ -981,6 +980,7 @@ export function AppProvider({ children }) {
         content: {
           title: customTitle || `${label} 완료!`,
           body: customBody || '타이머가 끝났어요!',
+          data: { kind: 'complete', timerId },
           sound: 'default', vibrate: [0, 500, 200, 500, 200, 500],
           ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
         },
@@ -996,6 +996,23 @@ export function AppProvider({ children }) {
         const prev = lockAlarmIds.current.get(timerId) || [];
         if (!prev.includes(aid)) lockAlarmIds.current.set(timerId, [...prev, aid]);
       }
+    } catch {}
+  };
+
+  // OS 예약 저장소에서 이 타이머의 알림을 태그(content.data)로 찾아 일괄 취소.
+  // 인메모리 id 맵(notifIdMap/phaseNotifMap)은 액티비티 재생성(프로세스 유지, JS 리마운트 —
+  // 모듈 스코프 cancelAll도 다시 안 돎)이나 강제종료 후 복원 시 유실되므로,
+  // 맵만 믿으면 이전 세션의 예약이 살아남아 같은 알림이 중복 발송된다 (2026-07 실기기 재현).
+  // shouldAbort: getAll 이후 취소 직전에 검사 — 더 최신 예약 호출이 방금 만든 세트를 지우는 레이스 방지
+  const cancelTaggedNotifs = async (timerId, kinds, shouldAbort) => {
+    try {
+      const all = await Notifications.getAllScheduledNotificationsAsync();
+      if (shouldAbort && shouldAbort()) return;
+      const stale = all.filter(r => {
+        const d = r?.content?.data;
+        return d && d.timerId === timerId && kinds.includes(d.kind);
+      });
+      await Promise.all(stale.map(r => Notifications.cancelScheduledNotificationAsync(r.identifier).catch(() => {})));
     } catch {}
   };
 
@@ -1019,6 +1036,8 @@ export function AppProvider({ children }) {
       for (const pid of phaseIds) {
         try { await Notifications.cancelScheduledNotificationAsync(pid); } catch {}
       }
+      // 맵에 없는 잔여 예약(리마운트/복원 이전 세션분)까지 저장소 스캔으로 청소
+      await cancelTaggedNotifs(timerId, ['complete', 'phase']);
     } catch {}
   };
 
@@ -1034,6 +1053,10 @@ export function AppProvider({ children }) {
     for (const pid of oldIds) {
       try { await Notifications.cancelScheduledNotificationAsync(pid); } catch {}
     }
+    // 맵에 없는 잔여 예약까지 저장소 스캔으로 청소 — 액티비티 재생성/강제종료 복원 후에는
+    // 맵이 비어 있어 이전 세션의 예약 세트가 살아남고, 페이즈 시각은 벽시계 기준 결정적이라
+    // 재예약마다 같은 시각의 알림이 한 장씩 쌓여 중복 발송됐다 (shouldAbort로 최신 호출 세트 보호)
+    await cancelTaggedNotifs(timer.id, ['phase'], () => phaseNotifRunId.current.get(timer.id) !== runId);
     // 취소하는 동안 더 최신 호출이 들어왔으면 중단 (그쪽이 새로 예약함)
     if (phaseNotifRunId.current.get(timer.id) !== runId) return;
 
@@ -1056,7 +1079,7 @@ export function AppProvider({ children }) {
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(absMs), channelId: 'timer-complete' }
           : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secFromNow };
         return Notifications.scheduleNotificationAsync({
-          content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
+          content: { title, body, data: { kind: 'phase', timerId: timer.id }, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
           trigger,
         }).catch(() => null);
       })
@@ -1141,6 +1164,8 @@ export function AppProvider({ children }) {
             ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs), channelId: 'timer-complete' }
             : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(triggerMs) };
           const id = await Notifications.scheduleNotificationAsync({
+            // 고정 identifier: 리마운트로 id 목록이 유실돼도 재예약이 이전 예약을 대체 (중복 방지)
+            identifier: `planner-fixedend-${fixed.id || fixed.label}`,
             content: {
               title: '공부 계획 알림',
               body: `${fixed.label} 끝! 오늘 남은 계획 확인해볼까요?`,
@@ -1176,6 +1201,7 @@ export function AppProvider({ children }) {
             ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(tenMinBeforeMs), channelId: 'timer-complete' }
             : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(tenMinBeforeMs) };
           const id = await Notifications.scheduleNotificationAsync({
+            identifier: `planner-pre-${plan.id}`,
             content: {
               title: '공부 시작 10분 전',
               body: `${plan.label} 시작 10분 남았어요! 준비해볼까요?`,
@@ -1195,6 +1221,7 @@ export function AppProvider({ children }) {
             ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(startMs), channelId: 'timer-complete' }
             : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(startMs) };
           const id = await Notifications.scheduleNotificationAsync({
+            identifier: `planner-start-${plan.id}`,
             content: {
               title: '⏰ 공부 시작!',
               body: `${plan.label} 시작 시간이에요! 지금 바로 시작해볼까요?`,
@@ -1212,11 +1239,10 @@ export function AppProvider({ children }) {
   // ═══ 공부 리마인더 알림 예약 ═══
   // 매일 설정 시각에 "오늘 아직 공부 안 했어!" + 연속 끊김 위기 알림
   const scheduleStudyReminders = useCallback(async () => {
-    // 기존 리마인더 취소
-    for (const id of reminderNotifIds.current) {
+    // 기존 리마인더 취소 (고정 identifier — 리마운트로 세션이 바뀌어도 정리됨)
+    for (const id of ['reminder-daily', 'reminder-streak']) {
       try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
     }
-    reminderNotifIds.current = [];
 
     const s = settingsRef.current;
     if (!s.notifEnabled) return;
@@ -1239,7 +1265,8 @@ export function AppProvider({ children }) {
         const trigger = Platform.OS === 'android'
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate, channelId: 'timer-complete' }
           : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate };
-        const id = await Notifications.scheduleNotificationAsync({
+        await Notifications.scheduleNotificationAsync({
+          identifier: 'reminder-daily',
           content: {
             title: '오늘 공부 시작해볼까?',
             body: s.streak > 0 ? `${s.streak}일 연속 공부 중! 오늘도 이어가자!` : '잠깐이라도 좋으니 시작해봐!',
@@ -1248,7 +1275,6 @@ export function AppProvider({ children }) {
           },
           trigger,
         });
-        reminderNotifIds.current.push(id);
       } catch {}
     }
 
@@ -1261,7 +1287,8 @@ export function AppProvider({ children }) {
         const trigger = Platform.OS === 'android'
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate, channelId: 'timer-complete' }
           : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate };
-        const id = await Notifications.scheduleNotificationAsync({
+        await Notifications.scheduleNotificationAsync({
+          identifier: 'reminder-streak',
           content: {
             title: '연속 공부 끊길 위기!',
             body: `${s.streak}일 연속이 오늘 끊겨요! 잠깐이라도 공부하자!`,
@@ -1270,17 +1297,14 @@ export function AppProvider({ children }) {
           },
           trigger,
         });
-        reminderNotifIds.current.push(id);
       } catch {}
     }
   }, []);
 
   // 주간 공부 리포트 알림 예약 — 이번 주 일요일 밤 11시 발송
   const scheduleWeeklyReport = useCallback(async () => {
-    if (weeklyReportNotifId.current) {
-      await Notifications.cancelScheduledNotificationAsync(weeklyReportNotifId.current).catch(() => {});
-      weeklyReportNotifId.current = null;
-    }
+    // 고정 identifier로 취소 — 리마운트로 세션이 바뀌어도 정리됨
+    await Notifications.cancelScheduledNotificationAsync('report-weekly').catch(() => {});
     const sett = settingsRef.current;
     if (!sett.weeklyReportEnabled || !sett.notifEnabled) return;
 
@@ -1333,7 +1357,8 @@ export function AppProvider({ children }) {
       const trigger = Platform.OS === 'android'
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday, channelId: 'report' }
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday };
-      const id = await Notifications.scheduleNotificationAsync({
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'report-weekly',
         content: {
           title: '이번 주 공부 리포트',
           body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
@@ -1342,16 +1367,13 @@ export function AppProvider({ children }) {
         },
         trigger,
       });
-      weeklyReportNotifId.current = id;
     } catch {}
   }, []);
 
   // 월간 공부 리포트 알림 예약 — 이번 달 마지막 날 밤 11시 발송
   const scheduleMonthlyReport = useCallback(async () => {
-    if (monthlyReportNotifId.current) {
-      await Notifications.cancelScheduledNotificationAsync(monthlyReportNotifId.current).catch(() => {});
-      monthlyReportNotifId.current = null;
-    }
+    // 고정 identifier로 취소 — 리마운트로 세션이 바뀌어도 정리됨
+    await Notifications.cancelScheduledNotificationAsync('report-monthly').catch(() => {});
     const sett = settingsRef.current;
     if (!sett.monthlyReportEnabled || !sett.notifEnabled) return;
 
@@ -1403,7 +1425,8 @@ export function AppProvider({ children }) {
       const trigger = Platform.OS === 'android'
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: lastDayOfMonth, channelId: 'report' }
         : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: lastDayOfMonth };
-      const id = await Notifications.scheduleNotificationAsync({
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'report-monthly',
         content: {
           title: `${MONTH_NAMES[month]} 공부 리포트`,
           body: `총 ${timeStr} · ${studyDays}일 공부${compStr}`,
@@ -1412,7 +1435,6 @@ export function AppProvider({ children }) {
         },
         trigger,
       });
-      monthlyReportNotifId.current = id;
     } catch {}
   }, []);
 
@@ -1797,6 +1819,12 @@ export function AppProvider({ children }) {
         });
         setWeeklySchedule(cleaned);
         if (wsChanged) saveWeeklySchedule(cleaned);
+      }
+      // 콜드 스타트 1회: 이전 프로세스의 잔여 예약 알람 제거 — 복원 재예약 전에 await로 순서 보장
+      // (기존 모듈 스코프 fire-and-forget은 위젯 헤드리스에서도 돌고, 복원 예약과 순서도 비보장이었음)
+      if (!staleNotifCleanupDone) {
+        staleNotifCleanupDone = true;
+        await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
       }
       // 이전 세션 타이머 복원 (앱 강제종료 대비)
       const snapshot = await loadTimerSnapshot();
