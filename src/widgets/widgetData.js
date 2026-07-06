@@ -24,14 +24,20 @@ export const activeRunningInfo = (t, nowMs = Date.now()) => {
   if (!resumedAt) return null;
   const sec = Math.round((nowMs - resumedAt) / 1000) + (t.elapsedSecAtResume || 0);
   if (sec < 0 || sec > 24 * 3600) return null; // 시계 이상/좀비 스냅샷 방어
+  // 현재 페이즈 목표를 넘겼으면 '실행 중' 아님 — 앱이 꺼진 채 타이머가 종료/페이즈 전환되면
+  // 스냅샷은 그대로라, 이 가드가 없으면 다음 헤드리스 렌더(30분 주기/클릭)에서도
+  // 끝난 타이머가 '집중 중'으로 계속 표시된다. (연속/뽀모는 실제로는 다음 항목이 진행 중일 수
+  // 있지만 죽은 스냅샷으로는 알 수 없으므로 표시하지 않는 쪽이 안전)
+  const targetSec = (t.type === 'countdown' || t.type === 'sequence') ? (t.totalSec || 0)
+    : t.type === 'pomodoro' ? (t.pomoWorkMin || 25) * 60 : 0;
+  if (targetSec > 0 && sec >= targetSec) return null;
   return { sec, label: t.label || '' };
 };
 
 // 로컬 기준 YYYY-MM-DD (format.js의 toDateStr와 동일 규칙 — UTC 사용 금지)
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const dateStr = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayStr = () => dateStr(new Date());
 
 // 앱 테마 액센트 색상만 발췌 (colors.js ACCENT_COLORS와 동기화)
 const ACCENT = {
@@ -93,7 +99,26 @@ export const getWidgetData = async () => {
   const subjArr = Array.isArray(subjects) ? subjects : [];
   const sessArr = Array.isArray(sessions) ? sessions : [];
   const todaySessions = sessArr.filter(s => s && s.date === today);
-  const totalSec = todaySessions.reduce((acc, s) => acc + (s.durationSec || 0), 0);
+  let totalSec = todaySessions.reduce((acc, s) => acc + (s.durationSec || 0), 0);
+
+  // 앱이 꺼진 채 완료된 카운트다운의 잠정 가산 — 세션 기록은 앱을 열어야 이뤄지므로(스냅샷 복원),
+  // 그 전 헤드리스 렌더에서는 완료분을 오늘 합계/계획 달성에 미리 반영한다.
+  // 조건은 복원 시 기록 규칙과 동일(5분 이상 or 계획 연결 30초 이상, date는 시작일 귀속).
+  // 앱 실행 중 완료되면 스냅샷이 즉시 삭제되므로(useAppState) 기록된 세션과 이중계상되지 않는다.
+  // 연속/뽀모는 죽은 스냅샷으로 완료분을 정확히 알 수 없어 제외 (앱 열 때 정산).
+  const snapTimers = Array.isArray(timerSnap?.timers) ? timerSnap.timers : [];
+  const pendingByPlan = {};
+  snapTimers.forEach(t => {
+    if (!t || t.status !== 'running' || t.type !== 'countdown' || !(t.totalSec > 0) || !t.startedAt) return;
+    const resumedAt = t.resumedAt || t.startedAt;
+    if (!resumedAt) return;
+    const sec = Math.round((Date.now() - resumedAt) / 1000) + (t.elapsedSecAtResume || 0);
+    if (sec < t.totalSec || sec > 24 * 3600) return; // 미완료/좀비 스냅샷 제외
+    if (!(t.totalSec >= 300 || (t.planId && t.totalSec >= 30))) return;
+    if (dateStr(new Date(t.startedAt)) !== today) return;
+    totalSec += t.totalSec;
+    if (t.planId) pendingByPlan[t.planId] = (pendingByPlan[t.planId] || 0) + t.totalSec;
+  });
 
   // 세션 → 과목 매칭: subjectId 우선, 없으면 라벨=과목명 폴백.
   // 연속모드 항목은 subjectId 없이 라벨만 있어서(예: '국어') 폴백 없이는 과목별 합산에서 빠진다.
@@ -177,6 +202,10 @@ export const getWidgetData = async () => {
     todaySessions.forEach(s => {
       if (s.planId) doneByPlan[s.planId] = (doneByPlan[s.planId] || 0) + (s.durationSec || 0);
     });
+    // 앱이 꺼진 채 완료된 카운트다운의 잠정 가산분 반영 (위 totalSec와 동일 근거)
+    Object.entries(pendingByPlan).forEach(([pid, sec]) => {
+      doneByPlan[pid] = (doneByPlan[pid] || 0) + sec;
+    });
     plans = rawPlans.slice(0, 6).map(p => {
       const targetSec = (p.targetMin || 0) * 60;
       const doneSec = doneByPlan[p.id] || 0;
@@ -195,7 +224,6 @@ export const getWidgetData = async () => {
 
   // 실행 중 타이머 (강제종료 대비 스냅샷 기반 — 앱이 꺼진 헤드리스 갱신에서도 '집중 중' 표시).
   // 앱에서 직접 호출할 땐 updateAllWidgets가 메모리 타이머로 이 값을 덮어쓴다(스냅샷은 5초 스로틀).
-  const snapTimers = Array.isArray(timerSnap?.timers) ? timerSnap.timers : [];
   const runInfo = activeRunningInfo(snapTimers.find(t => t && t.type !== 'lap' && t.status === 'running'));
   const runningSec = runInfo ? runInfo.sec : 0;
   const runningLabel = runInfo ? runInfo.label : '';
