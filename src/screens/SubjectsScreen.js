@@ -8,7 +8,7 @@ import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
 import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
-import { formatShort, formatTime, toDateStr } from '../utils/format';
+import { formatShort, formatTime, getWeekStartStr } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import { Ionicons } from '@expo/vector-icons';
@@ -184,14 +184,10 @@ export default function SubjectsScreen({ navigation }) {
   const toggleFavorite = (subj) => app.updateSubject(subj.id, { isFavorite: !subj.isFavorite });
 
   const weekSubjSec = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const mon = new Date(now);
-    mon.setDate(mon.getDate() - ((day + 6) % 7));
-    const monStr = toDateStr(mon); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀려 지난주 일요일이 섞임
+    const sunStr = getWeekStartStr(0); // 일요일 기준 — 플래너/위젯/통계와 통일 (로컬, UTC 밀림 없음)
     const map = {};
     (app.sessions || []).forEach(s => {
-      if (s.date >= monStr && s.subjectId) {
+      if (s.date >= sunStr && s.subjectId) {
         map[s.subjectId] = (map[s.subjectId] || 0) + (s.durationSec || 0);
       }
     });

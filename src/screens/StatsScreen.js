@@ -10,7 +10,7 @@ import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import { CHARACTERS } from '../constants/characters';
 import { getTier, TIERS } from '../constants/presets';
-import { formatDuration, formatShort, formatDDay, getToday, toDateStr } from '../utils/format';
+import { formatDuration, formatShort, formatDDay, getToday, getWeekStartStr } from '../utils/format';
 import RunningTimersBar from '../components/RunningTimersBar';
 import { calcAverageDensity, getDensityBreakdown } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -23,6 +23,7 @@ import {
   getSessionSubject, fmtDiff, getStreakTitle, stripLeadingEmoji,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
   analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
+  calcWeekPlanRate,
 } from './stats/helpers';
 import GoalRing from './stats/components/GoalRing';
 import SubjectDonut from './stats/components/SubjectDonut';
@@ -330,25 +331,10 @@ export default function StatsScreen() {
   const todayPlanRate = app.weeklySchedule?.enabled ? app.getTodayPlanRate?.() : null;
 
   // ─── 이번 주 플래너 달성률 ───────────────────────────────────
-  const weekPlanRate = useMemo(() => {
-    if (!app.weeklySchedule?.enabled) return null;
-    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    let totalTargetSec = 0;
-    let totalDoneSec = 0;
-    weekData.forEach(({ date }) => {
-      const d = new Date(date + 'T00:00:00');
-      const dayData = app.weeklySchedule[dayKeys[d.getDay()]];
-      if (!dayData?.plans?.length) return;
-      dayData.plans.forEach(plan => {
-        totalTargetSec += (plan.targetMin || 0) * 60;
-        totalDoneSec += app.sessions
-          .filter(s => s.date === date && s.planId === plan.id)
-          .reduce((sum, s) => sum + (s.durationSec || 0), 0);
-      });
-    });
-    if (totalTargetSec === 0) return null;
-    return Math.min(100, Math.round(totalDoneSec / totalTargetSec * 100));
-  }, [app.weeklySchedule, weekData, app.sessions]);
+  const weekPlanRate = useMemo(
+    () => calcWeekPlanRate(weekData.map(d => d.date), app.weeklySchedule, app.sessions),
+    [app.weeklySchedule, weekData, app.sessions]
+  );
 
   // ─── 주간 베스트 날 인덱스 ────────────────────────────────────
   const weekBestDayIdx = useMemo(() => {
@@ -362,10 +348,7 @@ export default function StatsScreen() {
     const now = new Date();
     let cutoff = null;
     if (subjPeriod === 'week') {
-      const day = now.getDay();
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      cutoff = toDateStr(monday); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀림
+      cutoff = getWeekStartStr(0); // 일요일 기준 — 플래너/위젯/잔디와 통일
     } else if (subjPeriod === 'month') {
       cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
@@ -396,10 +379,7 @@ export default function StatsScreen() {
     const now = new Date();
     let cutoff = null;
     if (subjPeriod === 'week') {
-      const day = now.getDay();
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      cutoff = toDateStr(monday); // 로컬 기준 — toISOString(UTC)은 KST 새벽에 하루 밀림
+      cutoff = getWeekStartStr(0); // 일요일 기준 — 플래너/위젯/잔디와 통일
     } else if (subjPeriod === 'month') {
       cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }

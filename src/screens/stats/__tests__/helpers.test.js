@@ -4,6 +4,7 @@ import {
   getSessionSubject, fmtDiff, getStreakTitle, BUILTIN_SUBJECTS,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
   analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
+  calcWeekPlanRate,
 } from '../helpers';
 import { getTier } from '../../../constants/presets';
 
@@ -246,5 +247,57 @@ describe('aggregateSubjectTotals — 과목 합계/비율', () => {
 
   test('빈 입력이면 빈 배열', () => {
     expect(aggregateSubjectTotals([], [])).toEqual([]);
+  });
+});
+
+describe('calcWeekPlanRate — 주간 플래너 달성률 onlyWeek/skipWeeks 필터', () => {
+  // 2026-07-08 = 수요일, 속한 주(일요일 시작) = 2026-07-05
+  const WED = '2026-07-08';
+  const WEEK = '2026-07-05';
+  const OTHER_WEEK = '2026-06-28';
+  const wed = (plans) => ({ enabled: true, wed: { plans } });
+
+  test('반복 계획: 목표/실행 정상 합산 (60분 목표, 30분 실행 → 50%)', () => {
+    const ws = wed([{ id: 'p1', targetMin: 60 }]);
+    const sessions = [{ date: WED, planId: 'p1', durationSec: 1800 }];
+    expect(calcWeekPlanRate([WED], ws, sessions)).toBe(50);
+  });
+
+  test('다른 주의 onlyWeek 계획은 분모에서 제외 (목표 0 → null)', () => {
+    const ws = wed([{ id: 'p1', targetMin: 60, onlyWeek: OTHER_WEEK }]);
+    expect(calcWeekPlanRate([WED], ws, [])).toBeNull();
+  });
+
+  test('해당 주의 onlyWeek 계획은 포함 (60분 목표, 60분 실행 → 100%)', () => {
+    const ws = wed([{ id: 'p1', targetMin: 60, onlyWeek: WEEK }]);
+    const sessions = [{ date: WED, planId: 'p1', durationSec: 3600 }];
+    expect(calcWeekPlanRate([WED], ws, sessions)).toBe(100);
+  });
+
+  test('이번 주 휴무(skipWeeks) 계획은 분모에서 제외 (목표 0 → null)', () => {
+    const ws = wed([{ id: 'p1', targetMin: 60, skipWeeks: [WEEK] }]);
+    const sessions = [{ date: WED, planId: 'p1', durationSec: 1800 }];
+    expect(calcWeekPlanRate([WED], ws, sessions)).toBeNull();
+  });
+
+  test('휴무 계획은 빼고 반복 계획만 집계 (제외되지 않았다면 25%였을 것 → 50%)', () => {
+    const ws = wed([
+      { id: 'p1', targetMin: 60 },                        // 반복: 30분 실행
+      { id: 'p2', targetMin: 60, skipWeeks: [WEEK] },     // 이번 주 휴무: 목표에서 빠져야 함
+    ]);
+    const sessions = [{ date: WED, planId: 'p1', durationSec: 1800 }];
+    // p2가 제외되면 목표 3600 / 실행 1800 = 50%. (버그 시 목표 7200 → 25%)
+    expect(calcWeekPlanRate([WED], ws, sessions)).toBe(50);
+  });
+
+  test('달성률은 100 상한으로 클램프', () => {
+    const ws = wed([{ id: 'p1', targetMin: 30 }]);
+    const sessions = [{ date: WED, planId: 'p1', durationSec: 9999 }];
+    expect(calcWeekPlanRate([WED], ws, sessions)).toBe(100);
+  });
+
+  test('플래너 비활성/미사용이면 null', () => {
+    expect(calcWeekPlanRate([WED], { enabled: false, wed: { plans: [{ id: 'p1', targetMin: 60 }] } }, [])).toBeNull();
+    expect(calcWeekPlanRate([WED], null, [])).toBeNull();
   });
 });

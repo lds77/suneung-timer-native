@@ -2,10 +2,37 @@
 import { getTier } from '../../constants/presets';
 import { formatDuration, formatShort } from '../../utils/format';
 import { calcAverageDensity } from '../../utils/density';
+import { DAY_KEYS, weekStartOf, isPlanInWeek } from '../planner/helpers';
 
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 export const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+
+// 주간 플래너 달성률(%) — weekDates('YYYY-MM-DD'[])의 각 날짜를 그 날이 속한 일요일-주 기준으로
+// onlyWeek/skipWeeks 필터해 목표/실행을 합산. getTodayPlanRate·위젯 planPct와 규칙 통일.
+// (버그: 과거 StatsScreen 인라인 계산은 필터가 없어 '이번 주만' 타 주 계획·'휴무' 계획이
+//  분모에 잡혀 달성률이 부당하게 낮게 나왔음.) 목표 총합 0이면 null.
+export function calcWeekPlanRate(weekDates, weeklySchedule, sessions) {
+  if (!weeklySchedule || !weeklySchedule.enabled) return null;
+  let totalTargetSec = 0;
+  let totalDoneSec = 0;
+  (weekDates || []).forEach(date => {
+    const d = new Date(date + 'T00:00:00');
+    if (isNaN(d.getTime())) return;
+    const dayData = weeklySchedule[DAY_KEYS[d.getDay()]];
+    if (!dayData || !dayData.plans || !dayData.plans.length) return;
+    const ws = weekStartOf(date);
+    dayData.plans.forEach(plan => {
+      if (!isPlanInWeek(plan, ws)) return;
+      totalTargetSec += (plan.targetMin || 0) * 60;
+      totalDoneSec += (sessions || [])
+        .filter(s => s.date === date && s.planId === plan.id)
+        .reduce((sum, s) => sum + (s.durationSec || 0), 0);
+    });
+  });
+  if (totalTargetSec === 0) return null;
+  return Math.min(100, Math.round((totalDoneSec / totalTargetSec) * 100));
+}
 
 // ─── 잔디(히트맵) 계산 — StatsScreen에서 코드 무변경 이동 (순수 함수, 테스트 대상) ───
 
