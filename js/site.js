@@ -2,6 +2,19 @@
 (function () {
   'use strict';
 
+  // 모바일 네비 햄버거 토글
+  var navToggle = document.querySelector('.nav-toggle');
+  var navLinks = document.querySelector('.nav-links');
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', function () {
+      var open = navLinks.classList.toggle('open');
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    navLinks.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () { navLinks.classList.remove('open'); });
+    });
+  }
+
   // 플랫폼 토글 (iOS / Android 스크린샷·기능 전환)
   document.querySelectorAll('[data-ptoggle]').forEach(function (group) {
     var buttons = group.querySelectorAll('button[data-plat]');
