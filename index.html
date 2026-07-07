@@ -3,24 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>열공메이트 - 공부타이머 & 수능플래너</title>
-  <meta name="description" content="집중밀도 점수로 오늘 공부가 진짜였는지 확인하세요. 공부타이머·포모도로·수능D-day·집중잠금·잔디통계 올인원 학습앱">
+  <title>열공메이트 - 공부타이머앱 & 공부플래너 (집중밀도 점수)</title>
+  <meta name="description" content="공부타이머앱 열공메이트 — 시간만 재지 않고 집중밀도 점수로 얼마나 몰입했는지까지 분석하는 공부타이머·공부플래너 올인원. 포모도로·집중잠금·수능 D-day 위젯·잔디 통계까지 광고 없이 무료. iOS·Android 지원.">
+  <meta name="keywords" content="공부타이머, 공부타이머앱, 공부플래너, 집중타이머, 포모도로, 수능플래너, 공부기록앱, 공부잔디, D-day 위젯, 순공시간">
 
-  <!-- Open Graph -->
+  <link rel="canonical" href="https://lds77.github.io/suneung-timer-native/">
+  <link rel="stylesheet" href="css/site.css">
+
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://lds77.github.io/suneung-timer-native/">
-  <meta property="og:title" content="열공메이트 - 공부타이머 & 수능플래너">
-  <meta property="og:description" content="집중밀도 점수로 오늘 공부가 진짜였는지 확인하세요. 광고 없이 완전 무료!">
+  <meta property="og:title" content="열공메이트 - 공부타이머앱 & 공부플래너">
+  <meta property="og:description" content="집중밀도 점수로 오늘 공부가 진짜였는지 확인하는 공부타이머·공부플래너. 광고 없이 무료.">
   <meta property="og:image" content="https://lds77.github.io/suneung-timer-native/screenshots/store-icon-512.png">
   <meta property="og:locale" content="ko_KR">
 
-  <!-- 구조화 데이터: 구글 검색 리치 결과용 -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "열공메이트",
-    "description": "집중밀도 점수로 오늘 공부가 진짜였는지 확인하는 공부타이머·수능플래너. 위젯, 집중 잠금, 잔디 통계까지 광고 없이 무료.",
+    "alternateName": "공부타이머 열공메이트",
+    "description": "집중밀도 점수로 몰입의 질까지 분석하는 공부타이머앱·공부플래너. 포모도로, 집중 잠금, D-day 위젯, 잔디 통계를 광고 없이 무료로 제공. iOS·Android 지원.",
     "operatingSystem": "iOS, Android",
     "applicationCategory": "EducationalApplication",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "KRW" },
@@ -29,550 +32,252 @@
     "installUrl": "https://apps.apple.com/app/id6759892516"
   }
   </script>
-
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-      background: #0f0f1a;
-      color: #fff;
-      line-height: 1.6;
-    }
-
-    /* Hero */
-    .hero {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #4a0e7a 0%, #1a1a4e 50%, #0a2a5e 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 60px 24px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      width: 600px; height: 600px;
-      background: radial-gradient(circle, rgba(140,60,255,0.15) 0%, transparent 70%);
-      top: -100px; left: -100px;
-    }
-
-    .hero::after {
-      content: '';
-      position: absolute;
-      width: 400px; height: 400px;
-      background: radial-gradient(circle, rgba(60,120,255,0.12) 0%, transparent 70%);
-      bottom: -50px; right: -50px;
-    }
-
-    .app-icon {
-      width: 120px; height: 120px;
-      border-radius: 26px;
-      margin: 0 auto 28px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(124,58,237,0.4);
-      position: relative;
-      z-index: 1;
-    }
-
-    .app-icon img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .hero h1 {
-      font-size: clamp(2.2rem, 6vw, 3.6rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero .tagline {
-      font-size: clamp(1rem, 3vw, 1.3rem);
-      color: rgba(255,255,255,0.75);
-      max-width: 480px;
-      margin: 0 auto 48px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .badge {
-      display: inline-block;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: rgba(255,255,255,0.9);
-      font-size: 0.85rem;
-      padding: 6px 16px;
-      border-radius: 100px;
-      margin-bottom: 24px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .store-buttons {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-      position: relative;
-      z-index: 1;
-    }
-
-    .store-btn {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: #fff;
-      color: #111;
-      text-decoration: none;
-      padding: 14px 28px;
-      border-radius: 14px;
-      font-weight: 700;
-      font-size: 1rem;
-      transition: transform 0.2s, box-shadow 0.2s;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-    }
-
-    .store-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-    }
-
-    .store-btn.dark {
-      background: #1a1a2e;
-      color: #fff;
-      border: 1px solid rgba(255,255,255,0.15);
-    }
-
-    .store-btn svg { width: 28px; height: 28px; flex-shrink: 0; }
-
-    .store-btn-text { text-align: left; }
-    .store-btn-sub { font-size: 0.72rem; font-weight: 400; opacity: 0.7; display: block; }
-    .store-btn-name { font-size: 1rem; font-weight: 700; display: block; line-height: 1.2; }
-
-    /* Features */
-    .section {
-      padding: 80px 24px;
-      max-width: 960px;
-      margin: 0 auto;
-    }
-
-    .section-label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: #a78bfa;
-      margin-bottom: 12px;
-    }
-
-    .section h2 {
-      font-size: clamp(1.8rem, 5vw, 2.8rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 60px;
-      color: #fff;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-    }
-
-    .feature-card {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      padding: 28px;
-      transition: background 0.2s, transform 0.2s;
-    }
-
-    .feature-card:hover {
-      background: rgba(255,255,255,0.08);
-      transform: translateY(-4px);
-    }
-
-    .feature-icon {
-      font-size: 2.2rem;
-      margin-bottom: 16px;
-    }
-
-    .feature-card h3 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-
-    .feature-card p {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.6);
-      line-height: 1.6;
-    }
-
-    /* Stats */
-    .stats-section {
-      background: linear-gradient(135deg, #1e0a3c, #0a1a3c);
-      padding: 80px 24px;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 32px;
-      max-width: 800px;
-      margin: 0 auto;
-      text-align: center;
-    }
-
-    .stat-item .number {
-      font-size: 2.8rem;
-      font-weight: 900;
-      background: linear-gradient(135deg, #a78bfa, #60a5fa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      line-height: 1;
-      margin-bottom: 8px;
-    }
-
-    .stat-item .label {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.6);
-    }
-
-    /* Gallery */
-    .gallery-section { padding: 80px 0 60px; overflow: hidden; }
-    .gallery-head { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-    .gallery-scroll {
-      display: flex;
-      gap: 16px;
-      overflow-x: auto;
-      padding: 32px 24px 24px;
-      scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch;
-    }
-    .gallery-scroll img {
-      height: 540px;
-      border-radius: 22px;
-      scroll-snap-align: center;
-      flex-shrink: 0;
-      box-shadow: 0 16px 50px rgba(0,0,0,0.45);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    .gallery-scroll::-webkit-scrollbar { height: 8px; }
-    .gallery-scroll::-webkit-scrollbar-track { background: transparent; }
-    .gallery-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
-    .gallery-hint { text-align: center; font-size: 0.85rem; color: rgba(255,255,255,0.4); margin-top: 8px; }
-
-    /* Who */
-    .who-list {
-      list-style: none;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-    }
-
-    .who-list li {
-      background: rgba(167,139,250,0.1);
-      border: 1px solid rgba(167,139,250,0.2);
-      border-radius: 14px;
-      padding: 20px 24px;
-      font-size: 0.95rem;
-      color: rgba(255,255,255,0.85);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .who-list li::before {
-      content: '✓';
-      color: #a78bfa;
-      font-weight: 800;
-      font-size: 1.1rem;
-      flex-shrink: 0;
-    }
-
-    /* Support */
-    .support-section {
-      background: rgba(255,255,255,0.03);
-      border-top: 1px solid rgba(255,255,255,0.07);
-      padding: 80px 24px;
-      text-align: center;
-    }
-
-    .support-section h2 {
-      font-size: 2rem;
-      font-weight: 800;
-      margin-bottom: 16px;
-    }
-
-    .support-section p {
-      color: rgba(255,255,255,0.6);
-      margin-bottom: 36px;
-      font-size: 1rem;
-    }
-
-    .contact-box {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 18px 32px;
-      font-size: 1rem;
-      color: #fff;
-      text-decoration: none;
-      transition: background 0.2s;
-    }
-
-    .contact-box:hover { background: rgba(255,255,255,0.1); }
-
-    .faq { max-width: 640px; margin: 60px auto 0; text-align: left; }
-
-    .faq-item {
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      padding: 24px 0;
-    }
-
-    .faq-item h4 {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: #e2e8f0;
-    }
-
-    .faq-item p {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.55);
-      line-height: 1.7;
-      margin: 0;
-    }
-
-    /* Footer */
-    footer {
-      padding: 40px 24px;
-      text-align: center;
-      border-top: 1px solid rgba(255,255,255,0.07);
-      color: rgba(255,255,255,0.3);
-      font-size: 0.85rem;
-    }
-
-    footer a { color: rgba(255,255,255,0.4); text-decoration: none; }
-    footer a:hover { color: rgba(255,255,255,0.7); }
-
-    /* Divider */
-    .divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-      margin: 0 24px;
-    }
-  </style>
 </head>
 <body>
 
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="index.html">
+      <img src="screenshots/store-icon-512.png" alt="열공메이트">
+      <span class="brand-full">열공메이트</span>
+    </a>
+    <div class="nav-links">
+      <a href="features/focus.html">집중·타이머</a>
+      <a href="features/planner.html">플래너·과목</a>
+      <a href="features/stats.html">통계·위젯</a>
+      <a href="guide.html">활용법·설정</a>
+      <a href="#download" class="nav-cta">다운로드</a>
+    </div>
+  </div>
+</nav>
+
 <!-- Hero -->
-<section class="hero">
-  <div class="app-icon"><img src="screenshots/store-icon-512.png" alt="열공메이트"></div>
-  <div class="badge">광고 없음 · 현재 무료</div>
-  <h1>열공메이트</h1>
-  <p class="tagline">단순히 시간을 재는 타이머는 그만.<br>얼마나 집중했는지를 점수로 확인하세요.</p>
-  <div class="store-buttons">
-    <a href="https://apps.apple.com/app/id6759892516" class="store-btn" target="_blank">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-      </svg>
-      <div class="store-btn-text">
-        <span class="store-btn-sub">Download on the</span>
-        <span class="store-btn-name">App Store</span>
-      </div>
-    </a>
-    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" class="store-btn dark" target="_blank">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M3.18 23.76c.3.17.64.24.99.2l12.69-12.7-3.54-3.54L3.18 23.76zm16.4-12.25l-2.43-1.4-3.89 3.89 3.89 3.89 2.46-1.42c.7-.4.7-1.55-.03-1.96zM.75 1.05C.45 1.38.3 1.84.3 2.41v19.18c0 .57.16 1.03.46 1.36l.07.07 10.75-10.75v-.26L.82.98.75 1.05zm11.49 11.56l3.56-3.56-12.7-7.33 9.14 10.89z"/>
-      </svg>
-      <div class="store-btn-text">
-        <span class="store-btn-sub">GET IT ON</span>
-        <span class="store-btn-name">Google Play</span>
-      </div>
-    </a>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="app-icon"><img src="screenshots/store-icon-512.png" alt="열공메이트 앱 아이콘"></div>
+    <div class="badge">광고 없음 · 현재 무료 · iOS · Android</div>
+    <h1>공부한 시간이 아니라<br>집중한 정도를 재는 공부타이머</h1>
+    <p class="tagline">열공메이트는 시간만 세는 타이머가 아닙니다.<br>집중밀도 점수로 오늘 공부가 진짜였는지 알려주는 공부타이머·공부플래너 앱이에요.</p>
+    <div class="store-buttons">
+      <a href="https://apps.apple.com/app/id6759892516" class="store-btn" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        <div class="store-btn-text"><span class="store-btn-sub">Download on the</span><span class="store-btn-name">App Store</span></div>
+      </a>
+      <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" class="store-btn dark" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.3.17.64.24.99.2l12.69-12.7-3.54-3.54L3.18 23.76zm16.4-12.25l-2.43-1.4-3.89 3.89 3.89 3.89 2.46-1.42c.7-.4.7-1.55-.03-1.96zM.75 1.05C.45 1.38.3 1.84.3 2.41v19.18c0 .57.16 1.03.46 1.36l.07.07 10.75-10.75v-.26L.82.98.75 1.05zm11.49 11.56l3.56-3.56-12.7-7.33 9.14 10.89z"/></svg>
+        <div class="store-btn-text"><span class="store-btn-sub">GET IT ON</span><span class="store-btn-name">Google Play</span></div>
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- 핵심 차별점 -->
+<section class="section">
+  <p class="eyebrow">왜 열공메이트인가</p>
+  <h2>다른 공부타이머와<br>무엇이 다를까요?</h2>
+  <div class="grid grid-3">
+    <div class="card reveal">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></span>
+      <h3>집중밀도 점수</h3>
+      <p>일시정지·이탈·완료율을 반영해 세션마다 집중도를 점수로 매깁니다. "몇 시간"이 아니라 "얼마나 몰입했는지"를 보여주는, 다른 타이머엔 없는 기능이에요.</p>
+    </div>
+    <div class="card reveal">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+      <h3>딴짓 차단 잠금</h3>
+      <p>공부 중 화면을 덮는 집중 잠금, 앱을 벗어나면 재촉하는 이탈 알림. iOS는 방해 앱 차단, Android는 화면 고정까지. 폰 잡는 습관을 끊어줍니다.</p>
+    </div>
+    <div class="card reveal">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg></span>
+      <h3>타이머 + 플래너 일체형</h3>
+      <p>세운 계획과 실제 공부량이 자동으로 연결됩니다. 오늘·이번 주 계획 대비 달성률을 따로 적을 필요 없이 바로 확인하세요.</p>
+    </div>
   </div>
 </section>
 
-<div class="divider"></div>
-
-<!-- Stats -->
-<section class="stats-section">
+<!-- Stats band -->
+<section class="band"><div class="section" style="padding-top:64px;padding-bottom:64px;">
   <div class="stats-grid">
-    <div class="stat-item">
-      <div class="number">5가지</div>
-      <div class="label">타이머 모드</div>
-    </div>
-    <div class="stat-item">
-      <div class="number">4종</div>
-      <div class="label">홈·잠금화면 위젯</div>
-    </div>
-    <div class="stat-item">
-      <div class="number">SS~C</div>
-      <div class="label">집중밀도 티어</div>
-    </div>
-    <div class="stat-item">
-      <div class="number">무료</div>
-      <div class="label">광고 없음</div>
-    </div>
+    <div class="stat reveal"><div class="num">5가지</div><div class="lbl">타이머 모드</div></div>
+    <div class="stat reveal"><div class="num">4종</div><div class="lbl">홈·잠금화면 위젯</div></div>
+    <div class="stat reveal"><div class="num">SS~C</div><div class="lbl">집중밀도 티어</div></div>
+    <div class="stat reveal"><div class="num">무료</div><div class="lbl">광고 없음</div></div>
+  </div>
+</div></section>
+
+<!-- 5개 탭 개요 -->
+<section class="section">
+  <p class="eyebrow">앱 둘러보기</p>
+  <h2>5개 탭으로 보는 열공메이트</h2>
+  <p class="lead">하단 탭 5개가 공부의 전 과정을 담습니다. 각 탭을 눌러 자세히 확인하세요.</p>
+  <div class="grid grid-3">
+    <a class="card reveal" href="features/focus.html" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9.5"/><path d="M9 2h6M18.5 5.5l1.2 1.2"/></svg></span>
+      <h3>집중 <span class="tag both">타이머</span></h3>
+      <p>5가지 타이머와 집중 잠금, 집중밀도 결과까지. 공부의 중심 화면.</p>
+      <span class="card-more textlink">집중·타이머 자세히 →</span>
+    </a>
+    <a class="card reveal" href="features/planner.html#subjects" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v15H7.5A2.5 2.5 0 0 0 5 19.5z"/><path d="M5 19.5A2.5 2.5 0 0 1 7.5 17H20v5H7.5A2.5 2.5 0 0 1 5 19.5z"/></svg></span>
+      <h3>과목</h3>
+      <p>과목별 공부 시간 자동 누적, 학년별 검증된 학습법 프리셋.</p>
+      <span class="card-more textlink">과목·학습법 자세히 →</span>
+    </a>
+    <a class="card reveal" href="features/planner.html" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4M8 13h3M8 17h6"/></svg></span>
+      <h3>플래너</h3>
+      <p>주간 시간표에 계획을 배치하고 실행량·달성률을 자동 비교. 시험 D-Day 관리.</p>
+      <span class="card-more textlink">플래너·D-Day 자세히 →</span>
+    </a>
+    <a class="card reveal" href="features/stats.html" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><rect x="6" y="11" width="3" height="7" rx="1"/><rect x="11" y="6" width="3" height="12" rx="1"/><rect x="16" y="13" width="3" height="5" rx="1"/></svg></span>
+      <h3>통계</h3>
+      <p>일간·주간·월간·잔디로 공부 패턴 분석. 주간 리포트 자동 정리.</p>
+      <span class="card-more textlink">통계·잔디 자세히 →</span>
+    </a>
+    <a class="card reveal" href="features/stats.html#widgets" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
+      <h3>위젯</h3>
+      <p>오늘 공부·D-Day·과목 바로 시작·오늘 계획 4종. 홈·잠금화면에서 바로.</p>
+      <span class="card-more textlink">위젯 자세히 →</span>
+    </a>
+    <a class="card reveal" href="guide.html#settings" style="text-decoration:none;">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg></span>
+      <h3>설정 & 그 외</h3>
+      <p>학년·목표 맞춤, 알림·리포트, 테마·글꼴, 홈 위젯, 데이터 백업.</p>
+      <span class="card-more textlink">설정 자세히 →</span>
+    </a>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<!-- Gallery -->
-<section class="gallery-section">
-  <div class="gallery-head">
-    <p class="section-label">Screenshots</p>
-    <h2 style="margin-bottom:0">화면으로 미리 보기</h2>
+<!-- 집중밀도 explainer -->
+<section class="section section-narrow" style="text-align:center;">
+  <p class="eyebrow">Focus Density</p>
+  <h2>오늘 공부, 진짜였나요?</h2>
+  <p class="lead" style="margin-left:auto;margin-right:auto;">타이머를 멈추면 이번 공부의 <strong>집중밀도 점수</strong>가 나옵니다. 일시정지 횟수, 앱 이탈, 완료율, 집중 모드 등을 종합해 매기고, 등급으로 한눈에 보여줘요. 낙제 등급이 없어 계속하고 싶게 설계했습니다.</p>
+  <div class="tiers">
+    <span class="tier" style="color:#ffd54a;border-color:rgba(255,213,74,.4)">SS<small>전설</small></span>
+    <span class="tier" style="color:#a78bfa">S+<small>최상</small></span>
+    <span class="tier" style="color:#8b9dff">S<small>상</small></span>
+    <span class="tier" style="color:#60a5fa">A<small>양호</small></span>
+    <span class="tier" style="color:#5ec8c8">B<small>보통</small></span>
+    <span class="tier" style="color:#7c8aa0">C<small>기본</small></span>
   </div>
+  <p style="margin-top:20px;color:var(--muted-2);font-size:.85rem;">※ 집중밀도는 정해진 점수 공식으로 계산됩니다 (AI 아님).</p>
+</section>
+
+<div class="divider"></div>
+
+<!-- 화면 미리보기 -->
+<section class="section" style="padding-bottom:32px;">
+  <p class="eyebrow">Screenshots</p>
+  <h2>화면으로 미리 보기</h2>
+  <p class="lead">앱 안의 화면은 iOS·Android가 동일합니다. 홈·잠금화면 위젯만 플랫폼별로 나뉘어요.</p>
+</section>
+<div class="gallery">
   <div class="gallery-scroll">
-    <img src="screenshots/ios_lockscreen.jpg" alt="iOS 잠금화면 위젯 — 공부 시간 실시간 카운팅과 수능 D-Day" loading="lazy">
-    <img src="screenshots/ios_widgets_home.jpg" alt="iOS 홈 화면 위젯 4종 — 실시간 오늘 공부·D-Day·오늘 계획·과목 바로 시작" loading="lazy">
-    <img src="screenshots/widget_home.png?v=2" alt="안드로이드 홈 화면 위젯 — 오늘 공부·D-Day·과목 바로 시작" loading="lazy">
-    <img src="screenshots/store_08.png" alt="오늘의 계획과 할 일을 한 화면에" loading="lazy">
-    <img src="screenshots/store_07.png" alt="원형 타이머와 집중 사운드 10종" loading="lazy">
-    <img src="screenshots/store_01.png" alt="집중 잠금과 이탈 챌린지 모드" loading="lazy">
-    <img src="screenshots/store_03.png" alt="월간 통계와 집중밀도 점수" loading="lazy">
-    <img src="screenshots/store_planner.png" alt="주간 플래너 계획 대 실행 비교" loading="lazy">
-    <img src="screenshots/store_06.png" alt="시험 D-Day 자동 카운트" loading="lazy">
-    <img src="screenshots/store_05.png" alt="실제 수능 시간표 연속 모드" loading="lazy">
-    <img src="screenshots/store_04.png" alt="과학적으로 검증된 학습법" loading="lazy">
-    <img src="screenshots/store_02.png" alt="타이머·플래너·통계 올인원" loading="lazy">
+    <img src="screenshots/cap-focus-timer.png" alt="원형 공부타이머 실행 화면" loading="lazy">
+    <img src="screenshots/cap-sequence-run.png" alt="연속 모드 — 여러 과목 자동 이어달리기" loading="lazy">
+    <img src="screenshots/cap-density-result.jpg" alt="공부 완료 후 집중밀도 점수 결과" loading="lazy">
+    <img src="screenshots/cap-focus-lock.png" alt="집중 잠금 오버레이로 딴짓 차단" loading="lazy">
+    <img src="screenshots/cap-planner-week.png" alt="주간 공부플래너 시간표 그리드" loading="lazy">
+    <img src="screenshots/cap-dday.png" alt="시험 D-Day 준비 할 일과 진행률" loading="lazy">
+    <img src="screenshots/cap-methods.png" alt="학년별 검증된 학습법 프리셋" loading="lazy">
+    <img src="screenshots/stat-daily.png" alt="일간 통계 — 목표 달성률과 집중밀도, 공부 타임라인" loading="lazy">
+    <img src="screenshots/stat-grass.jpg" alt="공부 잔디 — 최근 4개월 히트맵과 연속 공부일" loading="lazy">
   </div>
-  <p class="gallery-hint">← 옆으로 밀어서 더 보기 →</p>
-</section>
+  <p class="hint">← 옆으로 밀어서 더 보기 →</p>
+</div>
 
-<div class="divider"></div>
-
-<!-- Features -->
-<section class="section">
-  <p class="section-label">Features</p>
-  <h2>진짜 집중을 돕는<br>모든 기능</h2>
-  <div class="features-grid">
-    <div class="feature-card">
-      <h3>집중밀도 & 티어</h3>
-      <p>공부 후 집중도 점수(56~103점)와 SS~C 티어를 자동 분석. 오늘 공부가 진짜였는지 숫자로 확인하세요.</p>
+<!-- 위젯 플랫폼 토글 -->
+<section class="section" style="text-align:center;">
+  <p class="eyebrow">Widgets</p>
+  <h2>홈·잠금화면 위젯</h2>
+  <p class="lead" style="margin:0 auto 28px;">앱을 열지 않아도 오늘 공부·D-Day·오늘 계획을 확인하고, 위젯에서 바로 타이머를 시작하세요.</p>
+  <div data-ptoggle="#widget-panels" class="ptoggle">
+    <button data-plat="ios" class="on">iOS</button>
+    <button data-plat="aos">Android</button>
+  </div>
+  <div id="widget-panels">
+    <div data-panel="ios" class="ppanel">
+      <div class="gallery-scroll" style="justify-content:center;scroll-snap-type:none;">
+        <img src="screenshots/ios_widgets_home.jpg" alt="iOS 홈 화면 위젯 4종 — 오늘 공부·D-Day·오늘 계획·과목 바로 시작" loading="lazy">
+        <img src="screenshots/ios_lockscreen.jpg" alt="iOS 잠금화면 위젯과 Live Activity — 실행 중 공부 시간 실시간 카운팅" loading="lazy">
+      </div>
+      <p class="hint">iOS는 잠금화면 위젯 · 실시간 카운팅 · Live Activity(Dynamic Island)까지 지원</p>
     </div>
-    <div class="feature-card">
-      <h3>홈 화면·잠금화면 위젯</h3>
-      <p>오늘 공부 · D-Day · 과목 바로 시작 · 오늘 계획 위젯 4종. 공부 중엔 위젯 시간이 실시간으로 올라가고, iOS 잠금화면에서도 확인할 수 있어요.</p>
-    </div>
-    <div class="feature-card">
-      <h3>5가지 타이머</h3>
-      <p>카운트다운 · 포모도로 · 연속모드 · 랩 스탑워치 · 자유기록. 과목별로 이어서 자동 실행하는 연속모드도 지원합니다.</p>
-    </div>
-    <div class="feature-card">
-      <h3>집중 잠금 & 앱 차단</h3>
-      <p>공부 중 이탈하면 챌린지 문구를 직접 입력해야만 해제됩니다. iOS는 앱 차단으로 집중 중 SNS·게임 실행까지 막고, Android는 화면 고정으로 딴짓을 차단해요.</p>
-    </div>
-    <div class="feature-card">
-      <h3>잔디 기록</h3>
-      <p>공부한 날이 격자에 색으로 쌓입니다. 일반·집중·Verified 색상으로 꾸준함을 한눈에 볼 수 있어요.</p>
-    </div>
-    <div class="feature-card">
-      <h3>플래너 & D-Day</h3>
-      <p>하루·한 주 공부 계획을 세우고 달성률을 확인. 수능·기말고사 D-day를 매일 자동으로 카운트합니다.</p>
-    </div>
-    <div class="feature-card">
-      <h3>과학적 학습법</h3>
-      <p>포모도로 · 52-17 법칙 · 인터리빙 등 연구로 검증된 학습법을 탭 한 번으로 시작할 수 있습니다.</p>
-    </div>
-    <div class="feature-card">
-      <h3>통계 & 리포트</h3>
-      <p>일간·주간·월간 통계로 공부 패턴을 파악하고, 주간 리포트를 이미지로 캡처해서 공유할 수 있어요.</p>
-    </div>
-    <div class="feature-card">
-      <h3>공부 캐릭터</h3>
-      <p>토루·팽이·타코·토토루 중 하나를 골라 함께 공부. 완벽한 집중엔 Verified 뱃지가 주어집니다.</p>
+    <div data-panel="aos" class="ppanel" hidden>
+      <div class="gallery-scroll" style="justify-content:center;scroll-snap-type:none;">
+        <img src="screenshots/widget_home.png?v=2" alt="안드로이드 홈 화면 위젯 — 오늘 공부·D-Day·과목 바로 시작·오늘 계획" loading="lazy">
+      </div>
+      <p class="hint">Android는 홈 화면 위젯 4종 · 공부 중 실시간 '집중 중' 표시</p>
     </div>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<!-- Who -->
+<!-- 추천 대상 -->
 <section class="section">
-  <p class="section-label">Recommended</p>
-  <h2>이런 분께<br>추천해요</h2>
+  <p class="eyebrow">Recommended</p>
+  <h2>이런 분께 추천해요</h2>
+  <p class="lead">초등학생부터 공시생까지, 학년·목표에 맞춰 기준이 자동으로 조정됩니다.</p>
   <ul class="who-list">
-    <li>수능·모의고사 준비하는 고등학생·N수생</li>
+    <li>공부 습관을 만들고 싶은 초등·중학생</li>
+    <li>내신·모의고사를 챙기는 고등학생</li>
+    <li>수능·재수를 준비하는 N수생</li>
     <li>학점 관리가 필요한 대학생</li>
-    <li>공무원·자격증 준비 중인 공시생</li>
-    <li>꾸준한 공부 습관을 만들고 싶은 중학생</li>
-    <li>집중이 안 돼서 실속 없다고 느끼는 학생</li>
-    <li>무료로 광고 없이 깔끔한 타이머를 원하는 분</li>
+    <li>자격증·어학·공무원시험 수험생</li>
+    <li>집중이 안 돼 실속 없다고 느끼는 분</li>
   </ul>
 </section>
 
 <div class="divider"></div>
 
-<!-- Support -->
-<section class="support-section" id="support">
-  <h2>문의 & 지원</h2>
-  <p>버그 신고, 기능 제안, 사용 문의는 이메일로 보내주세요.<br>최대한 빠르게 답변드릴게요.</p>
-  <a href="mailto:dongsikl51@gmail.com" class="contact-box">
-    dongsikl51@gmail.com
-  </a>
-
-  <p style="margin-top: 48px; margin-bottom: 20px; color: rgba(255,255,255,0.6);">
-    열공메이트가 공부에 도움이 됐다면 리뷰를 남겨주세요.<br>작은 리뷰 하나가 앱을 계속 무료로 만드는 큰 힘이 됩니다.
-  </p>
-  <div class="store-buttons" style="justify-content: center;">
-    <a href="https://apps.apple.com/app/id6759892516?action=write-review" class="contact-box" target="_blank">App Store 리뷰 쓰기</a>
-    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" class="contact-box" target="_blank">Google Play 리뷰 쓰기</a>
-  </div>
-
+<!-- FAQ -->
+<section class="section section-narrow">
+  <p class="eyebrow">FAQ</p>
+  <h2>자주 묻는 질문</h2>
   <div class="faq">
-    <div class="faq-item">
-      <h4>앱이 무료인가요?</h4>
-      <p>현재 모든 기능이 무료이며 광고가 없습니다.</p>
-    </div>
-    <div class="faq-item">
-      <h4>iOS와 Android 모두 지원하나요?</h4>
-      <p>네, App Store와 Google Play 모두 출시되어 있습니다. 위의 다운로드 버튼을 눌러 설치하세요.</p>
-    </div>
-    <div class="faq-item">
-      <h4>집중밀도 점수는 어떻게 계산되나요?</h4>
-      <p>타이머 완주 여부, 일시정지 횟수, 이탈 횟수를 종합해 56~103점으로 계산됩니다. SS(전설)~C 티어로 등급을 확인할 수 있어요.</p>
-    </div>
-    <div class="faq-item">
-      <h4>공부 중에 다른 앱을 진짜 못 쓰게 막을 수 있나요?</h4>
-      <p>iOS는 앱 차단(스크린 타임)으로 울트라집중 중 선택한 앱 실행을 차단합니다. Android는 시험 강도에서 화면 고정으로 홈·뒤로가기 이탈을 막아줍니다.</p>
-    </div>
-    <div class="faq-item">
-      <h4>데이터를 백업하거나 복구할 수 있나요?</h4>
-      <p>앱 내 설정 탭에서 데이터를 백업하고 복구할 수 있습니다. 기기를 교체하거나 앱을 재설치하기 전에 미리 백업해 두시길 권장합니다.</p>
-    </div>
+    <div class="faq-item"><h4>어떤 공부타이머앱인가요?</h4><p>열공메이트는 공부 시간을 재는 것을 넘어, 집중밀도 점수로 몰입의 질까지 분석하는 공부타이머·공부플래너 올인원 앱입니다. 포모도로, 집중 잠금, 수능·시험 D-day 위젯, 잔디 통계를 한 앱에서 제공합니다.</p></div>
+    <div class="faq-item"><h4>정말 무료인가요?</h4><p>네. 현재 모든 기능이 무료이며 광고가 없습니다. 인앱결제도 없습니다.</p></div>
+    <div class="faq-item"><h4>iOS와 Android 모두 되나요?</h4><p>네, App Store와 Google Play 모두 출시되어 있습니다. 앱 안의 화면은 두 플랫폼이 동일하고, 홈·잠금화면 위젯만 플랫폼별로 구성이 조금 다릅니다.</p></div>
+    <div class="faq-item"><h4>집중밀도 점수는 어떻게 계산되나요?</h4><p>타이머 완주 여부, 일시정지 횟수, 앱 이탈 횟수, 집중 모드, 자가평가 등을 종합해 점수로 계산하고 SS(전설)~C 티어로 보여줍니다. 정해진 공식으로 계산되며 AI가 아닙니다.</p></div>
+    <div class="faq-item"><h4>공부 중에 다른 앱을 못 쓰게 막을 수 있나요?</h4><p>iOS는 스크린 타임 연동 앱 차단으로 집중 중 선택한 방해 앱 실행을 막고, Android는 울트라집중에서 화면 고정으로 앱 전환 자체를 차단합니다. 잠금 강도(일반·집중·울트라집중)의 차이와 상황별 추천은 <a class="textlink" href="guide.html#lock">활용법 페이지</a>에서 확인하세요.</p></div>
+    <div class="faq-item"><h4>데이터를 백업할 수 있나요?</h4><p>설정 탭에서 데이터를 JSON으로 내보내고 가져올 수 있습니다. 기기 교체나 재설치 전에 백업을 권장합니다.</p></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta" id="download">
+  <h2>지금 무료로 시작하세요</h2>
+  <p>오늘 공부, 시간이 아니라 집중으로 확인해 보세요.</p>
+  <div class="store-buttons">
+    <a href="https://apps.apple.com/app/id6759892516" class="store-btn" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <div class="store-btn-text"><span class="store-btn-sub">Download on the</span><span class="store-btn-name">App Store</span></div>
+    </a>
+    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" class="store-btn dark" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.3.17.64.24.99.2l12.69-12.7-3.54-3.54L3.18 23.76zm16.4-12.25l-2.43-1.4-3.89 3.89 3.89 3.89 2.46-1.42c.7-.4.7-1.55-.03-1.96zM.75 1.05C.45 1.38.3 1.84.3 2.41v19.18c0 .57.16 1.03.46 1.36l.07.07 10.75-10.75v-.26L.82.98.75 1.05zm11.49 11.56l3.56-3.56-12.7-7.33 9.14 10.89z"/></svg>
+      <div class="store-btn-text"><span class="store-btn-sub">GET IT ON</span><span class="store-btn-name">Google Play</span></div>
+    </a>
   </div>
 </section>
 
 <!-- Footer -->
 <footer>
-  <p>© 2026 열공메이트 &nbsp;·&nbsp; <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
-  <p style="margin-top: 8px;">
-    <a href="https://apps.apple.com/app/id6759892516" target="_blank">App Store</a>
-    &nbsp;·&nbsp;
-    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer" target="_blank">Google Play</a>
-    &nbsp;·&nbsp;
+  <div class="footer-links">
+    <a href="features/focus.html">집중·타이머</a>
+    <a href="features/planner.html">플래너·과목</a>
+    <a href="features/stats.html">통계·위젯</a>
+    <a href="guide.html">활용법·설정</a>
     <a href="privacy-policy.html">개인정보처리방침</a>
-  </p>
+  </div>
+  <p>© <span data-year>2026</span> 열공메이트 · <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
 </footer>
 
+<script src="js/site.js"></script>
 </body>
 </html>

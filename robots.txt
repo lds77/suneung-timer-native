@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lds77.github.io/suneung-timer-native/sitemap.xml
