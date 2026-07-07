@@ -1309,15 +1309,14 @@ export function AppProvider({ children }) {
     if (!sett.weeklyReportEnabled || !sett.notifEnabled) return;
 
     const now = new Date();
-    const daysFromMonday = (now.getDay() + 6) % 7; // 월=0, 화=1, ..., 일=6
-    const thisMonday = new Date(now);
-    thisMonday.setDate(now.getDate() - daysFromMonday);
-    thisMonday.setHours(0, 0, 0, 0);
+    const thisSunday = new Date(now);
+    thisSunday.setDate(now.getDate() - now.getDay()); // 이번 주 일요일(주 시작) — 앱 전반 일요일 기준 통일
+    thisSunday.setHours(0, 0, 0, 0);
 
-    const thisWeekDates = [];
+    const thisWeekDates = []; // 일~토
     for (let i = 0; i < 7; i++) {
-      const d = new Date(thisMonday);
-      d.setDate(thisMonday.getDate() + i);
+      const d = new Date(thisSunday);
+      d.setDate(thisSunday.getDate() + i);
       thisWeekDates.push(toDateStr(d));
     }
 
@@ -1327,8 +1326,8 @@ export function AppProvider({ children }) {
 
     const lastWeekDates = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(thisMonday);
-      d.setDate(thisMonday.getDate() - 7 + i);
+      const d = new Date(thisSunday);
+      d.setDate(thisSunday.getDate() - 7 + i);
       lastWeekDates.push(toDateStr(d));
     }
     const lastWeekSessions = sessionsRef.current.filter(sess => lastWeekDates.includes(sess.date));
@@ -1348,15 +1347,15 @@ export function AppProvider({ children }) {
       else if (diffMins < 0) compStr = ` · 지난주보다 ${Math.abs(diffMins)}분 ↓`;
     }
 
-    const thisSunday = new Date(thisMonday);
-    thisSunday.setDate(thisMonday.getDate() + 6);
-    thisSunday.setHours(23, 0, 0, 0);
-    if (thisSunday.getTime() <= Date.now()) return;
+    const fireAt = new Date(thisSunday);       // 주 시작(일) + 6 = 이번 주 토요일
+    fireAt.setDate(thisSunday.getDate() + 6);
+    fireAt.setHours(23, 0, 0, 0);              // 토요일 밤 23시 발송 (주 마지막 날)
+    if (fireAt.getTime() <= Date.now()) return;
 
     try {
       const trigger = Platform.OS === 'android'
-        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday, channelId: 'report' }
-        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: thisSunday };
+        ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt, channelId: 'report' }
+        : { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt };
       await Notifications.scheduleNotificationAsync({
         identifier: 'report-weekly',
         content: {
