@@ -66,17 +66,8 @@ module.exports = {
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },
     plugins: [
-      [
-        'expo-build-properties',
-        {
-          android: {
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
-            buildToolsVersion: '35.0.0',
-            enablePageAlignedJniLibs: true,
-          },
-        },
-      ],
+      // SDK 56: compileSdk/targetSdk는 SDK 기본값(36) 사용 — 16KB 페이지 정렬도 기본 지원됨.
+      // (구 expo-build-properties android 핀은 제거. Play 정책상 2026-08까지 target 36 필요)
       [
         'expo-notifications',
         {
@@ -84,13 +75,18 @@ module.exports = {
           color: '#FF6B9D',
         },
       ],
-      'expo-av',
+      'expo-asset',
       'expo-font',
+      'expo-sharing',
+      'expo-status-bar',
+      // iOS 잠금화면/Dynamic Island Live Activity (src/widgets/FocusActivity.js).
+      // 위젯 UI(홈 4종)는 별도로 @bacons/apple-targets(targets/widgets/)가 담당 —
+      // expo-widgets는 Live Activity 전용으로 사용 (widgets 배열 비움, Android 비활성 기본값)
       [
-        'expo-live-activity',
+        'expo-widgets',
         {
-          // iOS 16.2 미만 기기에서는 throw 대신 조용히 no-op
-          silentOnUnsupportedOS: true,
+          bundleIdentifier: `${IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer'}.ExpoWidgetsTarget`,
+          groupIdentifier: APP_GROUP,
         },
       ],
       [

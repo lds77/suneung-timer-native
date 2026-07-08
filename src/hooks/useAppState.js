@@ -4,7 +4,7 @@ import { AppState, Vibration, Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 const SOUND_FILES = {
   rain:    require('../../assets/sounds/rain.mp3'),
@@ -1626,14 +1626,14 @@ export function AppProvider({ children }) {
   }, []);
 
   // ═══ 집중 사운드 ═══
-  const soundRefsMap = useRef({}); // { [id]: Audio.Sound }
+  const soundRefsMap = useRef({}); // { [id]: AudioPlayer (expo-audio) }
 
   const stopAllSounds = async () => {
     const entries = Object.entries(soundRefsMap.current);
     soundRefsMap.current = {};
     for (const [, s] of entries) {
-      try { await s.stopAsync(); } catch {}
-      try { await s.unloadAsync(); } catch {}
+      try { s.pause(); } catch {}
+      try { s.remove(); } catch {}
     }
   };
 
@@ -1647,7 +1647,7 @@ export function AppProvider({ children }) {
     for (const id of toRemove) {
       const s = soundRefsMap.current[id];
       delete soundRefsMap.current[id];
-      if (s) { s.stopAsync().catch(() => {}); s.unloadAsync().catch(() => {}); }
+      if (s) { try { s.pause(); } catch {} try { s.remove(); } catch {} }
     }
 
     const toAdd = activeSounds.filter(id => !currentIds.includes(id) && SOUND_FILES[id]);
@@ -1655,17 +1655,16 @@ export function AppProvider({ children }) {
 
     let cancelled = false;
     const loadNew = async () => {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
       for (const id of toAdd) {
         if (cancelled) break;
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            SOUND_FILES[id],
-            { isLooping: true, volume: (settings.soundVolume ?? 70) / 100 }
-          );
-          if (cancelled) { sound.unloadAsync().catch(() => {}); break; }
-          soundRefsMap.current[id] = sound;
-          await sound.playAsync();
+          const player = createAudioPlayer(SOUND_FILES[id]);
+          player.loop = true;
+          player.volume = (settings.soundVolume ?? 70) / 100;
+          if (cancelled) { try { player.remove(); } catch {} break; }
+          soundRefsMap.current[id] = player;
+          player.play();
         } catch {}
       }
     };
@@ -1677,7 +1676,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (loading) return;
     const vol = (settings.soundVolume ?? 70) / 100;
-    Object.values(soundRefsMap.current).forEach(s => s.setVolumeAsync(vol).catch(() => {}));
+    Object.values(soundRefsMap.current).forEach(s => { try { s.volume = vol; } catch {} });
   }, [settings.soundVolume, loading]);
 
   // 앱 종료 시 정리
