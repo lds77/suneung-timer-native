@@ -799,12 +799,14 @@ export function AppProvider({ children }) {
     const ufState = ultraRef.current;
     const isPerfect = mode === 'screen_on' && ufState.exitCount === 0 && !ufState.gaveUp;
     if (!skipNotif) {
+      // 시작 시 예약해 둔 완료 알림(complete-<id>)과 같은 identifier — 예약분이 이미
+      // 발화했어도 이 알림이 그 자리를 교체해 트레이에 1장만 남는다
       if (isPerfect && t.elapsedSec >= 300) {
-        fireNotif('퍼펙트 집중!', `${t.label} 이탈 없이 완료! Verified!`);
+        fireNotif('퍼펙트 집중!', `${t.label} 이탈 없이 완료! Verified!`, `complete-${t.id}`);
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300, 100, 500, 200, 800]);
         showToastCustom('이탈 0회! Verified!', 'taco');
       } else {
-        fireNotif(`${t.label} 완료!`, '수고했어!');
+        fireNotif(`${t.label} 완료!`, '수고했어!', `complete-${t.id}`);
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500, 200, 500]);
       }
     } else {
@@ -864,10 +866,13 @@ export function AppProvider({ children }) {
     return null;
   };
 
-  const fireNotif = async (title, body) => {
+  // identifier: 예약 알림과 같은 id를 주면 OS가 트레이에서 교체 — 예약분 취소가 발화와
+  // 레이스로 지더라도(완료 시각 ≈ 알람 시각) 중복 알림이 쌓이지 않는다
+  const fireNotif = async (title, body, identifier) => {
     if (!settingsRef.current.notifEnabled) return;
     try {
       await Notifications.scheduleNotificationAsync({
+        ...(identifier ? { identifier } : {}),
         content: { title, body, sound: 'default', vibrate: [0, 300, 100, 300],
           ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
         },
@@ -982,6 +987,9 @@ export function AppProvider({ children }) {
         ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + sec * 1000), channelId: 'timer-complete' }
         : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: sec };
       const id = await Notifications.scheduleNotificationAsync({
+        // 고정 identifier: 완료 순간 fireComplete의 즉시 알림이 같은 id로 발송돼
+        // 이 알림을 교체한다 (취소 레이스에서 져도 중복 없음). 재예약 시 기존 예약 대체 덤
+        identifier: `complete-${timerId}`,
         content: {
           title: customTitle || `${label} 완료!`,
           body: customBody || '타이머가 끝났어요!',
