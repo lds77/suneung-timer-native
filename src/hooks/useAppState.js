@@ -776,7 +776,8 @@ export function AppProvider({ children }) {
         const oldPhaseIds = phaseNotifMap.current.get(t.id) || [];
         phaseNotifMap.current.delete(t.id);
         oldPhaseIds.forEach(pid => Notifications.cancelScheduledNotificationAsync(pid).catch(() => {}));
-        if (core.notif) fireNotif(core.notif.title, core.notif.body);
+        // 경계 시각(next.resumedAt) identifier — 같은 경계의 예약 알림이 이미 발화했어도 교체돼 1장만 남음
+        if (core.notif) fireNotif(core.notif.title, core.notif.body, `phase-${t.id}-${core.next.resumedAt}`);
       }
       const newBreakTimer = { ...core.next, seqSessionIds: updatedSeqSessionIds };
       seqRescheduleQueue.current.push(newBreakTimer);
@@ -788,7 +789,8 @@ export function AppProvider({ children }) {
     // (break 시작 시점에 이미 재예약됐고, 재예약하면 break-end 알림이 취소될 수 있음)
     if (!skipNotif && settingsRef.current.notifEnabled) {
       Vibration.vibrate([0, 200, 100, 200]);
-      if (core.notif) fireNotif(core.notif.title, core.notif.body);
+      // 경계 시각(next.resumedAt) identifier — 같은 경계의 예약 알림을 교체 (중복 방지)
+      if (core.notif) fireNotif(core.notif.title, core.notif.body, `phase-${t.id}-${core.next.resumedAt}`);
     }
     return core.next;
   };
@@ -1101,6 +1103,10 @@ export function AppProvider({ children }) {
           ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(absMs), channelId: 'timer-complete' }
           : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: secFromNow };
         return Notifications.scheduleNotificationAsync({
+          // 페이즈 경계 시각 기반 고정 identifier — 전환 순간의 즉시 알림(fireNotif)이 같은
+          // id로 발송돼 이 알림을 교체한다 (예약분 취소가 발화와 레이스로 져도 중복 없음).
+          // absMs와 전환의 next.resumedAt은 같은 산식(phaseEndAtMs, 불변식 2)이라 정확히 일치
+          identifier: `phase-${timer.id}-${absMs}`,
           content: { title, body, data: { kind: 'phase', timerId: timer.id }, sound: 'default', vibrate: [0, 300, 100, 300], ...(Platform.OS === 'android' && { channelId: 'timer-complete' }) },
           trigger,
         }).catch(() => null);
