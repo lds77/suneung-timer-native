@@ -1780,9 +1780,14 @@ export function AppProvider({ children }) {
           });
           return toAdd;
         };
+        // 반복(고정) 할 일의 지난날 미완료 인스턴스는 이월하지 않음 — 템플릿이 매일 새 항목을
+        // 생성하므로, 미완료 이월(!done 유지)과 겹치면 못 한 날마다 같은 항목이 하나씩 쌓였다
+        // (사용자 제보: 이틀 못 하면 3일째 3개). 완료 표시된 것은 그날 목록 유지(다음 리셋 때 정리).
+        const isStaleTemplateInstance = (t) =>
+          !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
         if (mergedSettings.lastTodoResetDate !== today) {
           const resetTodos = migrated
-            .filter(t => t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam')
+            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam'))
             .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
           const generated = genFromTemplates(resetTodos);
           const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
@@ -1790,10 +1795,12 @@ export function AppProvider({ children }) {
           await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
         } else {
-          const generated = genFromTemplates(migrated);
-          const finalTodos = generated.length > 0 ? [...migrated, ...generated] : migrated;
+          // 같은 날 재실행에서도 이미 쌓인 지난날 중복을 즉시 정리 (업데이트 직후 자가 치유)
+          const pruned = migrated.filter(t => !isStaleTemplateInstance(t));
+          const generated = genFromTemplates(pruned);
+          const finalTodos = generated.length > 0 ? [...pruned, ...generated] : pruned;
           setTodos(finalTodos);
-          if (generated.length > 0) await saveTodos(finalTodos); // 신규 생성분만 즉시 저장
+          if (generated.length > 0 || pruned.length !== migrated.length) await saveTodos(finalTodos);
         }
       }
       if (cuf) setCountupFavs(cuf);
