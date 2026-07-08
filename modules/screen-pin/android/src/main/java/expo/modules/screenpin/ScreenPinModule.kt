@@ -24,6 +24,27 @@ class ScreenPinModule : Module() {
     )
   }
 
+  // 위젯 강제 갱신 알람용 — PIN_ALARM과 액션이 달라 같은 requestCode여도 별개 PendingIntent
+  private fun widgetRefreshPendingIntent(ctx: Context, id: String): PendingIntent {
+    val intent = Intent(ctx, AlarmReceiver::class.java)
+      .setAction(AlarmReceiver.WIDGET_REFRESH_ACTION)
+      .putExtra("alarmId", id)
+    return PendingIntent.getBroadcast(
+      ctx, id.hashCode(), intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+  }
+
+  private fun scheduleAt(ctx: Context, atMs: Long, pi: PendingIntent) {
+    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val canExact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+    if (canExact) {
+      am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+    } else {
+      am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+    }
+  }
+
   override fun definition() = ModuleDefinition {
     Name("ScreenPin")
 
@@ -71,14 +92,7 @@ class ScreenPinModule : Module() {
       val ctx = appContext.reactContext
       if (ctx == null) { promise.resolve(false); return@AsyncFunction }
       try {
-        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = alarmPendingIntent(ctx, id)
-        val canExact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
-        if (canExact) {
-          am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs.toLong(), pi)
-        } else {
-          am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs.toLong(), pi)
-        }
+        scheduleAt(ctx, atMs.toLong(), alarmPendingIntent(ctx, id))
         promise.resolve(true)
       } catch (t: Throwable) {
         promise.resolve(false)
@@ -91,6 +105,32 @@ class ScreenPinModule : Module() {
       try {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         am.cancel(alarmPendingIntent(ctx, id))
+        promise.resolve(true)
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
+    }
+
+    // 타이머 종료 시각에 홈 위젯 강제 갱신 — 앱이 죽어 있어도 위젯의 '집중 중' 표시/오늘합계가
+    // 종료 순간 갱신되도록 AlarmManager로 AlarmReceiver(WIDGET_REFRESH)를 깨운다.
+    // 같은 id로 재예약하면 기존 알람을 대체한다 (FLAG_UPDATE_CURRENT).
+    AsyncFunction("scheduleWidgetRefresh") { id: String, atMs: Double, promise: Promise ->
+      val ctx = appContext.reactContext
+      if (ctx == null) { promise.resolve(false); return@AsyncFunction }
+      try {
+        scheduleAt(ctx, atMs.toLong(), widgetRefreshPendingIntent(ctx, id))
+        promise.resolve(true)
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
+    }
+
+    AsyncFunction("cancelWidgetRefresh") { id: String, promise: Promise ->
+      val ctx = appContext.reactContext
+      if (ctx == null) { promise.resolve(false); return@AsyncFunction }
+      try {
+        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        am.cancel(widgetRefreshPendingIntent(ctx, id))
         promise.resolve(true)
       } catch (t: Throwable) {
         promise.resolve(false)

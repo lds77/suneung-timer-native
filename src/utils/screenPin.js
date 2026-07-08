@@ -44,3 +44,17 @@ export const cancelLockAlarm = async (id) => {
   if (!mod) return false;
   try { return await mod.cancelAlarm(id); } catch { return false; }
 };
+
+// 타이머 종료 시각에 홈 위젯 강제 갱신 알람 — 앱이 죽어 있어도 위젯의 '집중 중' 표시와
+// 오늘 합계가 종료 순간 갱신된다 (AlarmReceiver가 APPWIDGET_UPDATE 브로드캐스트 →
+// react-native-android-widget 헤드리스 렌더 → widgetData.js 좀비 가드/잠정 가산 반영).
+// 같은 id로 재예약하면 기존 알람을 대체한다.
+export const scheduleWidgetRefresh = async (id, atMs) => {
+  if (!mod) return false;
+  try { return await mod.scheduleWidgetRefresh(id, atMs); } catch { return false; }
+};
+
+export const cancelWidgetRefresh = async (id) => {
+  if (!mod) return false;
+  try { return await mod.cancelWidgetRefresh(id); } catch { return false; }
+};

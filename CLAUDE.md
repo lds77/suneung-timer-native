@@ -8,9 +8,9 @@
 
 - **앱 이름**: 열공메이트
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
-- **플랫폼**: iOS + Android (React Native + Expo SDK 54)
+- **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.32 (iOS 빌드 41 심사 중, Android versionCode 36 검토 중)
+- **현재 버전**: 1.0.33 (양대 스토어 배포/승인 완료). sdk56 브랜치에서 SDK 56 업그레이드 진행 중 (EAS 빌드 검증 전)
 
 ---
 
@@ -18,14 +18,15 @@
 
 | 항목 | 내용 |
 |------|------|
-| 프레임워크 | React Native 0.81 + Expo SDK 54 (New Architecture/Fabric) + React 19.1 |
+| 프레임워크 | React Native 0.85 + Expo SDK 56 (New Architecture/Fabric) + React 19.2 |
 | 상태 관리 | Context API (`src/hooks/useAppState.js`, ~2100줄) |
 | 로컬 저장소 | AsyncStorage (`src/utils/storage.js`, `@yeolgong/*` 키) |
 | 네비게이션 | React Navigation v6 하단 탭 5개: 집중/과목/플래너/통계/설정 |
 | 빌드 | EAS Build (eas.json — development/preview/testflight/production 프로필) |
 | 설정 파일 | `app.config.js` (app.json 아님 — `APP_VARIANT=preview` 분기) |
 | 알림 | expo-notifications (Android Foreground Service 포함) |
-| 잠금화면 | expo-live-activity 0.5.0-alpha1 **정확히 고정** (iOS Live Activity) |
+| 사운드 | expo-audio (SDK 55에서 expo-av 제거됨 — createAudioPlayer + loop/volume 프로퍼티) |
+| 잠금화면 | expo-widgets Live Activity (`src/widgets/FocusActivity.js` 'widget' 지시어 레이아웃) |
 | 홈 위젯 (iOS) | WidgetKit + @bacons/apple-targets (`targets/widgets/` SwiftUI, App Group `group.com.yeolgong.timer`) |
 | 홈 위젯 (Android) | react-native-android-widget (`src/widgets/`, 헤드리스 태스크 핸들러) |
 | 차트/그래픽 | react-native-svg, react-native-chart-kit |
@@ -63,6 +64,8 @@ src/
     updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록
     widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
     StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
+    FocusActivity.js      iOS Live Activity 레이아웃 ('widget' 지시어 — 소스가 직렬화되어
+                          익스텐션에서 해석됨. 모듈 스코프 참조 금지, 문자열은 props로 전달)
   utils/
     timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
                           페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
@@ -71,7 +74,7 @@ src/
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
     format.js             formatDuration, formatShort, getToday, generateId 등
-    liveActivity.js       iOS Live Activity 래퍼 (잠금화면/Dynamic Island 타이머)
+    liveActivity.js       iOS Live Activity 래퍼 (expo-widgets — 잠금화면/Dynamic Island 타이머)
   constants/
     colors.js             getTheme(darkMode, accentColor, fontScale, stylePreset) → T 테마 객체
     presets.js            getTier(density) → 티어 라벨/색상
@@ -169,9 +172,13 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
 - **iOS Live Activity**: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`)
-  - 카운트다운류는 `progressBar.date`(OS가 그림), 자유는 `elapsedTimer`(카운트업), 일시정지는 정적 subtitle
+  - expo-widgets 기반 (SDK 56~): 레이아웃은 `src/widgets/FocusActivity.js`, 카운트다운/업은
+    Expo UI `Text timerInterval`(OS가 그림), 일시정지는 mode 'none' + 정적 subtitle
   - useAppState의 동기화 useEffect 1개가 시그니처 비교로 start/update/end 판단 (초당 호출 없음)
-  - expo-live-activity는 deprecated → **SDK 56 업그레이드 시 공식 expo-widgets로 마이그레이션 필요**
+  - 잔존 activity는 `getInstances()`로 재부착 (id 저장 불필요)
+- **안드 위젯 강제 갱신 알람 (B단계)**: 타이머 종료 시각에 AlarmManager →
+  `AlarmReceiver`(WIDGET_REFRESH) → APPWIDGET_UPDATE 브로드캐스트 → 헤드리스 재렌더.
+  앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
 
 ### 홈 화면 위젯 (iOS + Android, 1.0.32~)
 - 4종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 — 양 플랫폼 동일 구성

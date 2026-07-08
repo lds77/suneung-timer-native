@@ -151,6 +151,8 @@ module.exports = {
       // iOS 홈 화면 위젯 (WidgetKit) — targets/widgets/ 의 Swift 코드를 익스텐션 타겟으로 추가.
       // Android에는 영향 없음(iOS prebuild 전용 플러그인).
       '@bacons/apple-targets',
+      // androidx.work 중복 클래스 정렬 (SDK 56에서 발생 — 파일 주석 참고)
+      './plugins/withAndroidWorkManagerFix',
     ],
     extra: {
       eas: {

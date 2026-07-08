@@ -23,7 +23,7 @@ import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
@@ -960,6 +960,11 @@ export function AppProvider({ children }) {
 
   // 백그라운드 알림 예약 — 타이머 시작/재개 시 OS에 미리 등록
   const scheduleTimerNotif = async (timerId, label, seconds, customTitle, customBody) => {
+    // 안드: 종료 시각에 홈 위젯 강제 갱신 알람 — 앱이 죽어 있어도 '집중 중' 해제/오늘합계 반영.
+    // 알림 설정과 무관한 위젯 표시 정확성용이라 notifEnabled 가드보다 먼저 예약한다.
+    if (Platform.OS === 'android' && seconds > 0) {
+      scheduleWidgetRefresh(`widget-refresh-${timerId}`, Date.now() + Math.ceil(seconds) * 1000 + 2000);
+    }
     if (!settingsRef.current.notifEnabled) return;
     try {
       const existingId = notifIdMap.current.get(timerId);
@@ -1020,6 +1025,8 @@ export function AppProvider({ children }) {
   const lockAlarmIds = useRef(new Map()); // timerId -> [네이티브 진동 알람 id]
   const cancelTimerNotif = async (timerId) => {
     try {
+      // 위젯 강제 갱신 알람 취소 — 일시정지/중지/앱 내 완료 시 (앱이 살아 있으면 위젯 effect가 갱신함)
+      cancelWidgetRefresh(`widget-refresh-${timerId}`);
       // 화면 고정용 네이티브 진동 알람도 함께 취소
       const alarmIds = lockAlarmIds.current.get(timerId) || [];
       lockAlarmIds.current.delete(timerId);
@@ -1043,6 +1050,13 @@ export function AppProvider({ children }) {
 
   // 뽀모도로·연속모드: 모든 미래 페이즈 알림 일괄 예약
   const scheduleAllPhaseNotifs = async (timer) => {
+    // 안드: 마지막 페이즈 종료 시각(연속모드는 전체 완료 시각)에 위젯 강제 갱신 알람.
+    // 같은 id 재예약은 기존 알람 대체 — 페이즈 전환마다 호출돼도 1개만 유지된다.
+    if (Platform.OS === 'android') {
+      const allSpecs = buildPhaseNotifSpecs(timer);
+      const lastSpec = allSpecs[allSpecs.length - 1];
+      if (lastSpec) scheduleWidgetRefresh(`widget-refresh-${timer.id}`, lastSpec.absMs + 2000);
+    }
     if (!settingsRef.current.notifEnabled) return;
     // race condition 방지: 같은 타이머에 거의 동시에 여러 번 호출될 때 최신 호출만 실행
     const runId = Date.now() + Math.random();
