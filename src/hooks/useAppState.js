@@ -796,13 +796,18 @@ export function AppProvider({ children }) {
   };
 
   const fireComplete = (t, skipNotif = false) => {
-    cancelTimerNotif(t.id); // 예약된 백그라운드 알림 취소 (포그라운드 완료 시 중복 방지)
+    // 자연 완료(카운트다운 목표 도달): 시작 시 예약한 OS 완료 알림·시험모드 진동 알람·위젯
+    // 갱신 알람이 정확히 이 시각에 발화하도록 설계돼 있고, 취소/즉시발송은 발화와의 레이스를
+    // 이길 수 없어 중복 알림이 떴다(같은 identifier 교체도 실기기에서 미동작 재현).
+    // → 자연 완료는 아무것도 취소하지 않고 즉시 알림도 쏘지 않는다.
+    //   완료 알림은 예약분이 단일 소스(뽀모도로 페이즈 알림과 동일 설계).
+    // 중도 종료(포기 등)·자유/랩 타이머는 기존대로: 예약분 취소(알람이 멀어 확실히 취소됨) + 즉시 알림.
+    const naturalEnd = t.type === 'countdown' && t.totalSec > 0 && t.elapsedSec >= t.totalSec;
+    if (!naturalEnd) cancelTimerNotif(t.id);
     const mode = focusModeRef.current || 'screen_off';
     const ufState = ultraRef.current;
     const isPerfect = mode === 'screen_on' && ufState.exitCount === 0 && !ufState.gaveUp;
-    if (!skipNotif) {
-      // 시작 시 예약해 둔 완료 알림(complete-<id>)과 같은 identifier — 예약분이 이미
-      // 발화했어도 이 알림이 그 자리를 교체해 트레이에 1장만 남는다
+    if (!skipNotif && !naturalEnd) {
       if (isPerfect && t.elapsedSec >= 300) {
         fireNotif('퍼펙트 집중!', `${t.label} 이탈 없이 완료! Verified!`, `complete-${t.id}`);
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300, 100, 500, 200, 800]);
@@ -812,7 +817,7 @@ export function AppProvider({ children }) {
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500, 200, 500]);
       }
     } else {
-      // 백그라운드 복귀: OS가 이미 알림 보냄 → 진동+토스트만
+      // 자연 완료(예약 알림이 표시) 또는 백그라운드 복귀(이미 발송됨) → 진동+토스트만
       if (isPerfect && t.elapsedSec >= 300) {
         if (settingsRef.current.notifEnabled) Vibration.vibrate([0, 300, 100, 300, 100, 500, 200, 800]);
         showToastCustom('이탈 0회! Verified!', 'taco');
