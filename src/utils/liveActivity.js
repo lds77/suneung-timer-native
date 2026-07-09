@@ -12,11 +12,9 @@ import { formatDuration } from './format';
 import { pomoPhaseTargetSec } from './pomo';
 
 let Activity = null; // LiveActivityFactory (FocusActivity)
-let after = null;    // 종료 dismissal 정책 헬퍼
 if (Platform.OS === 'ios') {
   try {
     Activity = require('../widgets/FocusActivity').default;
-    after = require('expo-widgets').after;
   } catch { Activity = null; }
 }
 
@@ -88,6 +86,7 @@ const buildProps = (t, T) => {
     tint: t.color || T.accent,
     textColor: T.text,
     subColor: T.sub,
+    bg: T.card, // 배너 배경 — 미지정 시 잠금화면 검정 배경에 어두운 글자가 깔려 빈 카드처럼 보임
     startMs: 0,
     endMs: 0,
   };
@@ -151,9 +150,14 @@ export const syncLiveActivity = (timer, themeOpts = {}) => {
   const props = buildProps(timer, T);
   lastProps = props;
   if (currentActivity) {
+    const act = currentActivity;
     try {
-      // 잔존 인스턴스가 무효(사용자가 지움/수명 만료)면 다음 상태 변화 때 재시작
-      currentActivity.update(props).catch(() => { currentActivity = null; lastSig = null; });
+      // 잔존 인스턴스가 무효(사용자가 지움/수명 만료)면 정리 후 다음 상태 변화 때 재시작
+      // — 정리 없이 새로 시작하면 잠금화면에 활동 카드가 2장 쌓인다
+      act.update(props).catch(() => {
+        try { act.end('immediate').catch(() => {}); } catch {}
+        if (currentActivity === act) { currentActivity = null; lastSig = null; }
+      });
       return;
     } catch {
       currentActivity = null;
@@ -175,15 +179,15 @@ export const endLiveActivity = () => {
   lastSig = null;
   if (!act) return;
   const finalProps = {
-    ...(lastProps || { tint: '#FF6B9D', textColor: '#333333', subColor: '#888888', startMs: 0, endMs: 0 }),
+    ...(lastProps || { tint: '#FF6B9D', textColor: '#333333', subColor: '#888888', bg: '#FFFFFF', startMs: 0, endMs: 0 }),
     title: '열공메이트',
     subtitle: '집중 완료! 수고했어요',
     mode: 'none',
   };
   lastProps = null;
   try {
-    // 완료 문구를 잠시 보여주고 최대 10분 후 잠금화면에서 자동 제거
-    const policy = after ? after(new Date(Date.now() + 10 * 60 * 1000)) : 'default';
-    act.end(policy, finalProps).catch(() => {});
+    // 즉시 제거 — 잔류시키면(after 정책) 끝난 활동 카드가 잠금화면에 남아 겹쳐 보임.
+    // 완료 피드백은 완료 알림/앱 내 결과 모달이 담당
+    act.end('immediate', finalProps).catch(() => {});
   } catch {}
 };
