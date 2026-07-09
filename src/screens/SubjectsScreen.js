@@ -804,7 +804,7 @@ export default function SubjectsScreen({ navigation }) {
 
       {/* 과목 추가 모달 */}
       <Modal visible={showAdd} transparent animationType="fade">
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>과목 추가</Text>
           <TextInput value={addName} onChangeText={setAddName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}

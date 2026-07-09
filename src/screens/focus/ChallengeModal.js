@@ -14,7 +14,7 @@ export default function ChallengeModal({ app, T, S }) {
 
   return (
     <Modal visible={!!app.ultraFocus?.showChallenge} transparent animationType="fade">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View style={S.chalOverlay}>
         <View style={[S.chalBox, { backgroundColor: T.card }]}>
           <CharacterAvatar characterId={app.settings.mainCharacter} size={90} />

@@ -2531,7 +2531,7 @@ export default function PlannerScreen({ navigation, route }) {
 
       {/* D-Day 시험 할일 시트 — D-Day와 시험 준비 할 일 연결 */}
       <Modal visible={!!ddayTodoSheet} transparent animationType="slide" onRequestClose={() => setDdayTodoSheet(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={() => setDdayTodoSheet(null)} />
           <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 24, maxHeight: '78%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
             {ddayTodoSheet && (() => {

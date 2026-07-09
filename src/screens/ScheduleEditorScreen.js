@@ -660,7 +660,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 공부 계획 추가/수정 모달 ── */}
         <Modal visible={showAddPlan} transparent animationType="slide"
           onRequestClose={() => { setShowAddPlan(false); resetPlanForm(); }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingPlanId ? '과목 수정' : '과목 추가'}</Text>
