@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '46',
+      buildNumber: '47',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -46,6 +46,8 @@ module.exports = {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // 집중 타이머 Live Activity (자체 ActivityKit — modules/live-activity + targets/widgets)
+        NSSupportsLiveActivities: true,
       },
     },
     android: {
@@ -80,16 +82,9 @@ module.exports = {
       'expo-font',
       'expo-sharing',
       'expo-status-bar',
-      // iOS 잠금화면/Dynamic Island Live Activity (src/widgets/FocusActivity.js).
-      // 위젯 UI(홈 4종)는 별도로 @bacons/apple-targets(targets/widgets/)가 담당 —
-      // expo-widgets는 Live Activity 전용으로 사용 (widgets 배열 비움, Android 비활성 기본값)
-      [
-        'expo-widgets',
-        {
-          bundleIdentifier: `${IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer'}.ExpoWidgetsTarget`,
-          groupIdentifier: APP_GROUP,
-        },
-      ],
+      // Live Activity는 자체 ActivityKit 구현 사용: modules/live-activity(네이티브 모듈) +
+      // targets/widgets/FocusLiveActivity.swift(UI — 홈 위젯과 같은 익스텐션).
+      // ※expo-widgets는 빌드46 실기기에서 렌더 불가(빈 카드)로 폐기 (2026-07-09)
       [
         'react-native-android-widget',
         {

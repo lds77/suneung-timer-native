@@ -1,8 +1,10 @@
 // src/utils/liveActivity.js
-// iOS 잠금화면/Dynamic Island에 실행 중 타이머 표시 — expo-widgets Live Activity 래퍼 (SDK 56~)
-// Android·미지원 환경에서는 모든 함수가 no-op (모듈 로드 실패 시 Activity = null)
-// 카운트다운류는 Text timerInterval countsDown(OS가 직접 그림), 자유 타이머는 카운트업 —
-// 앱이 백그라운드여도 초 단위로 정확함. 레이아웃은 src/widgets/FocusActivity.js
+// iOS 잠금화면/Dynamic Island에 실행 중 타이머 표시 — 자체 ActivityKit 로컬 모듈 래퍼.
+// (expo-live-activity → expo-widgets를 거쳐 자체 구현으로 정착: expo-widgets Live Activity는
+//  빌드46 실기기에서 렌더가 전혀 되지 않아(빈 카드, 크래시/RedBox 없음) 폐기 — 2026-07-09)
+// 네이티브: modules/live-activity(start/update/end/listIds) + targets/widgets/FocusLiveActivity.swift(UI)
+// Android·Expo Go에서는 모든 함수가 no-op (모듈 로드 실패 시 LA = null)
+// 카운트다운류는 Text(timerInterval:)로 OS가 직접 그림 — 앱이 백그라운드여도 초 단위 정확
 //
 // 인터페이스는 expo-live-activity 시절과 동일: init/sync/end/setAway — useAppState 무수정
 
@@ -11,56 +13,30 @@ import { getTheme } from '../constants/colors';
 import { formatDuration } from './format';
 import { pomoPhaseTargetSec } from './pomo';
 
-let Activity = null; // LiveActivityFactory (FocusActivity)
-let laDiag = ''; // [진단 v4] 레이아웃 등록 상태 — 활성화 시 카드에 표시. 원인 확정 후 제거
+let LA = null; // FocusLiveActivity 네이티브 모듈
 if (Platform.OS === 'ios') {
-  try {
-    const mod = require('../widgets/FocusActivity');
-    Activity = mod.default;
-    // [진단 v4] 검증된 경로(apple-targets ExtensionStorage — 홈 위젯이 쓰는 그 경로)로
-    // 같은 App Group 키에 레이아웃을 이중 기록 + 읽어서 상태 문자열 생성.
-    // expo-widgets WidgetsStorage 기록이 익스텐션에 안 닿는 경우를 판별/우회한다.
-    try {
-      const { ExtensionStorage } = require('@bacons/apple-targets');
-      const st = new ExtensionStorage('group.com.yeolgong.timer');
-      if (typeof mod.focusLayoutString === 'string') {
-        st.set('__expo_widgets_live_activity_FocusActivity_layout', mod.focusLayoutString);
-        laDiag = 'dw-ok';
-      } else {
-        laDiag = 'not-str:' + typeof mod.focusLayoutString; // babel 변환이 안 됐다는 뜻
-      }
-      const cur = st.get('__expo_widgets_live_activity_FocusActivity_layout');
-      laDiag += cur ? ' L' + cur.length + (cur.includes('TEST v4') ? ' v4' : ' old') : ' read-null';
-    } catch (e) {
-      laDiag = 'dw-err:' + (e && e.message ? e.message.slice(0, 40) : '?');
-    }
-  } catch { Activity = null; }
+  try { LA = require('../../modules/live-activity').default; } catch { LA = null; }
 }
 
-let currentActivity = null; // LiveActivity 인스턴스 (expo-widgets)
+let currentId = null; // 현재 activity id
 let lastSig = null;
 let lastProps = null; // 종료 시 최종 상태에 테마 색을 재사용하기 위한 마지막 props
 // 🔥모드 이탈 상태 — true면 잠금화면/Dynamic Island 부제를 '이탈 중' 문구로 교체
-// (부제 교체 방식 유지 — 상태 전달용)
 let awayMode = false;
 
 export const setLiveActivityAway = (away) => { awayMode = !!away; };
 
-// [진단 v5] OTA 적용/레이아웃 등록 상태를 앱 UI(토스트)로 확인하기 위한 게터 — 확정 후 제거
-export const getLaDiag = () => laDiag;
-
 // 앱 시작 시 잔존 activity 재부착 — 강제종료 후에도 update/end가 가능하도록.
-// (expo-live-activity 때처럼 id를 저장할 필요 없음 — getInstances()로 복원)
+// 중복 잔존 시 첫 번째만 남기고 정리 (잠금화면 카드 중복 방지)
 export const initLiveActivity = async () => {
-  if (!Activity) return;
+  if (!LA) return;
   try {
-    const list = Activity.getInstances();
-    currentActivity = list[0] || null;
-    // 중복 잔존 시 첫 번째만 남기고 정리
-    for (let i = 1; i < list.length; i++) {
-      try { list[i].end('immediate').catch(() => {}); } catch {}
+    const ids = LA.listIds();
+    currentId = (ids && ids[0]) || null;
+    for (let i = 1; i < (ids ? ids.length : 0); i++) {
+      try { LA.end(ids[i], finalState()).catch(() => {}); } catch {}
     }
-  } catch { currentActivity = null; }
+  } catch { currentId = null; }
 };
 
 // 현재 페이즈의 목표 시간 (자유/랩은 0 → 카운트업)
@@ -102,14 +78,13 @@ const getSequenceTotalEndMs = (t) => {
   return endMs;
 };
 
-// FocusActivity 레이아웃에 넘길 props (JSON 직렬화 가능해야 함)
+// 네이티브 ContentState로 넘길 props (FocusStateRecord와 필드 일치 — 전부 채워서 전달)
 const buildProps = (t, T) => {
   const base = {
     tint: t.color || T.accent,
     textColor: T.text,
     subColor: T.sub,
-    bg: T.card, // 배너 배경 — 미지정 시 잠금화면 검정 배경에 어두운 글자가 깔려 빈 카드처럼 보임
-    diag: laDiag, // [진단 v4] 확인 후 제거
+    bg: T.card, // 잠금화면 배너 배경 = 앱 테마 카드색
     startMs: 0,
     endMs: 0,
   };
@@ -150,6 +125,13 @@ const buildProps = (t, T) => {
   return props;
 };
 
+const finalState = () => ({
+  ...(lastProps || { tint: '#FF6B9D', textColor: '#333333', subColor: '#888888', bg: '#FFFFFF', startMs: 0, endMs: 0 }),
+  title: '열공메이트',
+  subtitle: '집중 완료! 수고했어요',
+  mode: 'none',
+});
+
 // 네이티브 호출이 필요한 변화만 감지 (elapsedSec 틱 제외 → 초당 호출 방지)
 // fg/bg 구분 포함 — 백그라운드 진입/복귀 시 연속모드 표시 모드 전환이 갱신되도록
 const makeSig = (t) => [
@@ -161,7 +143,7 @@ const makeSig = (t) => [
 
 // 활성 타이머(없으면 null)를 Live Activity에 반영 — start/update/end를 내부에서 판단
 export const syncLiveActivity = (timer, themeOpts = {}) => {
-  if (!Activity) return;
+  if (!LA) return;
   if (!timer) { endLiveActivity(); return; }
 
   const sig = makeSig(timer);
@@ -172,45 +154,31 @@ export const syncLiveActivity = (timer, themeOpts = {}) => {
   const T = getTheme(!!themeOpts.darkMode, themeOpts.accentColor || 'pink');
   const props = buildProps(timer, T);
   lastProps = props;
-  if (currentActivity) {
-    const act = currentActivity;
-    try {
-      // 잔존 인스턴스가 무효(사용자가 지움/수명 만료)면 정리 후 다음 상태 변화 때 재시작
-      // — 정리 없이 새로 시작하면 잠금화면에 활동 카드가 2장 쌓인다
-      act.update(props).catch(() => {
-        try { act.end('immediate').catch(() => {}); } catch {}
-        if (currentActivity === act) { currentActivity = null; lastSig = null; }
-      });
-      return;
-    } catch {
-      currentActivity = null;
-    }
-  }
   try {
-    currentActivity = Activity.start(props);
+    // 잔존 id 생존 확인 — 사용자가 지웠거나 수명 만료면 새로 시작
+    if (currentId && !(LA.listIds() || []).includes(currentId)) currentId = null;
+    if (currentId) {
+      LA.update(currentId, props).catch(() => {});
+      return;
+    }
+    currentId = LA.start(props) || null;
   } catch {
-    // 설정에서 Live Activity 비활성화 등 — 조용히 무시
-    currentActivity = null;
+    // Live Activity 비활성화 등 — 조용히 무시
+    currentId = null;
   }
 };
 
 export const endLiveActivity = () => {
   awayMode = false;
-  if (!Activity) return;
-  const act = currentActivity;
-  currentActivity = null;
+  if (!LA) return;
+  const id = currentId;
+  currentId = null;
   lastSig = null;
-  if (!act) return;
-  const finalProps = {
-    ...(lastProps || { tint: '#FF6B9D', textColor: '#333333', subColor: '#888888', bg: '#FFFFFF', startMs: 0, endMs: 0 }),
-    title: '열공메이트',
-    subtitle: '집중 완료! 수고했어요',
-    mode: 'none',
-  };
+  const fin = finalState();
   lastProps = null;
+  if (!id) return;
   try {
-    // 즉시 제거 — 잔류시키면(after 정책) 끝난 활동 카드가 잠금화면에 남아 겹쳐 보임.
-    // 완료 피드백은 완료 알림/앱 내 결과 모달이 담당
-    act.end('immediate', finalProps).catch(() => {});
+    // 즉시 제거 — 완료 피드백은 완료 알림/앱 내 결과 모달이 담당
+    LA.end(id, fin).catch(() => {});
   } catch {}
 };

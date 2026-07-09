@@ -22,7 +22,7 @@ import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, l
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
-import { initLiveActivity, syncLiveActivity, setLiveActivityAway, getLaDiag } from '../utils/liveActivity';
+import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
@@ -1909,10 +1909,6 @@ export function AppProvider({ children }) {
       // 이전 세션의 Live Activity id 복원 (iOS) — 동기화 effect가 재사용/정리
       await initLiveActivity();
       setLoading(false);
-      // [진단 v5] OTA 적용 확인용 임시 토스트 — 확정 후 제거
-      if (Platform.OS === 'ios') {
-        setTimeout(() => showToastCustom(`v5 적용됨 · ${getLaDiag() || '?'}`, 'toru'), 1500);
-      }
     })();
   }, []);
 
