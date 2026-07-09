@@ -26,7 +26,7 @@
 | 설정 파일 | `app.config.js` (app.json 아님 — `APP_VARIANT=preview` 분기) |
 | 알림 | expo-notifications (Android Foreground Service 포함) |
 | 사운드 | expo-audio (SDK 55에서 expo-av 제거됨 — createAudioPlayer + loop/volume 프로퍼티) |
-| 잠금화면 | expo-widgets Live Activity (`src/widgets/FocusActivity.js` 'widget' 지시어 레이아웃) |
+| 잠금화면 | 자체 ActivityKit Live Activity — `modules/live-activity`(모듈) + `targets/widgets/FocusLiveActivity.swift`(UI) |
 | 홈 위젯 (iOS) | WidgetKit + @bacons/apple-targets (`targets/widgets/` SwiftUI, App Group `group.com.yeolgong.timer`) |
 | 홈 위젯 (Android) | react-native-android-widget (`src/widgets/`, 헤드리스 태스크 핸들러) |
 | 차트/그래픽 | react-native-svg, react-native-chart-kit |
@@ -64,8 +64,6 @@ src/
     updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록
     widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
     StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
-    FocusActivity.js      iOS Live Activity 레이아웃 ('widget' 지시어 — 소스가 직렬화되어
-                          익스텐션에서 해석됨. 모듈 스코프 참조 금지, 문자열은 props로 전달)
   utils/
     timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
                           페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
@@ -74,7 +72,7 @@ src/
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
     format.js             formatDuration, formatShort, getToday, generateId 등
-    liveActivity.js       iOS Live Activity 래퍼 (expo-widgets — 잠금화면/Dynamic Island 타이머)
+    liveActivity.js       iOS Live Activity 래퍼 (자체 ActivityKit 모듈 — 잠금화면/Dynamic Island 타이머)
   constants/
     colors.js             getTheme(darkMode, accentColor, fontScale, stylePreset) → T 테마 객체
     presets.js            getTier(density) → 티어 라벨/색상
@@ -172,10 +170,14 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
 - **iOS Live Activity**: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`)
-  - expo-widgets 기반 (SDK 56~): 레이아웃은 `src/widgets/FocusActivity.js`, 카운트다운/업은
-    Expo UI `Text timerInterval`(OS가 그림), 일시정지는 mode 'none' + 정적 subtitle
+  - **자체 ActivityKit 구현**: `modules/live-activity`(start/update/end/listIds 로컬 모듈) +
+    `targets/widgets/FocusLiveActivity.swift`(UI). expo-live-activity·expo-widgets는 폐기됨
+    (expo-widgets는 실기기 렌더 불가 — 2026-07-09)
+  - ※`FocusActivityAttributes`(ContentState 9필드)는 모듈과 익스텐션에 **동일하게 중복 정의** —
+    ActivityKit이 타입 이름으로 매칭하므로 수정 시 양쪽을 함께 고칠 것
+  - 카운트다운/업은 `Text(timerInterval:)`(OS가 그림), 일시정지는 mode 'none' + 정적 subtitle
   - useAppState의 동기화 useEffect 1개가 시그니처 비교로 start/update/end 판단 (초당 호출 없음)
-  - 잔존 activity는 `getInstances()`로 재부착 (id 저장 불필요)
+  - 잔존 activity는 `listIds()`로 재부착/정리 (id 저장 불필요)
 - **안드 위젯 강제 갱신 알람 (B단계)**: 타이머 종료 시각에 AlarmManager →
   `AlarmReceiver`(WIDGET_REFRESH) → APPWIDGET_UPDATE 브로드캐스트 → 헤드리스 재렌더.
   앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
