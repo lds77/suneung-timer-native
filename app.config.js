@@ -9,6 +9,7 @@ module.exports = {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
     version: '1.0.34',
+    platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
     // 이 설정이 포함된 빌드(안드 1.0.33+, iOS 빌드 42+)부터 동작.
