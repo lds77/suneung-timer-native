@@ -2512,8 +2512,8 @@ export default function StatsScreen() {
 
       {/* ── 메모 수정 모달 ── */}
       <Modal visible={!!editMemo} transparent animationType="none" onRequestClose={() => setEditMemo(null)} onShow={() => { memoInputRef.current?.focus(); }}>
-        {/* 안드: adjustPan이 키보드 회피 담당 — KAV 'height' 중복 적용 금지 (세션 상세 시트 진동 버그와 동일 계열) */}
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* 안드: Modal은 별도 윈도우라 adjustPan 미적용 → KAV 'padding' ('height'는 진동 버그) */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={S.mo}>
           <View style={S.moScroll}>
             <View style={[S.reportCard, { backgroundColor: T.card, borderColor: T.border, borderRadius: 20, padding: 16, margin: 20 }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center', marginHorizontal: 0 }]}>
@@ -3545,9 +3545,9 @@ export default function StatsScreen() {
 
       {/* ── 세션 상세 모달 ── */}
       <Modal visible={!!sessionDetail && !editMemo} transparent animationType="slide" onRequestClose={() => { setSessionDetail(null); setIsEditingMemo(false); }}>
-        {/* 안드: 전역 adjustPan이 키보드 회피를 담당 — KAV 'height'를 겹치면 메모 저장 시
-            리렌더와 되먹임해 시트가 위아래로 진동한다 (FocusScreen 1797과 동일하게 iOS만 적용) */}
-        <KeyboardAvoidingView style={S.moBottom} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* 안드: Modal은 별도 윈도우라 adjustPan이 안 먹음 → KAV 필요. 단 'height'는 크기
+            재계산이 메모 저장 시 리렌더와 되먹임해 시트가 진동했음 → 'padding'으로 회피 */}
+        <KeyboardAvoidingView style={S.moBottom} behavior="padding">
           <Pressable style={StyleSheet.absoluteFill} onPress={() => { setSessionDetail(null); setIsEditingMemo(false); }} />
           <View style={[S.dayDetailSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center' }]}>
             {sessionDetail && (() => {
