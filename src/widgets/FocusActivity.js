@@ -34,6 +34,8 @@ const FocusActivity = (props, environment) => {
     // 잠금화면/알림 배너 — HStack 안의 Spacer가 전체 폭으로 늘려 background가 카드 전면을 덮음
     banner: (
       <VStack modifiers={[padding({ top: 14, bottom: 14, leading: 20, trailing: 20 }), background(props.bg)]}>
+        {/* [디버그 마커] 렌더 파이프라인 확인용 — 보이면 스타일 문제, 안 보이면 평가/적용 문제. 확인 후 제거 */}
+        <Text modifiers={[font({ size: 11, weight: 'bold' }), foregroundStyle('#FFD60A')]}>LA v2</Text>
         <HStack spacing={8}>
           <VStack alignment="leading" spacing={2}>
             <Text modifiers={[font({ size: 15, weight: 'semibold' }), foregroundStyle(props.textColor)]}>
