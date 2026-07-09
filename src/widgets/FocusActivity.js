@@ -31,9 +31,9 @@ const FocusActivity = (props, environment) => {
     ) : null;
 
   return {
-    // [진단 v4] 배너를 문서 예제 수준 최소 형태로 축소 — 아무것도 안 보이면 레이아웃
-    // 전달/평가 파이프라인 문제, 보이면 이전 레이아웃(스타일/구조) 문제로 확정. 확인 후 복원
-    banner: <Text>{'TEST v4 · ' + (props.diag || 'no-diag')}</Text>,
+    // [진단 v5] JSX/컴포넌트 층까지 전부 우회 — 익스텐션 DynamicView가 기대하는
+    // 원시 노드를 직접 반환. 이것도 안 보이면 레이아웃 전달 자체가 안 되는 것
+    banner: { type: 'TextView', props: { text: 'RAW v5 · ' + (props.diag || 'no-diag') } },
     // Dynamic Island — 축소 (DI는 항상 검정 배경 — 타이머는 흰색 고정)
     compactLeading: <Image systemName="timer" modifiers={[foregroundStyle(props.tint)]} />,
     compactTrailing:

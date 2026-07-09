@@ -46,6 +46,9 @@ let awayMode = false;
 
 export const setLiveActivityAway = (away) => { awayMode = !!away; };
 
+// [진단 v5] OTA 적용/레이아웃 등록 상태를 앱 UI(토스트)로 확인하기 위한 게터 — 확정 후 제거
+export const getLaDiag = () => laDiag;
+
 // 앱 시작 시 잔존 activity 재부착 — 강제종료 후에도 update/end가 가능하도록.
 // (expo-live-activity 때처럼 id를 저장할 필요 없음 — getInstances()로 복원)
 export const initLiveActivity = async () => {
