@@ -12,9 +12,28 @@ import { formatDuration } from './format';
 import { pomoPhaseTargetSec } from './pomo';
 
 let Activity = null; // LiveActivityFactory (FocusActivity)
+let laDiag = ''; // [진단 v4] 레이아웃 등록 상태 — 활성화 시 카드에 표시. 원인 확정 후 제거
 if (Platform.OS === 'ios') {
   try {
-    Activity = require('../widgets/FocusActivity').default;
+    const mod = require('../widgets/FocusActivity');
+    Activity = mod.default;
+    // [진단 v4] 검증된 경로(apple-targets ExtensionStorage — 홈 위젯이 쓰는 그 경로)로
+    // 같은 App Group 키에 레이아웃을 이중 기록 + 읽어서 상태 문자열 생성.
+    // expo-widgets WidgetsStorage 기록이 익스텐션에 안 닿는 경우를 판별/우회한다.
+    try {
+      const { ExtensionStorage } = require('@bacons/apple-targets');
+      const st = new ExtensionStorage('group.com.yeolgong.timer');
+      if (typeof mod.focusLayoutString === 'string') {
+        st.set('__expo_widgets_live_activity_FocusActivity_layout', mod.focusLayoutString);
+        laDiag = 'dw-ok';
+      } else {
+        laDiag = 'not-str:' + typeof mod.focusLayoutString; // babel 변환이 안 됐다는 뜻
+      }
+      const cur = st.get('__expo_widgets_live_activity_FocusActivity_layout');
+      laDiag += cur ? ' L' + cur.length + (cur.includes('TEST v4') ? ' v4' : ' old') : ' read-null';
+    } catch (e) {
+      laDiag = 'dw-err:' + (e && e.message ? e.message.slice(0, 40) : '?');
+    }
   } catch { Activity = null; }
 }
 
@@ -87,6 +106,7 @@ const buildProps = (t, T) => {
     textColor: T.text,
     subColor: T.sub,
     bg: T.card, // 배너 배경 — 미지정 시 잠금화면 검정 배경에 어두운 글자가 깔려 빈 카드처럼 보임
+    diag: laDiag, // [진단 v4] 확인 후 제거
     startMs: 0,
     endMs: 0,
   };

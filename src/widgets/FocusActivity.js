@@ -31,25 +31,9 @@ const FocusActivity = (props, environment) => {
     ) : null;
 
   return {
-    // 잠금화면/알림 배너 — HStack 안의 Spacer가 전체 폭으로 늘려 background가 카드 전면을 덮음
-    banner: (
-      <VStack modifiers={[padding({ top: 14, bottom: 14, leading: 20, trailing: 20 }), background(props.bg)]}>
-        {/* [디버그 마커] 렌더 파이프라인 확인용 — 보이면 스타일 문제, 안 보이면 평가/적용 문제. 확인 후 제거 */}
-        <Text modifiers={[font({ size: 11, weight: 'bold' }), foregroundStyle('#FFD60A')]}>LA v2</Text>
-        <HStack spacing={8}>
-          <VStack alignment="leading" spacing={2}>
-            <Text modifiers={[font({ size: 15, weight: 'semibold' }), foregroundStyle(props.textColor)]}>
-              {props.title}
-            </Text>
-            <Text modifiers={[font({ size: 13 }), foregroundStyle(props.subColor)]}>
-              {props.subtitle}
-            </Text>
-          </VStack>
-          <Spacer />
-          {timerText(30, props.tint)}
-        </HStack>
-      </VStack>
-    ),
+    // [진단 v4] 배너를 문서 예제 수준 최소 형태로 축소 — 아무것도 안 보이면 레이아웃
+    // 전달/평가 파이프라인 문제, 보이면 이전 레이아웃(스타일/구조) 문제로 확정. 확인 후 복원
+    banner: <Text>{'TEST v4 · ' + (props.diag || 'no-diag')}</Text>,
     // Dynamic Island — 축소 (DI는 항상 검정 배경 — 타이머는 흰색 고정)
     compactLeading: <Image systemName="timer" modifiers={[foregroundStyle(props.tint)]} />,
     compactTrailing:
@@ -89,3 +73,5 @@ const FocusActivity = (props, environment) => {
 };
 
 export default createLiveActivity('FocusActivity', FocusActivity);
+// babel 변환 후 FocusActivity는 직렬화된 소스 문자열 — 진단/이중기록용으로 노출
+export const focusLayoutString = FocusActivity;
