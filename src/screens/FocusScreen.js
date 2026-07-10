@@ -6,7 +6,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Keyb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
+import { formatTime, formatDuration, formatDDay, calcDDay, generateId } from '../utils/format';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
@@ -86,6 +86,8 @@ export default function FocusScreen() {
   const [lapExpanded, setLapExpanded] = useState(false);
   const [showCompletedTodos, setShowCompletedTodos] = useState(false);
   const [todoScopeFilter, setTodoScopeFilter] = useState('today');
+  const [todoListModal, setTodoListModal] = useState(null); // { mode:'add' } | { mode:'rename', target:'today'|'exam'|커스텀 목록 id }
+  const [todoListName, setTodoListName] = useState('');
   // 할일 추가 모달
   const [showAddTodoModal, setShowAddTodoModal] = useState(false);
   const inlineInputRef = useRef(null);
@@ -287,6 +289,84 @@ export default function FocusScreen() {
     addToFav({ label, icon: addType === 'pomodoro' ? 'nutrition-outline' : 'alarm-outline', type: addType, color: subj ? subj.color : '#FF6B9D', totalSec: addType === 'countdown' ? addMin * 60 : 0, subjectId: addSubject, pomoWorkMin: addPomoWork, pomoBreakMin: addPomoBreak });
   };
 
+  // ── 해야할일 목록 구성 ──
+  // '오늘'(매일 초기화·반복 생성처)과 '시험대비'(D-Day 연동)는 동작이 고정이라 이름만 변경 가능,
+  // 커스텀 목록(기본 '이번주')은 추가/이름변경/삭제 자유 — 항목은 매일 초기화 없이 유지
+  const todoLists = app.settings.todoLists ?? [{ id: 'week', name: '이번주' }];
+  const todayLabel = app.settings.todoLabelToday || '오늘';
+  const examLabel = app.settings.todoLabelExam || '시험대비';
+  const todoScopeName = (scope) =>
+    scope === 'exam' ? examLabel
+      : (scope === 'today' || scope == null) ? todayLabel
+        : (todoLists.find(l => l.id === scope)?.name ?? '목록');
+  const MAX_TODO_LISTS = 5;
+
+  // 백업 복원 등으로 선택 중인 목록이 사라졌을 때 필터 자동 복구
+  // (의존성은 settings의 원본 참조 — todoLists는 렌더마다 새 배열이라 사용 금지)
+  useEffect(() => {
+    if (todoScopeFilter === 'today' || todoScopeFilter === 'exam' || todoScopeFilter === 'all') return;
+    if (!todoLists.some(l => l.id === todoScopeFilter)) setTodoScopeFilter('today');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.settings.todoLists, todoScopeFilter]);
+
+  const openRenameTodoList = (target) => {
+    setTodoListName(target === 'today' ? todayLabel : target === 'exam' ? examLabel : (todoLists.find(l => l.id === target)?.name ?? ''));
+    setTodoListModal({ mode: 'rename', target });
+  };
+  const openAddTodoList = () => {
+    if (todoLists.length >= MAX_TODO_LISTS) { app.showToastCustom(`목록은 최대 ${MAX_TODO_LISTS}개까지 만들 수 있어요`, 'paengi'); return; }
+    setTodoListName('');
+    setTodoListModal({ mode: 'add' });
+  };
+  const submitTodoListModal = () => {
+    const name = todoListName.trim();
+    if (!name || !todoListModal) return;
+    const isRename = todoListModal.mode === 'rename';
+    const target = isRename ? todoListModal.target : null;
+    // 다른 목록과 같은 이름 방지 (이름변경 시 자기 자신은 제외)
+    const otherNames = [
+      target === 'today' ? null : todayLabel,
+      target === 'exam' ? null : examLabel,
+      ...todoLists.filter(l => l.id !== target).map(l => l.name),
+    ].filter(Boolean);
+    if (otherNames.includes(name)) { app.showToastCustom('같은 이름의 목록이 이미 있어요', 'paengi'); return; }
+    if (!isRename) {
+      app.updateSettings({ todoLists: [...todoLists, { id: generateId('list_'), name }] });
+    } else if (target === 'today') {
+      app.updateSettings({ todoLabelToday: name });
+    } else if (target === 'exam') {
+      app.updateSettings({ todoLabelExam: name });
+    } else {
+      app.updateSettings({ todoLists: todoLists.map(l => l.id === target ? { ...l, name } : l) });
+    }
+    setTodoListModal(null);
+  };
+  const confirmDeleteTodoList = (listId) => {
+    const list = todoLists.find(l => l.id === listId);
+    if (!list) return;
+    const cnt = app.todos.filter(t => t.scope === listId).length;
+    Alert.alert('목록 삭제', cnt > 0 ? `'${list.name}' 목록과 할 일 ${cnt}개가 함께 삭제됩니다.` : `'${list.name}' 목록을 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => {
+        app.removeTodosByScope(listId);
+        app.updateSettings({ todoLists: todoLists.filter(l => l.id !== listId) });
+        if (todoScopeFilter === listId) setTodoScopeFilter('today');
+        if (addTodoScope === listId) setAddTodoScope('today');
+      } },
+    ]);
+  };
+  const onLongPressTodoTab = (id) => {
+    if (id === 'all') return;
+    if (id === 'today' || id === 'exam') { openRenameTodoList(id); return; }
+    const list = todoLists.find(l => l.id === id);
+    if (!list) return;
+    Alert.alert(list.name, undefined, [
+      { text: '이름 변경', onPress: () => openRenameTodoList(id) },
+      { text: '삭제', style: 'destructive', onPress: () => confirmDeleteTodoList(id) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
   // ── 할일 추가 모달 헬퍼 ──
   const openAddTodo = () => {
     setAddTodoSubjectId(null);
@@ -303,14 +383,13 @@ export default function FocusScreen() {
   };
   const submitInlineTodo = () => {
     if (!addTodoText.trim()) { setAddTodoText(''); return; }
-    const scopeMap = { today: 'today', week: 'week', exam: 'exam', all: 'today' };
     app.addTodo({
       text: addTodoText.trim(),
       subjectId: addTodoSubjectId,
       subjectLabel: addTodoSubjectLabel,
       subjectColor: addTodoSubjectColor,
       priority: 'normal',
-      scope: scopeMap[todoScopeFilter] || 'today',
+      scope: todoScopeFilter === 'all' ? 'today' : todoScopeFilter,
       isTemplate: false,
     });
     Vibration.vibrate([0, 30]);
@@ -366,7 +445,9 @@ export default function FocusScreen() {
     setEditTodoSubjectId(t.subjectId || null);
     setEditTodoSubjectLabel(t.subjectLabel || null);
     setEditTodoSubjectColor(t.subjectColor || null);
-    setEditTodoScope(t.scope || 'today');
+    // 삭제된 목록에 남은 항목(백업 복원 등)은 '오늘'로 보정
+    const validScope = t.scope === 'exam' || todoLists.some(l => l.id === t.scope) ? t.scope : 'today';
+    setEditTodoScope(validScope);
     setEditTodoPriority(t.priority || 'normal');
     setEditTodoMemo(t.memo || '');
     setShowEditTodoMemo(!!(t.memo));
@@ -1277,10 +1358,8 @@ export default function FocusScreen() {
           // scope 필터 적용
           const visibleTodos = app.todos.filter(t => !t.isTemplate && (() => {
             if (todoScopeFilter === 'today') return t.scope === 'today' || t.scope == null;
-            if (todoScopeFilter === 'week') return t.scope === 'week';
-            if (todoScopeFilter === 'exam') return t.scope === 'exam';
             if (todoScopeFilter === 'all') return true;
-            return true;
+            return t.scope === todoScopeFilter; // 'exam' + 커스텀 목록
           })());
 
           // 과목별 그룹핑
@@ -1339,9 +1418,9 @@ export default function FocusScreen() {
                   {/* 메타 행: scope 뱃지 + 메모 + 완료 시각 */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                     {(() => {
-                      const scopeInfo = t.scope === 'week' ? { label: '이번주', color: '#27AE60' }
-                        : t.scope === 'exam' ? { label: '시험대비', color: '#E17055' }
-                        : { label: '오늘', color: T.accent };
+                      const scopeInfo = t.scope === 'exam' ? { label: examLabel, color: '#E17055' }
+                        : (t.scope === 'today' || t.scope == null) ? { label: todayLabel, color: T.accent }
+                        : { label: todoScopeName(t.scope), color: '#27AE60' };
                       return (
                         <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: scopeInfo.color + '18' }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: scopeInfo.color }}>{scopeInfo.label}</Text>
@@ -1386,23 +1465,27 @@ export default function FocusScreen() {
                 <Text style={[S.todoCnt, { color: T.sub }]}>{doneCount}/{todayTodos.length}</Text>
                 <Text style={{ fontSize: 11, color: T.border, marginLeft: 4 }}>탭:펼치기 · 꾹:수정</Text>
               </View>
-              {/* scope 필터 탭 */}
-              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                {[{ id: 'today', label: '오늘' }, { id: 'week', label: '이번주' }, { id: 'exam', label: '시험대비' }, { id: 'all', label: '전체' }].map(opt => {
+              {/* scope 필터 탭 — 꾹 누르면 이름변경(오늘/시험대비) 또는 이름변경·삭제(커스텀), +로 목록 추가 */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, alignItems: 'center', flexGrow: 1 }}>
+                {[{ id: 'today', label: todayLabel }, ...todoLists.map(l => ({ id: l.id, label: l.name })), { id: 'exam', label: examLabel }, { id: 'all', label: '전체' }].map(opt => {
                   const sel = todoScopeFilter === opt.id;
-                  const cnt = app.todos.filter(t => !t.isTemplate && (
+                  const cnt = opt.id === 'all' ? 0 : app.todos.filter(t => !t.isTemplate && (
                     opt.id === 'today' ? (t.scope === 'today' || t.scope == null) : t.scope === opt.id
                   )).length;
                   return (
-                    <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)}
-                      style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 5, borderRadius: 12, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                    <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)} onLongPress={() => onLongPressTodoTab(opt.id)}
+                      style={{ flexGrow: 1, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
                       <Text style={{ fontSize: 12, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }} numberOfLines={1}>
                         {opt.label}{cnt > 0 ? ` ${cnt}` : ''}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+                <TouchableOpacity onPress={openAddTodoList}
+                  style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                  <Ionicons name="add" size={15} color={T.sub} />
+                </TouchableOpacity>
+              </ScrollView>
               {/* 빠른 추가 인라인 입력 */}
               <View style={{ marginBottom: 10 }}>
                 <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
@@ -1541,7 +1624,7 @@ export default function FocusScreen() {
               })() : (
                 visibleTodos.length === 0 ? (
                   <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', paddingVertical: 12 }}>
-                    {todoScopeFilter === 'today' ? '오늘 할 일이 없어요!' : todoScopeFilter === 'week' ? '이번주 할 일이 없어요!' : todoScopeFilter === 'exam' ? '시험대비 할 일이 없어요!' : '할 일이 없어요!'}
+                    {todoScopeFilter === 'all' ? '할 일이 없어요!' : `${todoScopeName(todoScopeFilter)} 할 일이 없어요!`}
                   </Text>
                 ) : (
                   groupOrder.map(key => {
@@ -2094,17 +2177,17 @@ export default function FocusScreen() {
               </Text>
             ) : (
               <>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                  {[{ id: 'today', label: '오늘' }, { id: 'week', label: '이번주' }, { id: 'exam', label: '시험대비' }].map(opt => {
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8, flexGrow: 1 }}>
+                  {[{ id: 'today', label: todayLabel }, ...todoLists.map(l => ({ id: l.id, label: l.name })), { id: 'exam', label: examLabel }].map(opt => {
                     const sel = addTodoScope === opt.id;
                     return (
                       <TouchableOpacity key={opt.id} onPress={() => { Keyboard.dismiss(); setAddTodoScope(opt.id); }}
-                        style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                        <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{opt.label}</Text>
+                        style={{ flexGrow: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                        <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }} numberOfLines={1}>{opt.label}</Text>
                       </TouchableOpacity>
                     );
                   })}
-                </View>
+                </ScrollView>
                 {addTodoScope === 'exam' && (app.ddays || []).length > 0 && (
                   <View style={{ marginBottom: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginBottom: 6 }}>
@@ -2234,17 +2317,17 @@ export default function FocusScreen() {
                 <Text style={{ fontSize: 13, color: T.accent, marginBottom: 14 }}>반복 설정 시 해당 요일 오늘 할 일로 자동 추가됩니다</Text>
               ) : (
                 <>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                    {[{ id: 'today', label: '오늘' }, { id: 'week', label: '이번주' }, { id: 'exam', label: '시험대비' }].map(opt => {
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8, flexGrow: 1 }}>
+                    {[{ id: 'today', label: todayLabel }, ...todoLists.map(l => ({ id: l.id, label: l.name })), { id: 'exam', label: examLabel }].map(opt => {
                       const sel = editTodoScope === opt.id;
                       return (
                         <TouchableOpacity key={opt.id} onPress={() => { Keyboard.dismiss(); setEditTodoScope(opt.id); }}
-                          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
-                          <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{opt.label}</Text>
+                          style={{ flexGrow: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                          <Text style={{ fontSize: 14, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }} numberOfLines={1}>{opt.label}</Text>
                         </TouchableOpacity>
                       );
                     })}
-                  </View>
+                  </ScrollView>
                   {editTodoScope === 'exam' && (app.ddays || []).length > 0 && (
                     <View style={{ marginBottom: 14 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginBottom: 6 }}>
@@ -2286,6 +2369,39 @@ export default function FocusScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ═══ 할일 목록 추가/이름변경 모달 ═══ */}
+      <Modal visible={!!todoListModal} transparent animationType="fade" onRequestClose={() => setTodoListModal(null)}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+          <View style={[S.mo, { justifyContent: 'center' }]}>
+            <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border, alignSelf: 'center', width: '86%' }, isTablet && { maxWidth: 420 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Ionicons name={todoListModal?.mode === 'add' ? 'add-circle-outline' : 'create-outline'} size={18} color={T.accent} />
+                <Text style={[S.modalTitle, { color: T.text, marginBottom: 0 }]}>{todoListModal?.mode === 'add' ? '새 목록 만들기' : '목록 이름 변경'}</Text>
+              </View>
+              <TextInput
+                value={todoListName} onChangeText={setTodoListName}
+                placeholder="목록 이름 (예: 단어장, 오답노트)" placeholderTextColor={T.sub}
+                maxLength={12} autoFocus returnKeyType="done" onSubmitEditing={submitTodoListModal}
+                style={[S.todoInput, { borderColor: T.accent, backgroundColor: T.surface, color: T.text, marginBottom: 8 }]}
+              />
+              {todoListModal?.mode === 'add' && (
+                <Text style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>새 목록의 할 일은 매일 초기화되지 않고 계속 유지돼요</Text>
+              )}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => setTodoListModal(null)}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: T.sub }}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={submitTodoListModal}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', backgroundColor: T.accent }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: 'white' }}>저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 

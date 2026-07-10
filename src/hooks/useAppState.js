@@ -100,6 +100,11 @@ const DEFAULT_SETTINGS = {
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
   headerBgPreset: 0, // 집중탭 헤더 배경 프리셋 인덱스
+  // 해야할일 목록 구성 — '오늘'(매일 초기화·반복 생성처)과 '시험대비'(D-Day 연동)는 동작 고정이라 라벨만 변경 가능,
+  // 커스텀 목록은 자유 추가/이름변경/삭제 (항목은 매일 초기화 없이 유지). 기존 '이번주'는 id 'week' 커스텀 목록으로 승계
+  todoLists: [{ id: 'week', name: '이번주' }],
+  todoLabelToday: '오늘',
+  todoLabelExam: '시험대비',
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -1806,7 +1811,7 @@ export function AppProvider({ children }) {
           !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
         if (mergedSettings.lastTodoResetDate !== today) {
           const resetTodos = migrated
-            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam'))
+            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today')))
             .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
           const generated = genFromTemplates(resetTodos);
           const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
@@ -2175,6 +2180,8 @@ export function AppProvider({ children }) {
     return { ...t, done, completedAt: done ? Date.now() : null };
   })), []);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
+  // 커스텀 목록 삭제 시 소속 할일 일괄 제거
+  const removeTodosByScope = useCallback((scope) => setTodos(prev => prev.filter(t => t.scope !== scope)), []);
   const toggleTodoRepeat = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, repeat: !t.repeat } : t)), []);
   const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
   const generateDailyTodos = useCallback(() => {
@@ -2302,7 +2309,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, toggleTodoRepeat, updateTodo, generateDailyTodos,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, generateDailyTodos,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
