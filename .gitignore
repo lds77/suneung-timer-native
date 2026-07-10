@@ -47,6 +47,8 @@ prebuild_*.txt
 # generated native folders
 /ios
 /android
+# SDK 56용 android/ 백업 (sdk56 브랜치 복귀 시 이름 되돌려 재활용)
+/android_sdk56.bak
 
 # 사운드 백업 파일
 assets/sounds/_backup/
