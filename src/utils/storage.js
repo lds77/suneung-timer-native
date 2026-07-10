@@ -9,6 +9,7 @@ const KEYS = {
   SESSIONS: '@yeolgong/sessions',
   DDAYS: '@yeolgong/ddays',
   TODOS: '@yeolgong/todos',
+  TODO_LOG: '@yeolgong/todoLog',
   DAILY_RECORDS: '@yeolgong/dailyRecords',
   TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
   COUNTUP_FAVS: '@yeolgong/countupFavs',
@@ -61,6 +62,10 @@ export const loadDDays = () => loadJSON(KEYS.DDAYS, []);
 export const saveTodos = (todos) => saveJSON(KEYS.TODOS, todos);
 export const loadTodos = () => loadJSON(KEYS.TODOS, []);
 
+// ── 할 일 완료 로그 (통계용 — 리셋으로 삭제돼도 완료 이력 보존) ──
+export const saveTodoLog = (log) => saveJSON(KEYS.TODO_LOG, log);
+export const loadTodoLog = () => loadJSON(KEYS.TODO_LOG, []);
+
 // ── 공부량 즐겨찾기 ──
 export const saveCountupFavs = (favs) => saveJSON(KEYS.COUNTUP_FAVS, favs);
 export const loadCountupFavs = () => loadJSON(KEYS.COUNTUP_FAVS, null);
@@ -97,7 +102,7 @@ export const clearAllData = async () => {
 
 // ── 백업/복원 ──
 const BACKUP_KEYS = [
-  'SETTINGS', 'SUBJECTS', 'SESSIONS', 'DDAYS', 'TODOS',
+  'SETTINGS', 'SUBJECTS', 'SESSIONS', 'DDAYS', 'TODOS', 'TODO_LOG',
   'DAILY_RECORDS', 'COUNTUP_FAVS', 'FAVS', 'WEEKLY_SCHEDULE',
 ];
 
@@ -105,7 +110,7 @@ const BACKUP_KEYS = [
 // 크래시해 앱이 재설치 전까지 먹통이 되므로, 형태가 안 맞는 키는 복원에서 제외한다.
 const BACKUP_KEY_SHAPES = {
   SETTINGS: 'object', SUBJECTS: 'array', SESSIONS: 'array', DDAYS: 'array',
-  TODOS: 'array', DAILY_RECORDS: 'object', COUNTUP_FAVS: 'array', FAVS: 'array',
+  TODOS: 'array', TODO_LOG: 'array', DAILY_RECORDS: 'object', COUNTUP_FAVS: 'array', FAVS: 'array',
   WEEKLY_SCHEDULE: 'object',
 };
 

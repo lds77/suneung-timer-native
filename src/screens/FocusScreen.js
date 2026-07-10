@@ -6,7 +6,8 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Keyb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
-import { formatTime, formatDuration, formatDDay, calcDDay, generateId } from '../utils/format';
+import { formatTime, formatDuration, formatDDay, calcDDay, generateId, getToday } from '../utils/format';
+import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel } from '../utils/todoUtils';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
@@ -68,6 +69,7 @@ export default function FocusScreen() {
   const [editTodoSubjectLabel, setEditTodoSubjectLabel] = useState(null);
   const [editTodoSubjectColor, setEditTodoSubjectColor] = useState(null);
   const [editTodoScope, setEditTodoScope] = useState('today');
+  const [editTodoDueDate, setEditTodoDueDate] = useState(null);
   const [editTodoPriority, setEditTodoPriority] = useState('normal');
   const [editTodoMemo, setEditTodoMemo] = useState('');
   const [showEditTodoMemo, setShowEditTodoMemo] = useState(false);
@@ -98,6 +100,7 @@ export default function FocusScreen() {
   const [addTodoSubjectColor, setAddTodoSubjectColor] = useState(null);
   const [addTodoPriority, setAddTodoPriority] = useState('normal');
   const [addTodoScope, setAddTodoScope] = useState('today');
+  const [addTodoDueDate, setAddTodoDueDate] = useState(null);
   const [addTodoRepeatType, setAddTodoRepeatType] = useState('none');
   const [addTodoCustomDays, setAddTodoCustomDays] = useState([]);
   const [addTodoDdayId, setAddTodoDdayId] = useState(null);
@@ -300,6 +303,9 @@ export default function FocusScreen() {
       : (scope === 'today' || scope == null) ? todayLabel
         : (todoLists.find(l => l.id === scope)?.name ?? '목록');
   const MAX_TODO_LISTS = 5;
+  // 모달 날짜(기한) 칩 후보: 오늘 + 다음 6일
+  const todoDateToday = getToday();
+  const todoDateChoices = [todoDateToday, ...nextDates(todoDateToday, 6)];
 
   // 백업 복원 등으로 선택 중인 목록이 사라졌을 때 필터 자동 복구
   // (의존성은 settings의 원본 참조 — todoLists는 렌더마다 새 배열이라 사용 금지)
@@ -374,6 +380,7 @@ export default function FocusScreen() {
     setAddTodoSubjectColor(null);
     setAddTodoPriority('normal');
     setAddTodoScope('today');
+    setAddTodoDueDate(null);
     setAddTodoDdayId(null);
     setAddTodoMemo('');
     setShowAddTodoMemo(false);
@@ -407,6 +414,7 @@ export default function FocusScreen() {
       subjectColor: addTodoSubjectColor,
       priority: addTodoPriority,
       scope: addTodoScope,
+      dueDate: repeatDays !== null ? null : addTodoDueDate,
       ddayId: addTodoDdayId,
       memo: addTodoMemo,
       isTemplate: repeatDays !== null,
@@ -448,6 +456,7 @@ export default function FocusScreen() {
     // 삭제된 목록에 남은 항목(백업 복원 등)은 '오늘'로 보정
     const validScope = t.scope === 'exam' || todoLists.some(l => l.id === t.scope) ? t.scope : 'today';
     setEditTodoScope(validScope);
+    setEditTodoDueDate(t.dueDate || null);
     setEditTodoPriority(t.priority || 'normal');
     setEditTodoMemo(t.memo || '');
     setShowEditTodoMemo(!!(t.memo));
@@ -465,6 +474,10 @@ export default function FocusScreen() {
     if (todo?.templateId) {
       app.removeTodo(todo.templateId);
     }
+    // 템플릿 자체 편집 시 기존 인스턴스도 제거 — 아래 addTodo가 오늘 인스턴스를 다시 생성하므로 중복 방지
+    if (todo?.isTemplate) {
+      app.todos.filter(x => x.templateId === todo.id).forEach(x => app.removeTodo(x.id));
+    }
     app.removeTodo(editTodoId);
     app.addTodo({
       text: editTodoText.trim(),
@@ -473,12 +486,15 @@ export default function FocusScreen() {
       subjectColor: editTodoSubjectColor,
       priority: editTodoPriority,
       scope: editTodoRepeatType !== 'none' ? 'today' : editTodoScope,
+      dueDate: editTodoRepeatType !== 'none' ? null : editTodoDueDate,
       ddayId: editTodoDdayId,
       memo: editTodoMemo,
       isTemplate: repeatDays !== null,
       repeatDays,
     });
     setEditTodoId(null);
+    Vibration.vibrate([0, 30]);
+    app.showToastCustom('수정했어요!', 'toru');
   };
 
   const startLapTimer = () => {
@@ -1349,15 +1365,17 @@ export default function FocusScreen() {
 
         {/* 할 일 */}
         {(() => {
+          const todayStr = getToday();
+          const tomorrowStr = nextDates(todayStr, 1)[0];
           const priorityOrder = { high: 0, normal: 1, low: 2 };
           const sortTodos = (list) => [...list].sort((a, b) => {
             if (a.done !== b.done) return a.done ? 1 : -1;
             return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
           });
 
-          // scope 필터 적용
+          // scope 필터 적용 — '오늘'은 오늘 목록 + 기한 도래 항목 (My Day 모델)
           const visibleTodos = app.todos.filter(t => !t.isTemplate && (() => {
-            if (todoScopeFilter === 'today') return t.scope === 'today' || t.scope == null;
+            if (todoScopeFilter === 'today') return isTodayVisible(t, todayStr);
             if (todoScopeFilter === 'all') return true;
             return t.scope === todoScopeFilter; // 'exam' + 커스텀 목록
           })());
@@ -1401,7 +1419,7 @@ export default function FocusScreen() {
                   Vibration.vibrate([0, 30]);
                   // 올클리어 체크: 완료로 바꿀 때만
                   if (!wasDone) {
-                    const todayList = app.todos.filter(x => !x.isTemplate && (x.scope === 'today' || x.scope == null));
+                    const todayList = app.todos.filter(x => isTodayVisible(x, todayStr));
                     const nowDone = todayList.filter(x => x.id === t.id ? true : x.done).length;
                     if (nowDone === todayList.length && todayList.length > 0) {
                       app.showToastCustom('오늘 할 일 올클리어!', app.settings.mainCharacter || 'toru');
@@ -1427,6 +1445,17 @@ export default function FocusScreen() {
                         </View>
                       );
                     })()}
+                    {(() => {
+                      const db = dueBadge(t, todayStr);
+                      if (!db) return null;
+                      const c = db.tone === 'overdue' ? '#E17055' : db.tone === 'due' ? T.accent : T.sub;
+                      return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: c + '18' }}>
+                          <Ionicons name="calendar-outline" size={10} color={c} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: c }}>{db.label}</Text>
+                        </View>
+                      );
+                    })()}
                     {t.memo && <Ionicons name="attach-outline" size={13} color={T.sub} />}
                     {t.done && timeStr && <Text style={{ fontSize: 11, color: T.sub }}>{timeStr}</Text>}
                   </View>
@@ -1436,6 +1465,37 @@ export default function FocusScreen() {
                         <Ionicons name="attach-outline" size={12} color={T.sub} />
                         <Text style={{ fontSize: 12, color: T.sub }}>{t.memo}</Text>
                       </View>
+                    </View>
+                  )}
+                  {/* 펼침 퀵액션: 집중 시작(자유 타이머) / 내일로 미루기 */}
+                  {isExpanded && !t.done && (
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                      <TouchableOpacity onPress={() => {
+                        setExpandedTodo(null);
+                        app.addTimer({
+                          type: 'free',
+                          label: t.text.length > 18 ? t.text.slice(0, 18) + '…' : t.text,
+                          subjectId: t.subjectId || null,
+                          color: t.subjectColor || T.accent,
+                        });
+                      }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.accent }}>
+                        <Ionicons name="play" size={12} color="white" />
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: 'white' }}>집중 시작</Text>
+                      </TouchableOpacity>
+                      {/* 반복 인스턴스는 내일 것이 자동 생성되므로 미루기 제외 */}
+                      {!t.templateId && (
+                        <TouchableOpacity onPress={() => {
+                          Vibration.vibrate([0, 30]);
+                          app.showToastCustom('내일 할 일로 미뤘어요', 'toru');
+                          app.updateTodo(t.id, { dueDate: tomorrowStr });
+                          setExpandedTodo(null);
+                        }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                          <Ionicons name="arrow-redo-outline" size={12} color={T.sub} />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>내일로</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1450,7 +1510,7 @@ export default function FocusScreen() {
           };
 
           // 오늘 완료 카운트 (캐릭터 메시지용)
-          const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+          const todayTodos = app.todos.filter(t => isTodayVisible(t, todayStr));
           const doneCount = todayTodos.filter(t => t.done).length;
           const allDone = doneCount > 0 && doneCount === todayTodos.length;
 
@@ -1470,7 +1530,7 @@ export default function FocusScreen() {
                 {[{ id: 'today', label: todayLabel }, ...todoLists.map(l => ({ id: l.id, label: l.name })), { id: 'exam', label: examLabel }, { id: 'all', label: '전체' }].map(opt => {
                   const sel = todoScopeFilter === opt.id;
                   const cnt = opt.id === 'all' ? 0 : app.todos.filter(t => !t.isTemplate && (
-                    opt.id === 'today' ? (t.scope === 'today' || t.scope == null) : t.scope === opt.id
+                    opt.id === 'today' ? isTodayVisible(t, todayStr) : t.scope === opt.id
                   )).length;
                   return (
                     <TouchableOpacity key={opt.id} onPress={() => setTodoScopeFilter(opt.id)} onLongPress={() => onLongPressTodoTab(opt.id)}
@@ -1646,6 +1706,29 @@ export default function FocusScreen() {
                   })
                 )
               )}
+              {/* 예정: 오늘 목록 소속인데 기한이 미래인 항목 — 기한 도래 시 위 목록에 자동 등장 */}
+              {todoScopeFilter === 'today' && (() => {
+                const upcoming = app.todos.filter(t => isUpcoming(t, todayStr)).sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
+                if (upcoming.length === 0) return null;
+                return (
+                  <View style={{ marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <Ionicons name="time-outline" size={13} color={T.sub} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>예정 {upcoming.length}</Text>
+                      <Text style={{ fontSize: 11, color: T.border }}>날짜가 되면 자동으로 올라와요 · 꾹:수정</Text>
+                    </View>
+                    {upcoming.map(t => (
+                      <TouchableOpacity key={t.id} onLongPress={() => openEditTodo(t)} activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, opacity: 0.75 }}>
+                        <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: T.surface2 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>{dateChipLabel(t.dueDate, todayStr)}</Text>
+                        </View>
+                        <Text style={{ fontSize: 13, color: T.sub, flex: 1 }} numberOfLines={1}>{t.text}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })()}
               {/* 하단 완료 + 캐릭터 메시지 */}
               {todayTodos.length > 0 && (
                 <View style={{ paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: T.border, marginTop: 4 }}>
@@ -1670,9 +1753,11 @@ export default function FocusScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
                       <Ionicons name="repeat-outline" size={12} color={T.sub} />
                       <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>반복 할 일 템플릿</Text>
+                      <Text style={{ fontSize: 11, color: T.border }}>탭:수정</Text>
                     </View>
                     {templates.map(t => (
-                      <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <TouchableOpacity key={t.id} onPress={() => openEditTodo(t)} activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
                         <Text style={{ fontSize: 13, color: T.sub, flex: 1 }} numberOfLines={1}>{t.text}</Text>
                         <Text style={{ fontSize: 11, color: T.sub }}>
@@ -1693,7 +1778,7 @@ export default function FocusScreen() {
                         }} style={{ padding: 2 }}>
                           <Text style={{ fontSize: 14, color: T.sub }}>×</Text>
                         </TouchableOpacity>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 );
@@ -2170,7 +2255,7 @@ export default function FocusScreen() {
               </View>
             )}
             {/* 기한 */}
-            <Text style={{ fontSize: 13, fontWeight: '700', color: addTodoRepeatType !== 'none' ? T.border : T.sub, marginBottom: 6 }}>기한</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: addTodoRepeatType !== 'none' ? T.border : T.sub, marginBottom: 6 }}>목록</Text>
             {addTodoRepeatType !== 'none' ? (
               <Text style={{ fontSize: 13, color: T.accent, marginBottom: 14 }}>
                 반복 설정 시 해당 요일 오늘 할 일로 자동 추가됩니다
@@ -2206,6 +2291,22 @@ export default function FocusScreen() {
                       })}
                     </ScrollView>
                   </View>
+                )}
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>날짜 (기한)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: addTodoDueDate ? 6 : 14 }} contentContainerStyle={{ gap: 6 }}>
+                  {[null, ...(addTodoDueDate && !todoDateChoices.includes(addTodoDueDate) ? [addTodoDueDate] : []), ...todoDateChoices].map(ds => {
+                    const sel = addTodoDueDate === ds;
+                    const label = ds === null ? '없음' : ds === todoDateToday ? '오늘' : dateChipLabel(ds, todoDateToday);
+                    return (
+                      <TouchableOpacity key={ds ?? 'none'} onPress={() => { Keyboard.dismiss(); setAddTodoDueDate(ds); }}
+                        style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                        <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {addTodoDueDate && (
+                  <Text style={{ fontSize: 12, color: T.accent, marginBottom: 14 }}>날짜가 되면 오늘 할 일에 자동으로 올라와요</Text>
                 )}
               </>
             )}
@@ -2312,7 +2413,7 @@ export default function FocusScreen() {
                 </View>
               )}
               {/* 기한 */}
-              <Text style={{ fontSize: 13, fontWeight: '700', color: editTodoRepeatType !== 'none' ? T.border : T.sub, marginBottom: 6 }}>기한</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: editTodoRepeatType !== 'none' ? T.border : T.sub, marginBottom: 6 }}>목록</Text>
               {editTodoRepeatType !== 'none' ? (
                 <Text style={{ fontSize: 13, color: T.accent, marginBottom: 14 }}>반복 설정 시 해당 요일 오늘 할 일로 자동 추가됩니다</Text>
               ) : (
@@ -2346,6 +2447,22 @@ export default function FocusScreen() {
                         })}
                       </ScrollView>
                     </View>
+                  )}
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub, marginBottom: 6 }}>날짜 (기한)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginBottom: editTodoDueDate ? 6 : 14 }} contentContainerStyle={{ gap: 6 }}>
+                    {[null, ...(editTodoDueDate && !todoDateChoices.includes(editTodoDueDate) ? [editTodoDueDate] : []), ...todoDateChoices].map(ds => {
+                      const sel = editTodoDueDate === ds;
+                      const label = ds === null ? '없음' : ds === todoDateToday ? '오늘' : dateChipLabel(ds, todoDateToday);
+                      return (
+                        <TouchableOpacity key={ds ?? 'none'} onPress={() => { Keyboard.dismiss(); setEditTodoDueDate(ds); }}
+                          style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14, backgroundColor: sel ? T.accent + '20' : T.surface2, borderWidth: 1, borderColor: sel ? T.accent : T.border }}>
+                          <Text style={{ fontSize: 13, fontWeight: sel ? '800' : '600', color: sel ? T.accent : T.sub }}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  {editTodoDueDate && (
+                    <Text style={{ fontSize: 12, color: T.accent, marginBottom: 14 }}>날짜가 되면 오늘 할 일에 자동으로 올라와요</Text>
                   )}
                 </>
               )}

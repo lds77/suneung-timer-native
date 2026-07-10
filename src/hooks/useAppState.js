@@ -18,8 +18,9 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
+import { isTodayVisible } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
@@ -124,6 +125,7 @@ export function AppProvider({ children }) {
   const [sessions, setSessions] = useState([]);
   const [ddays, setDDays] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [todoLog, setTodoLog] = useState([]); // 완료 이력 (통계용 — 리셋 삭제와 무관하게 보존)
   // 즐겨찾기 설정 (FocusScreen에서 사용)
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
@@ -1736,7 +1738,7 @@ export function AppProvider({ children }) {
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
-      let [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
+      let [s, subj, sess, dd, td, cuf, fv, tl] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog()]);
       // 형태 방어: 손상된 저장값(비배열 등)이 있으면 그 키만 무시 — .filter/.map 크래시로 앱이 먹통되는 것 방지
       if (s && (typeof s !== 'object' || Array.isArray(s))) s = null;
       if (!Array.isArray(subj)) subj = null;
@@ -1745,6 +1747,7 @@ export function AppProvider({ children }) {
       if (!Array.isArray(td)) td = null;
       if (cuf && !Array.isArray(cuf)) cuf = null;
       if (!Array.isArray(fv)) fv = null;
+      if (Array.isArray(tl)) setTodoLog(tl);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -1784,6 +1787,7 @@ export function AppProvider({ children }) {
           repeatDays:   t.repeatDays   ?? null,
           templateId:   t.templateId   ?? null,
           createdDate:  t.createdDate  ?? null,
+          dueDate:      t.dueDate      ?? null,
         }));
         // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
         const todayDay = new Date().getDay();
@@ -1908,8 +1912,8 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
-  }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
+    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveTodoLog(todoLog); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
+  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
@@ -2154,6 +2158,7 @@ export function AppProvider({ children }) {
         repeatDays,
         templateId:   o.templateId   ?? null,
         createdDate:  o.createdDate  ?? null,
+        dueDate:      o.dueDate      ?? null,
       };
       // 반복 템플릿이면 오늘 요일에 해당할 경우 인스턴스도 즉시 생성
       if (isTemplate && repeatDays && repeatDays.length > 0) {
@@ -2174,11 +2179,23 @@ export function AppProvider({ children }) {
       return [...prev, newTmpl];
     });
   }, []);
-  const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => {
-    if (t.id !== id) return t;
+  const toggleTodo = useCallback((id) => {
+    const t = todos.find(x => x.id === id);
+    if (!t) return;
     const done = !t.done;
-    return { ...t, done, completedAt: done ? Date.now() : null };
-  })), []);
+    const completedAt = done ? Date.now() : null;
+    setTodos(prev => prev.map(x => x.id === id ? { ...x, done, completedAt } : x));
+    // 완료 이력 로그 — 리셋으로 항목이 삭제돼도 통계에서 조회 가능. 체크 해제 시 회수 (id로 멱등)
+    setTodoLog(prev => {
+      const rest = prev.filter(e => e.id !== id);
+      if (!done) return rest;
+      const next = [...rest, {
+        id, date: toDateStr(new Date(completedAt)), text: t.text,
+        subjectLabel: t.subjectLabel ?? null, subjectColor: t.subjectColor ?? null, scope: t.scope ?? 'today',
+      }];
+      return next.length > 1000 ? next.slice(next.length - 1000) : next;
+    });
+  }, [todos]);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
   // 커스텀 목록 삭제 시 소속 할일 일괄 제거
   const removeTodosByScope = useCallback((scope) => setTodos(prev => prev.filter(t => t.scope !== scope)), []);
@@ -2206,15 +2223,15 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  // 할일 헬퍼 함수
+  // 할일 헬퍼 함수 — '오늘'은 오늘 목록 소속 + 기한 도래 항목 (isTodayVisible, My Day 모델)
   const getTodayTodos = useCallback(() =>
-    todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null)),
+    todos.filter(t => isTodayVisible(t, getToday())),
   [todos]);
   const getTodosBySubject = useCallback((subjectId) =>
     todos.filter(t => !t.isTemplate && t.subjectId === subjectId),
   [todos]);
   const getTodoCompletionRate = useCallback(() => {
-    const todayT = todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+    const todayT = todos.filter(t => isTodayVisible(t, getToday()));
     if (todayT.length === 0) return 0;
     return Math.round((todayT.filter(t => t.done).length / todayT.length) * 100);
   }, [todos]);
@@ -2297,6 +2314,8 @@ export function AppProvider({ children }) {
     if (sess) setSessions(sess);
     if (dd) setDDays(dd);
     if (td) setTodos(td);
+    const tl = await loadTodoLog();
+    if (Array.isArray(tl)) setTodoLog(tl);
     if (cuf) setCountupFavs(cuf);
     if (fv && fv.length > 0) setFavs(fv);
     const ws = await loadWeeklySchedule();
@@ -2309,7 +2328,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, generateDailyTodos,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, generateDailyTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
