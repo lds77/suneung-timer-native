@@ -105,7 +105,7 @@ const DEFAULT_SETTINGS = {
   // 커스텀 목록은 자유 추가/이름변경/삭제 (항목은 매일 초기화 없이 유지). 기존 '이번주'는 id 'week' 커스텀 목록으로 승계
   todoLists: [{ id: 'week', name: '이번주' }],
   todoLabelToday: '오늘',
-  todoLabelExam: '시험대비',
+  todoLabelExam: 'D-Day',
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -1762,6 +1762,8 @@ export function AppProvider({ children }) {
           s.activeSounds = (s.soundId && s.soundId !== 'none') ? [s.soundId] : [];
         }
         delete s.soundId;
+        // 할일 시험 탭 기본 라벨 개명: 시험대비 → D-Day (구 기본값 그대로인 경우만 — 직접 바꾼 사용자는 유지)
+        if (s.todoLabelExam === '시험대비') s.todoLabelExam = 'D-Day';
         // 재설치 시 exactAlarmGuideShown 리셋 (구글 백업 복원 대응, Android 13+)
         if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });

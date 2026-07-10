@@ -57,3 +57,14 @@ export const dateChipLabel = (dateStr, todayStr) => {
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
 };
+
+// 월 캘린더 셀: 앞쪽 빈칸(null) + { date: 'YYYY-MM-DD', day: n } — 일요일 시작
+export const buildMonthCells = (year, monthIdx) => {
+  const first = new Date(year, monthIdx, 1);
+  const cells = Array.from({ length: first.getDay() }, () => null);
+  const lastDay = new Date(year, monthIdx + 1, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    cells.push({ date: toDateStr(new Date(year, monthIdx, d)), day: d });
+  }
+  return cells;
+};

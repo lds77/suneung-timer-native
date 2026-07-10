@@ -1,5 +1,5 @@
 // 할일 기한(dueDate) 순수 로직 테스트
-import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel } from '../todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells } from '../todoUtils';
 
 const TODAY = '2026-07-10';
 
@@ -87,5 +87,24 @@ describe('nextDates / dateChipLabel', () => {
   it('요일 라벨', () => {
     // 2026-07-12는 일요일
     expect(dateChipLabel('2026-07-12', TODAY)).toBe('7/12(일)');
+  });
+});
+
+describe('buildMonthCells', () => {
+  it('2026년 7월: 1일이 수요일 → 앞 빈칸 3개 + 31일', () => {
+    const cells = buildMonthCells(2026, 6);
+    expect(cells.slice(0, 3)).toEqual([null, null, null]);
+    expect(cells.length).toBe(3 + 31);
+    expect(cells[3]).toEqual({ date: '2026-07-01', day: 1 });
+    expect(cells[cells.length - 1]).toEqual({ date: '2026-07-31', day: 31 });
+  });
+  it('일요일로 시작하는 달은 빈칸 없음 (2026-11-01 일요일)', () => {
+    const cells = buildMonthCells(2026, 10);
+    expect(cells[0]).toEqual({ date: '2026-11-01', day: 1 });
+    expect(cells.length).toBe(30);
+  });
+  it('윤년 2월', () => {
+    const cells = buildMonthCells(2028, 1).filter(Boolean);
+    expect(cells.length).toBe(29);
   });
 });
