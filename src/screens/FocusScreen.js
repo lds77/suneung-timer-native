@@ -158,6 +158,21 @@ export default function FocusScreen() {
   // 완료 결과 모달 — 자기평가 입력
   const [resultSelfRating, setResultSelfRating] = useState(null);
   const [resultMemo, setResultMemo] = useState('');
+  const [resultTodoDone, setResultTodoDone] = useState(false); // 결과 모달: 연결된 할 일 완료로 표시
+
+  // 결과 모달 닫기 공통 처리 (확인/건너뛰기/뒤로가기) — 할일 완료 토글 반영 + 입력 상태 리셋
+  const closeResultModal = () => {
+    const data = app.completedResultData;
+    if (resultTodoDone && data?.todoId) {
+      const todo = app.todos.find(x => x.id === data.todoId && !x.done);
+      if (todo) app.toggleTodo(todo.id);
+    }
+    app.setCompletedResultData(null);
+    if (data?.timerId) app.removeTimer(data.timerId);
+    setResultSelfRating(null);
+    setResultMemo('');
+    setResultTodoDone(false);
+  };
 
   const mainScrollRef = useRef(null);
   const [todoDragging, setTodoDragging] = useState(false); // 할일 드래그 정렬 중 메인 스크롤 잠금
@@ -1633,7 +1648,7 @@ export default function FocusScreen() {
       {/* 🔒 잠금 오버레이는 App.js의 LockOverlay 컴포넌트로 이동 (Root 레벨 렌더링 — 폰트 변경 리마운트에 영향받지 않음) */}
 
       {/* ── 완료 결과 + 자기평가 ── */}
-      <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}>
+      <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={closeResultModal}>
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
@@ -1660,6 +1675,28 @@ export default function FocusScreen() {
                     {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
                   </Text>
                 </View>
+              );
+            })()}
+            {/* 연결된 할 일 완료 토글 — 할일 '집중 시작'으로 켠 타이머일 때만 */}
+            {(() => {
+              const data = app.completedResultData;
+              if (!data?.todoId) return null;
+              const todo = app.todos.find(x => x.id === data.todoId && !x.done);
+              if (!todo) return null;
+              return (
+                <TouchableOpacity onPress={() => setResultTodoDone(v => !v)} activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, marginBottom: 12,
+                    backgroundColor: resultTodoDone ? T.accent + '15' : T.card,
+                    borderWidth: resultTodoDone ? 2 : 1, borderColor: resultTodoDone ? T.accent : T.border }}>
+                  <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center',
+                    borderColor: resultTodoDone ? T.accent : T.border, backgroundColor: resultTodoDone ? T.accent : 'transparent' }}>
+                    {resultTodoDone && <Ionicons name="checkmark" size={13} color="white" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }} numberOfLines={1}>{todo.text}</Text>
+                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>이 할 일을 완료로 표시</Text>
+                  </View>
+                </TouchableOpacity>
               );
             })()}
             <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', marginBottom: 12 }}>오늘 공부 어땠나요?</Text>
@@ -1703,14 +1740,11 @@ export default function FocusScreen() {
                 } else if (data?.sessionId) {
                   app.updateSessionSelfRating(data.sessionId, resultSelfRating, resultMemo.trim() || null);
                 }
-                app.setCompletedResultData(null);
-                if (data?.timerId) app.removeTimer(data.timerId);
-                setResultSelfRating(null);
-                setResultMemo('');
+                closeResultModal();
               }}>
               <Text style={{ color: 'white', fontSize: 15, fontWeight: '900', letterSpacing: 1 }}>완료</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { const data = app.completedResultData; app.setCompletedResultData(null); if (data?.timerId) app.removeTimer(data.timerId); setResultSelfRating(null); setResultMemo(''); }}
+            <TouchableOpacity onPress={closeResultModal}
               style={{ alignItems: 'center', paddingVertical: 10 }}>
               <Text style={{ fontSize: 14, color: T.sub }}>건너뛰기</Text>
             </TouchableOpacity>

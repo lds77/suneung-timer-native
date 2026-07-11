@@ -2,10 +2,10 @@
 // 해야할일 기능 전체 (카드 + 추가/수정 폼시트 + 목록 모달 + 상태/핸들러) — FocusScreen에서 분리.
 // 추가/수정 폼의 필드 상태는 TodoFormSheet가 소유하고, 여기는 저장 시 데이터 로직만 처리한다.
 // mainScrollRef/scrollYRef는 FocusScreen 메인 ScrollView 소유 — 안드 키보드 가림 스크롤 보정에만 사용.
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { calcDDay, generateId, getToday } from '../../utils/format';
+import { calcDDay, generateId, getToday, formatDuration } from '../../utils/format';
 import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex } from '../../utils/todoUtils';
 import { getTodoMessage } from '../../constants/characters';
 import TodoFormSheet from './TodoFormSheet';
@@ -29,6 +29,13 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   const dragRef = useRef(null);
   const dragY = useRef(new Animated.Value(0)).current;
   const rowHeights = useRef({}); // todo id → onLayout 측정 높이
+
+  // 할일별 누적 집중시간 — '집중 시작'으로 기록된 세션(todoId)에서 파생 (틱 재렌더 대비 메모)
+  const todoFocusSec = useMemo(() => {
+    const m = {};
+    (app.sessions || []).forEach(s => { if (s.todoId) m[s.todoId] = (m[s.todoId] || 0) + s.durationSec; });
+    return m;
+  }, [app.sessions]);
 
   const startDrag = (t, orderedIds) => {
     const from = orderedIds.indexOf(t.id);
@@ -362,6 +369,13 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                         </View>
                       );
                     })()}
+                    {/* 이 할일로 집중한 누적 시간 (세션 todoId 파생, 1분 이상만) */}
+                    {(todoFocusSec[t.id] || 0) >= 60 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: T.surface2 }}>
+                        <Ionicons name="timer-outline" size={10} color={T.sub} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>{formatDuration(todoFocusSec[t.id])}</Text>
+                      </View>
+                    )}
                     {t.memo && <Ionicons name="attach-outline" size={13} color={T.sub} />}
                     {t.done && timeStr && <Text style={{ fontSize: 11, color: T.sub }}>{timeStr}</Text>}
                   </View>
@@ -383,6 +397,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                           label: t.text.length > 18 ? t.text.slice(0, 18) + '…' : t.text,
                           subjectId: t.subjectId || null,
                           color: t.subjectColor || T.accent,
+                          todoId: t.id, // 종료 시 완료 확인 + 할일에 집중시간 누적 표시
                         });
                       }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.accent }}>

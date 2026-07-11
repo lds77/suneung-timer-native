@@ -836,7 +836,7 @@ export function AppProvider({ children }) {
     // 뽀모도로/연속모드 휴식 페이즈 중 종료(그만하기 등) → 휴식 시간을 공부로 기록하지 않음
     //   (이전 work 페이즈는 pomoFlip/seqFlip이 이미 세션으로 기록함)
     const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
-    if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
+    if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || ((t.planId || t.todoId) && t.elapsedSec >= 30))) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       // 카운트다운: 중도 종료(그만하기 등)도 이 경로로 올 수 있으므로 실제 경과 시간만 기록
       // 연속모드(그만하기 경로)는 항목 기준 카운트다운으로 기록 (seqFlip/stopTimer와 동일 규칙)
@@ -848,7 +848,7 @@ export function AppProvider({ children }) {
         mode: recType, pauseCount: t.pauseCount, exitCount: exitCnt,
         focusMode: mode, timerType: recType,
         completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
-        pomoSets: t.pomoSet || 0, planId: t.planId || null,
+        pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null,
         dedupeKey: `complete|${t.id}|${t.startedAt}`,
       });
       // 완료 결과 모달 트리거 (랩/시퀀스 제외)
@@ -872,7 +872,7 @@ export function AppProvider({ children }) {
             }
           }
         } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
       }
       return sessId;
@@ -1483,7 +1483,7 @@ export function AppProvider({ children }) {
         subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
         elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
         pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
-        result: null, laps: [], planId: opts.planId || null, resumedAt: startedAt, elapsedSecAtResume: 0,
+        result: null, laps: [], planId: opts.planId || null, todoId: opts.todoId || null, resumedAt: startedAt, elapsedSecAtResume: 0,
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(t);
@@ -1558,12 +1558,12 @@ export function AppProvider({ children }) {
       if (t.id !== id) return t;
       // 휴식 페이즈 중 중지 → 휴식 시간을 공부 세션으로 기록하지 않음 (work 페이즈는 flip 시 이미 기록됨)
       const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
-      if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
+      if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || ((t.planId || t.todoId) && t.elapsedSec >= 30)) && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         // 연속모드는 항목 기준 카운트다운으로 기록 (seqFlip/cancelSequence와 동일 규칙 — 밀도 공식·통계 라벨 일관)
         const recType = t.type === 'sequence' ? 'countdown' : t.type;
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
         if (t.planId) {
@@ -1582,10 +1582,10 @@ export function AppProvider({ children }) {
               setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
             }
           } else {
-            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
           }
         } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
@@ -1632,7 +1632,7 @@ export function AppProvider({ children }) {
           durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount,
           focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
-          pomoSets: t.pomoSet || 0, planId: t.planId || null,
+          pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null,
           dedupeKey: `complete|${t.id}|${t.startedAt}`,
         });
       }
@@ -1883,12 +1883,12 @@ export function AppProvider({ children }) {
               const e = Math.min(newElapsed, t.totalSec);
               // 앱이 꺼져 있는 동안 완료된 카운트다운: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실)
               if (e >= t.totalSec) {
-                if (t.totalSec >= 300 || (t.planId && t.totalSec >= 30)) {
+                if (t.totalSec >= 300 || ((t.planId || t.todoId) && t.totalSec >= 30)) {
                   recordSessionInternal({
                     subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
                     durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
                     focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
-                    completionRatio: 1, planId: t.planId || null,
+                    completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
                   });
                   showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
                 }
