@@ -3,14 +3,14 @@
 // 추가/수정 폼의 필드 상태는 TodoFormSheet가 소유하고, 여기는 저장 시 데이터 로직만 처리한다.
 // mainScrollRef/scrollYRef는 FocusScreen 메인 ScrollView 소유 — 안드 키보드 가림 스크롤 보정에만 사용.
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { calcDDay, generateId, getToday } from '../../utils/format';
-import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel } from '../../utils/todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex } from '../../utils/todoUtils';
 import { getTodoMessage } from '../../constants/characters';
 import TodoFormSheet from './TodoFormSheet';
 
-export default function TodoSection({ app, T, S, isTablet, isLandscape, contentMaxW, tabletModalW, mainScrollRef, scrollYRef }) {
+export default function TodoSection({ app, T, S, isTablet, isLandscape, contentMaxW, tabletModalW, mainScrollRef, scrollYRef, onDragActive }) {
   const [expandedTodo, setExpandedTodo] = useState(null);
   const [editTarget, setEditTarget] = useState(null); // 수정 중인 todo 객체 (폼 초기값 + 저장 시 원본 정리용)
   const [todoScopeFilter, setTodoScopeFilter] = useState('today');
@@ -21,6 +21,69 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   const [addTodoText, setAddTodoText] = useState('');
 
   const inlineFocusedRef = useRef(false);
+
+  // ── 드래그 정렬 (같은 그룹의 미완료 항목끼리, 손잡이로 시작) ──
+  // 부모 ScrollView 안이라 드래그 중엔 onDragActive로 바깥 스크롤을 잠근다.
+  // PanResponder 콜백은 grant 시점 렌더의 클로저에 묶이므로 최신값은 dragRef로 읽는다.
+  const [drag, setDrag] = useState(null); // { ids, heights, from, to, maxUp, maxDown }
+  const dragRef = useRef(null);
+  const dragY = useRef(new Animated.Value(0)).current;
+  const rowHeights = useRef({}); // todo id → onLayout 측정 높이
+
+  const startDrag = (t, orderedIds) => {
+    const from = orderedIds.indexOf(t.id);
+    if (from === -1) return;
+    const heights = orderedIds.map(id => rowHeights.current[id] ?? 44);
+    const d = {
+      ids: orderedIds, heights, from, to: from,
+      maxUp: -heights.slice(0, from).reduce((a, b) => a + b, 0),
+      maxDown: heights.slice(from + 1).reduce((a, b) => a + b, 0),
+    };
+    dragRef.current = d;
+    setDrag(d);
+    onDragActive?.(true);
+    Vibration.vibrate([0, 20]);
+  };
+  const moveDrag = (dy) => {
+    const d = dragRef.current;
+    if (!d) return;
+    dragY.setValue(Math.max(d.maxUp, Math.min(d.maxDown, dy)));
+    const to = computeDropIndex(d.heights, d.from, dy);
+    if (to !== d.to) {
+      dragRef.current = { ...d, to };
+      setDrag(dragRef.current);
+    }
+  };
+  const endDrag = () => {
+    const d = dragRef.current;
+    if (d && d.to !== d.from) {
+      const ids = [...d.ids];
+      const [moved] = ids.splice(d.from, 1);
+      ids.splice(d.to, 0, moved);
+      app.reorderTodos(ids);
+      Vibration.vibrate([0, 30]);
+    }
+    dragRef.current = null;
+    setDrag(null);
+    dragY.setValue(0);
+    onDragActive?.(false);
+  };
+  // PanResponder는 컴포넌트당 1개로 고정 — 렌더마다 새로 만들면 드래그 중 재렌더(setDrag) 시
+  // 핸들러가 교체돼 gestureState 기준점이 끊기고 이동 이벤트가 죽는다 (grant만 되고 move 안 됨).
+  // 어느 행을 잡았는지는 손잡이의 onStartShouldSetResponder에서 pendingDragRef로 전달.
+  const pendingDragRef = useRef(null); // { todo, ids }
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false, // 부모 ScrollView에 responder 안 뺏김
+    onPanResponderGrant: () => {
+      const p = pendingDragRef.current;
+      if (p) startDrag(p.todo, p.ids);
+    },
+    onPanResponderMove: (_, g) => moveDrag(g.dy),
+    onPanResponderRelease: endDrag,
+    onPanResponderTerminate: endDrag,
+  })).current;
 
   // 앱 복귀 시 키보드 자동 열림 방지
   useEffect(() => {
@@ -198,11 +261,8 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
         {(() => {
           const todayStr = getToday();
           const tomorrowStr = nextDates(todayStr, 1)[0];
-          const priorityOrder = { high: 0, normal: 1, low: 2 };
-          const sortTodos = (list) => [...list].sort((a, b) => {
-            if (a.done !== b.done) return a.done ? 1 : -1;
-            return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
-          });
+          // 완료만 아래로 (안정 정렬 — 미완료끼리는 배열 순서 = 드래그로 정한 수동 순서)
+          const sortTodos = (list) => [...list].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
 
           // scope 필터 적용 — '오늘'은 오늘 목록 + 기한 도래 항목 (My Day 모델)
           const visibleTodos = app.todos.filter(t => !t.isTemplate && (() => {
@@ -229,13 +289,28 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
             return groupMap[b].todos.filter(t => !t.done).length - groupMap[a].todos.filter(t => !t.done).length;
           });
 
-          const renderTodoRow = (t) => {
+          // orderedIds: 이 행이 속한 그룹의 미완료 id 목록(표시 순서) — 드래그 정렬 범위
+          const renderTodoRow = (t, orderedIds) => {
             const isExpanded = expandedTodo === t.id;
             const timeStr = t.completedAt
               ? new Date(t.completedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
               : null;
+            // 드래그 중 시각 처리: 잡힌 행은 손가락 따라 이동, 사이 행들은 잡힌 행 높이만큼 자리 양보
+            const dIdx = drag && !t.done ? drag.ids.indexOf(t.id) : -1;
+            const isDragged = dIdx !== -1 && dIdx === drag.from;
+            let shiftY = 0;
+            if (dIdx !== -1 && !isDragged) {
+              if (drag.from < drag.to && dIdx > drag.from && dIdx <= drag.to) shiftY = -drag.heights[drag.from];
+              else if (drag.from > drag.to && dIdx >= drag.to && dIdx < drag.from) shiftY = drag.heights[drag.from];
+            }
             return (
-              <TouchableOpacity key={t.id} style={[S.todoItem, { alignItems: 'flex-start' }]} activeOpacity={0.7}
+              <Animated.View key={t.id}
+                onLayout={(e) => { rowHeights.current[t.id] = e.nativeEvent.layout.height; }}
+                style={isDragged
+                  ? { transform: [{ translateY: dragY }], zIndex: 10, elevation: 6, backgroundColor: T.card, borderRadius: 8,
+                      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }
+                  : shiftY !== 0 ? { transform: [{ translateY: shiftY }] } : null}>
+              <TouchableOpacity style={[S.todoItem, { alignItems: 'flex-start' }]} activeOpacity={0.7}
                 onPress={() => setExpandedTodo(isExpanded ? null : t.id)}
                 onLongPress={() => openEditTodo(t)}>
                 {/* 우선순위 인디케이터 */}
@@ -330,6 +405,20 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                     </View>
                   )}
                 </View>
+                {/* 드래그 손잡이 — 같은 그룹에 미완료가 2개 이상일 때만.
+                    onStartShouldSetResponder만 행별로 덮어써 잡은 행 정보를 넘기고,
+                    responder 초기화는 반드시 공유 인스턴스에 위임(직접 true 반환 시 기준점 미초기화) */}
+                {!t.done && orderedIds && orderedIds.length > 1 && (
+                  <View {...panResponder.panHandlers}
+                    onStartShouldSetResponder={(e) => {
+                      pendingDragRef.current = { todo: t, ids: orderedIds };
+                      return panResponder.panHandlers.onStartShouldSetResponder(e);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 2 }}
+                    style={{ paddingHorizontal: 3, paddingVertical: 2, marginTop: 1 }}>
+                    <Ionicons name="reorder-two-outline" size={17} color={isDragged ? T.accent : T.border} />
+                  </View>
+                )}
                 <TouchableOpacity onPress={() => Alert.alert('할 일 삭제', '이 항목을 삭제할까요?', [
                   { text: '취소', style: 'cancel' },
                   { text: '삭제', style: 'destructive', onPress: () => app.removeTodo(t.id) },
@@ -337,6 +426,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                   <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
+              </Animated.View>
             );
           };
 
@@ -486,7 +576,10 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                           <View style={{ height: 4, backgroundColor: T.surface2, borderRadius: 2, marginBottom: 6, overflow: 'hidden' }}>
                             <View style={{ height: 4, borderRadius: 2, backgroundColor: pct >= 1 ? '#27AE60' : T.accent, width: `${Math.round(pct * 100)}%` }} />
                           </View>
-                          {sorted.map(renderTodoRow)}
+                          {(() => {
+                            const undoneIds = sorted.filter(x => !x.done).map(x => x.id);
+                            return sorted.map(t => renderTodoRow(t, undoneIds));
+                          })()}
                         </View>
                       );
                     })}
@@ -521,6 +614,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                   groupOrder.map(key => {
                     const group = groupMap[key];
                     const sorted = sortTodos(group.todos);
+                    const undoneIds = sorted.filter(x => !x.done).map(x => x.id);
                     const groupDone = group.todos.filter(t => t.done).length;
                     return (
                       <View key={key} style={{ marginBottom: 8 }}>
@@ -531,7 +625,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                             <Text style={{ fontSize: 12, color: T.sub }}>{groupDone}/{group.todos.length}</Text>
                           </View>
                         )}
-                        {sorted.map(renderTodoRow)}
+                        {sorted.map(t => renderTodoRow(t, undoneIds))}
                       </View>
                     );
                   })

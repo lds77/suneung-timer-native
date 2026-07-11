@@ -160,6 +160,7 @@ export default function FocusScreen() {
   const [resultMemo, setResultMemo] = useState('');
 
   const mainScrollRef = useRef(null);
+  const [todoDragging, setTodoDragging] = useState(false); // 할일 드래그 정렬 중 메인 스크롤 잠금
   const scrollYRef = useRef(0);
 
 
@@ -1098,7 +1099,7 @@ export default function FocusScreen() {
         })()}
 
         {/* 할 일 (카드+모달 — focus/TodoSection.js) */}
-        <TodoSection app={app} T={T} S={S} isTablet={isTablet} isLandscape={isLandscape} contentMaxW={contentMaxW} tabletModalW={tabletModalW} mainScrollRef={mainScrollRef} scrollYRef={scrollYRef} />
+        <TodoSection app={app} T={T} S={S} isTablet={isTablet} isLandscape={isLandscape} contentMaxW={contentMaxW} tabletModalW={tabletModalW} mainScrollRef={mainScrollRef} scrollYRef={scrollYRef} onDragActive={setTodoDragging} />
     </>
   );
 
@@ -1298,6 +1299,7 @@ export default function FocusScreen() {
         /* ── iPad 가로모드: 2컬럼 ── */
         <View style={{ flex: 1, flexDirection: 'row' }}>
           <ScrollView ref={mainScrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+            scrollEnabled={!todoDragging}
             onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
             contentContainerStyle={[S.scrollCol, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
 
@@ -1328,6 +1330,7 @@ export default function FocusScreen() {
       ) : (
         /* ── 세로/폰: 기존 단일 컬럼 ── */
         <ScrollView ref={mainScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+          scrollEnabled={!todoDragging}
           onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
           contentContainerStyle={[S.scroll, (lapTimer || lapDone) && { paddingBottom: lapExpanded ? 340 : 200 }]}>
           <View style={isTablet ? { maxWidth: contentMaxW, width: '100%', alignSelf: 'center' } : null}>

@@ -20,7 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
-import { isTodayVisible } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
@@ -1774,7 +1774,7 @@ export function AppProvider({ children }) {
       const mergedSettings = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
       if (td) {
         // 새 필드 마이그레이션 (기존 todo에 없는 필드 기본값 추가)
-        const migrated = td.map(t => ({
+        let migrated = td.map(t => ({
           ...t,
           completedAt:  t.completedAt  ?? null,
           subjectId:    t.subjectId    ?? null,
@@ -1791,6 +1791,13 @@ export function AppProvider({ children }) {
           createdDate:  t.createdDate  ?? null,
           dueDate:      t.dueDate      ?? null,
         }));
+        // 드래그 정렬 도입 마이그레이션(일회성): 화면 정렬이 [완료, 우선순위]에서 [완료, 배열순서]로
+        // 바뀌므로, 기존 배열을 우선순위로 한 번 안정 정렬해 업데이트 직후에도 보이는 순서를 유지
+        if (!mergedSettings.todoOrderMigrated) {
+          const pOrd = { high: 0, normal: 1, low: 2 };
+          migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
+          setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
+        }
         // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
         const todayDay = new Date().getDay();
         const genFromTemplates = (base) => {
@@ -2203,6 +2210,8 @@ export function AppProvider({ children }) {
   const removeTodosByScope = useCallback((scope) => setTodos(prev => prev.filter(t => t.scope !== scope)), []);
   const toggleTodoRepeat = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, repeat: !t.repeat } : t)), []);
   const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
+  // 드래그 정렬 커밋: 그룹 항목들을 배열 내 기존 자리에 새 순서로 재배치 (그룹 밖 위치 불변)
+  const reorderTodos = useCallback((orderedIds) => setTodos(prev => applyReorder(prev, orderedIds)), []);
   const generateDailyTodos = useCallback(() => {
     const todayDay = new Date().getDay();
     const todayStr = getToday();
@@ -2330,7 +2339,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, generateDailyTodos, todoLog,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, generateDailyTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,

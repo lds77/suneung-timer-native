@@ -1,5 +1,5 @@
 // 할일 기한(dueDate) 순수 로직 테스트
-import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells } from '../todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex } from '../todoUtils';
 
 const TODAY = '2026-07-10';
 
@@ -87,6 +87,52 @@ describe('nextDates / dateChipLabel', () => {
   it('요일 라벨', () => {
     // 2026-07-12는 일요일
     expect(dateChipLabel('2026-07-12', TODAY)).toBe('7/12(일)');
+  });
+});
+
+describe('applyReorder — 드래그 정렬 커밋', () => {
+  const mk = (...ids) => ids.map(id => ({ id }));
+  const ids = (list) => list.map(t => t.id);
+
+  it('그룹 항목들을 기존 슬롯 자리에 새 순서로 재배치', () => {
+    const list = mk('a', 'b', 'c', 'd');
+    expect(ids(applyReorder(list, ['c', 'a', 'b']))).toEqual(['c', 'a', 'b', 'd']);
+  });
+  it('그룹 밖 항목(중간에 끼어 있어도)의 위치는 그대로', () => {
+    // b, d만 그룹 — a, c, e 자리는 유지
+    const list = mk('a', 'b', 'c', 'd', 'e');
+    expect(ids(applyReorder(list, ['d', 'b']))).toEqual(['a', 'd', 'c', 'b', 'e']);
+  });
+  it('없는 id가 섞이면 원본 그대로 (삭제 레이스 방어)', () => {
+    const list = mk('a', 'b');
+    expect(applyReorder(list, ['a', 'x'])).toBe(list);
+  });
+  it('항목 객체는 참조 유지', () => {
+    const list = mk('a', 'b');
+    const next = applyReorder(list, ['b', 'a']);
+    expect(next[0]).toBe(list[1]);
+    expect(next[1]).toBe(list[0]);
+  });
+});
+
+describe('computeDropIndex — 드래그 목표 인덱스', () => {
+  const H = [40, 40, 60, 40]; // 표시 순서의 행 높이
+
+  it('이동 없으면 제자리', () => expect(computeDropIndex(H, 1, 0)).toBe(1));
+  it('아래 이웃 절반 미만이면 제자리', () => expect(computeDropIndex(H, 0, 19)).toBe(0));
+  it('아래 이웃 절반 이상이면 한 칸 아래', () => expect(computeDropIndex(H, 0, 20)).toBe(1));
+  it('가변 높이 누적: 40 + 60/2 = 70 이상이면 두 칸', () => {
+    expect(computeDropIndex(H, 0, 69)).toBe(1);
+    expect(computeDropIndex(H, 0, 70)).toBe(2);
+  });
+  it('위로 이동도 동일 규칙', () => {
+    expect(computeDropIndex(H, 2, -19)).toBe(2);
+    expect(computeDropIndex(H, 2, -20)).toBe(1);
+    expect(computeDropIndex(H, 2, -60)).toBe(0);
+  });
+  it('끝을 넘어가면 경계에서 멈춤', () => {
+    expect(computeDropIndex(H, 0, 9999)).toBe(3);
+    expect(computeDropIndex(H, 3, -9999)).toBe(0);
   });
 });
 

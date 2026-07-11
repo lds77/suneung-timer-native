@@ -58,6 +58,38 @@ export const dateChipLabel = (dateStr, todayStr) => {
   return `${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
 };
 
+// 드래그 정렬 커밋: orderedIds에 해당하는 항목들을 배열 내 기존 자리(슬롯)에 새 순서로 재배치.
+// 그룹 밖 항목들의 위치는 그대로 유지 — 과목 그룹 안에서만 순서를 바꾸는 용도
+export const applyReorder = (list, orderedIds) => {
+  const idSet = new Set(orderedIds);
+  const slots = [];
+  list.forEach((t, i) => { if (idSet.has(t.id)) slots.push(i); });
+  if (slots.length !== orderedIds.length) return list; // id 불일치(삭제 등) 시 무시
+  const byId = new Map(list.filter(t => idSet.has(t.id)).map(t => [t.id, t]));
+  const next = [...list];
+  slots.forEach((slot, k) => { next[slot] = byId.get(orderedIds[k]); });
+  return next;
+};
+
+// 드래그 중 목표 인덱스: 행 높이 배열(표시 순서)과 드래그 이동량(dy)으로 계산.
+// 이웃 행의 절반을 넘게 지나면 한 칸 이동 — 가변 높이 행 대응
+export const computeDropIndex = (heights, fromIndex, dy) => {
+  let idx = fromIndex;
+  let acc = 0;
+  if (dy > 0) {
+    while (idx < heights.length - 1 && dy - acc >= heights[idx + 1] / 2) {
+      acc += heights[idx + 1];
+      idx++;
+    }
+  } else {
+    while (idx > 0 && -dy - acc >= heights[idx - 1] / 2) {
+      acc += heights[idx - 1];
+      idx--;
+    }
+  }
+  return idx;
+};
+
 // 월 캘린더 셀: 앞쪽 빈칸(null) + { date: 'YYYY-MM-DD', day: n } — 일요일 시작
 export const buildMonthCells = (year, monthIdx) => {
   const first = new Date(year, monthIdx, 1);
