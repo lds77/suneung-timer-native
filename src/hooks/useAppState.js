@@ -18,7 +18,7 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { isTodayVisible, applyReorder } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
@@ -544,6 +544,15 @@ export function AppProvider({ children }) {
             && !ultraRef.current.showChallenge) {
           applyFocusBrightness();
         }
+
+        // 위젯에서 체크한 할 일 반영 — 헤드리스 핸들러가 storage에 직접 썼으므로 재로드
+        // (안 하면 다음 자동저장이 메모리 todos로 덮어써 위젯 체크가 사라짐)
+        consumeWidgetTodoDirty().then(async (dirty) => {
+          if (!dirty) return;
+          const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
+          if (Array.isArray(td)) setTodos(td);
+          if (Array.isArray(tl)) setTodoLog(tl);
+        });
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
         updateAllWidgets(timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null);
@@ -1956,7 +1965,7 @@ export function AppProvider({ children }) {
       const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
       updateAllWidgets(active);
     }, 900);
-  }, [sessions, subjects, ddays, settings, widgetTimerSig, loading]);
+  }, [sessions, subjects, ddays, settings, todos, widgetTimerSig, loading]);
 
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생

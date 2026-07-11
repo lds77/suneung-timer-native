@@ -62,8 +62,8 @@ src/
   widgets/                Android 홈 위젯 + 양 플랫폼 위젯 데이터 (widgetData.js는 iOS 스냅샷도 계산)
     widgetData.js         getWidgetData() — AsyncStorage 직접 읽어 위젯 데이터 계산 (헤드리스 안전)
     updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록
-    widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
-    StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
+    widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리, 오늘할일 체크 토글 포함)
+    StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js / TodayTodoWidget.js
   utils/
     timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
                           페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
@@ -80,7 +80,7 @@ src/
     fonts.js              폰트 상수
 App.js                    앱 진입점 (~1,100줄), 온보딩, 네비게이션, 잠금화면 오버레이, 위젯 딥링크(subjectId/planId)
 targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) — index.swift(번들), SharedData.swift(파서/공용),
-                          StudyTime/DDay/Subject/TodayPlan 4종. EAS 빌드로만 검증 가능
+                          StudyTime/DDay/Subject/TodayPlan/TodayTodo 5종. EAS 빌드로만 검증 가능
 ```
 
 ---
@@ -183,13 +183,15 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
   앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
 
 ### 홈 화면 위젯 (iOS + Android, 1.0.32~)
-- 4종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 — 양 플랫폼 동일 구성
+- 5종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 / 오늘 할 일(1.0.34~) — 양 플랫폼 동일 구성
 - 데이터 흐름: `getWidgetData()`가 AsyncStorage를 직접 계산 → 안드는 헤드리스 렌더,
   iOS는 `updateAllWidgets()`가 App Group(UserDefaults `widgetData` 키)에 JSON 기록 후 reloadWidget
 - iOS 전용: 잠금화면 위젯(accessory 패밀리), 실행 중 실시간 카운팅(`runningAnchorMs` + `Text(style:.timer)`),
   자정 리셋(스냅샷 `date` 비교), D-Day는 위젯이 목표일로 매 렌더 재계산
 - 딥링크: `yeolgong://start?subjectId=` (과목 자유 타이머) / `yeolgong://start?planId=` (계획 카운트다운) — App.js 처리
-- 갱신 트리거: 세션/과목/D-Day/설정 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
+- 갱신 트리거: 세션/과목/D-Day/설정/할일 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
+- **오늘할일 위젯 체크(안드 전용)**: 행 탭 → `TODO_TOGGLE` → 헤드리스가 storage에 직접 토글+완료로그
+  → `@yeolgong/widgetTodoDirty` 플래그 → 앱 복귀 시 todos/todoLog 재로드 (자동저장 덮어쓰기 방지). iOS는 보기 전용
 - ※iOS 위젯 타겟명은 디렉터리와 같은 ASCII('widgets') 필수, apple-targets는 patch-package 패치 유지 필요
 
 ### 기타

@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '47',
+      buildNumber: '48',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -58,7 +58,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 40,
+      versionCode: 56, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
@@ -140,6 +140,19 @@ module.exports = {
               maxResizeHeight: '320dp',           // 세로로 키워 계획 더 노출 가능
               resizeMode: 'horizontal|vertical',
               updatePeriodMillis: 1800000,
+            },
+            {
+              name: 'TodayTodo',
+              label: '오늘 할 일',
+              description: '오늘 할 일을 확인하고 위젯에서 바로 체크해요',
+              minWidth: '70dp',                   // 1x1까지 축소 가능
+              minHeight: '70dp',
+              targetCellWidth: 2,
+              targetCellHeight: 2,                // 기본 2x2 (할 일 목록)
+              maxResizeWidth: '320dp',
+              maxResizeHeight: '320dp',           // 세로로 키워 할 일 더 노출 가능
+              resizeMode: 'horizontal|vertical',
+              updatePeriodMillis: 1800000,        // 30분 주기 보조 갱신(자정 리셋 등)
             },
           ],
         },

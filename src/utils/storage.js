@@ -66,6 +66,21 @@ export const loadTodos = () => loadJSON(KEYS.TODOS, []);
 export const saveTodoLog = (log) => saveJSON(KEYS.TODO_LOG, log);
 export const loadTodoLog = () => loadJSON(KEYS.TODO_LOG, []);
 
+// ── 위젯 할일 체크 dirty 플래그 ──
+// 오늘할일 위젯의 체크는 헤드리스 핸들러가 storage에 직접 쓴다(widgetTaskHandler).
+// 앱이 살아 있으면 복귀 시 이 플래그를 소비해 todos/todoLog를 재로드해야
+// 다음 자동저장이 메모리 상태로 체크를 덮어쓰지 않는다.
+const WIDGET_TODO_DIRTY = '@yeolgong/widgetTodoDirty'; // widgetTaskHandler와 동일 문자열
+export const consumeWidgetTodoDirty = async () => {
+  try {
+    const v = await AsyncStorage.getItem(WIDGET_TODO_DIRTY);
+    if (v) await AsyncStorage.removeItem(WIDGET_TODO_DIRTY);
+    return !!v;
+  } catch {
+    return false;
+  }
+};
+
 // ── 공부량 즐겨찾기 ──
 export const saveCountupFavs = (favs) => saveJSON(KEYS.COUNTUP_FAVS, favs);
 export const loadCountupFavs = () => loadJSON(KEYS.COUNTUP_FAVS, null);
