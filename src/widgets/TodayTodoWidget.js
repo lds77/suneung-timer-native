@@ -13,14 +13,15 @@ const theme = (darkMode) => darkMode
 const DONE_GREEN = '#4CAF50';
 const GOLD = '#E6B800';
 
-function TodoRow({ todo, accent, t }) {
+function TodoRow({ todo, accent, t, grid = false }) {
   return (
     <FlexWidget
       clickAction="TODO_TOGGLE"
       clickActionData={{ id: todo.id }}
       style={{
-        width: 'match_parent', height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
-        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10, marginTop: 5,
+        height: 'wrap_content', flexDirection: 'row', alignItems: 'center',
+        backgroundColor: t.chip, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10,
+        ...(grid ? { flex: 1, margin: 3 } : { width: 'match_parent', marginTop: 5 }),
       }}
     >
       {/* 체크박스 */}
@@ -85,12 +86,26 @@ export function TodayTodoWidget({ data, width = 0, height = 0 }) {
         <FlexWidget clickAction="OPEN_APP" style={{ width: 'match_parent', height: 'wrap_content' }}>
           <TextWidget text="오늘 할 일을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
         </FlexWidget>
-      ) : (
+      ) : (() => {
         // 높이에 맞춰 행 수 결정 (행 ≈ 38dp + 헤더 여유, TodayPlan과 동일 기준). 높이 모르면 3개.
-        todos
-          .slice(0, height > 0 ? Math.max(1, Math.floor((height - 28) / 38)) : 3)
-          .map((todo) => <TodoRow key={todo.id} todo={todo} accent={accent} t={t} />)
-      )}
+        const rowsFit = height > 0 ? Math.max(1, Math.floor((height - 28) / 38)) : 3;
+        // 3칸 이상 너비면 2열 그리드 (과목바로시작/오늘계획과 동일 기준)
+        const cols = width >= 200 ? 2 : 1;
+        if (cols === 1) {
+          return todos
+            .slice(0, rowsFit)
+            .map((todo) => <TodoRow key={todo.id} todo={todo} accent={accent} t={t} />);
+        }
+        const shown = todos.slice(0, cols * rowsFit);
+        const rows = [];
+        for (let i = 0; i < shown.length; i += cols) rows.push(shown.slice(i, i + cols));
+        return rows.map((row, ri) => (
+          <FlexWidget key={ri} style={{ width: 'match_parent', flexDirection: 'row' }}>
+            {row.map((todo) => <TodoRow key={todo.id} todo={todo} accent={accent} t={t} grid />)}
+            {row.length < cols && <FlexWidget style={{ flex: 1, margin: 3 }} />}
+          </FlexWidget>
+        ));
+      })()}
     </FlexWidget>
   );
 }

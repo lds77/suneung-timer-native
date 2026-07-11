@@ -106,34 +106,65 @@ struct TodayTodoView: View {
     }
 
     // 중형/대형: 할 일 목록 (JS가 이미 미완료 먼저 정렬해 전달)
+    // 중형은 가로가 넓으므로 2열 그리드 (오늘계획/과목바로시작 위젯과 동일 패턴)
     private var listBody: some View {
-        let rows = family == .systemMedium ? 3 : 7
+        Group {
+            if family == .systemMedium {
+                mediumGridBody
+            } else {
+                largeListBody
+            }
+        }
+    }
+
+    private func todoChip(_ t: TodoItem, fontSize: CGFloat) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: t.done ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: fontSize + 1))
+                .foregroundColor(t.done ? Color(hexString: "#4CAF50") : d.subColor)
+            if let c = t.color, !t.done {
+                Circle().fill(c).frame(width: 7, height: 7)
+            }
+            Text(t.text)
+                .font(.system(size: fontSize, weight: t.done ? .medium : .semibold))
+                .foregroundColor(t.done ? d.subColor : d.textColor)
+                .strikethrough(t.done, color: d.subColor)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(t.done
+                      ? d.subColor.opacity(d.darkMode ? 0.10 : 0.06)
+                      : d.subColor.opacity(d.darkMode ? 0.16 : 0.09))
+        )
+    }
+
+    // 중형(4x2): 2열 x 3행 그리드로 6개 표시
+    private var mediumGridBody: some View {
+        let gap: CGFloat = 6
+        let cols = [GridItem(.flexible(), spacing: gap), GridItem(.flexible(), spacing: gap)]
+        return VStack(alignment: .leading, spacing: gap) {
+            header
+            LazyVGrid(columns: cols, spacing: gap) {
+                ForEach(d.todos.prefix(6)) { t in
+                    todoChip(t, fontSize: 12)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var largeListBody: some View {
+        let rows = 7
         return VStack(alignment: .leading, spacing: 5) {
             header
             ForEach(d.todos.prefix(rows)) { t in
-                HStack(spacing: 8) {
-                    Image(systemName: t.done ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(t.done ? Color(hexString: "#4CAF50") : d.subColor)
-                    if let c = t.color, !t.done {
-                        Circle().fill(c).frame(width: 7, height: 7)
-                    }
-                    Text(t.text)
-                        .font(.system(size: 13, weight: t.done ? .medium : .semibold))
-                        .foregroundColor(t.done ? d.subColor : d.textColor)
-                        .strikethrough(t.done, color: d.subColor)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(t.done
-                              ? d.subColor.opacity(d.darkMode ? 0.10 : 0.06)
-                              : d.subColor.opacity(d.darkMode ? 0.16 : 0.09))
-                )
+                todoChip(t, fontSize: 13)
             }
             if d.todos.count > rows {
                 Text("+\(d.todos.count - rows)개 더")
