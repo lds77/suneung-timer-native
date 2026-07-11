@@ -286,4 +286,11 @@ describe('buildSessionRecord', () => {
     expect(s.startedAt).toBe(NOW - 1800 * 1000);
     expect(s.endedAt).toBe(NOW);
   });
+
+  test('todoId 패스스루 — 할일 연결 타이머 세션 (미지정 시 null)', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: NOW, todoId: 'todo_1' });
+    expect(s.todoId).toBe('todo_1');
+    const none = buildSessionRecord({ ...spec, startedAt: NOW });
+    expect(none.todoId).toBeNull();
+  });
 });

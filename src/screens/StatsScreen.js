@@ -11,6 +11,7 @@ import { getTheme } from '../constants/colors';
 import { CHARACTERS } from '../constants/characters';
 import { getTier, TIERS } from '../constants/presets';
 import { formatDuration, formatShort, formatDDay, getToday, getWeekStartStr } from '../utils/format';
+import { isTodayVisible } from '../utils/todoUtils';
 import RunningTimersBar from '../components/RunningTimersBar';
 import { calcAverageDensity, getDensityBreakdown } from '../utils/density';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -520,6 +521,23 @@ export default function StatsScreen() {
             })}
           </View>
         )}
+        {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
+        {(() => {
+          const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
+          if (doneTodos.length === 0) return null;
+          return (
+            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+              <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
+              {doneTodos.map(e => (
+                <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+                  <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
+                  <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
+                  {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
+                </View>
+              ))}
+            </View>
+          );
+        })()}
         {dayDetail.sessions.length === 0 && (
           <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
         )}
@@ -564,7 +582,7 @@ export default function StatsScreen() {
       }
     } catch {}
     // 이미지 공유 실패 시 텍스트 공유 폴백
-    const weekTodosAll = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+    const weekTodosAll = app.todos.filter(t => isTodayVisible(t, getToday()));
     const weekTodoRate = weekTodosAll.length > 0
       ? Math.round((weekTodosAll.filter(t => t.done).length / weekTodosAll.length) * 100)
       : null;
@@ -1148,7 +1166,7 @@ export default function StatsScreen() {
             {tab === 'daily' && (<>
               {/* ── TODO 카드 ── */}
               {(() => {
-                const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+                const todayTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
                 if (todayTodos.length === 0) return null;
                 const doneCnt = todayTodos.filter(t => t.done).length;
                 const pct = Math.round((doneCnt / todayTodos.length) * 100);
@@ -1759,7 +1777,7 @@ export default function StatsScreen() {
 
             {/* ── TODO 카드 ── */}
             {(() => {
-              const todayTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+              const todayTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
               if (todayTodos.length === 0) return null;
               const doneCnt = todayTodos.filter(t => t.done).length;
               const pct = Math.round((doneCnt / todayTodos.length) * 100);
@@ -2651,7 +2669,7 @@ export default function StatsScreen() {
 
                 {/* 이번 주 할일 완료율 */}
                 {(() => {
-                  const wTodos = app.todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+                  const wTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
                   if (wTodos.length === 0) return null;
                   const wDone = wTodos.filter(t => t.done).length;
                   const wPct = Math.round((wDone / wTodos.length) * 100);
@@ -3207,6 +3225,23 @@ export default function StatsScreen() {
                     })}
                   </View>
                 )}
+                {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
+                {(() => {
+                  const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
+                  if (doneTodos.length === 0) return null;
+                  return (
+                    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                      <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
+                      {doneTodos.map(e => (
+                        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+                          <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
+                          <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
+                          {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
                 {dayDetail.sessions.length === 0 && (
                   <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
                 )}

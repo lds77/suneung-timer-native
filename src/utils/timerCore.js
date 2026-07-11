@@ -108,7 +108,7 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     subjectId = null, label = '', startedAt = null, durationSec, mode = 'free',
     pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off',
     timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null,
-    planId = null, densityOverride = null,
+    planId = null, todoId = null, densityOverride = null,
   } = spec;
   const { schoolLevel = 'high', ultraFocusLevel = 'normal', nowMs = Date.now() } = ctx;
   const density = densityOverride ?? calculateDensity({
@@ -124,7 +124,7 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     durationSec, mode, focusDensity: density, tier: getTier(density).id,
     pausedCount: pauseCount, exitCount, focusMode: fm,
     verified: fm === 'screen_on' && exitCount === 0,
-    selfRating, memo: memo.trim(), planId: planId || null,
+    selfRating, memo: memo.trim(), planId: planId || null, todoId: todoId || null,
     schoolLevel,
     ultraFocusLevel: fm === 'screen_on' ? ultraFocusLevel : null,
     timerType, completionRatio, pomoSets,

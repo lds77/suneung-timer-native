@@ -18,8 +18,9 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
+import { isTodayVisible, applyReorder } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
@@ -100,6 +101,11 @@ const DEFAULT_SETTINGS = {
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
   headerBgPreset: 0, // 집중탭 헤더 배경 프리셋 인덱스
+  // 해야할일 목록 구성 — '오늘'(매일 초기화·반복 생성처)과 '시험대비'(D-Day 연동)는 동작 고정이라 라벨만 변경 가능,
+  // 커스텀 목록은 자유 추가/이름변경/삭제 (항목은 매일 초기화 없이 유지). 기존 '이번주'는 id 'week' 커스텀 목록으로 승계
+  todoLists: [{ id: 'week', name: '이번주' }],
+  todoLabelToday: '오늘',
+  todoLabelExam: 'D-Day',
 };
 
 const DEFAULT_COUNTUP_FAVS = [
@@ -119,6 +125,7 @@ export function AppProvider({ children }) {
   const [sessions, setSessions] = useState([]);
   const [ddays, setDDays] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [todoLog, setTodoLog] = useState([]); // 완료 이력 (통계용 — 리셋 삭제와 무관하게 보존)
   // 즐겨찾기 설정 (FocusScreen에서 사용)
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
@@ -829,7 +836,7 @@ export function AppProvider({ children }) {
     // 뽀모도로/연속모드 휴식 페이즈 중 종료(그만하기 등) → 휴식 시간을 공부로 기록하지 않음
     //   (이전 work 페이즈는 pomoFlip/seqFlip이 이미 세션으로 기록함)
     const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
-    if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30))) {
+    if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || ((t.planId || t.todoId) && t.elapsedSec >= 30))) {
       const exitCnt = mode === 'screen_on' ? (ufState.exitCount || 0) : 0;
       // 카운트다운: 중도 종료(그만하기 등)도 이 경로로 올 수 있으므로 실제 경과 시간만 기록
       // 연속모드(그만하기 경로)는 항목 기준 카운트다운으로 기록 (seqFlip/stopTimer와 동일 규칙)
@@ -841,7 +848,7 @@ export function AppProvider({ children }) {
         mode: recType, pauseCount: t.pauseCount, exitCount: exitCnt,
         focusMode: mode, timerType: recType,
         completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
-        pomoSets: t.pomoSet || 0, planId: t.planId || null,
+        pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null,
         dedupeKey: `complete|${t.id}|${t.startedAt}`,
       });
       // 완료 결과 모달 트리거 (랩/시퀀스 제외)
@@ -865,7 +872,7 @@ export function AppProvider({ children }) {
             }
           }
         } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
       }
       return sessId;
@@ -1490,7 +1497,7 @@ export function AppProvider({ children }) {
         subjectId: opts.subjectId || null, color: opts.color || '#FF6B9D', totalSec: opts.totalSec || 0,
         elapsedSec: 0, status: 'running', pauseCount: 0, createdAt: startedAt, startedAt,
         pomoPhase: 'work', pomoSet: 0, pomoWorkMin: opts.pomoWorkMin || 25, pomoBreakMin: opts.pomoBreakMin || 5,
-        result: null, laps: [], planId: opts.planId || null, resumedAt: startedAt, elapsedSecAtResume: 0,
+        result: null, laps: [], planId: opts.planId || null, todoId: opts.todoId || null, resumedAt: startedAt, elapsedSecAtResume: 0,
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(t);
@@ -1565,12 +1572,12 @@ export function AppProvider({ children }) {
       if (t.id !== id) return t;
       // 휴식 페이즈 중 중지 → 휴식 시간을 공부 세션으로 기록하지 않음 (work 페이즈는 flip 시 이미 기록됨)
       const inBreakPhase = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
-      if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || (t.planId && t.elapsedSec >= 30)) && t.status !== 'completed') {
+      if (t.type !== 'lap' && !inBreakPhase && (t.elapsedSec >= 300 || ((t.planId || t.todoId) && t.elapsedSec >= 30)) && t.status !== 'completed') {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
         // 연속모드는 항목 기준 카운트다운으로 기록 (seqFlip/cancelSequence와 동일 규칙 — 밀도 공식·통계 라벨 일관)
         const recType = t.type === 'sequence' ? 'countdown' : t.type;
-        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
         if (t.planId) {
@@ -1589,10 +1596,10 @@ export function AppProvider({ children }) {
               setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
             }
           } else {
-            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
           }
         } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId });
+          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
@@ -1639,7 +1646,7 @@ export function AppProvider({ children }) {
           durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount,
           focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
           timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1,
-          pomoSets: t.pomoSet || 0, planId: t.planId || null,
+          pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null,
           dedupeKey: `complete|${t.id}|${t.startedAt}`,
         });
       }
@@ -1744,7 +1751,7 @@ export function AppProvider({ children }) {
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
-      let [s, subj, sess, dd, td, cuf, fv] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs()]);
+      let [s, subj, sess, dd, td, cuf, fv, tl] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog()]);
       // 형태 방어: 손상된 저장값(비배열 등)이 있으면 그 키만 무시 — .filter/.map 크래시로 앱이 먹통되는 것 방지
       if (s && (typeof s !== 'object' || Array.isArray(s))) s = null;
       if (!Array.isArray(subj)) subj = null;
@@ -1753,6 +1760,7 @@ export function AppProvider({ children }) {
       if (!Array.isArray(td)) td = null;
       if (cuf && !Array.isArray(cuf)) cuf = null;
       if (!Array.isArray(fv)) fv = null;
+      if (Array.isArray(tl)) setTodoLog(tl);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -1767,6 +1775,8 @@ export function AppProvider({ children }) {
           s.activeSounds = (s.soundId && s.soundId !== 'none') ? [s.soundId] : [];
         }
         delete s.soundId;
+        // 할일 시험 탭 기본 라벨 개명: 시험대비 → D-Day (구 기본값 그대로인 경우만 — 직접 바꾼 사용자는 유지)
+        if (s.todoLabelExam === '시험대비') s.todoLabelExam = 'D-Day';
         // 재설치 시 exactAlarmGuideShown 리셋 (구글 백업 복원 대응, Android 13+)
         if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });
@@ -1777,7 +1787,7 @@ export function AppProvider({ children }) {
       const mergedSettings = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
       if (td) {
         // 새 필드 마이그레이션 (기존 todo에 없는 필드 기본값 추가)
-        const migrated = td.map(t => ({
+        let migrated = td.map(t => ({
           ...t,
           completedAt:  t.completedAt  ?? null,
           subjectId:    t.subjectId    ?? null,
@@ -1792,7 +1802,15 @@ export function AppProvider({ children }) {
           repeatDays:   t.repeatDays   ?? null,
           templateId:   t.templateId   ?? null,
           createdDate:  t.createdDate  ?? null,
+          dueDate:      t.dueDate      ?? null,
         }));
+        // 드래그 정렬 도입 마이그레이션(일회성): 화면 정렬이 [완료, 우선순위]에서 [완료, 배열순서]로
+        // 바뀌므로, 기존 배열을 우선순위로 한 번 안정 정렬해 업데이트 직후에도 보이는 순서를 유지
+        if (!mergedSettings.todoOrderMigrated) {
+          const pOrd = { high: 0, normal: 1, low: 2 };
+          migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
+          setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
+        }
         // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
         const todayDay = new Date().getDay();
         const genFromTemplates = (base) => {
@@ -1819,7 +1837,7 @@ export function AppProvider({ children }) {
           !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
         if (mergedSettings.lastTodoResetDate !== today) {
           const resetTodos = migrated
-            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || t.scope === 'week' || t.scope === 'exam'))
+            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today')))
             .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
           const generated = genFromTemplates(resetTodos);
           const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
@@ -1878,12 +1896,12 @@ export function AppProvider({ children }) {
               const e = Math.min(newElapsed, t.totalSec);
               // 앱이 꺼져 있는 동안 완료된 카운트다운: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실)
               if (e >= t.totalSec) {
-                if (t.totalSec >= 300 || (t.planId && t.totalSec >= 30)) {
+                if (t.totalSec >= 300 || ((t.planId || t.todoId) && t.totalSec >= 30)) {
                   recordSessionInternal({
                     subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
                     durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
                     focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
-                    completionRatio: 1, planId: t.planId || null,
+                    completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
                   });
                   showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
                 }
@@ -1916,8 +1934,8 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
-  }, [settings, subjects, sessions, ddays, todos, countupFavs, favs, weeklySchedule, loading]);
+    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveTodoLog(todoLog); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
+  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
@@ -2162,6 +2180,7 @@ export function AppProvider({ children }) {
         repeatDays,
         templateId:   o.templateId   ?? null,
         createdDate:  o.createdDate  ?? null,
+        dueDate:      o.dueDate      ?? null,
       };
       // 반복 템플릿이면 오늘 요일에 해당할 경우 인스턴스도 즉시 생성
       if (isTemplate && repeatDays && repeatDays.length > 0) {
@@ -2182,14 +2201,30 @@ export function AppProvider({ children }) {
       return [...prev, newTmpl];
     });
   }, []);
-  const toggleTodo = useCallback((id) => setTodos(prev => prev.map(t => {
-    if (t.id !== id) return t;
+  const toggleTodo = useCallback((id) => {
+    const t = todos.find(x => x.id === id);
+    if (!t) return;
     const done = !t.done;
-    return { ...t, done, completedAt: done ? Date.now() : null };
-  })), []);
+    const completedAt = done ? Date.now() : null;
+    setTodos(prev => prev.map(x => x.id === id ? { ...x, done, completedAt } : x));
+    // 완료 이력 로그 — 리셋으로 항목이 삭제돼도 통계에서 조회 가능. 체크 해제 시 회수 (id로 멱등)
+    setTodoLog(prev => {
+      const rest = prev.filter(e => e.id !== id);
+      if (!done) return rest;
+      const next = [...rest, {
+        id, date: toDateStr(new Date(completedAt)), text: t.text,
+        subjectLabel: t.subjectLabel ?? null, subjectColor: t.subjectColor ?? null, scope: t.scope ?? 'today',
+      }];
+      return next.length > 1000 ? next.slice(next.length - 1000) : next;
+    });
+  }, [todos]);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
+  // 커스텀 목록 삭제 시 소속 할일 일괄 제거
+  const removeTodosByScope = useCallback((scope) => setTodos(prev => prev.filter(t => t.scope !== scope)), []);
   const toggleTodoRepeat = useCallback((id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, repeat: !t.repeat } : t)), []);
   const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
+  // 드래그 정렬 커밋: 그룹 항목들을 배열 내 기존 자리에 새 순서로 재배치 (그룹 밖 위치 불변)
+  const reorderTodos = useCallback((orderedIds) => setTodos(prev => applyReorder(prev, orderedIds)), []);
   const generateDailyTodos = useCallback(() => {
     const todayDay = new Date().getDay();
     const todayStr = getToday();
@@ -2212,15 +2247,15 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  // 할일 헬퍼 함수
+  // 할일 헬퍼 함수 — '오늘'은 오늘 목록 소속 + 기한 도래 항목 (isTodayVisible, My Day 모델)
   const getTodayTodos = useCallback(() =>
-    todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null)),
+    todos.filter(t => isTodayVisible(t, getToday())),
   [todos]);
   const getTodosBySubject = useCallback((subjectId) =>
     todos.filter(t => !t.isTemplate && t.subjectId === subjectId),
   [todos]);
   const getTodoCompletionRate = useCallback(() => {
-    const todayT = todos.filter(t => !t.isTemplate && (t.scope === 'today' || t.scope == null));
+    const todayT = todos.filter(t => isTodayVisible(t, getToday()));
     if (todayT.length === 0) return 0;
     return Math.round((todayT.filter(t => t.done).length / todayT.length) * 100);
   }, [todos]);
@@ -2303,6 +2338,8 @@ export function AppProvider({ children }) {
     if (sess) setSessions(sess);
     if (dd) setDDays(dd);
     if (td) setTodos(td);
+    const tl = await loadTodoLog();
+    if (Array.isArray(tl)) setTodoLog(tl);
     if (cuf) setCountupFavs(cuf);
     if (fv && fv.length > 0) setFavs(fv);
     const ws = await loadWeeklySchedule();
@@ -2315,7 +2352,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, toggleTodoRepeat, updateTodo, generateDailyTodos,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, generateDailyTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,

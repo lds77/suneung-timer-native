@@ -94,12 +94,12 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
   startedAt, resumedAt, elapsedSecAtResume,            // 벽시계 기준 경과 계산용
   pomoPhase('work'|'break'|'longbreak'), pomoSet, pomoWorkMin, pomoBreakMin,
   seqItems, seqIndex, seqTotal, seqBreakSec, seqPhase, // 연속모드 전용
-  laps, planId, result }
+  laps, planId, todoId, result }                       // todoId: 할일 '집중 시작' 연결
 
 // sessions
 { id, date(YYYY-MM-DD), subjectId, label, startedAt, endedAt, durationSec,
   mode, focusDensity, tier, pausedCount, exitCount, focusMode, verified,
-  selfRating, memo, planId, schoolLevel, ultraFocusLevel, timerType,
+  selfRating, memo, planId, todoId, schoolLevel, ultraFocusLevel, timerType,
   completionRatio, pomoSets }
 
 // subjects
@@ -126,7 +126,7 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 4. **세션 date는 시작일 기준** (`toDateStr(new Date(startedAt))`) — 자정 걸친 세션은 시작한 날에 귀속
 5. **휴식 페이즈는 세션 기록 금지** (`inBreakPhase` 가드 — 뽀모/연속 break 중 종료 시)
 6. **연속모드 세션은 `timerType: 'countdown'`으로 기록** (모든 종료 경로 동일 — 밀도 공식·통계 라벨 일관)
-7. **5분(300초) 미만 세션 미기록** (계획 연결 시 30초), 30초 미만은 밀도 100점 고정
+7. **5분(300초) 미만 세션 미기록** (계획·할일 연결 시 30초), 30초 미만은 밀도 100점 고정
 8. **bg 복귀/틱의 완료 처리**: overshoot > 2초면 `skipNotif` (OS 예약 알림이 이미 발송됨 — 중복 방지)
 
 ---
