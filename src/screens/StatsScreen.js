@@ -634,6 +634,139 @@ export default function StatsScreen() {
     </TouchableOpacity>
   );
 
+  // ── 주간 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderWeekNavRow = () => (
+    <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
+      <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+        <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
+      </TouchableOpacity>
+      <Text style={[S.weekNavTitle, { color: T.text }]}>
+        {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
+      </Text>
+      <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+        <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderWeekBarsCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
+      {weekData.map((d, i) => (
+        <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
+          <View style={S.barRow}>
+            <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+            <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
+              <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
+            </View>
+            <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
+            {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderWeekPlanRateCard = () => weekPlanRate !== null && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
+      <Ionicons name="calendar-outline" size={20} color={T.sub} />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
+          <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
+        </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
+          <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+        </View>
+      </View>
+      {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
+    </View>
+  );
+
+  const renderTimeZoneCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
+      {timeZoneAnalysis.every(z => z.count === 0) ? (
+        <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
+      ) : (
+        <>
+          {timeZoneAnalysis.map((zone, i) => {
+            const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
+            const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
+            const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
+            return (
+              <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
+                <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
+                <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
+                <View style={S.tzBarWrap}>
+                  <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
+                    <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
+                  </View>
+                  {zone.count > 0 && (
+                    <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
+                  )}
+                </View>
+                {zone.count > 0 && zone.tier && (
+                  <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
+                    <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
+                  </View>
+                )}
+                {zone.count === 0 && (
+                  <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+          {bestZone && (
+            <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
+              <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
+              <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
+                {bestZone.label}에 집중력이 가장 높아요!
+              </Text>
+              {bestZone.tier && (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
+              )}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+
+  const renderDensityTrendCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
+      <View style={S.densityChart}>
+        {weekData.map((d, i) => {
+          const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
+          const tier = d.density > 0 ? getTier(d.density) : null;
+          return (
+            <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
+              <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
+              <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+              {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderWeekReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="clipboard-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
+        <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
     const prefix = viewMonthStr.replace('.', '-');
@@ -886,52 +1019,11 @@ export default function StatsScreen() {
               <SubjectRatioCard data={daySubjects} label="과목 비율" T={T} S={S} />
             </>)}
 
-            {/* ── 주간 LEFT ── */}
+            {/* ── 주간 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'weekly' && (<>
-              <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
-                <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                  <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
-                </TouchableOpacity>
-                <Text style={[S.weekNavTitle, { color: T.text }]}>
-                  {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
-                </Text>
-                <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                  <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
-                {weekData.map((d, i) => (
-                  <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
-                    <View style={S.barRow}>
-                      <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                      <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
-                        <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
-                      </View>
-                      <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
-                      {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {weekPlanRate !== null && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                  <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
-                      <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
-                    </View>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                      <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                    </View>
-                  </View>
-                  {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
-                </View>
-              )}
-
+              {renderWeekNavRow()}
+              {renderWeekBarsCard()}
+              {renderWeekPlanRateCard()}
               {renderDayDetailInline()}
             </>)}
 
@@ -1169,88 +1261,13 @@ export default function StatsScreen() {
               {renderDensityGuideBanner()}
             </>)}
 
-            {/* ── 주간 RIGHT ── */}
+            {/* ── 주간 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'weekly' && (<>
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
-                {timeZoneAnalysis.every(z => z.count === 0) ? (
-                  <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-                ) : (
-                  <>
-                    {timeZoneAnalysis.map((zone, i) => {
-                      const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
-                      const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                      const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
-                      return (
-                        <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                          <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                          <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                          <View style={S.tzBarWrap}>
-                            <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                              <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                            </View>
-                            {zone.count > 0 && (
-                              <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
-                            )}
-                          </View>
-                          {zone.count > 0 && zone.tier && (
-                            <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                              <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                            </View>
-                          )}
-                          {zone.count === 0 && (
-                            <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {bestZone && (
-                      <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
-                        <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
-                        <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
-                          {bestZone.label}에 집중력이 가장 높아요!
-                        </Text>
-                        {bestZone.tier && (
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
-                <View style={S.densityChart}>
-                  {weekData.map((d, i) => {
-                    const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
-                    const tier = d.density > 0 ? getTier(d.density) : null;
-                    return (
-                      <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
-                        <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-                        <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                        {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
+              {renderTimeZoneCard()}
+              {renderDensityTrendCard()}
               <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
-
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-                  <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderWeekReportBtn()}
             </>)}
 
             {/* ── 월간 RIGHT ── */}
@@ -1567,130 +1584,14 @@ export default function StatsScreen() {
           {/* 탭: 주간 (세로) */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'weekly' && (<>
-            <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
-              <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
-              </TouchableOpacity>
-              <Text style={[S.weekNavTitle, { color: T.text }]}>
-                {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
-              </Text>
-              <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
-              {weekData.map((d, i) => (
-                <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
-                  <View style={S.barRow}>
-                    <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                    <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
-                      <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
-                    </View>
-                    <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
-                    {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {weekPlanRate !== null && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
-                  </View>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                    <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                  </View>
-                </View>
-                {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
-              </View>
-            )}
-
-            {/* ── 시간대별 집중력 분석 ── */}
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
-              {timeZoneAnalysis.every(z => z.count === 0) ? (
-                <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-              ) : (
-                <>
-                  {timeZoneAnalysis.map((zone, i) => {
-                    const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
-                    const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                    const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
-                    return (
-                      <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                        <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                        <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                        <View style={S.tzBarWrap}>
-                          <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                            <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                          </View>
-                          {zone.count > 0 && (
-                            <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
-                          )}
-                        </View>
-                        {zone.count > 0 && zone.tier && (
-                          <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                            <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                          </View>
-                        )}
-                        {zone.count === 0 && (
-                          <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {bestZone && (
-                    <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
-                      <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
-                      <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
-                        {bestZone.label}에 집중력이 가장 높아요!
-                      </Text>
-                      {bestZone.tier && (
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
-                      )}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
-              <View style={S.densityChart}>
-                {weekData.map((d, i) => {
-                  const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
-                  const tier = d.density > 0 ? getTier(d.density) : null;
-                  return (
-                    <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
-                      <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-                      <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                      {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
+            {/* 카드 렌더러는 가로모드 LEFT/RIGHT 컬럼과 공유 */}
+            {renderWeekNavRow()}
+            {renderWeekBarsCard()}
+            {renderWeekPlanRateCard()}
+            {renderTimeZoneCard()}
+            {renderDensityTrendCard()}
             <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="clipboard-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-                <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {renderWeekReportBtn()}
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
