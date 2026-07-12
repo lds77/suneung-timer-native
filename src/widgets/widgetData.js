@@ -227,8 +227,11 @@ export const getWidgetData = async () => {
 
   // 오늘 할 일 — 앱 오늘 탭과 동일 판정(isTodayVisible, My Day 규칙).
   // 표시 순서도 앱과 동일: 미완료 먼저(배열 순서 = 수동 정렬), 완료는 뒤로. 최대 8개.
+  // 완료 항목은 '완료한 그날'만 표시: 앱은 일일 리셋이 어제 완료분을 지워주지만, 앱을 안 연 날은
+  // 리셋이 안 돈 raw 데이터를 위젯이 읽으므로 이 가드가 없으면 아침 위젯에 어제 체크가 그대로 남는다
   const todoArr = (Array.isArray(todosRaw) ? todosRaw : []).filter(t => t && t.id);
-  const todayTodos = todoArr.filter(t => isTodayVisible(t, today));
+  const doneVisibleToday = (t) => !t.done || (t.completedAt && dateStr(new Date(t.completedAt)) === today);
+  const todayTodos = todoArr.filter(t => isTodayVisible(t, today) && doneVisibleToday(t));
   const todos = [...todayTodos.filter(t => !t.done), ...todayTodos.filter(t => t.done)]
     .slice(0, 8)
     .map(t => ({ id: t.id, text: t.text || '', done: !!t.done, color: t.subjectColor || '' }));

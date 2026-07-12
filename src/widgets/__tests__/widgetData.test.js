@@ -100,6 +100,23 @@ describe('getWidgetData 오늘 할 일', () => {
     expect(d.todoTotal).toBe(3);
   });
 
+  test('완료 항목은 완료한 그날만 표시 — 앱을 안 연 날 어제 체크가 위젯에 남지 않도록', async () => {
+    const yesterday = Date.now() - 86400000 * 1;
+    seed({
+      subjects: SUBJECTS,
+      todos: [
+        { id: 'a', text: '어제 완료', scope: 'today', done: true, completedAt: yesterday },
+        { id: 'b', text: '오늘 완료', scope: 'today', done: true, completedAt: Date.now() },
+        { id: 'c', text: '완료시각 없는 완료(구데이터)', scope: 'today', done: true, completedAt: null },
+        { id: 'd', text: '미완료', scope: 'today', done: false },
+      ],
+    });
+    const d = await getWidgetData();
+    expect(d.todos.map(t => t.id)).toEqual(['d', 'b']);
+    expect(d.todoDone).toBe(1);
+    expect(d.todoTotal).toBe(2);
+  });
+
   test('8개 초과는 잘리지만 카운트는 전체 기준', async () => {
     const many = Array.from({ length: 11 }, (_, i) => ({ id: `t${i}`, text: `할일${i}`, scope: 'today', done: i < 2, completedAt: i < 2 ? Date.now() : null }));
     seed({ subjects: SUBJECTS, todos: many });

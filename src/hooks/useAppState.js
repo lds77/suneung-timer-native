@@ -1943,7 +1943,21 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveTodoLog(todoLog); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
+    saveRef.current = setTimeout(async () => {
+      saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays);
+      // 위젯이 storage의 todos를 직접 수정했으면(오늘할일 체크) 메모리로 덮어쓰지 않고 재로드.
+      // 앱 JS가 백그라운드에 살아있는 동안(실행 중 타이머의 포그라운드 서비스) 다른 상태 변화로
+      // autosave가 돌면, 이 가드 없이는 위젯 체크가 stale 메모리에 덮여 조용히 풀린다.
+      // 재로드된 setTodos가 다음 사이클의 autosave를 다시 트리거하므로 저장 누락은 없다.
+      if (await consumeWidgetTodoDirty()) {
+        const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
+        if (Array.isArray(td)) setTodos(td);
+        if (Array.isArray(tl)) setTodoLog(tl);
+      } else {
+        saveTodos(todos); saveTodoLog(todoLog);
+      }
+      saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
+    }, 500);
   }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
