@@ -868,6 +868,240 @@ export default function StatsScreen() {
     </TouchableOpacity>
   );
 
+  // ── 잔디 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderHeatmapGuideBanner = () => !app.settings.guideHeatmap && (
+    <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
+      style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
+      <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
+        매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const renderHeatmapCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={S.hmHeader}>
+        <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
+        <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
+          <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
+        </View>
+      </View>
+
+      <View>
+        <View>
+          <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
+            {heatmap365.map((week, wi) => {
+              const label = heatmapMonthLabels.find(ml => ml.wi === wi);
+              return (
+                <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
+                  {label && (
+                    <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={S.hmGrid}>
+            <View style={S.hmDayLabels}>
+              {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+                <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: HM_GAP }}>
+              {heatmap365.map((week, wi) => (
+                <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
+                  {week.map((day, di) => (
+                    <TouchableOpacity
+                      key={di}
+                      onPress={() => !day.isFuture && setDayDetailDate(day.date)}
+                      activeOpacity={!day.isFuture ? 0.6 : 1}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                    >
+                      <View
+                        style={[
+                          S.hmCell,
+                          {
+                            width: HM_CELL,
+                            height: HM_CELL,
+                            backgroundColor: getHeat365Color(day),
+                            borderWidth: day.isToday ? 1.5 : 0,
+                            borderColor: day.isToday ? T.accent : 'transparent',
+                          },
+                        ]}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={S.heatLegend}>
+        <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
+        <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
+        {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
+          <React.Fragment key={i}>
+            <View style={[S.heatBox, { backgroundColor: c }]} />
+            <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
+          </React.Fragment>
+        ))}
+      </View>
+      <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
+        잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
+      </Text>
+    </View>
+  );
+
+  const renderStudyDiaryCard = () => {
+    const memoed = [...app.sessions]
+      .filter(s => s.memo && s.memo.trim())
+      .sort((a, b) => (b.date > a.date ? 1 : -1));
+    if (memoed.length === 0) return (
+      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Ionicons name="journal-outline" size={13} color={T.sub} />
+          <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
+        </View>
+        <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
+      </View>
+    );
+    const grouped = {};
+    memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
+    return (
+      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
+          <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
+        </View>
+        {Object.entries(grouped).map(([date, sess]) => {
+          const d = new Date(date + 'T00:00:00');
+          const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
+          return (
+            <View key={date} style={S.diaryGroup}>
+              <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
+              {sess.map(s => {
+                const subj = app.subjects.find(sub => sub.id === s.subjectId);
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
+                    onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
+                    <Text style={[S.diaryMeta, { color: T.sub }]}>
+                      {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderPersonalBestsCard = () => personalBests && personalBests.bestDaySec > 0 && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+        <Ionicons name="trophy-outline" size={14} color={T.accent} />
+        <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <Ionicons name="flame" size={12} color="#E17055" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
+          {personalBests.bestDayDate && (
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+            </Text>
+          )}
+        </View>
+
+        {personalBests.longestSess && (
+          <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Ionicons name="timer-outline" size={12} color="#4A90D9" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
+            </Text>
+          </View>
+        )}
+
+        {personalBests.bestDensitySess && (
+          <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
+              {personalBests.bestDensitySess.focusDensity}점
+            </Text>
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {getTier(personalBests.bestDensitySess.focusDensity).label}
+            </Text>
+          </View>
+        )}
+
+        <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
+          {personalBests.mostSessDate && (
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+            </Text>
+          )}
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="flame" size={18} color="#FF7F50" />
+          <View>
+            <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="calendar" size={18} color={T.accent} />
+          <View>
+            <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderHeatReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="leaf-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
+        <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
     const prefix = viewMonthStr.replace('.', '-');
@@ -1134,92 +1368,10 @@ export default function StatsScreen() {
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 잔디 LEFT ── */}
+            {/* ── 잔디 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'heatmap' && (<>
-              {!app.settings.guideHeatmap && (
-                <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
-                  style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                  <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                    매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={S.hmHeader}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
-                  <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
-                    <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
-                  </View>
-                </View>
-
-                <View>
-                  <View>
-                    <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
-                      {heatmap365.map((week, wi) => {
-                        const label = heatmapMonthLabels.find(ml => ml.wi === wi);
-                        return (
-                          <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
-                            {label && (
-                              <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-
-                    <View style={S.hmGrid}>
-                      <View style={S.hmDayLabels}>
-                        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                          <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
-                        ))}
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: HM_GAP }}>
-                        {heatmap365.map((week, wi) => (
-                          <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
-                            {week.map((day, di) => (
-                              <TouchableOpacity
-                                key={di}
-                                onPress={() => !day.isFuture && setDayDetailDate(day.date)}
-                                activeOpacity={!day.isFuture ? 0.6 : 1}
-                                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                              >
-                                <View
-                                  style={[
-                                    S.hmCell,
-                                    {
-                                      width: HM_CELL,
-                                      height: HM_CELL,
-                                      backgroundColor: getHeat365Color(day),
-                                      borderWidth: day.isToday ? 1.5 : 0,
-                                      borderColor: day.isToday ? T.accent : 'transparent',
-                                    },
-                                  ]}
-                                />
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={S.heatLegend}>
-                  <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
-                  {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
-                    <React.Fragment key={i}>
-                      <View style={[S.heatBox, { backgroundColor: c }]} />
-                      <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
-                    </React.Fragment>
-                  ))}
-                </View>
-                <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
-                  잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
-                </Text>
-              </View>
-
+              {renderHeatmapGuideBanner()}
+              {renderHeatmapCard()}
               {renderDayDetailInline()}
             </>)}
 
@@ -1342,155 +1494,12 @@ export default function StatsScreen() {
               {renderMonthReportBtn()}
             </>)}
 
-            {/* ── 잔디 RIGHT ── */}
+            {/* ── 잔디 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'heatmap' && (<>
-              {/* 공부 일기 */}
-              {(() => {
-                const memoed = [...app.sessions]
-                  .filter(s => s.memo && s.memo.trim())
-                  .sort((a, b) => (b.date > a.date ? 1 : -1));
-                if (memoed.length === 0) return (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Ionicons name="journal-outline" size={13} color={T.sub} />
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                    </View>
-                    <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
-                  </View>
-                );
-                const grouped = {};
-                memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
-                return (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                      <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
-                    </View>
-                    {Object.entries(grouped).map(([date, sess]) => {
-                      const d = new Date(date + 'T00:00:00');
-                      const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
-                      return (
-                        <View key={date} style={S.diaryGroup}>
-                          <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
-                          {sess.map(s => {
-                            const subj = app.subjects.find(sub => sub.id === s.subjectId);
-                            return (
-                              <TouchableOpacity
-                                key={s.id}
-                                style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
-                                onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
-                                activeOpacity={0.7}
-                              >
-                                <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
-                                <Text style={[S.diaryMeta, { color: T.sub }]}>
-                                  {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-
-              {/* ── 역대 기록 ── */}
-              {personalBests && personalBests.bestDaySec > 0 && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                    <Ionicons name="trophy-outline" size={14} color={T.accent} />
-                    <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="flame" size={12} color="#E17055" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
-                      {personalBests.bestDayDate && (
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                        </Text>
-                      )}
-                    </View>
-
-                    {personalBests.longestSess && (
-                      <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                          <Ionicons name="timer-outline" size={12} color="#4A90D9" />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
-                        </View>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
-                        </Text>
-                      </View>
-                    )}
-
-                    {personalBests.bestDensitySess && (
-                      <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                          <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
-                        </View>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
-                          {personalBests.bestDensitySess.focusDensity}점
-                        </Text>
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {getTier(personalBests.bestDensitySess.focusDensity).label}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
-                      {personalBests.mostSessDate && (
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="flame" size={18} color="#FF7F50" />
-                      <View>
-                        <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
-                      </View>
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="calendar" size={18} color={T.accent} />
-                      <View>
-                        <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              )}
-
+              {renderStudyDiaryCard()}
+              {renderPersonalBestsCard()}
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="leaf-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-                  <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderHeatReportBtn()}
             </>)}
 
             {/* ── 과목 RIGHT ── */}
@@ -1617,239 +1626,14 @@ export default function StatsScreen() {
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
-          {/* 탭: 잔디 (세로) */}
+          {/* 탭: 잔디 (세로) — 카드 렌더러는 가로모드와 공유 */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'heatmap' && (<>
-            {!app.settings.guideHeatmap && (
-              <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
-                style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                  매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <View style={S.hmHeader}>
-                <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
-                <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
-                  <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
-                </View>
-              </View>
-
-              <View>
-                <View>
-                  <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
-                    {heatmap365.map((week, wi) => {
-                      const label = heatmapMonthLabels.find(ml => ml.wi === wi);
-                      return (
-                        <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
-                          {label && (
-                            <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-
-                  <View style={S.hmGrid}>
-                    <View style={S.hmDayLabels}>
-                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                        <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: HM_GAP }}>
-                      {heatmap365.map((week, wi) => (
-                        <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
-                          {week.map((day, di) => (
-                            <TouchableOpacity
-                              key={di}
-                              onPress={() => !day.isFuture && setDayDetailDate(day.date)}
-                              activeOpacity={!day.isFuture ? 0.6 : 1}
-                              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                            >
-                              <View
-                                style={[
-                                  S.hmCell,
-                                  {
-                                    width: HM_CELL,
-                                    height: HM_CELL,
-                                    backgroundColor: getHeat365Color(day),
-                                    borderWidth: day.isToday ? 1.5 : 0,
-                                    borderColor: day.isToday ? T.accent : 'transparent',
-                                  },
-                                ]}
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={S.heatLegend}>
-                <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
-                <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
-                {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
-                  <React.Fragment key={i}>
-                    <View style={[S.heatBox, { backgroundColor: c }]} />
-                    <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
-                  </React.Fragment>
-                ))}
-              </View>
-              <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
-                잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
-              </Text>
-            </View>
-
-            {/* 공부 일기 */}
-            {(() => {
-              const memoed = [...app.sessions]
-                .filter(s => s.memo && s.memo.trim())
-                .sort((a, b) => (b.date > a.date ? 1 : -1));
-              if (memoed.length === 0) return (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Ionicons name="journal-outline" size={13} color={T.sub} />
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                  </View>
-                  <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
-                </View>
-              );
-              const grouped = {};
-              memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
-              return (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                    <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
-                  </View>
-                  {Object.entries(grouped).map(([date, sess]) => {
-                    const d = new Date(date + 'T00:00:00');
-                    const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
-                    return (
-                      <View key={date} style={S.diaryGroup}>
-                        <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
-                        {sess.map(s => {
-                          const subj = app.subjects.find(sub => sub.id === s.subjectId);
-                          return (
-                            <TouchableOpacity
-                              key={s.id}
-                              style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
-                              onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
-                              <Text style={[S.diaryMeta, { color: T.sub }]}>
-                                {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })()}
-
-            {/* ── 역대 기록 ── */}
-            {personalBests && personalBests.bestDaySec > 0 && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                  <Ionicons name="trophy-outline" size={14} color={T.accent} />
-                  <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Ionicons name="flame" size={12} color="#E17055" />
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
-                    </View>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
-                    {personalBests.bestDayDate && (
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                      </Text>
-                    )}
-                  </View>
-
-                  {personalBests.longestSess && (
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="timer-outline" size={12} color="#4A90D9" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
-                      </Text>
-                    </View>
-                  )}
-
-                  {personalBests.bestDensitySess && (
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
-                        {personalBests.bestDensitySess.focusDensity}점
-                      </Text>
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {getTier(personalBests.bestDensitySess.focusDensity).label}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
-                    </View>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
-                    {personalBests.mostSessDate && (
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="flame" size={18} color="#FF7F50" />
-                    <View>
-                      <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
-                    </View>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="calendar" size={18} color={T.accent} />
-                    <View>
-                      <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="leaf-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-                <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {renderHeatmapGuideBanner()}
+            {renderHeatmapCard()}
+            {renderStudyDiaryCard()}
+            {renderPersonalBestsCard()}
+            {renderHeatReportBtn()}
           </>)}
 
           {/* ── 과목 탭 (세로) ── */}
