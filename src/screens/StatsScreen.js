@@ -767,6 +767,107 @@ export default function StatsScreen() {
     </TouchableOpacity>
   );
 
+  // ── 월간 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderMonthCalendarCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={S.monthNav}>
+        <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
+          <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
+        </TouchableOpacity>
+        <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
+        <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
+          <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={S.calWeekRow}>
+        {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
+      </View>
+      <View style={S.calGrid}>
+        {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
+          <View key={ri} style={S.calRow}>
+            {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
+              if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
+              return (
+                <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
+                  <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
+                    <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
+                  </View>
+                  {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+      <View style={S.heatLegend}>
+        <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
+        {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
+          <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
+        ))}
+        <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
+      </View>
+    </View>
+  );
+
+  const renderMonthTimeZoneCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
+      {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
+        <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
+      ) : (
+        <>
+          {monthTimeZoneAnalysis.map((zone, i) => {
+            const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
+            const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
+            return (
+              <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
+                <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
+                <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
+                <View style={S.tzBarWrap}>
+                  <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
+                    <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
+                  </View>
+                  {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
+                </View>
+                {zone.count > 0 && zone.tier ? (
+                  <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
+                    <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
+                  </View>
+                ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
+              </TouchableOpacity>
+            );
+          })}
+          {monthBestZone && (
+            <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
+              <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
+              <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
+                {monthBestZone.label}에 집중력이 가장 높아요!
+              </Text>
+              {monthBestZone.tier && (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
+              )}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+
+  const renderMonthReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="clipboard-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
+        <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
     const prefix = viewMonthStr.replace('.', '-');
@@ -1027,46 +1128,9 @@ export default function StatsScreen() {
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 월간 LEFT ── */}
+            {/* ── 월간 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'monthly' && (<>
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={S.monthNav}>
-                  <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                    <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
-                  </TouchableOpacity>
-                  <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
-                  <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                    <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={S.calWeekRow}>
-                  {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
-                </View>
-                <View style={S.calGrid}>
-                  {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
-                    <View key={ri} style={S.calRow}>
-                      {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
-                        if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
-                        return (
-                          <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                            <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                              <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                            </View>
-                            {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-                <View style={S.heatLegend}>
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-                  {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
-                    <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
-                  ))}
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
-                </View>
-              </View>
+              {renderMonthCalendarCard()}
               {renderDayDetailInline()}
             </>)}
 
@@ -1270,65 +1334,12 @@ export default function StatsScreen() {
               {renderWeekReportBtn()}
             </>)}
 
-            {/* ── 월간 RIGHT ── */}
+            {/* ── 월간 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'monthly' && (<>
               <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
-                {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
-                  <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-                ) : (
-                  <>
-                    {monthTimeZoneAnalysis.map((zone, i) => {
-                      const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
-                      const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                      return (
-                        <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                          <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                          <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                          <View style={S.tzBarWrap}>
-                            <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                              <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                            </View>
-                            {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
-                          </View>
-                          {zone.count > 0 && zone.tier ? (
-                            <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                              <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                            </View>
-                          ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {monthBestZone && (
-                      <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
-                        <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
-                        <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
-                          {monthBestZone.label}에 집중력이 가장 높아요!
-                        </Text>
-                        {monthBestZone.tier && (
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
+              {renderMonthTimeZoneCard()}
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-                  <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderMonthReportBtn()}
             </>)}
 
             {/* ── 잔디 RIGHT ── */}
@@ -1598,101 +1609,11 @@ export default function StatsScreen() {
           {/* 탭: 월간 (세로) */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'monthly' && (<>
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <View style={S.monthNav}>
-                <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                  <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
-                </TouchableOpacity>
-                <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
-                <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                  <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={S.calWeekRow}>
-                {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
-              </View>
-              <View style={S.calGrid}>
-                {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
-                  <View key={ri} style={S.calRow}>
-                    {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
-                      if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
-                      return (
-                        <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                          <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                            <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                          </View>
-                          {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-              <View style={S.heatLegend}>
-                <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-                {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
-                  <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
-                ))}
-                <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
-              </View>
-            </View>
-
+            {/* 카드 렌더러는 가로모드 LEFT/RIGHT 컬럼과 공유 */}
+            {renderMonthCalendarCard()}
             <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
-              {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
-                <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-              ) : (
-                <>
-                  {monthTimeZoneAnalysis.map((zone, i) => {
-                    const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
-                    const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                    return (
-                      <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                        <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                        <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                        <View style={S.tzBarWrap}>
-                          <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                            <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                          </View>
-                          {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
-                        </View>
-                        {zone.count > 0 && zone.tier ? (
-                          <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                            <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                          </View>
-                        ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {monthBestZone && (
-                    <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
-                      <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
-                      <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
-                        {monthBestZone.label}에 집중력이 가장 높아요!
-                      </Text>
-                      {monthBestZone.tier && (
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
-                      )}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="clipboard-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-                <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {renderMonthTimeZoneCard()}
+            {renderMonthReportBtn()}
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
