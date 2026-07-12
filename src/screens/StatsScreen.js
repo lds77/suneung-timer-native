@@ -24,8 +24,9 @@ import {
   getSessionSubject, fmtDiff, getStreakTitle, stripLeadingEmoji,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
   analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
-  calcWeekPlanRate,
+  calcWeekPlanRate, formatHM, formatDetailDate,
 } from './stats/helpers';
+import { DayDetailContent, SubjectRatioCard } from './stats/components/DayDetail';
 import GoalRing from './stats/components/GoalRing';
 import SubjectDonut from './stats/components/SubjectDonut';
 import {
@@ -133,17 +134,7 @@ export default function StatsScreen() {
   const [subjDetail, setSubjDetail] = useState(null);  // subject id → 상세 시트 트리거
 
 
-  // 헬퍼: HH:MM 포맷
-  const formatHM = (ts) => {
-    const d = new Date(ts);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
-  // 헬퍼: 날짜 상세 포맷 (모달 제목용)
-  const formatDetailDate = (ds) => {
-    if (!ds) return '';
-    const d = new Date(ds + 'T00:00:00');
-    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS_KR[d.getDay()]})`;
-  };
+  // (formatHM/formatDetailDate는 stats/helpers.js로 이동 — 날짜 상세 공용 컴포넌트와 공유)
 
   // ─── 오늘 데이터 ───────────────────────────────────────────────
   const todaySessions = app.todaySessions;
@@ -397,46 +388,7 @@ export default function StatsScreen() {
 
 
   // 과목 비율 렌더
-  const renderSubjects = (data, label) => {
-    if (data.length === 0) return null;
-    const sideBySide = data.length <= 4;
-    return (
-      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-        <Text style={[S.secLabel, { color: T.sub }]}>{label}</Text>
-        {sideBySide ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SubjectDonut data={data} T={T} />
-            <View style={{ flex: 1 }}>
-              {data.map((s, i) => (
-                <View key={i} style={S.subjRow}>
-                  <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                  <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
-                  <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
-                  <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : (
-          <>
-            <View style={{ alignItems: 'center', marginBottom: 10 }}>
-              <SubjectDonut data={data} T={T} size={130} />
-            </View>
-            {data.map((s, i) => (
-              <View key={i} style={S.subjRow}>
-                <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
-                <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
-                <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
-              </View>
-            ))}
-          </>
-        )}
-      </View>
-    );
-  };
-
-  // 날짜 상세 인라인 렌더 (랜드스케이프 마스터-디테일용)
+  // 날짜 상세 인라인 렌더 (랜드스케이프 마스터-디테일용) — 본문은 세로 모달과 공용(DayDetailContent)
   const renderDayDetailInline = () => {
     if (!dayDetail) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -452,95 +404,7 @@ export default function StatsScreen() {
             <Text style={{ fontSize: 16, color: T.sub }}>✕</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
-            <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
-            {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                <Ionicons name="flame" size={11} color="#E17055" />
-                <Text style={{ fontSize: 11, color: T.sub }}>순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}</Text>
-              </View>
-            )}
-          </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
-            <Text style={[S.sVal, { color: dayDetail.tier.color }]}>
-              {dayDetail.sessions.length > 0 ? `${dayDetail.tier.label} ${dayDetail.avgDensity}점` : '-'}
-            </Text>
-          </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
-            <Text style={[S.sVal, { color: T.text }]}>{dayDetail.sessions.length}회</Text>
-          </View>
-        </View>
-        {dayDetail.subjects.length > 0 && renderSubjects(dayDetail.subjects, '과목 비율')}
-        {dayDetail.sessions.length > 0 && (
-          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
-            {dayDetail.sessions.map(sess => {
-              const subj = app.subjects.find(s => s.id === sess.subjectId);
-              const tier = getTier(sess.focusDensity || 0);
-              const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-              const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
-              return (
-                <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                      <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                    <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                      <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                    </View>
-                    {sess.verified && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <Ionicons name="trophy" size={11} color="#F5A623" />
-                        <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                      </View>
-                    )}
-                    {sess.ultraFocusLevel === 'exam' && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <Ionicons name="flame" size={11} color="#FF6B6B" />
-                        <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
-                      </View>
-                    )}
-                  </View>
-                  {sess.memo && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                      <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                      <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
-        {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
-        {(() => {
-          const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
-          if (doneTodos.length === 0) return null;
-          return (
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
-              {doneTodos.map(e => (
-                <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                  <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
-                  <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
-                  {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
-                </View>
-              ))}
-            </View>
-          );
-        })()}
-        {dayDetail.sessions.length === 0 && (
-          <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
-        )}
+        <DayDetailContent dayDetail={dayDetail} subjects={app.subjects} todoLog={app.todoLog} T={T} S={S} />
       </>
     );
   };
@@ -885,7 +749,7 @@ export default function StatsScreen() {
                 </TouchableOpacity>
               )}
 
-              {renderSubjects(daySubjects, '과목 비율')}
+              <SubjectRatioCard data={daySubjects} label="과목 비율" T={T} S={S} />
             </>)}
 
             {/* ── 주간 LEFT ── */}
@@ -1364,7 +1228,7 @@ export default function StatsScreen() {
                 </View>
               </View>
 
-              {renderSubjects(weekSubjects, '주간 과목 비율')}
+              <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
 
               {renderInsightCard()}
               <TouchableOpacity
@@ -1383,7 +1247,7 @@ export default function StatsScreen() {
 
             {/* ── 월간 RIGHT ── */}
             {tab === 'monthly' && (<>
-              {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
+              <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
 
               <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
                 <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
@@ -1773,7 +1637,7 @@ export default function StatsScreen() {
               </TouchableOpacity>
             )}
 
-            {renderSubjects(daySubjects, '과목 비율')}
+            <SubjectRatioCard data={daySubjects} label="과목 비율" T={T} S={S} />
 
             {/* ── TODO 카드 ── */}
             {(() => {
@@ -2023,7 +1887,7 @@ export default function StatsScreen() {
               </View>
             </View>
 
-            {renderSubjects(weekSubjects, '주간 과목 비율')}
+            <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
 
             <TouchableOpacity
               style={[S.reportBtn, { backgroundColor: T.accent }]}
@@ -2082,7 +1946,7 @@ export default function StatsScreen() {
               </View>
             </View>
 
-            {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
+            <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
 
             <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
               <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
@@ -3152,100 +3016,8 @@ export default function StatsScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
-              {dayDetail && (<>
-                {/* 요약 3개 카드 */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
-                    <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
-                    {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                        <Ionicons name="flame" size={11} color="#E17055" />
-                        <Text style={{ fontSize: 11, color: T.sub }}>순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
-                    <Text style={[S.sVal, { color: dayDetail.tier.color }]}>
-                      {dayDetail.sessions.length > 0 ? `${dayDetail.tier.label} ${dayDetail.avgDensity}점` : '-'}
-                    </Text>
-                  </View>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
-                    <Text style={[S.sVal, { color: T.text }]}>{dayDetail.sessions.length}회</Text>
-                  </View>
-                </View>
-                {/* 과목 비율 */}
-                {dayDetail.subjects.length > 0 && renderSubjects(dayDetail.subjects, '과목 비율')}
-                {/* 세션 리스트 */}
-                {dayDetail.sessions.length > 0 && (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
-                    {dayDetail.sessions.map(sess => {
-                      const subj = app.subjects.find(s => s.id === sess.subjectId);
-                      const tier = getTier(sess.focusDensity || 0);
-                      const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                      const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
-                      return (
-                        <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                              <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                            </View>
-                            <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                            <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                              <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                            </View>
-                            {sess.verified && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                <Ionicons name="trophy" size={11} color="#F5A623" />
-                                <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                              </View>
-                            )}
-                            {sess.ultraFocusLevel === 'exam' && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                <Ionicons name="flame" size={11} color="#FF6B6B" />
-                                <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
-                              </View>
-                            )}
-                          </View>
-                          {sess.memo && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                              <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                              <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
-                {(() => {
-                  const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
-                  if (doneTodos.length === 0) return null;
-                  return (
-                    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                      <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
-                      {doneTodos.map(e => (
-                        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                          <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
-                          <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
-                          {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
-                        </View>
-                      ))}
-                    </View>
-                  );
-                })()}
-                {dayDetail.sessions.length === 0 && (
-                  <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
-                )}
-              </>)}
+              {/* 본문은 가로모드 인라인과 공용 (stats/components/DayDetail.js) */}
+              <DayDetailContent dayDetail={dayDetail} subjects={app.subjects} todoLog={app.todoLog} T={T} S={S} />
             </ScrollView>
           </View>
         </View>

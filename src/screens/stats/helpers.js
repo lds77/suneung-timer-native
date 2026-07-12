@@ -7,6 +7,17 @@ import { DAY_KEYS, weekStartOf, isPlanInWeek } from '../planner/helpers';
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 export const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+// ms epoch → "HH:MM" (세션 시작/종료 시각 표시)
+export const formatHM = (ts) => {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+// 'YYYY-MM-DD' → "M월 D일 (요일)" (날짜 상세 제목)
+export const formatDetailDate = (ds) => {
+  if (!ds) return '';
+  const d = new Date(ds + 'T00:00:00');
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS_KR[d.getDay()]})`;
+};
 
 // 주간 플래너 달성률(%) — weekDates('YYYY-MM-DD'[])의 각 날짜를 그 날이 속한 일요일-주 기준으로
 // onlyWeek/skipWeeks 필터해 목표/실행을 합산. getTodayPlanRate·위젯 planPct와 규칙 통일.
