@@ -20,7 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
-import { isTodayVisible, applyReorder } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder, applyDailyTodoReset } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
@@ -545,13 +545,24 @@ export function AppProvider({ children }) {
           applyFocusBrightness();
         }
 
-        // 위젯에서 체크한 할 일 반영 — 헤드리스 핸들러가 storage에 직접 썼으므로 재로드
-        // (안 하면 다음 자동저장이 메모리 todos로 덮어써 위젯 체크가 사라짐)
+        // 위젯에서 체크한 할 일 반영 + 자정 넘김 리셋 — 순서 보장을 위해 한 체인에서 처리
+        // (재로드가 리셋 뒤에 resolve되면 리셋 결과를 pre-리셋 storage 값으로 되덮기 때문)
         consumeWidgetTodoDirty().then(async (dirty) => {
-          if (!dirty) return;
-          const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
-          if (Array.isArray(td)) setTodos(td);
-          if (Array.isArray(tl)) setTodoLog(tl);
+          if (dirty) {
+            // 헤드리스 핸들러가 storage에 직접 썼으므로 재로드
+            // (안 하면 다음 자동저장이 메모리 todos로 덮어써 위젯 체크가 사라짐)
+            const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
+            if (Array.isArray(td)) setTodos(td);
+            if (Array.isArray(tl)) setTodoLog(tl);
+          }
+          // 자정 넘김: 앱을 재시작하지 않고 날이 바뀐 경우에도 할일 일일 리셋 실행
+          // (리셋은 원래 로드 시에만 돌아 밤새 켜두면 어제 완료 잔존/반복 인스턴스 미생성이었음)
+          // lastTodoResetDate가 비어 있으면 아직 초기 로드 전 — 로드 쪽 리셋에 맡긴다
+          const todayNow = getToday();
+          if (settingsRef.current.lastTodoResetDate && settingsRef.current.lastTodoResetDate !== todayNow) {
+            setTodos(prev => applyDailyTodoReset(prev, { today: todayNow, needsReset: true }).todos);
+            setSettings(prev => ({ ...prev, lastTodoResetDate: todayNow }));
+          }
         });
 
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
@@ -1820,46 +1831,17 @@ export function AppProvider({ children }) {
           migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
           setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
         }
-        // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
-        const todayDay = new Date().getDay();
-        const genFromTemplates = (base) => {
-          const templates = base.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
-          const toAdd = [];
-          templates.forEach(tmpl => {
-            if (!tmpl.repeatDays.includes(todayDay)) return;
-            if (base.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === today)) return;
-            toAdd.push({
-              id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
-              repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
-              subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
-              priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
-              memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
-              templateId: tmpl.id, createdDate: today,
-            });
-          });
-          return toAdd;
-        };
-        // 반복(고정) 할 일의 지난날 미완료 인스턴스는 이월하지 않음 — 템플릿이 매일 새 항목을
-        // 생성하므로, 미완료 이월(!done 유지)과 겹치면 못 한 날마다 같은 항목이 하나씩 쌓였다
-        // (사용자 제보: 이틀 못 하면 3일째 3개). 완료 표시된 것은 그날 목록 유지(다음 리셋 때 정리).
-        const isStaleTemplateInstance = (t) =>
-          !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
-        if (mergedSettings.lastTodoResetDate !== today) {
-          const resetTodos = migrated
-            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today')))
-            .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
-          const generated = genFromTemplates(resetTodos);
-          const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
-          setTodos(finalTodos);
+        // 일일 리셋 파이프라인 (규칙/구현: todoUtils.applyDailyTodoReset, 테스트 有)
+        // — 지난날 반복 인스턴스 정리 + (날 바뀌었으면) 완료 항목 리셋 + 오늘 반복 인스턴스 생성
+        const needsReset = mergedSettings.lastTodoResetDate !== today;
+        const { todos: finalTodos, changed } = applyDailyTodoReset(migrated, { today, needsReset });
+        setTodos(finalTodos);
+        if (needsReset) {
           await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
-        } else {
-          // 같은 날 재실행에서도 이미 쌓인 지난날 중복을 즉시 정리 (업데이트 직후 자가 치유)
-          const pruned = migrated.filter(t => !isStaleTemplateInstance(t));
-          const generated = genFromTemplates(pruned);
-          const finalTodos = generated.length > 0 ? [...pruned, ...generated] : pruned;
-          setTodos(finalTodos);
-          if (generated.length > 0 || pruned.length !== migrated.length) await saveTodos(finalTodos);
+        } else if (changed) {
+          // 같은 날 재실행의 자가 치유(지난날 중복 정리 등)도 즉시 저장
+          await saveTodos(finalTodos);
         }
       }
       if (cuf) setCountupFavs(cuf);
@@ -2248,27 +2230,7 @@ export function AppProvider({ children }) {
   const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
   // 드래그 정렬 커밋: 그룹 항목들을 배열 내 기존 자리에 새 순서로 재배치 (그룹 밖 위치 불변)
   const reorderTodos = useCallback((orderedIds) => setTodos(prev => applyReorder(prev, orderedIds)), []);
-  const generateDailyTodos = useCallback(() => {
-    const todayDay = new Date().getDay();
-    const todayStr = getToday();
-    setTodos(prev => {
-      const templates = prev.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
-      const toAdd = [];
-      templates.forEach(tmpl => {
-        if (!tmpl.repeatDays.includes(todayDay)) return;
-        if (prev.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === todayStr)) return;
-        toAdd.push({
-          id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
-          repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
-          subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
-          priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
-          memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
-          templateId: tmpl.id, createdDate: todayStr,
-        });
-      });
-      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
-    });
-  }, []);
+  // (반복 인스턴스 생성은 applyDailyTodoReset 파이프라인으로 통합 — 로드/자정 넘김 두 경로 공용)
 
   // 할일 헬퍼 함수 — '오늘'은 오늘 목록 소속 + 기한 도래 항목 (isTodayVisible, My Day 모델)
   const getTodayTodos = useCallback(() =>
@@ -2375,7 +2337,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, generateDailyTodos, todoLog,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,

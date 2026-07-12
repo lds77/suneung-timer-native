@@ -1,5 +1,5 @@
 // 할일 기한(dueDate) 순수 로직 테스트
-import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex } from '../todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex, applyDailyTodoReset } from '../todoUtils';
 
 const TODAY = '2026-07-10';
 
@@ -133,6 +133,75 @@ describe('computeDropIndex — 드래그 목표 인덱스', () => {
   it('끝을 넘어가면 경계에서 멈춤', () => {
     expect(computeDropIndex(H, 0, 9999)).toBe(3);
     expect(computeDropIndex(H, 3, -9999)).toBe(0);
+  });
+});
+
+describe('applyDailyTodoReset — 일일 리셋 파이프라인', () => {
+  // 2026-07-10은 금요일 (7/1 수요일 기준). getDay() === 5
+  const D = { today: TODAY, needsReset: true };
+  const ids = (r) => r.todos.map(t => t.id);
+
+  it('리셋: 오늘 목록의 완료된 일반 항목만 삭제, 커스텀/시험/미완료는 유지', () => {
+    const r = applyDailyTodoReset([
+      { id: 'a', scope: 'today', done: true, completedAt: 1 },   // 삭제
+      { id: 'b', scope: 'today', done: false },                   // 유지
+      { id: 'c', scope: 'list_x', done: true },                   // 유지 (커스텀 목록)
+      { id: 'd', scope: 'exam', done: true },                     // 유지 (시험)
+      { id: 'e', scope: null, done: true },                       // 삭제 (레거시 오늘)
+      { id: 'f', scope: 'today', done: false, dueDate: '2099-01-01' }, // 유지 (예정)
+    ], D);
+    expect(ids(r)).toEqual(['b', 'c', 'd', 'f']);
+    expect(r.changed).toBe(true);
+  });
+
+  it('리셋: repeat(고정) 항목은 삭제 대신 done만 초기화', () => {
+    const r = applyDailyTodoReset([{ id: 'a', scope: 'today', repeat: true, done: true, completedAt: 1 }], D);
+    expect(r.todos).toEqual([expect.objectContaining({ id: 'a', done: false, completedAt: null })]);
+  });
+
+  it('지난날 미완료 반복 인스턴스는 리셋 여부와 무관하게 정리 (이월 중복 방지)', () => {
+    const stale = { id: 's', scope: 'today', done: false, templateId: 'tm', createdDate: '2026-07-09' };
+    expect(ids(applyDailyTodoReset([stale], { today: TODAY, needsReset: false }))).toEqual([]);
+    expect(ids(applyDailyTodoReset([stale], D))).toEqual([]);
+  });
+
+  it('반복 템플릿: 오늘 요일이면 인스턴스 1개 생성 (필드/멱등 확인)', () => {
+    const tmpl = { id: 'tm', isTemplate: true, repeatDays: [5], text: '단어 외우기', subjectId: 's1', subjectLabel: '영어', subjectColor: '#111', priority: 'high', memo: 'm' };
+    const r = applyDailyTodoReset([tmpl], D);
+    expect(r.todos.length).toBe(2);
+    const inst = r.todos[1];
+    expect(inst).toEqual(expect.objectContaining({
+      templateId: 'tm', createdDate: TODAY, scope: 'today', done: false,
+      text: '단어 외우기', subjectId: 's1', subjectLabel: '영어', priority: 'high', memo: 'm',
+      isTemplate: false, repeatDays: null,
+    }));
+    // 멱등: 이미 오늘 인스턴스가 있으면 재생성 안 함
+    const r2 = applyDailyTodoReset(r.todos, { today: TODAY, needsReset: false });
+    expect(r2.todos.length).toBe(2);
+    expect(r2.changed).toBe(false);
+  });
+
+  it('반복 템플릿: 오늘 요일이 아니면 생성 안 함', () => {
+    const r = applyDailyTodoReset([{ id: 'tm', isTemplate: true, repeatDays: [0, 6], text: 'x' }], D);
+    expect(r.todos.length).toBe(1);
+  });
+
+  it('리셋: 어제 완료된 반복 인스턴스도 오늘 목록 규칙으로 삭제되고 새 인스턴스가 생성된다', () => {
+    const tmpl = { id: 'tm', isTemplate: true, repeatDays: [5], text: 'x' };
+    const doneYesterday = { id: 'y', scope: 'today', done: true, templateId: 'tm', createdDate: '2026-07-09' };
+    const r = applyDailyTodoReset([tmpl, doneYesterday], D);
+    expect(r.todos.length).toBe(2); // 템플릿 + 오늘 새 인스턴스
+    expect(r.todos[1].createdDate).toBe(TODAY);
+  });
+
+  it('리셋 아님(같은 날 재실행): 완료 항목 유지, 무변경이면 changed=false', () => {
+    const list = [
+      { id: 'a', scope: 'today', done: true, completedAt: 1 },
+      { id: 'b', scope: 'today', done: false },
+    ];
+    const r = applyDailyTodoReset(list, { today: TODAY, needsReset: false });
+    expect(ids(r)).toEqual(['a', 'b']);
+    expect(r.changed).toBe(false);
   });
 });
 
