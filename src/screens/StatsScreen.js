@@ -1102,6 +1102,150 @@ export default function StatsScreen() {
     </TouchableOpacity>
   );
 
+  // ── 과목 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderSubjPeriodRow = () => (
+    <View style={S.subjPeriodRow}>
+      {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
+        <TouchableOpacity
+          key={val}
+          style={[S.subjPeriodBtn, {
+            backgroundColor: subjPeriod === val ? T.accent : T.surface2,
+            borderColor: subjPeriod === val ? T.accent : T.border,
+          }]}
+          onPress={() => setSubjPeriod(val)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+        >
+          <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // 요약 3카드 + 과목별 비율 (기록 없으면 빈 안내)
+  const renderSubjOverview = () => subjectAllStats.length === 0 ? (
+    <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
+  ) : (<>
+    {(() => {
+      const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
+      const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
+      const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
+      const avgTier = getTier(avgD);
+      const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
+      const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
+        const isActive = activeCard === key;
+        return (
+          <TouchableOpacity
+            style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
+            onPress={() => tapCard(key)} activeOpacity={0.7}
+          >
+            <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
+            <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+              {isActive ? activeVal : val}
+            </Text>
+            <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
+              {isActive ? (activeSub || ' ') : (sub || ' ')}
+            </Text>
+          </TouchableOpacity>
+        );
+      };
+      return (
+        <View style={[S.summaryRow, { marginBottom: 12 }]}>
+          {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
+            `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
+          {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
+            pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
+            pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
+            pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
+          {mkCard('s_density', '평균 밀도',
+            avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
+            avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
+            avgD > 0 ? avgTier.message : ' ')}
+        </View>
+      );
+    })()}
+
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
+      <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
+        {subjectAllStats.map((s, i) => (
+          <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
+        ))}
+      </View>
+      {subjectAllStats.map((s, i) => {
+        const sTier = getTier(s.avgDensity);
+        return (
+          <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
+            <View style={[S.subjDot, { backgroundColor: s.color }]} />
+            <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+            <View style={S.subjListBarTrack}>
+              <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
+            </View>
+            <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
+            {s.avgDensity > 0 && (
+              <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
+              </View>
+            )}
+            <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </>);
+
+  const renderSubjBalanceCard = () => subjectAllStats.length >= 2 && (() => {
+    const top = subjectAllStats[0];
+    const realLastDate = {};
+    app.sessions.forEach(s => {
+      const { id } = getSessionSubject(s, app.subjects);
+      if (id.startsWith('lbl_') || id === '_none') return;
+      if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
+    });
+    const neglected = [...subjectAllStats]
+      .filter(s => s.id !== top.id)
+      .sort((a, b) => {
+        const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
+        if (dateCmp !== 0) return dateCmp;
+        return a.sec - b.sec;
+      })[0];
+    if (!neglected) return null;
+    const lastDate = realLastDate[neglected.id] || '';
+    const daysSince = lastDate
+      ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
+      : null;
+    return (
+      <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
+        <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
+        <View style={S.subjInsightRow}>
+          <Ionicons name="trending-up-outline" size={20} color={T.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
+              {top.name}
+              <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
+            </Text>
+          </View>
+        </View>
+        <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
+          <Ionicons name="time-outline" size={20} color={T.sub} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
+              {neglected.name}
+              {daysSince !== null && daysSince > 0 && (
+                <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
+              )}
+              {daysSince === 0 && (
+                <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
+              )}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  })();
+
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
     const prefix = viewMonthStr.replace('.', '-');
@@ -1375,95 +1519,10 @@ export default function StatsScreen() {
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 과목 LEFT ── */}
+            {/* ── 과목 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'subject' && (<>
-              <View style={S.subjPeriodRow}>
-                {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
-                  <TouchableOpacity
-                    key={val}
-                    style={[S.subjPeriodBtn, {
-                      backgroundColor: subjPeriod === val ? T.accent : T.surface2,
-                      borderColor: subjPeriod === val ? T.accent : T.border,
-                    }]}
-                    onPress={() => setSubjPeriod(val)}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-                  >
-                    <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {subjectAllStats.length === 0 ? (
-                <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
-              ) : (<>
-                {(() => {
-                  const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
-                  const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
-                  const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
-                  const avgTier = getTier(avgD);
-                  const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
-                  const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
-                    const isActive = activeCard === key;
-                    return (
-                      <TouchableOpacity
-                        style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
-                        onPress={() => tapCard(key)} activeOpacity={0.7}
-                      >
-                        <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
-                        <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                          {isActive ? activeVal : val}
-                        </Text>
-                        <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
-                          {isActive ? (activeSub || ' ') : (sub || ' ')}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  };
-                  return (
-                    <View style={[S.summaryRow, { marginBottom: 12 }]}>
-                      {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
-                        `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
-                      {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
-                        pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
-                        pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
-                        pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
-                      {mkCard('s_density', '평균 밀도',
-                        avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
-                        avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
-                        avgD > 0 ? avgTier.message : ' ')}
-                    </View>
-                  );
-                })()}
-
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                  <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
-                    {subjectAllStats.map((s, i) => (
-                      <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
-                    ))}
-                  </View>
-                  {subjectAllStats.map((s, i) => {
-                    const sTier = getTier(s.avgDensity);
-                    return (
-                      <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
-                        <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                        <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
-                        <View style={S.subjListBarTrack}>
-                          <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
-                        </View>
-                        <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
-                        {s.avgDensity > 0 && (
-                          <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
-                          </View>
-                        )}
-                        <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>)}
+              {renderSubjPeriodRow()}
+              {renderSubjOverview()}
             </>)}
           </ScrollView>
 
@@ -1502,59 +1561,9 @@ export default function StatsScreen() {
               {renderHeatReportBtn()}
             </>)}
 
-            {/* ── 과목 RIGHT ── */}
+            {/* ── 과목 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'subject' && (<>
-              {subjectAllStats.length >= 2 && (() => {
-                const top = subjectAllStats[0];
-                const realLastDate = {};
-                app.sessions.forEach(s => {
-                  const { id } = getSessionSubject(s, app.subjects);
-                  if (id.startsWith('lbl_') || id === '_none') return;
-                  if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
-                });
-                const neglected = [...subjectAllStats]
-                  .filter(s => s.id !== top.id)
-                  .sort((a, b) => {
-                    const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
-                    if (dateCmp !== 0) return dateCmp;
-                    return a.sec - b.sec;
-                  })[0];
-                if (!neglected) return null;
-                const lastDate = realLastDate[neglected.id] || '';
-                const daysSince = lastDate
-                  ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
-                  : null;
-                return (
-                  <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
-                    <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
-                    <View style={S.subjInsightRow}>
-                      <Ionicons name="trending-up-outline" size={20} color={T.accent} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                          {top.name}
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
-                      <Ionicons name="time-outline" size={20} color={T.sub} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                          {neglected.name}
-                          {daysSince !== null && daysSince > 0 && (
-                            <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
-                          )}
-                          {daysSince === 0 && (
-                            <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
-                          )}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })()}
+              {renderSubjBalanceCard()}
               {renderInsightCard()}
             </>)}
           </ScrollView>
@@ -1636,148 +1645,11 @@ export default function StatsScreen() {
             {renderHeatReportBtn()}
           </>)}
 
-          {/* ── 과목 탭 (세로) ── */}
+          {/* ── 과목 탭 (세로) — 카드 렌더러는 가로모드와 공유 ── */}
           {tab === 'subject' && (<>
-            <View style={S.subjPeriodRow}>
-              {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
-                <TouchableOpacity
-                  key={val}
-                  style={[S.subjPeriodBtn, {
-                    backgroundColor: subjPeriod === val ? T.accent : T.surface2,
-                    borderColor: subjPeriod === val ? T.accent : T.border,
-                  }]}
-                  onPress={() => setSubjPeriod(val)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-                >
-                  <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {subjectAllStats.length === 0 ? (
-              <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
-            ) : (<>
-              {(() => {
-                const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
-                const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
-                const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
-                const avgTier = getTier(avgD);
-                const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
-                const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
-                  const isActive = activeCard === key;
-                  return (
-                    <TouchableOpacity
-                      style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
-                      onPress={() => tapCard(key)} activeOpacity={0.7}
-                    >
-                      <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
-                      <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                        {isActive ? activeVal : val}
-                      </Text>
-                      <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
-                        {isActive ? (activeSub || ' ') : (sub || ' ')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                };
-                return (
-                  <View style={[S.summaryRow, { marginBottom: 12 }]}>
-                    {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
-                      `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
-                    {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
-                      pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
-                      pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
-                      pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
-                    {mkCard('s_density', '평균 밀도',
-                      avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
-                      avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
-                      avgD > 0 ? avgTier.message : ' ')}
-                  </View>
-                );
-              })()}
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
-                  {subjectAllStats.map((s, i) => (
-                    <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
-                  ))}
-                </View>
-                {subjectAllStats.map((s, i) => {
-                  const sTier = getTier(s.avgDensity);
-                  return (
-                    <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
-                      <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                      <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
-                      <View style={S.subjListBarTrack}>
-                        <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
-                      </View>
-                      <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
-                      {s.avgDensity > 0 && (
-                        <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
-                        </View>
-                      )}
-                      <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>)}
-
-            {/* 균형 지표 카드 */}
-            {subjectAllStats.length >= 2 && (() => {
-              const top = subjectAllStats[0];
-              const realLastDate = {};
-              app.sessions.forEach(s => {
-                const { id } = getSessionSubject(s, app.subjects);
-                if (id.startsWith('lbl_') || id === '_none') return;
-                if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
-              });
-              const neglected = [...subjectAllStats]
-                .filter(s => s.id !== top.id)
-                .sort((a, b) => {
-                  const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
-                  if (dateCmp !== 0) return dateCmp;
-                  return a.sec - b.sec;
-                })[0];
-              if (!neglected) return null;
-              const lastDate = realLastDate[neglected.id] || '';
-              const daysSince = lastDate
-                ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
-                : null;
-              return (
-                <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
-                  <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
-                  <View style={S.subjInsightRow}>
-                    <Ionicons name="trending-up-outline" size={20} color={T.accent} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                        {top.name}
-                        <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
-                    <Ionicons name="time-outline" size={20} color={T.sub} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                        {neglected.name}
-                        {daysSince !== null && daysSince > 0 && (
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
-                        )}
-                        {daysSince === 0 && (
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
-                        )}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })()}
+            {renderSubjPeriodRow()}
+            {renderSubjOverview()}
+            {renderSubjBalanceCard()}
           </>)}
 
           {/* 인사이트 — 세로모드 */}
