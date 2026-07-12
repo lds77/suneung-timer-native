@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.33 (양대 스토어 배포/승인 완료). sdk56 브랜치에서 SDK 56 업그레이드 진행 중 (EAS 빌드 검증 전)
+- **현재 버전**: 1.0.34 (iOS 빌드 49 / Android versionCode 56, 양대 스토어 심사 제출 — 2026-07-12). SDK 56 첫 릴리스, 위젯 5종 + 할일 개편 포함. 1.0.33은 양대 배포/승인 완료
 
 ---
 
@@ -226,12 +226,12 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-07-04 기준)
+## 출시 현황 (2026-07-12 기준)
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 출시 중 (1.0.31 배포됨), 1.0.32 빌드 41 심사 중 (위젯 4종+잠금화면). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 출시 중, 1.0.32(versionCode 36, 위젯 3종) 검토 중. 1.0.33에 오늘계획 위젯+집중중 표시 예정 |
+| iOS | App Store 출시 중 (1.0.33 배포됨), 1.0.34 빌드 49 심사 제출 (SDK 56, 위젯 5종+할일 개편). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 출시 중 (1.0.33 배포됨), 1.0.34(versionCode 56) 검토 중 — 오늘할일 위젯(위젯에서 바로 체크) 포함 |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 초기 단계 (10~20명) |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
