@@ -428,6 +428,81 @@ footer a { color: var(--muted); text-decoration: none; }
 footer a:hover { color: var(--text); }
 .footer-links { margin-bottom: 10px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
+/* ── Hero grid (폰 목업 히어로) ───────────────── */
+.hero-grid {
+  position: relative; z-index: 1;
+  max-width: var(--maxw); margin: 0 auto;
+  display: grid; grid-template-columns: 1.05fr .95fr;
+  gap: 44px; align-items: center; text-align: left;
+}
+.hero-brandline {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 800; font-size: 1.05rem; margin-bottom: 18px;
+}
+.hero-brandline img { width: 44px; height: 44px; border-radius: 12px; box-shadow: 0 10px 30px rgba(124,58,237,.4); }
+.hero-copy .tagline { margin: 0 0 30px; }
+.hero-copy .store-buttons { justify-content: flex-start; }
+.hero-phone { display: flex; justify-content: center; }
+.hero-phone img {
+  max-height: 560px; width: auto; max-width: 100%;
+  border-radius: 28px;
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+}
+
+/* ── How it works 3단계 ──────────────────────── */
+.howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.howto .step {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 26px 22px; text-align: center;
+}
+.howto .step img {
+  max-height: 320px; width: auto; max-width: 100%;
+  margin: 0 auto 20px; border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 34px rgba(0,0,0,.4);
+}
+.step-num {
+  width: 30px; height: 30px; margin: 0 auto 10px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff; font-weight: 800; font-size: .95rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.howto .step h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.howto .step p { font-size: .92rem; color: var(--muted); }
+
+/* ── 탭 투어 (앱 하단 탭바 모사) ─────────────── */
+.tour-tabs {
+  display: flex; gap: 4px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 18px; padding: 6px;
+  max-width: 560px; margin: 0 auto 40px;
+}
+.tour-tabs button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 10px 4px; border: none; background: transparent;
+  color: var(--muted); border-radius: 13px; cursor: pointer;
+  font-family: inherit; font-size: .84rem; font-weight: 700;
+  transition: background .15s, color .15s;
+}
+.tour-tabs button svg { width: 22px; height: 22px; }
+.tour-tabs button:hover { color: var(--text); }
+.tour-tabs button.on { background: rgba(167,139,250,.18); color: var(--accent); }
+.tour-panel { display: grid; grid-template-columns: .85fr 1.15fr; gap: 48px; align-items: center; }
+.tour-panel[hidden] { display: none; }
+.tour-media { display: flex; justify-content: center; }
+.tour-text h3 { font-size: clamp(1.3rem, 3vw, 1.6rem); font-weight: 800; margin-bottom: 12px; }
+.tour-text p { color: var(--muted); margin-bottom: 12px; }
+.tour-text ul { list-style: none; margin: 14px 0 18px; }
+.tour-text ul li {
+  position: relative; padding-left: 26px; margin-bottom: 10px;
+  color: rgba(255,255,255,.8); font-size: .94rem;
+}
+.tour-text ul li::before {
+  content: '✓'; position: absolute; left: 0; top: 0;
+  color: var(--accent); font-weight: 800;
+}
+
 /* ── Reveal animation ────────────────────────── */
 .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
 .reveal.in { opacity: 1; transform: none; }
@@ -437,6 +512,15 @@ footer a:hover { color: var(--text); }
   .frow { grid-template-columns: 1fr; gap: 24px; }
   .frow.rev .frow-media { order: 0; }
   .section { padding: 60px 20px; }
+
+  .hero-grid { grid-template-columns: 1fr; gap: 36px; text-align: center; }
+  .hero-brandline { justify-content: center; }
+  .hero-copy .store-buttons { justify-content: center; }
+  .hero-phone img { max-height: 440px; }
+  .tour-panel { grid-template-columns: 1fr; gap: 26px; }
+  .tour-tabs { gap: 2px; padding: 5px; }
+  .tour-tabs button { font-size: .76rem; padding: 9px 2px; gap: 4px; }
+  .tour-tabs button svg { width: 20px; height: 20px; }
 
   /* 모바일 네비: 햄버거 + 드롭다운 */
   .nav-toggle { display: inline-flex; }
