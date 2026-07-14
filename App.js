@@ -769,6 +769,7 @@ function WidgetIntroOverlay() {
     { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
     { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
     { icon: 'checkbox-outline', title: '오늘 계획', desc: '플래너의 오늘 계획을 눌러서 바로 시작' },
+    { icon: 'checkmark-done-outline', title: '오늘 할 일', desc: isIos ? '오늘 할 일 진행률과 다음 할 일을 한눈에' : '남은 할 일을 위젯에서 바로 체크' },
   ];
   const STEPS = isIos ? [
     '홈 화면 빈 곳을 길게 누르세요',
