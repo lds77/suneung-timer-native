@@ -2136,6 +2136,33 @@ export function AppProvider({ children }) {
   const addSubject = useCallback((s) => { const n = { id: generateId('subj_'), totalElapsedSec: 0, isFavorite: false, createdAt: new Date().toISOString(), ...s }; setSubjects(prev => [...prev, n]); return n; }, []);
   const removeSubject = useCallback((id) => setSubjects(prev => prev.filter(s => s.id !== id)), []);
   const updateSubject = useCallback((id, u) => setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...u } : s)), []);
+  // 과목 이름/색상 편집 — 비정규화 복사본(할일 subjectLabel/Color, 과목형 플래너 블록, 실행 중 타이머)까지 전파
+  const editSubject = useCallback((id, changes) => {
+    const before = subjects.find(s => s.id === id);
+    if (!before) return;
+    setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...changes } : s));
+    const name = changes.name ?? before.name;
+    const color = changes.color ?? before.color;
+    if (name === before.name && color === before.color) return;
+    setTodos(prev => prev.map(t => t.subjectId === id ? { ...t, subjectLabel: name, subjectColor: color } : t));
+    // 과목형 플래너 블록은 생성 시 과목 이름/색을 복사해 저장 (ScheduleEditorScreen) — 함께 갱신
+    setWeeklySchedule(prev => {
+      if (!prev) return prev;
+      let touched = false;
+      const next = { ...prev };
+      ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(k => {
+        const day = prev[k];
+        if (!Array.isArray(day?.plans) || !day.plans.some(p => p.subjectId === id)) return;
+        touched = true;
+        next[k] = { ...day, plans: day.plans.map(p => p.subjectId === id ? { ...p, label: name, color } : p) };
+      });
+      return touched ? next : prev;
+    });
+    // 과목에서 시작한 실행 중 타이머(라벨=과목명)도 새 이름/색으로
+    setTimers(prev => prev.map(t => t.subjectId === id ? { ...t, color, label: t.label === before.name ? name : t.label } : t));
+  }, [subjects]);
+  // 드래그 정렬 커밋: 표시 순서(orderedIds)대로 subjects 배열 재배치 — 배열 순서가 곧 수동 순서
+  const reorderSubjects = useCallback((orderedIds) => setSubjects(prev => applyReorder(prev, orderedIds)), []);
   const addDDay = useCallback((dd) => { const n = { id: generateId('dd_'), isPrimary: ddays.length === 0, ...dd }; setDDays(prev => [...prev, n]); return n; }, [ddays]);
   const removeDDay = useCallback((id) => { setDDays(prev => { const f = prev.filter(d => d.id !== id); if (f.length > 0 && !f.some(d => d.isPrimary)) f[0].isPrimary = true; return f; }); }, []);
   const updateDDay = useCallback((id, changes) => { setDDays(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d)); }, []);
@@ -2334,7 +2361,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       loading, settings, updateSettings,
-      subjects, addSubject, removeSubject, updateSubject,
+      subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
