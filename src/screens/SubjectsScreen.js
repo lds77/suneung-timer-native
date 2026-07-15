@@ -71,7 +71,7 @@ const STUDY_METHODS = {
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 15 }, { label: '미션 2', color: '#4A90D9', min: 15 }, { label: '미션 3', color: '#5CB85C', min: 15 }], breakMin: 3 },
     { id: 'sl3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
-      desc: '소리내어 읽으면 기억력이 2배!',
+      desc: '소리 내어 읽으면 더 오래 기억돼요!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 10 }, { label: '묵독', color: '#9B6FC3', min: 15 }], breakMin: 5 },
   ],
@@ -85,21 +85,21 @@ const STUDY_METHODS = {
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 20 }, { label: '미션 2', color: '#4A90D9', min: 20 }, { label: '미션 3', color: '#5CB85C', min: 20 }], breakMin: 5 },
     { id: 'su3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
-      desc: '소리내어 읽으면 기억력이 2배!',
+      desc: '소리 내어 읽으면 더 오래 기억돼요!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 15 }, { label: '묵독', color: '#9B6FC3', min: 20 }], breakMin: 5 },
   ],
   middle: [
     { id: 'sm1', icon: 'shuffle-outline', name: '인터리빙 학습', color: '#6C5CE7',
-      desc: '과목을 섞으면 기억력 43% 향상!',
-      source: 'UCLA · Rohrer & Taylor, 2007',
+      desc: '과목을 섞어 공부하면 기억에 더 오래 남아요',
+      source: '사우스플로리다대 · Rohrer & Taylor, 2007',
       items: [{ label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }, { label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }], breakMin: 5 },
     { id: 'sm2', icon: 'flask-outline', name: '40-10 법칙', color: '#00B894',
-      desc: '상위 10% 학생의 집중 패턴',
-      source: 'DeskTime 생산성 연구 (학생 버전)',
+      desc: '집중 40분 + 완전 휴식 10분 리듬',
+      source: 'DeskTime 생산성 연구를 학생용으로 조정',
       items: [{ label: '집중', color: '#00B894', min: 40 }, { label: '완전 휴식', color: '#B2BEC3', min: 10 }], breakMin: 0 },
     { id: 'sm3', icon: 'repeat-outline', name: '시험 루프', color: '#E17055',
-      desc: '시험 보는 행위 자체가 기억을 75% 강화',
+      desc: '문제를 풀어보는 것 자체가 강력한 복습',
       source: '테스트 효과 · Roediger & Karpicke, 2006',
       items: [{ label: '문제 풀기', color: '#E8575A', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }, { label: '문제 풀기', color: '#4A90D9', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }], breakMin: 5 },
   ],
@@ -114,7 +114,7 @@ const STUDY_METHODS = {
       items: [{ label: '깊은 집중', color: '#4A90D9', min: 90 }, { label: '완전 휴식', color: '#B2BEC3', min: 20 }], breakMin: 0 },
     { id: 'sh3', icon: 'snow-outline', name: '하드 스타트', color: '#6C5CE7',
       desc: '어려운 것 먼저! 뇌가 백그라운드에서 풀어줌',
-      source: 'MIT · Barbara Oakley "A Mind for Numbers"',
+      source: 'Barbara Oakley · "A Mind for Numbers"',
       items: [{ label: '어려운 과목', color: '#E8575A', min: 25 }, { label: '쉬운 과목', color: '#5CB85C', min: 25 }, { label: '어려운 과목', color: '#E8575A', min: 25 }], breakMin: 5 },
   ],
 };
@@ -758,7 +758,7 @@ export default function SubjectsScreen({ navigation }) {
               {/* 학습법 — 앞 절반 */}
               {tab === 'method' && (
                 <>
-                  <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                  <Text style={[S.secLabel, { color: T.sub }]}>연구에 기반한 학습법</Text>
                   {methods.slice(0, Math.ceil(methods.length / 2)).map(renderMethodCard)}
                 </>
               )}
@@ -855,7 +855,7 @@ export default function SubjectsScreen({ navigation }) {
             {/* ═══ 탭: 학습법 ═══ */}
             {tab === 'method' && (
               <>
-                <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                <Text style={[S.secLabel, { color: T.sub }]}>연구에 기반한 학습법</Text>
                 <View>{methods.map(renderMethodCard)}</View>
               </>
             )}
