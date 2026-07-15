@@ -1,9 +1,9 @@
 // 스토어 리뷰 요청 정책 + 실행 (순수 판정 로직은 shouldAskReview — 테스트 대상)
-// 정책: 누적 완료 세션 5회부터, 조건 만족 사용자 모두에게 동일하게 1회 요청 (보상 없음).
+// 정책: 누적 완료 세션 20회부터(2주차 정착 사용자 — 수락률 고려), 조건 만족 시 모두에게 동일하게 요청 (보상 없음).
 // '나중에'는 30일 뒤 재요청, 3회 미루면 더 묻지 않음. 남기기 선택 시 종료.
 import { Platform, Linking, Alert } from 'react-native';
 
-export const REVIEW_MIN_SESSIONS = 5;
+export const REVIEW_MIN_SESSIONS = 20;
 export const REVIEW_LATER_COOLDOWN_MS = 30 * 86400000;
 export const REVIEW_MAX_LATER = 3;
 
