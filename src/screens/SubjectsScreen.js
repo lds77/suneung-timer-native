@@ -1,9 +1,10 @@
 // src/screens/SubjectsScreen.js
 // v24: 가로모드 독립 2분할 스크롤
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Animated, PanResponder, Vibration } from 'react-native';
 import { useApp } from '../hooks/useAppState';
+import { computeDropIndex } from '../utils/todoUtils';
 
 import { LIGHT, DARK, SUBJECT_COLORS, getTheme } from '../constants/colors';
 import { SUBJECT_PRESETS, getTier } from '../constants/presets';
@@ -70,7 +71,7 @@ const STUDY_METHODS = {
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 15 }, { label: '미션 2', color: '#4A90D9', min: 15 }, { label: '미션 3', color: '#5CB85C', min: 15 }], breakMin: 3 },
     { id: 'sl3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
-      desc: '소리내어 읽으면 기억력이 2배!',
+      desc: '소리 내어 읽으면 더 오래 기억돼요!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 10 }, { label: '묵독', color: '#9B6FC3', min: 15 }], breakMin: 5 },
   ],
@@ -84,21 +85,21 @@ const STUDY_METHODS = {
       source: '게이미피케이션 · Deterding, 2011',
       items: [{ label: '미션 1', color: '#E8575A', min: 20 }, { label: '미션 2', color: '#4A90D9', min: 20 }, { label: '미션 3', color: '#5CB85C', min: 20 }], breakMin: 5 },
     { id: 'su3', icon: 'book-outline', name: '소리 + 묵독', color: '#9B6FC3',
-      desc: '소리내어 읽으면 기억력이 2배!',
+      desc: '소리 내어 읽으면 더 오래 기억돼요!',
       source: '프로덕션 효과 · MacLeod, 2011',
       items: [{ label: '소리내어 읽기', color: '#E8575A', min: 15 }, { label: '묵독', color: '#9B6FC3', min: 20 }], breakMin: 5 },
   ],
   middle: [
     { id: 'sm1', icon: 'shuffle-outline', name: '인터리빙 학습', color: '#6C5CE7',
-      desc: '과목을 섞으면 기억력 43% 향상!',
-      source: 'UCLA · Rohrer & Taylor, 2007',
+      desc: '과목을 섞어 공부하면 기억에 더 오래 남아요',
+      source: '사우스플로리다대 · Rohrer & Taylor, 2007',
       items: [{ label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }, { label: '과목 A', color: '#E8575A', min: 25 }, { label: '과목 B', color: '#4A90D9', min: 25 }], breakMin: 5 },
     { id: 'sm2', icon: 'flask-outline', name: '40-10 법칙', color: '#00B894',
-      desc: '상위 10% 학생의 집중 패턴',
-      source: 'DeskTime 생산성 연구 (학생 버전)',
+      desc: '집중 40분 + 완전 휴식 10분 리듬',
+      source: 'DeskTime 생산성 연구를 학생용으로 조정',
       items: [{ label: '집중', color: '#00B894', min: 40 }, { label: '완전 휴식', color: '#B2BEC3', min: 10 }], breakMin: 0 },
     { id: 'sm3', icon: 'repeat-outline', name: '시험 루프', color: '#E17055',
-      desc: '시험 보는 행위 자체가 기억을 75% 강화',
+      desc: '문제를 풀어보는 것 자체가 강력한 복습',
       source: '테스트 효과 · Roediger & Karpicke, 2006',
       items: [{ label: '문제 풀기', color: '#E8575A', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }, { label: '문제 풀기', color: '#4A90D9', min: 30 }, { label: '채점/오답', color: '#F5A623', min: 10 }], breakMin: 5 },
   ],
@@ -113,7 +114,7 @@ const STUDY_METHODS = {
       items: [{ label: '깊은 집중', color: '#4A90D9', min: 90 }, { label: '완전 휴식', color: '#B2BEC3', min: 20 }], breakMin: 0 },
     { id: 'sh3', icon: 'snow-outline', name: '하드 스타트', color: '#6C5CE7',
       desc: '어려운 것 먼저! 뇌가 백그라운드에서 풀어줌',
-      source: 'MIT · Barbara Oakley "A Mind for Numbers"',
+      source: 'Barbara Oakley · "A Mind for Numbers"',
       items: [{ label: '어려운 과목', color: '#E8575A', min: 25 }, { label: '쉬운 과목', color: '#5CB85C', min: 25 }, { label: '어려운 과목', color: '#E8575A', min: 25 }], breakMin: 5 },
   ],
 };
@@ -177,11 +178,81 @@ export default function SubjectsScreen({ navigation }) {
   const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
   const methods = STUDY_METHODS[key] || STUDY_METHODS.high;
-  const sorted = [...app.subjects].sort((a, b) => {
-    if (!!b.isFavorite !== !!a.isFavorite) return b.isFavorite ? 1 : -1;
-    return (b.totalElapsedSec || 0) - (a.totalElapsedSec || 0);
-  });
+  // 즐겨찾기 우선 + 배열 순서(편집 모드 드래그로 정한 수동 순서) — 안정 정렬이라 그룹 내 순서 유지
+  const sorted = [...app.subjects].sort((a, b) => (!!b.isFavorite === !!a.isFavorite) ? 0 : (b.isFavorite ? 1 : -1));
   const toggleFavorite = (subj) => app.updateSubject(subj.id, { isFavorite: !subj.isFavorite });
+
+  // ── 편집 모드: 과목 수정 모달 + 드래그 순서 변경 (TodoSection 드래그 패턴 재사용) ──
+  const [editSubj, setEditSubj] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState(SUBJECT_COLORS[0]);
+  const [editChar, setEditChar] = useState('toru');
+  const openEdit = (subj) => {
+    setEditSubj(subj); setEditName(subj.name);
+    setEditColor(subj.color); setEditChar(subj.character || 'toru');
+  };
+  const handleEditSave = () => {
+    if (!editSubj || !editName.trim()) return;
+    app.editSubject(editSubj.id, { name: editName.trim(), color: editColor, character: editChar });
+    setEditSubj(null);
+  };
+
+  // PanResponder 콜백은 grant 시점 렌더의 클로저에 묶이므로 최신값은 dragRef로 읽는다.
+  const [drag, setDrag] = useState(null); // { ids, heights, from, to, maxUp, maxDown }
+  const dragRef = useRef(null);
+  const dragY = useRef(new Animated.Value(0)).current;
+  const rowHeights = useRef({}); // subject id → onLayout 측정 높이
+  const startDrag = (subj, orderedIds) => {
+    const from = orderedIds.indexOf(subj.id);
+    if (from === -1) return;
+    const heights = orderedIds.map(id => rowHeights.current[id] ?? 56);
+    const d = {
+      ids: orderedIds, heights, from, to: from,
+      maxUp: -heights.slice(0, from).reduce((a, b) => a + b, 0),
+      maxDown: heights.slice(from + 1).reduce((a, b) => a + b, 0),
+    };
+    dragRef.current = d;
+    setDrag(d);
+    Vibration.vibrate([0, 20]);
+  };
+  const moveDrag = (dy) => {
+    const d = dragRef.current;
+    if (!d) return;
+    dragY.setValue(Math.max(d.maxUp, Math.min(d.maxDown, dy)));
+    const to = computeDropIndex(d.heights, d.from, dy);
+    if (to !== d.to) {
+      dragRef.current = { ...d, to };
+      setDrag(dragRef.current);
+    }
+  };
+  const endDrag = () => {
+    const d = dragRef.current;
+    if (d && d.to !== d.from) {
+      const ids = [...d.ids];
+      const [moved] = ids.splice(d.from, 1);
+      ids.splice(d.to, 0, moved);
+      app.reorderSubjects(ids);
+      Vibration.vibrate([0, 30]);
+    }
+    dragRef.current = null;
+    setDrag(null);
+    dragY.setValue(0);
+  };
+  // PanResponder는 컴포넌트당 1개로 고정 — 렌더마다 새로 만들면 드래그 중 재렌더(setDrag) 시
+  // 핸들러가 교체돼 gestureState 기준점이 끊긴다. 잡은 행은 pendingDragRef로 전달.
+  const pendingDragRef = useRef(null); // { subj, ids }
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false, // 부모 ScrollView에 responder 안 뺏김
+    onPanResponderGrant: () => {
+      const p = pendingDragRef.current;
+      if (p) startDrag(p.subj, p.ids);
+    },
+    onPanResponderMove: (_, g) => moveDrag(g.dy),
+    onPanResponderRelease: endDrag,
+    onPanResponderTerminate: endDrag,
+  })).current;
 
   const weekSubjSec = useMemo(() => {
     const sunStr = getWeekStartStr(0); // 일요일 기준 — 플래너/위젯/통계와 통일 (로컬, UTC 밀림 없음)
@@ -351,12 +422,38 @@ export default function SubjectsScreen({ navigation }) {
     const wSec = weekSubjSec[subj.id] || 0;
     const wGoal = subj.weeklyGoalMin ? subj.weeklyGoalMin * 60 : 0;
     const wPct = wGoal > 0 ? Math.min(100, Math.round(wSec / wGoal * 100)) : 0;
+    // 드래그 중 시각 처리: 잡힌 행은 손가락 따라 이동, 사이 행들은 잡힌 행 높이만큼 자리 양보
+    const orderedIds = sorted.map(s => s.id);
+    const dIdx = drag ? drag.ids.indexOf(subj.id) : -1;
+    const isDragged = dIdx !== -1 && dIdx === drag.from;
+    let shiftY = 0;
+    if (dIdx !== -1 && !isDragged) {
+      if (drag.from < drag.to && dIdx > drag.from && dIdx <= drag.to) shiftY = -drag.heights[drag.from];
+      else if (drag.from > drag.to && dIdx >= drag.to && dIdx < drag.from) shiftY = drag.heights[drag.from];
+    }
     return (
-      <TouchableOpacity key={subj.id}
-        style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? T.border : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
+      <Animated.View key={subj.id}
+        onLayout={(e) => { rowHeights.current[subj.id] = e.nativeEvent.layout.height; }}
+        style={isDragged
+          ? { transform: [{ translateY: dragY }], zIndex: 10, elevation: 6, opacity: 0.95 }
+          : shiftY !== 0 ? { transform: [{ translateY: shiftY }] } : null}>
+      <TouchableOpacity
+        style={[S.subjCard, { backgroundColor: T.card, borderColor: editMode ? (isDragged ? T.accent : T.border) : (running ? subj.color : T.border), borderWidth: running && !editMode ? 1.5 : 1 }]}
+        onPress={editMode ? () => openEdit(subj) : undefined}
         onLongPress={() => { if (!editMode) { setGoalSubj(subj); setGoalInput(subj.weeklyGoalMin ? String(subj.weeklyGoalMin / 60) : ''); } }}
-        activeOpacity={1}
-        disabled={editMode}>
+        activeOpacity={editMode ? 0.7 : 1}>
+        {/* 드래그 손잡이 — 편집 모드 전용. responder 초기화는 공유 인스턴스에 위임 */}
+        {editMode && sorted.length > 1 && (
+          <View {...panResponder.panHandlers}
+            onStartShouldSetResponder={(e) => {
+              pendingDragRef.current = { subj, ids: orderedIds };
+              return panResponder.panHandlers.onStartShouldSetResponder(e);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 4 }}
+            style={{ paddingHorizontal: 2 }}>
+            <Ionicons name="reorder-two-outline" size={19} color={isDragged ? T.accent : T.sub} />
+          </View>
+        )}
         <View style={[S.subjDot, { backgroundColor: subj.color }]} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{subj.name}</Text>
@@ -410,6 +507,7 @@ export default function SubjectsScreen({ navigation }) {
           </View>
         )}
       </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -575,7 +673,7 @@ export default function SubjectsScreen({ navigation }) {
   const renderSubjectHeader = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
       <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
-        {editMode ? '삭제할 과목을 선택하세요' : '과목별 타이머 바로 시작'}
+        {editMode ? '탭하면 수정 · 손잡이를 끌면 순서 변경' : '과목별 타이머 바로 시작'}
       </Text>
       <View style={{ flexDirection: 'row', gap: 6 }}>
         {sorted.length > 0 && (
@@ -652,7 +750,7 @@ export default function SubjectsScreen({ navigation }) {
           // ═══ 가로모드: 독립 스크롤 2분할 ═══
           <>
             {/* 좌측 스크롤 */}
-            <ScrollView style={{ flex: 1, borderRightWidth: 1, borderRightColor: T.border }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flex: 1, borderRightWidth: 1, borderRightColor: T.border }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false} scrollEnabled={!drag}>
 
               {/* 루틴 — 앞 절반 */}
               {tab === 'routine' && routines.slice(0, Math.ceil(routines.length / 2)).map(renderRoutineCard)}
@@ -660,7 +758,7 @@ export default function SubjectsScreen({ navigation }) {
               {/* 학습법 — 앞 절반 */}
               {tab === 'method' && (
                 <>
-                  <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                  <Text style={[S.secLabel, { color: T.sub }]}>연구에 기반한 학습법</Text>
                   {methods.slice(0, Math.ceil(methods.length / 2)).map(renderMethodCard)}
                 </>
               )}
@@ -722,7 +820,7 @@ export default function SubjectsScreen({ navigation }) {
           </>
         ) : (
           // ═══ 세로모드: 기존 단일 스크롤 ═══
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={[S.scroll, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]} scrollEnabled={!drag}>
 
             {/* 헤더 + 탭바 */}
             <View style={S.header}>
@@ -757,7 +855,7 @@ export default function SubjectsScreen({ navigation }) {
             {/* ═══ 탭: 학습법 ═══ */}
             {tab === 'method' && (
               <>
-                <Text style={[S.secLabel, { color: T.sub }]}>과학적으로 검증된 학습법</Text>
+                <Text style={[S.secLabel, { color: T.sub }]}>연구에 기반한 학습법</Text>
                 <View>{methods.map(renderMethodCard)}</View>
               </>
             )}
@@ -825,6 +923,34 @@ export default function SubjectsScreen({ navigation }) {
               <Text style={{ fontSize: 14, fontWeight: '600', color: T.sub }}>취소</Text></TouchableOpacity>
             <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent }]} onPress={handleAdd}>
               <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>추가</Text></TouchableOpacity>
+          </View>
+        </View></View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 과목 수정 모달 — 이름/색상/캐릭터 (통계·할일·플래너의 과목 표기까지 함께 갱신됨) */}
+      <Modal visible={!!editSubj} transparent animationType="fade">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <View style={S.mo}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
+          <Text style={[S.modalTitle, { color: T.text }]}>과목 수정</Text>
+          <TextInput value={editName} onChangeText={setEditName} placeholder="과목 이름" placeholderTextColor={T.sub} maxLength={10}
+            style={[S.mInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
+          <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 5 }}>색상</Text>
+          <View style={S.colorRow}>{SUBJECT_COLORS.map(c => (
+            <TouchableOpacity key={c} style={[S.colorBtn, { backgroundColor: c }, editColor === c && S.colorActive]} onPress={() => setEditColor(c)} />
+          ))}</View>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 5 }}>캐릭터</Text>
+          <View style={S.charRow}>{CHARACTER_LIST.map(cId => (
+            <TouchableOpacity key={cId} style={[S.charBtn, { borderColor: editChar === cId ? T.accent : T.border }]} onPress={() => setEditChar(cId)}>
+              <CharacterAvatar characterId={cId} size={28} />
+              <Text style={{ fontSize: 11, fontWeight: '700', marginTop: 2, color: editChar === cId ? T.accent : T.sub }}>{CHARACTERS[cId].name}</Text>
+            </TouchableOpacity>
+          ))}</View>
+          <View style={S.mBtns}>
+            <TouchableOpacity style={[S.mCancel, { borderColor: T.border }]} onPress={() => setEditSubj(null)}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: T.sub }}>취소</Text></TouchableOpacity>
+            <TouchableOpacity style={[S.mConfirm, { backgroundColor: T.accent }]} onPress={handleEditSave}>
+              <Text style={{ color: 'white', fontSize: 14, fontWeight: '800' }}>저장</Text></TouchableOpacity>
           </View>
         </View></View>
         </KeyboardAvoidingView>

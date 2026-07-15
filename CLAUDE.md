@@ -8,9 +8,9 @@
 
 - **앱 이름**: 열공메이트
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
-- **플랫폼**: iOS + Android (React Native + Expo SDK 54)
+- **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.32 (iOS 빌드 41 심사 중, Android versionCode 36 검토 중)
+- **현재 버전**: 1.0.34 (iOS 빌드 49 / Android versionCode 56, 양대 스토어 심사 제출 — 2026-07-12). SDK 56 첫 릴리스, 위젯 5종 + 할일 개편 포함. 1.0.33은 양대 배포/승인 완료
 
 ---
 
@@ -18,14 +18,15 @@
 
 | 항목 | 내용 |
 |------|------|
-| 프레임워크 | React Native 0.81 + Expo SDK 54 (New Architecture/Fabric) + React 19.1 |
+| 프레임워크 | React Native 0.85 + Expo SDK 56 (New Architecture/Fabric) + React 19.2 |
 | 상태 관리 | Context API (`src/hooks/useAppState.js`, ~2100줄) |
 | 로컬 저장소 | AsyncStorage (`src/utils/storage.js`, `@yeolgong/*` 키) |
 | 네비게이션 | React Navigation v6 하단 탭 5개: 집중/과목/플래너/통계/설정 |
 | 빌드 | EAS Build (eas.json — development/preview/testflight/production 프로필) |
 | 설정 파일 | `app.config.js` (app.json 아님 — `APP_VARIANT=preview` 분기) |
 | 알림 | expo-notifications (Android Foreground Service 포함) |
-| 잠금화면 | expo-live-activity 0.5.0-alpha1 **정확히 고정** (iOS Live Activity) |
+| 사운드 | expo-audio (SDK 55에서 expo-av 제거됨 — createAudioPlayer + loop/volume 프로퍼티) |
+| 잠금화면 | 자체 ActivityKit Live Activity — `modules/live-activity`(모듈) + `targets/widgets/FocusLiveActivity.swift`(UI) |
 | 홈 위젯 (iOS) | WidgetKit + @bacons/apple-targets (`targets/widgets/` SwiftUI, App Group `group.com.yeolgong.timer`) |
 | 홈 위젯 (Android) | react-native-android-widget (`src/widgets/`, 헤드리스 태스크 핸들러) |
 | 차트/그래픽 | react-native-svg, react-native-chart-kit |
@@ -61,8 +62,8 @@ src/
   widgets/                Android 홈 위젯 + 양 플랫폼 위젯 데이터 (widgetData.js는 iOS 스냅샷도 계산)
     widgetData.js         getWidgetData() — AsyncStorage 직접 읽어 위젯 데이터 계산 (헤드리스 안전)
     updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록
-    widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리)
-    StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js
+    widgetTaskHandler.js  안드 헤드리스 핸들러 (앱 꺼져 있어도 위젯 갱신/클릭 처리, 오늘할일 체크 토글 포함)
+    StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js / TodayTodoWidget.js
   utils/
     timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
                           페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
@@ -71,7 +72,7 @@ src/
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
     format.js             formatDuration, formatShort, getToday, generateId 등
-    liveActivity.js       iOS Live Activity 래퍼 (잠금화면/Dynamic Island 타이머)
+    liveActivity.js       iOS Live Activity 래퍼 (자체 ActivityKit 모듈 — 잠금화면/Dynamic Island 타이머)
   constants/
     colors.js             getTheme(darkMode, accentColor, fontScale, stylePreset) → T 테마 객체
     presets.js            getTier(density) → 티어 라벨/색상
@@ -79,7 +80,7 @@ src/
     fonts.js              폰트 상수
 App.js                    앱 진입점 (~1,100줄), 온보딩, 네비게이션, 잠금화면 오버레이, 위젯 딥링크(subjectId/planId)
 targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) — index.swift(번들), SharedData.swift(파서/공용),
-                          StudyTime/DDay/Subject/TodayPlan 4종. EAS 빌드로만 검증 가능
+                          StudyTime/DDay/Subject/TodayPlan/TodayTodo 5종. EAS 빌드로만 검증 가능
 ```
 
 ---
@@ -169,18 +170,28 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
 - **iOS Live Activity**: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`)
-  - 카운트다운류는 `progressBar.date`(OS가 그림), 자유는 `elapsedTimer`(카운트업), 일시정지는 정적 subtitle
+  - **자체 ActivityKit 구현**: `modules/live-activity`(start/update/end/listIds 로컬 모듈) +
+    `targets/widgets/FocusLiveActivity.swift`(UI). expo-live-activity·expo-widgets는 폐기됨
+    (expo-widgets는 실기기 렌더 불가 — 2026-07-09)
+  - ※`FocusActivityAttributes`(ContentState 9필드)는 모듈과 익스텐션에 **동일하게 중복 정의** —
+    ActivityKit이 타입 이름으로 매칭하므로 수정 시 양쪽을 함께 고칠 것
+  - 카운트다운/업은 `Text(timerInterval:)`(OS가 그림), 일시정지는 mode 'none' + 정적 subtitle
   - useAppState의 동기화 useEffect 1개가 시그니처 비교로 start/update/end 판단 (초당 호출 없음)
-  - expo-live-activity는 deprecated → **SDK 56 업그레이드 시 공식 expo-widgets로 마이그레이션 필요**
+  - 잔존 activity는 `listIds()`로 재부착/정리 (id 저장 불필요)
+- **안드 위젯 강제 갱신 알람 (B단계)**: 타이머 종료 시각에 AlarmManager →
+  `AlarmReceiver`(WIDGET_REFRESH) → APPWIDGET_UPDATE 브로드캐스트 → 헤드리스 재렌더.
+  앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
 
 ### 홈 화면 위젯 (iOS + Android, 1.0.32~)
-- 4종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 — 양 플랫폼 동일 구성
+- 5종: 오늘 공부 / 시험 D-Day / 과목 바로 시작 / 오늘 계획 / 오늘 할 일(1.0.34~) — 양 플랫폼 동일 구성
 - 데이터 흐름: `getWidgetData()`가 AsyncStorage를 직접 계산 → 안드는 헤드리스 렌더,
   iOS는 `updateAllWidgets()`가 App Group(UserDefaults `widgetData` 키)에 JSON 기록 후 reloadWidget
 - iOS 전용: 잠금화면 위젯(accessory 패밀리), 실행 중 실시간 카운팅(`runningAnchorMs` + `Text(style:.timer)`),
   자정 리셋(스냅샷 `date` 비교), D-Day는 위젯이 목표일로 매 렌더 재계산
 - 딥링크: `yeolgong://start?subjectId=` (과목 자유 타이머) / `yeolgong://start?planId=` (계획 카운트다운) — App.js 처리
-- 갱신 트리거: 세션/과목/D-Day/설정 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
+- 갱신 트리거: 세션/과목/D-Day/설정/할일 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
+- **오늘할일 위젯 체크(안드 전용)**: 행 탭 → `TODO_TOGGLE` → 헤드리스가 storage에 직접 토글+완료로그
+  → `@yeolgong/widgetTodoDirty` 플래그 → 앱 복귀 시 todos/todoLog 재로드 (자동저장 덮어쓰기 방지). iOS는 보기 전용
 - ※iOS 위젯 타겟명은 디렉터리와 같은 ASCII('widgets') 필수, apple-targets는 patch-package 패치 유지 필요
 
 ### 기타
@@ -215,12 +226,12 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-07-04 기준)
+## 출시 현황 (2026-07-12 기준)
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 출시 중 (1.0.31 배포됨), 1.0.32 빌드 41 심사 중 (위젯 4종+잠금화면). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 출시 중, 1.0.32(versionCode 36, 위젯 3종) 검토 중. 1.0.33에 오늘계획 위젯+집중중 표시 예정 |
+| iOS | App Store 출시 중 (1.0.33 배포됨), 1.0.34 빌드 49 심사 제출 (SDK 56, 위젯 5종+할일 개편). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 출시 중 (1.0.33 배포됨), 1.0.34(versionCode 56) 검토 중 — 오늘할일 위젯(위젯에서 바로 체크) 포함 |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 초기 단계 (10~20명) |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |

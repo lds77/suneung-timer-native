@@ -4,6 +4,7 @@
 // 무겁게 import하지 않고 AsyncStorage(@yeolgong/*)만 직접 읽는다.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isTodayVisible } from '../utils/todoUtils'; // 순수 함수 — 헤드리스 안전
 
 const K = {
   SETTINGS: '@yeolgong/settings',
@@ -12,6 +13,7 @@ const K = {
   DDAYS: '@yeolgong/ddays',
   WEEKLY: '@yeolgong/weeklySchedule',
   TIMER_SNAPSHOT: '@yeolgong/timerSnapshot',
+  TODOS: '@yeolgong/todos',
 };
 
 // 실행 중(work 페이즈) 타이머의 현재 경과(초) — 벽시계 기준이라 스냅샷이 오래돼도 정확.
@@ -86,13 +88,14 @@ export const ddayLabel = (n) => {
  * 세 위젯(StudyTime/DDay/SubjectLauncher)이 공유한다.
  */
 export const getWidgetData = async () => {
-  const [sessions, settings, subjects, ddays, weekly, timerSnap] = await Promise.all([
+  const [sessions, settings, subjects, ddays, weekly, timerSnap, todosRaw] = await Promise.all([
     loadJSON(K.SESSIONS, []),
     loadJSON(K.SETTINGS, null),
     loadJSON(K.SUBJECTS, []),
     loadJSON(K.DDAYS, []),
     loadJSON(K.WEEKLY, null),
     loadJSON(K.TIMER_SNAPSHOT, null),
+    loadJSON(K.TODOS, []),
   ]);
 
   const today = todayStr();
@@ -222,6 +225,19 @@ export const getWidgetData = async () => {
     }
   }
 
+  // 오늘 할 일 — 앱 오늘 탭과 동일 판정(isTodayVisible, My Day 규칙).
+  // 표시 순서도 앱과 동일: 미완료 먼저(배열 순서 = 수동 정렬), 완료는 뒤로. 최대 8개.
+  // 완료 항목은 '완료한 그날'만 표시: 앱은 일일 리셋이 어제 완료분을 지워주지만, 앱을 안 연 날은
+  // 리셋이 안 돈 raw 데이터를 위젯이 읽으므로 이 가드가 없으면 아침 위젯에 어제 체크가 그대로 남는다
+  const todoArr = (Array.isArray(todosRaw) ? todosRaw : []).filter(t => t && t.id);
+  const doneVisibleToday = (t) => !t.done || (t.completedAt && dateStr(new Date(t.completedAt)) === today);
+  const todayTodos = todoArr.filter(t => isTodayVisible(t, today) && doneVisibleToday(t));
+  const todos = [...todayTodos.filter(t => !t.done), ...todayTodos.filter(t => t.done)]
+    .slice(0, 8)
+    .map(t => ({ id: t.id, text: t.text || '', done: !!t.done, color: t.subjectColor || '' }));
+  const todoDone = todayTodos.filter(t => t.done).length;
+  const todoTotal = todayTodos.length;
+
   // 실행 중 타이머 (강제종료 대비 스냅샷 기반 — 앱이 꺼진 헤드리스 갱신에서도 '집중 중' 표시).
   // 앱에서 직접 호출할 땐 updateAllWidgets가 메모리 타이머로 이 값을 덮어쓴다(스냅샷은 5초 스로틀).
   const runInfo = activeRunningInfo(snapTimers.find(t => t && t.type !== 'lap' && t.status === 'running'));
@@ -239,6 +255,9 @@ export const getWidgetData = async () => {
     launcherSubjects,     // [{ id, name, color, weekSec }]
     plans,                // 오늘 계획 [{ id, label, color, targetMin, doneSec, done }] 최대 6
     planPct,              // 오늘 계획 전체 달성률 0~100, -1이면 계획 없음
+    todos,                // 오늘 할 일 [{ id, text, done, color }] 미완료 먼저, 최대 8
+    todoDone,             // 오늘 할 일 완료 수 (전체 기준, todos 8개 제한과 무관)
+    todoTotal,            // 오늘 할 일 전체 수
     runningSec,           // 실행 중 타이머 현재 경과(초), 0이면 없음 — 안드 위젯 '집중 중' 표시용
     runningLabel,         // 실행 중 타이머 라벨
   };

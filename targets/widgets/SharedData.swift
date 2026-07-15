@@ -124,6 +124,13 @@ struct PlanItem: Identifiable {
     let done: Bool    // 목표 80% 이상 (집중탭 계획 카드와 동일 기준)
 }
 
+struct TodoItem: Identifiable {
+    let id: String
+    let text: String
+    let done: Bool
+    let color: Color? // 과목 색 (없으면 표시 안 함)
+}
+
 struct WidgetData {
     var totalSec: Int = 0
     var goalSec: Int = 0
@@ -138,6 +145,9 @@ struct WidgetData {
     var launcher: [LauncherItem] = []
     var plans: [PlanItem] = []
     var planPct: Int = -1 // 오늘 계획 달성률 0~100, -1이면 계획 없음
+    var todos: [TodoItem] = []
+    var todoDone: Int = 0
+    var todoTotal: Int = 0
     // 실행 중 타이머 앵커 — 있으면 오늘공부 시간을 Text(style: .timer)로 실시간 카운팅
     var runningAnchor: Date? = nil
     // 현재 페이즈 종료 예정 시각 — 있으면 카운팅이 이 시각에 자동 정지 (Text(timerInterval:))
@@ -203,6 +213,19 @@ struct WidgetData {
             }
         }
         if obj["planPct"] != nil { data.planPct = intVal(obj["planPct"]) }
+        if let arr = obj["todos"] as? [[String: Any]] {
+            data.todos = arr.compactMap {
+                let tid = strVal($0["id"])
+                if tid.isEmpty { return nil }
+                let hex = strVal($0["color"])
+                return TodoItem(id: tid,
+                                text: strVal($0["text"]),
+                                done: boolVal($0["done"]),
+                                color: hex.isEmpty ? nil : Color(hexString: hex))
+            }
+        }
+        data.todoDone = intVal(obj["todoDone"])
+        data.todoTotal = intVal(obj["todoTotal"])
 
         let anchorMs = dblVal(obj["runningAnchorMs"])
         if anchorMs > 0 {
@@ -225,6 +248,8 @@ struct WidgetData {
             // 오늘 계획은 요일이 바뀌면 목록 자체가 달라지므로 비움 (앱 열면 갱신)
             data.plans = []
             data.planPct = -1
+            // 오늘 할 일은 유지 — 미완료 항목은 다음날에도 이월되므로(앱의 일일 리셋 규칙)
+            // 어제 스냅샷이라도 대체로 유효하고, 빈 목록보다 낫다 (앱 열면 정확히 갱신)
             if data.runningAnchor == nil {
                 data.totalSec = 0
                 data.goalPct = 0

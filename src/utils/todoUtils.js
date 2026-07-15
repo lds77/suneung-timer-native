@@ -1,8 +1,8 @@
 // src/utils/todoUtils.js
-// 할일 기한(dueDate) 관련 순수 로직 — 오늘 탭 표시 판정, 기한 뱃지, 날짜 칩.
+// 할일 순수 로직 — 오늘 탭 표시 판정(My Day), 기한 뱃지, 날짜 칩, 드래그 정렬, 일일 리셋 파이프라인.
 // 날짜 문자열은 전부 'YYYY-MM-DD' (KST 로컬, format.js toDateStr 규칙). UTC 파싱 금지.
 
-import { toDateStr } from './format';
+import { toDateStr, generateId } from './format';
 
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -88,6 +88,44 @@ export const computeDropIndex = (heights, fromIndex, dy) => {
     }
   }
   return idx;
+};
+
+// ── 일일 리셋 파이프라인 ──
+// useAppState 로드 시와 자정 넘김 감지(AppState active) 시 공용. 규칙:
+// 1) 지난날 미완료 반복 인스턴스는 항상 정리 — 템플릿이 매일 새로 생성하므로 미완료 이월과
+//    겹치면 못 한 날마다 하나씩 쌓인다 (완료된 지난 인스턴스는 리셋 때 오늘 목록 규칙으로 정리)
+// 2) needsReset(마지막 리셋일 != today)이면: 오늘 목록의 완료된 일반 항목 삭제
+//    (커스텀 목록/시험/템플릿은 유지), repeat(고정) 항목은 done만 리셋
+// 3) 오늘 요일에 해당하는 반복 템플릿의 인스턴스 생성 (같은 날 것이 이미 있으면 스킵 — 멱등)
+// 반환: { todos, changed } — changed면 저장 필요
+export const applyDailyTodoReset = (list, { today, needsReset }) => {
+  const todayDay = new Date(today + 'T00:00:00').getDay();
+  const isStaleTemplateInstance = (t) =>
+    !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
+
+  let next = list.filter(t => !isStaleTemplateInstance(t));
+  if (needsReset) {
+    next = next
+      .filter(t => t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today'))
+      .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
+  }
+  const generated = [];
+  next.forEach(tmpl => {
+    if (!(tmpl.isTemplate && tmpl.repeatDays && tmpl.repeatDays.length > 0)) return;
+    if (!tmpl.repeatDays.includes(todayDay)) return;
+    if (next.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === today)) return;
+    generated.push({
+      id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
+      repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
+      subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
+      priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
+      memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
+      templateId: tmpl.id, createdDate: today,
+    });
+  });
+  const todos = generated.length > 0 ? [...next, ...generated] : next;
+  const changed = todos.length !== list.length || todos.some((t, i) => t !== list[i]);
+  return { todos, changed };
 };
 
 // 월 캘린더 셀: 앞쪽 빈칸(null) + { date: 'YYYY-MM-DD', day: n } — 일요일 시작

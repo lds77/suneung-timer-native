@@ -24,8 +24,9 @@ import {
   getSessionSubject, fmtDiff, getStreakTitle, stripLeadingEmoji,
   buildHeatmapWeeks, calcLongestStreak, calcPersonalBests,
   analyzeTimeZones, buildMonthCalendarCells, buildHourlyDetail, aggregateSubjectTotals,
-  calcWeekPlanRate,
+  calcWeekPlanRate, formatHM, formatDetailDate,
 } from './stats/helpers';
+import { DayDetailContent, SubjectRatioCard } from './stats/components/DayDetail';
 import GoalRing from './stats/components/GoalRing';
 import SubjectDonut from './stats/components/SubjectDonut';
 import {
@@ -133,17 +134,7 @@ export default function StatsScreen() {
   const [subjDetail, setSubjDetail] = useState(null);  // subject id → 상세 시트 트리거
 
 
-  // 헬퍼: HH:MM 포맷
-  const formatHM = (ts) => {
-    const d = new Date(ts);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
-  // 헬퍼: 날짜 상세 포맷 (모달 제목용)
-  const formatDetailDate = (ds) => {
-    if (!ds) return '';
-    const d = new Date(ds + 'T00:00:00');
-    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS_KR[d.getDay()]})`;
-  };
+  // (formatHM/formatDetailDate는 stats/helpers.js로 이동 — 날짜 상세 공용 컴포넌트와 공유)
 
   // ─── 오늘 데이터 ───────────────────────────────────────────────
   const todaySessions = app.todaySessions;
@@ -397,46 +388,7 @@ export default function StatsScreen() {
 
 
   // 과목 비율 렌더
-  const renderSubjects = (data, label) => {
-    if (data.length === 0) return null;
-    const sideBySide = data.length <= 4;
-    return (
-      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-        <Text style={[S.secLabel, { color: T.sub }]}>{label}</Text>
-        {sideBySide ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SubjectDonut data={data} T={T} />
-            <View style={{ flex: 1 }}>
-              {data.map((s, i) => (
-                <View key={i} style={S.subjRow}>
-                  <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                  <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
-                  <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
-                  <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : (
-          <>
-            <View style={{ alignItems: 'center', marginBottom: 10 }}>
-              <SubjectDonut data={data} T={T} size={130} />
-            </View>
-            {data.map((s, i) => (
-              <View key={i} style={S.subjRow}>
-                <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                <Text style={[S.subjName, { color: T.text }]}>{s.name}</Text>
-                <Text style={[S.subjPct, { color: T.sub }]}>{s.pct}%</Text>
-                <Text style={[S.subjTime, { color: T.text }]}>{formatShort(s.sec)}</Text>
-              </View>
-            ))}
-          </>
-        )}
-      </View>
-    );
-  };
-
-  // 날짜 상세 인라인 렌더 (랜드스케이프 마스터-디테일용)
+  // 날짜 상세 인라인 렌더 (랜드스케이프 마스터-디테일용) — 본문은 세로 모달과 공용(DayDetailContent)
   const renderDayDetailInline = () => {
     if (!dayDetail) return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -452,98 +404,847 @@ export default function StatsScreen() {
             <Text style={{ fontSize: 16, color: T.sub }}>✕</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
-            <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
-            {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                <Ionicons name="flame" size={11} color="#E17055" />
-                <Text style={{ fontSize: 11, color: T.sub }}>순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}</Text>
-              </View>
-            )}
+        <DayDetailContent dayDetail={dayDetail} subjects={app.subjects} todoLog={app.todoLog} T={T} S={S} />
+      </>
+    );
+  };
+
+  // ── 일간 탭 카드 렌더러 (가로 LEFT/RIGHT 컬럼과 세로 단일 컬럼이 공유 — 두 벌 중복 단일화) ──
+  const renderDensityGoalRow = () => (
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+      {todaySessions.length > 0 && (
+        <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
+          onPress={() => setShowDensityDetail(true)} activeOpacity={0.8}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>평균 집중밀도</Text>
+            <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
           </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
-            <Text style={[S.sVal, { color: dayDetail.tier.color }]}>
-              {dayDetail.sessions.length > 0 ? `${dayDetail.tier.label} ${dayDetail.avgDensity}점` : '-'}
-            </Text>
+          <View style={[S.tierBig, { backgroundColor: todayTier.color + '20', width: 52, height: 52, borderRadius: 16, marginBottom: 5 }]}>
+            <Text style={[S.tierBigT, { color: todayTier.color }]}>{todayTier.label}</Text>
           </View>
-          <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-            <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
-            <Text style={[S.sVal, { color: T.text }]}>{dayDetail.sessions.length}회</Text>
-          </View>
+          <Text style={[S.tierScore, { color: T.text, fontSize: 18 }]}>{todayAvgDensity}점</Text>
+          <Text style={[S.tierMsg, { color: todayTier.color, textAlign: 'center', marginTop: 2 }]}>{todayTier.message}</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
+        onPress={() => setShowGoalDetail(true)} activeOpacity={0.8}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 4 }}>
+          <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>목표 달성률</Text>
+          <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
         </View>
-        {dayDetail.subjects.length > 0 && renderSubjects(dayDetail.subjects, '과목 비율')}
-        {dayDetail.sessions.length > 0 && (
-          <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-            <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
-            {dayDetail.sessions.map(sess => {
-              const subj = app.subjects.find(s => s.id === sess.subjectId);
-              const tier = getTier(sess.focusDensity || 0);
-              const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-              const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
+        <GoalRing
+          pct={Math.min(100, Math.round(todayTotalSec / Math.max(1, app.settings.dailyGoalMin * 60) * 100))}
+          size={74} color={T.accent} bgColor={T.surface2}
+        />
+        <Text style={[S.sVal, { color: T.accent, fontSize: 16, marginTop: 5 }]}>{formatDuration(todayTotalSec)}</Text>
+        {todayAvgDensity > 0 && todayTotalSec > 0 && (
+          <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
+        )}
+        <Text style={[S.sLabel, { color: T.sub, marginTop: 2 }]}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
+        {todayTotalSec >= app.settings.dailyGoalMin * 60 && (
+          <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>달성!</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderTodayPlanRateCard = () => todayPlanRate !== null && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
+      <Ionicons name="calendar-outline" size={20} color={T.sub} />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>오늘 계획 달성률</Text>
+          <Text style={{ fontSize: 14, fontWeight: '900', color: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{todayPlanRate}%</Text>
+        </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
+          <View style={{ height: 6, borderRadius: 3, width: `${todayPlanRate}%`, backgroundColor: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderTimelineCard = () => todaySessions.length > 0 && (
+    <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border }]} onPress={() => setShowTimelineModal(true)} activeOpacity={0.85}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 공부 타임라인</Text>
+        <Text style={{ fontSize: 12, color: T.sub, lineHeight: 14 }}>탭: 시간대 상세 ▸</Text>
+      </View>
+      <View style={{ height: 52, position: 'relative', backgroundColor: T.surface2, borderRadius: 6, overflow: 'hidden', marginBottom: 5 }}>
+        {[6, 12, 18].map(h => (
+          <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 1, backgroundColor: T.sub + '40' }} />
+        ))}
+        {[3, 9, 15, 21].map(h => (
+          <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 0.5, backgroundColor: T.sub + '18' }} />
+        ))}
+        {todaySessions.filter(s => s.startedAt).map(s => {
+          const d = new Date(s.startedAt);
+          const startPct = (d.getHours() * 3600 + d.getMinutes() * 60) / 86400 * 100;
+          const durPct = Math.min(100 - startPct, s.durationSec / 86400 * 100);
+          const sesSubj = getSessionSubject(s, app.subjects);
+          return (
+            <View key={s.id} style={{ position: 'absolute', left: `${startPct}%`, width: `${Math.max(0.6, durPct)}%`, height: '100%', backgroundColor: sesSubj.color, borderRadius: 3, overflow: 'hidden' }}>
+              {durPct > 5 && (
+                <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.95)', marginTop: 3, marginLeft: 3, marginRight: 2 }} numberOfLines={1}>{sesSubj.name}</Text>
+              )}
+              {durPct > 4 && (
+                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', marginLeft: 3 }} numberOfLines={1}>{Math.round(s.durationSec / 60)}분</Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 1 }}>
+        {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => (
+          <Text key={h} style={{ fontSize: h % 6 === 0 ? 7 : 6, color: T.sub, opacity: h % 6 === 0 ? 1 : 0.45, marginTop: 1 }}>
+            {h % 6 === 0 ? `${h}시` : h}
+          </Text>
+        ))}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderTodayTodoCard = () => {
+    const todayTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
+    if (todayTodos.length === 0) return null;
+    const doneCnt = todayTodos.filter(t => t.done).length;
+    const pct = Math.round((doneCnt / todayTodos.length) * 100);
+    const allDone = doneCnt === todayTodos.length;
+    const subjectMap = {};
+    todayTodos.forEach(t => {
+      const key = t.subjectId || '__none__';
+      if (!subjectMap[key]) subjectMap[key] = { label: t.subjectLabel || '미분류', color: t.subjectColor || T.sub, total: 0, done: 0 };
+      subjectMap[key].total++;
+      if (t.done) subjectMap[key].done++;
+    });
+    const subjKeys = Object.keys(subjectMap).filter(k => k !== '__none__');
+    if (subjectMap['__none__']) subjKeys.push('__none__');
+    return (
+      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="checkmark-circle-outline" size={14} color={T.sub} />
+            <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 할 일</Text>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
+            {doneCnt}/{todayTodos.length}
+          </Text>
+        </View>
+        <View style={{ height: 6, backgroundColor: T.surface2, borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: allDone ? '#27AE60' : T.accent, width: `${pct}%` }} />
+        </View>
+        <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{pct}% 완료</Text>
+        {subjKeys.length > 1 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+            {subjKeys.map(k => {
+              const s = subjectMap[k];
               return (
-                <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                      <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                    <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                      <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                    </View>
-                    {sess.verified && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <Ionicons name="trophy" size={11} color="#F5A623" />
-                        <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                      </View>
-                    )}
-                    {sess.ultraFocusLevel === 'exam' && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                        <Ionicons name="flame" size={11} color="#FF6B6B" />
-                        <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
-                      </View>
-                    )}
-                  </View>
-                  {sess.memo && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                      <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                      <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                    </View>
-                  )}
+                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (s.color || T.sub) + '18', borderWidth: 1, borderColor: (s.color || T.sub) + '40' }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: s.color || T.sub }} />
+                  <Text style={{ fontSize: 12, color: s.color || T.sub, fontWeight: '700' }}>{s.label} {s.done}/{s.total}</Text>
                 </View>
               );
             })}
           </View>
         )}
-        {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
-        {(() => {
-          const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
-          if (doneTodos.length === 0) return null;
+        {todayTodos.filter(t => !t.done).slice(0, 3).map(t => (
+          <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+            {t.priority === 'high' && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#E17055' }} />}
+            {t.priority !== 'high' && <View style={{ width: 5 }} />}
+            <Text style={{ fontSize: 14, color: T.text, flex: 1 }} numberOfLines={1}>{t.text}</Text>
+            {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
+          </View>
+        ))}
+        {todayTodos.filter(t => !t.done).length > 3 && (
+          <Text style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>+ {todayTodos.filter(t => !t.done).length - 3}개 더</Text>
+        )}
+        {allDone && todayTodos.length > 0 && (
+          <Text style={{ fontSize: 14, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>오늘 할 일 올클리어!</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderTodaySessionList = () => todaySessions.filter(s => (s.durationSec || 0) >= 300).length > 0 && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>세션 기록 ({todaySessions.filter(s => (s.durationSec || 0) >= 300).length}회)</Text>
+      {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
+        const subj = app.subjects.find(s => s.id === sess.subjectId);
+        const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
+        const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
+        const tier = getTier(sess.focusDensity || 0);
+        return (
+          <TouchableOpacity key={sess.id}
+            onPress={() => setSessionDetail(sess)}
+            style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}
+            activeOpacity={0.75}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
+                <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
+              </View>
+              <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
+              <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
+                <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
+              </View>
+              {sess.verified && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Ionicons name="trophy" size={11} color="#F5A623" />
+                  <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
+                </View>
+              )}
+            </View>
+            {sess.memo
+              ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                  <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
+                  <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
+                </View>
+              )
+              : <Text style={{ fontSize: 12, color: T.surface2, marginTop: 2 }}>+ 메모 추가</Text>}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const renderDayReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(todayTotalSec, todayAvgDensity, app.settings.streak)); setShowDayReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="clipboard-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
+        <Text style={S.reportBtnSub}>오늘의 공부 인증하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
+  const renderDensityGuideBanner = () => !app.settings.guideDensity && todaySessions.length > 0 && (
+    <TouchableOpacity onPress={() => app.updateSettings({ guideDensity: true })}
+      style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
+      <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
+        집중밀도 = 같은 시간이라도 얼마나 집중했는지! 자세한 건 설정 &gt; 사용 가이드
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // ── 주간 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderWeekNavRow = () => (
+    <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
+      <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+        <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
+      </TouchableOpacity>
+      <Text style={[S.weekNavTitle, { color: T.text }]}>
+        {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
+      </Text>
+      <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+        <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderWeekBarsCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
+      {weekData.map((d, i) => (
+        <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
+          <View style={S.barRow}>
+            <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+            <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
+              <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
+            </View>
+            <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
+            {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderWeekPlanRateCard = () => weekPlanRate !== null && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
+      <Ionicons name="calendar-outline" size={20} color={T.sub} />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
+          <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
+        </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
+          <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
+        </View>
+      </View>
+      {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
+    </View>
+  );
+
+  const renderTimeZoneCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
+      {timeZoneAnalysis.every(z => z.count === 0) ? (
+        <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
+      ) : (
+        <>
+          {timeZoneAnalysis.map((zone, i) => {
+            const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
+            const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
+            const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
+            return (
+              <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
+                <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
+                <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
+                <View style={S.tzBarWrap}>
+                  <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
+                    <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
+                  </View>
+                  {zone.count > 0 && (
+                    <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
+                  )}
+                </View>
+                {zone.count > 0 && zone.tier && (
+                  <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
+                    <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
+                  </View>
+                )}
+                {zone.count === 0 && (
+                  <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+          {bestZone && (
+            <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
+              <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
+              <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
+                {bestZone.label}에 집중력이 가장 높아요!
+              </Text>
+              {bestZone.tier && (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
+              )}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+
+  const renderDensityTrendCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
+      <View style={S.densityChart}>
+        {weekData.map((d, i) => {
+          const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
+          const tier = d.density > 0 ? getTier(d.density) : null;
           return (
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
-              {doneTodos.map(e => (
-                <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                  <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
-                  <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
-                  {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
+            <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
+              <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
+              <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+              {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderWeekReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="clipboard-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
+        <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
+  // ── 월간 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderMonthCalendarCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={S.monthNav}>
+        <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
+          <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
+        </TouchableOpacity>
+        <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
+        <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
+          <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={S.calWeekRow}>
+        {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
+      </View>
+      <View style={S.calGrid}>
+        {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
+          <View key={ri} style={S.calRow}>
+            {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
+              if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
+              return (
+                <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
+                  <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
+                    <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
+                  </View>
+                  {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+      <View style={S.heatLegend}>
+        <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
+        {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
+          <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
+        ))}
+        <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
+      </View>
+    </View>
+  );
+
+  const renderMonthTimeZoneCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
+      {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
+        <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
+      ) : (
+        <>
+          {monthTimeZoneAnalysis.map((zone, i) => {
+            const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
+            const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
+            return (
+              <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
+                <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
+                <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
+                <View style={S.tzBarWrap}>
+                  <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
+                    <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
+                  </View>
+                  {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
+                </View>
+                {zone.count > 0 && zone.tier ? (
+                  <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
+                    <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
+                  </View>
+                ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
+              </TouchableOpacity>
+            );
+          })}
+          {monthBestZone && (
+            <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
+              <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
+              <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
+                {monthBestZone.label}에 집중력이 가장 높아요!
+              </Text>
+              {monthBestZone.tier && (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
+              )}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+
+  const renderMonthReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="clipboard-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
+        <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
+  // ── 잔디 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderHeatmapGuideBanner = () => !app.settings.guideHeatmap && (
+    <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
+      style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
+      <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
+        매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const renderHeatmapCard = () => (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={S.hmHeader}>
+        <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
+        <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
+          <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
+        </View>
+      </View>
+
+      <View>
+        <View>
+          <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
+            {heatmap365.map((week, wi) => {
+              const label = heatmapMonthLabels.find(ml => ml.wi === wi);
+              return (
+                <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
+                  {label && (
+                    <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={S.hmGrid}>
+            <View style={S.hmDayLabels}>
+              {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+                <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: HM_GAP }}>
+              {heatmap365.map((week, wi) => (
+                <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
+                  {week.map((day, di) => (
+                    <TouchableOpacity
+                      key={di}
+                      onPress={() => !day.isFuture && setDayDetailDate(day.date)}
+                      activeOpacity={!day.isFuture ? 0.6 : 1}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                    >
+                      <View
+                        style={[
+                          S.hmCell,
+                          {
+                            width: HM_CELL,
+                            height: HM_CELL,
+                            backgroundColor: getHeat365Color(day),
+                            borderWidth: day.isToday ? 1.5 : 0,
+                            borderColor: day.isToday ? T.accent : 'transparent',
+                          },
+                        ]}
+                      />
+                    </TouchableOpacity>
+                  ))}
                 </View>
               ))}
             </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={S.heatLegend}>
+        <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
+        <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
+        {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
+          <React.Fragment key={i}>
+            <View style={[S.heatBox, { backgroundColor: c }]} />
+            <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
+          </React.Fragment>
+        ))}
+      </View>
+      <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
+        잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
+      </Text>
+    </View>
+  );
+
+  const renderStudyDiaryCard = () => {
+    const memoed = [...app.sessions]
+      .filter(s => s.memo && s.memo.trim())
+      .sort((a, b) => (b.date > a.date ? 1 : -1));
+    if (memoed.length === 0) return (
+      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Ionicons name="journal-outline" size={13} color={T.sub} />
+          <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
+        </View>
+        <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
+      </View>
+    );
+    const grouped = {};
+    memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
+    return (
+      <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
+          <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
+        </View>
+        {Object.entries(grouped).map(([date, sess]) => {
+          const d = new Date(date + 'T00:00:00');
+          const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
+          return (
+            <View key={date} style={S.diaryGroup}>
+              <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
+              {sess.map(s => {
+                const subj = app.subjects.find(sub => sub.id === s.subjectId);
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
+                    onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
+                    <Text style={[S.diaryMeta, { color: T.sub }]}>
+                      {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           );
-        })()}
-        {dayDetail.sessions.length === 0 && (
-          <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
-        )}
-      </>
+        })}
+      </View>
     );
   };
+
+  const renderPersonalBestsCard = () => personalBests && personalBests.bestDaySec > 0 && (
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+        <Ionicons name="trophy-outline" size={14} color={T.accent} />
+        <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <Ionicons name="flame" size={12} color="#E17055" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
+          {personalBests.bestDayDate && (
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+            </Text>
+          )}
+        </View>
+
+        {personalBests.longestSess && (
+          <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Ionicons name="timer-outline" size={12} color="#4A90D9" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
+            </Text>
+          </View>
+        )}
+
+        {personalBests.bestDensitySess && (
+          <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
+              {personalBests.bestDensitySess.focusDensity}점
+            </Text>
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {getTier(personalBests.bestDensitySess.focusDensity).label}
+            </Text>
+          </View>
+        )}
+
+        <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
+          {personalBests.mostSessDate && (
+            <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
+              {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
+            </Text>
+          )}
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="flame" size={18} color="#FF7F50" />
+          <View>
+            <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="calendar" size={18} color={T.accent} />
+          <View>
+            <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderHeatReportBtn = () => (
+    <TouchableOpacity
+      style={[S.reportBtn, { backgroundColor: T.accent }]}
+      onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="leaf-outline" size={24} color="white" />
+      <View>
+        <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
+        <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
+      </View>
+      <Text style={S.reportBtnArrow}>→</Text>
+    </TouchableOpacity>
+  );
+
+  // ── 과목 탭 카드 렌더러 (가로/세로 공유) ──
+  const renderSubjPeriodRow = () => (
+    <View style={S.subjPeriodRow}>
+      {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
+        <TouchableOpacity
+          key={val}
+          style={[S.subjPeriodBtn, {
+            backgroundColor: subjPeriod === val ? T.accent : T.surface2,
+            borderColor: subjPeriod === val ? T.accent : T.border,
+          }]}
+          onPress={() => setSubjPeriod(val)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+        >
+          <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // 요약 3카드 + 과목별 비율 (기록 없으면 빈 안내)
+  const renderSubjOverview = () => subjectAllStats.length === 0 ? (
+    <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
+  ) : (<>
+    {(() => {
+      const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
+      const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
+      const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
+      const avgTier = getTier(avgD);
+      const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
+      const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
+        const isActive = activeCard === key;
+        return (
+          <TouchableOpacity
+            style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
+            onPress={() => tapCard(key)} activeOpacity={0.7}
+          >
+            <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
+            <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+              {isActive ? activeVal : val}
+            </Text>
+            <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
+              {isActive ? (activeSub || ' ') : (sub || ' ')}
+            </Text>
+          </TouchableOpacity>
+        );
+      };
+      return (
+        <View style={[S.summaryRow, { marginBottom: 12 }]}>
+          {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
+            `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
+          {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
+            pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
+            pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
+            pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
+          {mkCard('s_density', '평균 밀도',
+            avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
+            avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
+            avgD > 0 ? avgTier.message : ' ')}
+        </View>
+      );
+    })()}
+
+    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
+      <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
+      <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
+        {subjectAllStats.map((s, i) => (
+          <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
+        ))}
+      </View>
+      {subjectAllStats.map((s, i) => {
+        const sTier = getTier(s.avgDensity);
+        return (
+          <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
+            <View style={[S.subjDot, { backgroundColor: s.color }]} />
+            <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
+            <View style={S.subjListBarTrack}>
+              <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
+            </View>
+            <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
+            {s.avgDensity > 0 && (
+              <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
+              </View>
+            )}
+            <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </>);
+
+  const renderSubjBalanceCard = () => subjectAllStats.length >= 2 && (() => {
+    const top = subjectAllStats[0];
+    const realLastDate = {};
+    app.sessions.forEach(s => {
+      const { id } = getSessionSubject(s, app.subjects);
+      if (id.startsWith('lbl_') || id === '_none') return;
+      if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
+    });
+    const neglected = [...subjectAllStats]
+      .filter(s => s.id !== top.id)
+      .sort((a, b) => {
+        const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
+        if (dateCmp !== 0) return dateCmp;
+        return a.sec - b.sec;
+      })[0];
+    if (!neglected) return null;
+    const lastDate = realLastDate[neglected.id] || '';
+    const daysSince = lastDate
+      ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
+      : null;
+    return (
+      <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
+        <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
+        <View style={S.subjInsightRow}>
+          <Ionicons name="trending-up-outline" size={20} color={T.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
+              {top.name}
+              <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
+            </Text>
+          </View>
+        </View>
+        <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
+          <Ionicons name="time-outline" size={20} color={T.sub} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
+              {neglected.name}
+              {daysSince !== null && daysSince > 0 && (
+                <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
+              )}
+              {daysSince === 0 && (
+                <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
+              )}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  })();
 
   // 월간 평균 집중밀도
   const monthAvgDensity = useMemo(() => {
@@ -789,863 +1490,80 @@ export default function StatsScreen() {
           <ScrollView style={{ flex: 1, borderRightWidth: 1, borderRightColor: T.border }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
             {tab !== 'subject' && <View style={[S.summaryRow, { marginBottom: 8 }]}>{renderSummaryCards()}</View>}
 
-            {/* ── 일간 LEFT ── */}
+            {/* ── 일간 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'daily' && (<>
-              {/* ── 집중밀도 + 목표달성률 2열 ── */}
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                {todaySessions.length > 0 && (
-                  <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
-                    onPress={() => setShowDensityDetail(true)} activeOpacity={0.8}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 6 }}>
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>평균 집중밀도</Text>
-                      <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
-                    </View>
-                    <View style={[S.tierBig, { backgroundColor: todayTier.color + '20', width: 52, height: 52, borderRadius: 16, marginBottom: 5 }]}>
-                      <Text style={[S.tierBigT, { color: todayTier.color }]}>{todayTier.label}</Text>
-                    </View>
-                    <Text style={[S.tierScore, { color: T.text, fontSize: 18 }]}>{todayAvgDensity}점</Text>
-                    <Text style={[S.tierMsg, { color: todayTier.color, textAlign: 'center', marginTop: 2 }]}>{todayTier.message}</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
-                  onPress={() => setShowGoalDetail(true)} activeOpacity={0.8}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>목표 달성률</Text>
-                    <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
-                  </View>
-                  <GoalRing
-                    pct={Math.min(100, Math.round(todayTotalSec / Math.max(1, app.settings.dailyGoalMin * 60) * 100))}
-                    size={74} color={T.accent} bgColor={T.surface2}
-                  />
-                  <Text style={[S.sVal, { color: T.accent, fontSize: 16, marginTop: 5 }]}>{formatDuration(todayTotalSec)}</Text>
-                  {todayAvgDensity > 0 && todayTotalSec > 0 && (
-                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
-                  )}
-                  <Text style={[S.sLabel, { color: T.sub, marginTop: 2 }]}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
-                  {todayTotalSec >= app.settings.dailyGoalMin * 60 && (
-                    <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>달성!</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* ── 오늘 플래너 달성률 ── */}
-              {todayPlanRate !== null && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                  <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>오늘 계획 달성률</Text>
-                      <Text style={{ fontSize: 14, fontWeight: '900', color: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{todayPlanRate}%</Text>
-                    </View>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                      <View style={{ height: 6, borderRadius: 3, width: `${todayPlanRate}%`, backgroundColor: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {/* ── Gantt 타임라인 ── */}
-              {todaySessions.length > 0 && (
-                <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border }]} onPress={() => setShowTimelineModal(true)} activeOpacity={0.85}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 공부 타임라인</Text>
-                    <Text style={{ fontSize: 12, color: T.sub, lineHeight: 14 }}>탭: 시간대 상세 ▸</Text>
-                  </View>
-                  <View style={{ height: 52, position: 'relative', backgroundColor: T.surface2, borderRadius: 6, overflow: 'hidden', marginBottom: 5 }}>
-                    {[6, 12, 18].map(h => (
-                      <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 1, backgroundColor: T.sub + '40' }} />
-                    ))}
-                    {[3, 9, 15, 21].map(h => (
-                      <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 0.5, backgroundColor: T.sub + '18' }} />
-                    ))}
-                    {todaySessions.filter(s => s.startedAt).map(s => {
-                      const d = new Date(s.startedAt);
-                      const startPct = (d.getHours() * 3600 + d.getMinutes() * 60) / 86400 * 100;
-                      const durPct = Math.min(100 - startPct, s.durationSec / 86400 * 100);
-                      const sesSubj = getSessionSubject(s, app.subjects);
-                      return (
-                        <View key={s.id} style={{ position: 'absolute', left: `${startPct}%`, width: `${Math.max(0.6, durPct)}%`, height: '100%', backgroundColor: sesSubj.color, borderRadius: 3, overflow: 'hidden' }}>
-                          {durPct > 5 && (
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.95)', marginTop: 3, marginLeft: 3, marginRight: 2 }} numberOfLines={1}>{sesSubj.name}</Text>
-                          )}
-                          {durPct > 4 && (
-                            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', marginLeft: 3 }} numberOfLines={1}>{Math.round(s.durationSec / 60)}분</Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 1 }}>
-                    {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => (
-                      <Text key={h} style={{ fontSize: h % 6 === 0 ? 7 : 6, color: T.sub, opacity: h % 6 === 0 ? 1 : 0.45, marginTop: 1 }}>
-                        {h % 6 === 0 ? `${h}시` : h}
-                      </Text>
-                    ))}
-                  </View>
-                </TouchableOpacity>
-              )}
-
-              {renderSubjects(daySubjects, '과목 비율')}
+              {renderDensityGoalRow()}
+              {renderTodayPlanRateCard()}
+              {renderTimelineCard()}
+              <SubjectRatioCard data={daySubjects} label="과목 비율" T={T} S={S} />
             </>)}
 
-            {/* ── 주간 LEFT ── */}
+            {/* ── 주간 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'weekly' && (<>
-              <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
-                <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                  <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
-                </TouchableOpacity>
-                <Text style={[S.weekNavTitle, { color: T.text }]}>
-                  {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
-                </Text>
-                <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                  <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
-                {weekData.map((d, i) => (
-                  <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
-                    <View style={S.barRow}>
-                      <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                      <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
-                        <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
-                      </View>
-                      <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
-                      {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {weekPlanRate !== null && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                  <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
-                      <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
-                    </View>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                      <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                    </View>
-                  </View>
-                  {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
-                </View>
-              )}
-
+              {renderWeekNavRow()}
+              {renderWeekBarsCard()}
+              {renderWeekPlanRateCard()}
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 월간 LEFT ── */}
+            {/* ── 월간 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'monthly' && (<>
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={S.monthNav}>
-                  <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                    <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
-                  </TouchableOpacity>
-                  <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
-                  <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                    <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={S.calWeekRow}>
-                  {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
-                </View>
-                <View style={S.calGrid}>
-                  {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
-                    <View key={ri} style={S.calRow}>
-                      {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
-                        if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
-                        return (
-                          <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                            <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                              <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                            </View>
-                            {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-                <View style={S.heatLegend}>
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-                  {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
-                    <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
-                  ))}
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
-                </View>
-              </View>
+              {renderMonthCalendarCard()}
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 잔디 LEFT ── */}
+            {/* ── 잔디 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'heatmap' && (<>
-              {!app.settings.guideHeatmap && (
-                <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
-                  style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                  <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                    매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={S.hmHeader}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
-                  <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
-                    <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
-                  </View>
-                </View>
-
-                <View>
-                  <View>
-                    <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
-                      {heatmap365.map((week, wi) => {
-                        const label = heatmapMonthLabels.find(ml => ml.wi === wi);
-                        return (
-                          <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
-                            {label && (
-                              <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </View>
-
-                    <View style={S.hmGrid}>
-                      <View style={S.hmDayLabels}>
-                        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                          <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
-                        ))}
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: HM_GAP }}>
-                        {heatmap365.map((week, wi) => (
-                          <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
-                            {week.map((day, di) => (
-                              <TouchableOpacity
-                                key={di}
-                                onPress={() => !day.isFuture && setDayDetailDate(day.date)}
-                                activeOpacity={!day.isFuture ? 0.6 : 1}
-                                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                              >
-                                <View
-                                  style={[
-                                    S.hmCell,
-                                    {
-                                      width: HM_CELL,
-                                      height: HM_CELL,
-                                      backgroundColor: getHeat365Color(day),
-                                      borderWidth: day.isToday ? 1.5 : 0,
-                                      borderColor: day.isToday ? T.accent : 'transparent',
-                                    },
-                                  ]}
-                                />
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={S.heatLegend}>
-                  <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
-                  <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
-                  {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
-                    <React.Fragment key={i}>
-                      <View style={[S.heatBox, { backgroundColor: c }]} />
-                      <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
-                    </React.Fragment>
-                  ))}
-                </View>
-                <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
-                  잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
-                </Text>
-              </View>
-
+              {renderHeatmapGuideBanner()}
+              {renderHeatmapCard()}
               {renderDayDetailInline()}
             </>)}
 
-            {/* ── 과목 LEFT ── */}
+            {/* ── 과목 LEFT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'subject' && (<>
-              <View style={S.subjPeriodRow}>
-                {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
-                  <TouchableOpacity
-                    key={val}
-                    style={[S.subjPeriodBtn, {
-                      backgroundColor: subjPeriod === val ? T.accent : T.surface2,
-                      borderColor: subjPeriod === val ? T.accent : T.border,
-                    }]}
-                    onPress={() => setSubjPeriod(val)}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-                  >
-                    <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {subjectAllStats.length === 0 ? (
-                <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
-              ) : (<>
-                {(() => {
-                  const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
-                  const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
-                  const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
-                  const avgTier = getTier(avgD);
-                  const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
-                  const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
-                    const isActive = activeCard === key;
-                    return (
-                      <TouchableOpacity
-                        style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
-                        onPress={() => tapCard(key)} activeOpacity={0.7}
-                      >
-                        <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
-                        <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                          {isActive ? activeVal : val}
-                        </Text>
-                        <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
-                          {isActive ? (activeSub || ' ') : (sub || ' ')}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  };
-                  return (
-                    <View style={[S.summaryRow, { marginBottom: 12 }]}>
-                      {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
-                        `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
-                      {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
-                        pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
-                        pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
-                        pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
-                      {mkCard('s_density', '평균 밀도',
-                        avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
-                        avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
-                        avgD > 0 ? avgTier.message : ' ')}
-                    </View>
-                  );
-                })()}
-
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                  <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
-                    {subjectAllStats.map((s, i) => (
-                      <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
-                    ))}
-                  </View>
-                  {subjectAllStats.map((s, i) => {
-                    const sTier = getTier(s.avgDensity);
-                    return (
-                      <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
-                        <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                        <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
-                        <View style={S.subjListBarTrack}>
-                          <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
-                        </View>
-                        <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
-                        {s.avgDensity > 0 && (
-                          <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
-                          </View>
-                        )}
-                        <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>)}
+              {renderSubjPeriodRow()}
+              {renderSubjOverview()}
             </>)}
           </ScrollView>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-            {/* ── 일간 RIGHT ── */}
+            {/* ── 일간 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'daily' && (<>
-              {/* ── TODO 카드 ── */}
-              {(() => {
-                const todayTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
-                if (todayTodos.length === 0) return null;
-                const doneCnt = todayTodos.filter(t => t.done).length;
-                const pct = Math.round((doneCnt / todayTodos.length) * 100);
-                const allDone = doneCnt === todayTodos.length;
-                const subjectMap = {};
-                todayTodos.forEach(t => {
-                  const key = t.subjectId || '__none__';
-                  if (!subjectMap[key]) subjectMap[key] = { label: t.subjectLabel || '미분류', color: t.subjectColor || T.sub, total: 0, done: 0 };
-                  subjectMap[key].total++;
-                  if (t.done) subjectMap[key].done++;
-                });
-                const subjKeys = Object.keys(subjectMap).filter(k => k !== '__none__');
-                if (subjectMap['__none__']) subjKeys.push('__none__');
-                return (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Ionicons name="checkmark-circle-outline" size={14} color={T.sub} />
-                        <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 할 일</Text>
-                      </View>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
-                        {doneCnt}/{todayTodos.length}
-                      </Text>
-                    </View>
-                    <View style={{ height: 6, backgroundColor: T.surface2, borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                      <View style={{ height: 6, borderRadius: 3, backgroundColor: allDone ? '#27AE60' : T.accent, width: `${pct}%` }} />
-                    </View>
-                    <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{pct}% 완료</Text>
-                    {subjKeys.length > 1 && (
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-                        {subjKeys.map(k => {
-                          const s = subjectMap[k];
-                          return (
-                            <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (s.color || T.sub) + '18', borderWidth: 1, borderColor: (s.color || T.sub) + '40' }}>
-                              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: s.color || T.sub }} />
-                              <Text style={{ fontSize: 12, color: s.color || T.sub, fontWeight: '700' }}>{s.label} {s.done}/{s.total}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                    {todayTodos.filter(t => !t.done).slice(0, 3).map(t => (
-                      <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                        {t.priority === 'high' && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#E17055' }} />}
-                        {t.priority !== 'high' && <View style={{ width: 5 }} />}
-                        <Text style={{ fontSize: 14, color: T.text, flex: 1 }} numberOfLines={1}>{t.text}</Text>
-                        {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
-                      </View>
-                    ))}
-                    {todayTodos.filter(t => !t.done).length > 3 && (
-                      <Text style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>+ {todayTodos.filter(t => !t.done).length - 3}개 더</Text>
-                    )}
-                    {allDone && todayTodos.length > 0 && (
-                      <Text style={{ fontSize: 14, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>오늘 할 일 올클리어!</Text>
-                    )}
-                  </View>
-                );
-              })()}
-
-              {/* ── 세션 리스트 ── */}
-              {todaySessions.filter(s => (s.durationSec || 0) >= 300).length > 0 && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <Text style={[S.secLabel, { color: T.sub }]}>세션 기록 ({todaySessions.filter(s => (s.durationSec || 0) >= 300).length}회)</Text>
-                  {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
-                    const subj = app.subjects.find(s => s.id === sess.subjectId);
-                    const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                    const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
-                    const tier = getTier(sess.focusDensity || 0);
-                    return (
-                      <TouchableOpacity key={sess.id}
-                        onPress={() => setSessionDetail(sess)}
-                        style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}
-                        activeOpacity={0.75}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                            <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                          </View>
-                          <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                          <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                            <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                          </View>
-                          {sess.verified && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              <Ionicons name="trophy" size={11} color="#F5A623" />
-                              <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                            </View>
-                          )}
-                        </View>
-                        {sess.memo
-                          ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                              <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                              <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                            </View>
-                          )
-                          : <Text style={{ fontSize: 12, color: T.surface2, marginTop: 2 }}>+ 메모 추가</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
+              {renderTodayTodoCard()}
+              {renderTodaySessionList()}
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(todayTotalSec, todayAvgDensity, app.settings.streak)); setShowDayReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
-                  <Text style={S.reportBtnSub}>오늘의 공부 인증하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
-
-              {!app.settings.guideDensity && todaySessions.length > 0 && (
-                <TouchableOpacity onPress={() => app.updateSettings({ guideDensity: true })}
-                  style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                  <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                    집중밀도 = 같은 시간이라도 얼마나 집중했는지! 자세한 건 설정 &gt; 사용 가이드
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {renderDayReportBtn()}
+              {renderDensityGuideBanner()}
             </>)}
 
-            {/* ── 주간 RIGHT ── */}
+            {/* ── 주간 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'weekly' && (<>
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
-                {timeZoneAnalysis.every(z => z.count === 0) ? (
-                  <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-                ) : (
-                  <>
-                    {timeZoneAnalysis.map((zone, i) => {
-                      const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
-                      const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                      const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
-                      return (
-                        <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                          <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                          <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                          <View style={S.tzBarWrap}>
-                            <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                              <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                            </View>
-                            {zone.count > 0 && (
-                              <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
-                            )}
-                          </View>
-                          {zone.count > 0 && zone.tier && (
-                            <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                              <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                            </View>
-                          )}
-                          {zone.count === 0 && (
-                            <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {bestZone && (
-                      <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
-                        <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
-                        <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
-                          {bestZone.label}에 집중력이 가장 높아요!
-                        </Text>
-                        {bestZone.tier && (
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
-                <View style={S.densityChart}>
-                  {weekData.map((d, i) => {
-                    const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
-                    const tier = d.density > 0 ? getTier(d.density) : null;
-                    return (
-                      <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
-                        <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-                        <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                        {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {renderSubjects(weekSubjects, '주간 과목 비율')}
-
+              {renderTimeZoneCard()}
+              {renderDensityTrendCard()}
+              <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-                  <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderWeekReportBtn()}
             </>)}
 
-            {/* ── 월간 RIGHT ── */}
+            {/* ── 월간 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'monthly' && (<>
-              {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
-                {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
-                  <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-                ) : (
-                  <>
-                    {monthTimeZoneAnalysis.map((zone, i) => {
-                      const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
-                      const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                      return (
-                        <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                          <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                          <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                          <View style={S.tzBarWrap}>
-                            <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                              <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                            </View>
-                            {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
-                          </View>
-                          {zone.count > 0 && zone.tier ? (
-                            <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                              <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                            </View>
-                          ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {monthBestZone && (
-                      <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
-                        <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
-                        <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
-                          {monthBestZone.label}에 집중력이 가장 높아요!
-                        </Text>
-                        {monthBestZone.tier && (
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
+              <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
+              {renderMonthTimeZoneCard()}
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="clipboard-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-                  <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderMonthReportBtn()}
             </>)}
 
-            {/* ── 잔디 RIGHT ── */}
+            {/* ── 잔디 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'heatmap' && (<>
-              {/* 공부 일기 */}
-              {(() => {
-                const memoed = [...app.sessions]
-                  .filter(s => s.memo && s.memo.trim())
-                  .sort((a, b) => (b.date > a.date ? 1 : -1));
-                if (memoed.length === 0) return (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Ionicons name="journal-outline" size={13} color={T.sub} />
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                    </View>
-                    <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
-                  </View>
-                );
-                const grouped = {};
-                memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
-                return (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                      <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
-                    </View>
-                    {Object.entries(grouped).map(([date, sess]) => {
-                      const d = new Date(date + 'T00:00:00');
-                      const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
-                      return (
-                        <View key={date} style={S.diaryGroup}>
-                          <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
-                          {sess.map(s => {
-                            const subj = app.subjects.find(sub => sub.id === s.subjectId);
-                            return (
-                              <TouchableOpacity
-                                key={s.id}
-                                style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
-                                onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
-                                activeOpacity={0.7}
-                              >
-                                <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
-                                <Text style={[S.diaryMeta, { color: T.sub }]}>
-                                  {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-
-              {/* ── 역대 기록 ── */}
-              {personalBests && personalBests.bestDaySec > 0 && (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                    <Ionicons name="trophy-outline" size={14} color={T.accent} />
-                    <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="flame" size={12} color="#E17055" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
-                      {personalBests.bestDayDate && (
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                        </Text>
-                      )}
-                    </View>
-
-                    {personalBests.longestSess && (
-                      <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                          <Ionicons name="timer-outline" size={12} color="#4A90D9" />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
-                        </View>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
-                        </Text>
-                      </View>
-                    )}
-
-                    {personalBests.bestDensitySess && (
-                      <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                          <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
-                        </View>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
-                          {personalBests.bestDensitySess.focusDensity}점
-                        </Text>
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {getTier(personalBests.bestDensitySess.focusDensity).label}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
-                      {personalBests.mostSessDate && (
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                          {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="flame" size={18} color="#FF7F50" />
-                      <View>
-                        <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
-                      </View>
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="calendar" size={18} color={T.accent} />
-                      <View>
-                        <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              )}
-
+              {renderStudyDiaryCard()}
+              {renderPersonalBestsCard()}
               {renderInsightCard()}
-              <TouchableOpacity
-                style={[S.reportBtn, { backgroundColor: T.accent }]}
-                onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="leaf-outline" size={24} color="white" />
-                <View>
-                  <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-                  <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
-                </View>
-                <Text style={S.reportBtnArrow}>→</Text>
-              </TouchableOpacity>
+              {renderHeatReportBtn()}
             </>)}
 
-            {/* ── 과목 RIGHT ── */}
+            {/* ── 과목 RIGHT (카드 렌더러는 세로모드와 공유) ── */}
             {tab === 'subject' && (<>
-              {subjectAllStats.length >= 2 && (() => {
-                const top = subjectAllStats[0];
-                const realLastDate = {};
-                app.sessions.forEach(s => {
-                  const { id } = getSessionSubject(s, app.subjects);
-                  if (id.startsWith('lbl_') || id === '_none') return;
-                  if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
-                });
-                const neglected = [...subjectAllStats]
-                  .filter(s => s.id !== top.id)
-                  .sort((a, b) => {
-                    const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
-                    if (dateCmp !== 0) return dateCmp;
-                    return a.sec - b.sec;
-                  })[0];
-                if (!neglected) return null;
-                const lastDate = realLastDate[neglected.id] || '';
-                const daysSince = lastDate
-                  ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
-                  : null;
-                return (
-                  <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
-                    <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
-                    <View style={S.subjInsightRow}>
-                      <Ionicons name="trending-up-outline" size={20} color={T.accent} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                          {top.name}
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
-                      <Ionicons name="time-outline" size={20} color={T.sub} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                          {neglected.name}
-                          {daysSince !== null && daysSince > 0 && (
-                            <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
-                          )}
-                          {daysSince === 0 && (
-                            <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
-                          )}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })()}
+              {renderSubjBalanceCard()}
               {renderInsightCard()}
             </>)}
           </ScrollView>
@@ -1679,845 +1597,59 @@ export default function StatsScreen() {
           {/* 탭: 일간 (세로) */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'daily' && (<>
-            {/* ── 집중밀도 + 목표달성률 2열 ── */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              {todaySessions.length > 0 && (
-                <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
-                  onPress={() => setShowDensityDetail(true)} activeOpacity={0.8}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 6 }}>
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>평균 집중밀도</Text>
-                    <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
-                  </View>
-                  <View style={[S.tierBig, { backgroundColor: todayTier.color + '20', width: 52, height: 52, borderRadius: 16, marginBottom: 5 }]}>
-                    <Text style={[S.tierBigT, { color: todayTier.color }]}>{todayTier.label}</Text>
-                  </View>
-                  <Text style={[S.tierScore, { color: T.text, fontSize: 18 }]}>{todayAvgDensity}점</Text>
-                  <Text style={[S.tierMsg, { color: todayTier.color, textAlign: 'center', marginTop: 2 }]}>{todayTier.message}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border, flex: 1, marginBottom: 0, alignItems: 'center' }]}
-                onPress={() => setShowGoalDetail(true)} activeOpacity={0.8}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>목표 달성률</Text>
-                  <Text style={{ fontSize: 11, color: T.sub }}>탭 ▸</Text>
-                </View>
-                <GoalRing
-                  pct={Math.min(100, Math.round(todayTotalSec / Math.max(1, app.settings.dailyGoalMin * 60) * 100))}
-                  size={74} color={T.accent} bgColor={T.surface2}
-                />
-                <Text style={[S.sVal, { color: T.accent, fontSize: 16, marginTop: 5 }]}>{formatDuration(todayTotalSec)}</Text>
-                {todayAvgDensity > 0 && todayTotalSec > 0 && (
-                  <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>순공 {formatDuration(Math.round(todayTotalSec * todayAvgDensity / 100))}</Text>
-                )}
-                <Text style={[S.sLabel, { color: T.sub, marginTop: 2 }]}>목표 {formatDuration(app.settings.dailyGoalMin * 60)}</Text>
-                {todayTotalSec >= app.settings.dailyGoalMin * 60 && (
-                  <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', marginTop: 4 }}>달성!</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            {/* 카드 렌더러는 가로모드 LEFT/RIGHT 컬럼과 공유 */}
+            {renderDensityGoalRow()}
+            {renderTodayPlanRateCard()}
+            {renderTimelineCard()}
+            <SubjectRatioCard data={daySubjects} label="과목 비율" T={T} S={S} />
 
-            {/* ── 오늘 플래너 달성률 ── */}
-            {todayPlanRate !== null && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>오늘 계획 달성률</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '900', color: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{todayPlanRate}%</Text>
-                  </View>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                    <View style={{ height: 6, borderRadius: 3, width: `${todayPlanRate}%`, backgroundColor: todayPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* ── Gantt 타임라인 ── */}
-            {todaySessions.length > 0 && (
-              <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.border }]} onPress={() => setShowTimelineModal(true)} activeOpacity={0.85}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 공부 타임라인</Text>
-                  <Text style={{ fontSize: 12, color: T.sub, lineHeight: 14 }}>탭: 시간대 상세 ▸</Text>
-                </View>
-                <View style={{ height: 52, position: 'relative', backgroundColor: T.surface2, borderRadius: 6, overflow: 'hidden', marginBottom: 5 }}>
-                  {[6, 12, 18].map(h => (
-                    <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 1, backgroundColor: T.sub + '40' }} />
-                  ))}
-                  {[3, 9, 15, 21].map(h => (
-                    <View key={h} style={{ position: 'absolute', left: `${h / 24 * 100}%`, top: 0, bottom: 0, width: 0.5, backgroundColor: T.sub + '18' }} />
-                  ))}
-                  {todaySessions.filter(s => s.startedAt).map(s => {
-                    const d = new Date(s.startedAt);
-                    const startPct = (d.getHours() * 3600 + d.getMinutes() * 60) / 86400 * 100;
-                    const durPct = Math.min(100 - startPct, s.durationSec / 86400 * 100);
-                    const sesSubj = getSessionSubject(s, app.subjects);
-                    return (
-                      <View key={s.id} style={{ position: 'absolute', left: `${startPct}%`, width: `${Math.max(0.6, durPct)}%`, height: '100%', backgroundColor: sesSubj.color, borderRadius: 3, overflow: 'hidden' }}>
-                        {durPct > 5 && (
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.95)', marginTop: 3, marginLeft: 3, marginRight: 2 }} numberOfLines={1}>{sesSubj.name}</Text>
-                        )}
-                        {durPct > 4 && (
-                          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', marginLeft: 3 }} numberOfLines={1}>{Math.round(s.durationSec / 60)}분</Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 1 }}>
-                  {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => (
-                    <Text key={h} style={{ fontSize: h % 6 === 0 ? 7 : 6, color: T.sub, opacity: h % 6 === 0 ? 1 : 0.45, marginTop: 1 }}>
-                      {h % 6 === 0 ? `${h}시` : h}
-                    </Text>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {renderSubjects(daySubjects, '과목 비율')}
-
-            {/* ── TODO 카드 ── */}
-            {(() => {
-              const todayTodos = app.todos.filter(t => isTodayVisible(t, getToday()));
-              if (todayTodos.length === 0) return null;
-              const doneCnt = todayTodos.filter(t => t.done).length;
-              const pct = Math.round((doneCnt / todayTodos.length) * 100);
-              const allDone = doneCnt === todayTodos.length;
-              const subjectMap = {};
-              todayTodos.forEach(t => {
-                const key = t.subjectId || '__none__';
-                if (!subjectMap[key]) subjectMap[key] = { label: t.subjectLabel || '미분류', color: t.subjectColor || T.sub, total: 0, done: 0 };
-                subjectMap[key].total++;
-                if (t.done) subjectMap[key].done++;
-              });
-              const subjKeys = Object.keys(subjectMap).filter(k => k !== '__none__');
-              if (subjectMap['__none__']) subjKeys.push('__none__');
-              return (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Ionicons name="checkmark-circle-outline" size={14} color={T.sub} />
-                      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>오늘 할 일</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: allDone ? '#27AE60' : T.accent }}>
-                      {doneCnt}/{todayTodos.length}
-                    </Text>
-                  </View>
-                  <View style={{ height: 6, backgroundColor: T.surface2, borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: allDone ? '#27AE60' : T.accent, width: `${pct}%` }} />
-                  </View>
-                  <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{pct}% 완료</Text>
-                  {subjKeys.length > 1 && (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-                      {subjKeys.map(k => {
-                        const s = subjectMap[k];
-                        return (
-                          <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (s.color || T.sub) + '18', borderWidth: 1, borderColor: (s.color || T.sub) + '40' }}>
-                            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: s.color || T.sub }} />
-                            <Text style={{ fontSize: 12, color: s.color || T.sub, fontWeight: '700' }}>{s.label} {s.done}/{s.total}</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  )}
-                  {todayTodos.filter(t => !t.done).slice(0, 3).map(t => (
-                    <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                      {t.priority === 'high' && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#E17055' }} />}
-                      {t.priority !== 'high' && <View style={{ width: 5 }} />}
-                      <Text style={{ fontSize: 14, color: T.text, flex: 1 }} numberOfLines={1}>{t.text}</Text>
-                      {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
-                    </View>
-                  ))}
-                  {todayTodos.filter(t => !t.done).length > 3 && (
-                    <Text style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>+ {todayTodos.filter(t => !t.done).length - 3}개 더</Text>
-                  )}
-                  {allDone && todayTodos.length > 0 && (
-                    <Text style={{ fontSize: 14, color: '#27AE60', fontWeight: '800', textAlign: 'center', marginTop: 4 }}>오늘 할 일 올클리어!</Text>
-                  )}
-                </View>
-              );
-            })()}
-
-            {/* ── 세션 리스트 ── */}
-            {todaySessions.filter(s => (s.durationSec || 0) >= 300).length > 0 && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>세션 기록 ({todaySessions.filter(s => (s.durationSec || 0) >= 300).length}회)</Text>
-                {todaySessions.filter(s => (s.durationSec || 0) >= 300).slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).map(sess => {
-                  const subj = app.subjects.find(s => s.id === sess.subjectId);
-                  const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                  const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
-                  const tier = getTier(sess.focusDensity || 0);
-                  return (
-                    <TouchableOpacity key={sess.id}
-                      onPress={() => setSessionDetail(sess)}
-                      style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}
-                      activeOpacity={0.75}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                          <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                        </View>
-                        <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                        <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                          <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                        </View>
-                        {sess.verified && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                            <Ionicons name="trophy" size={11} color="#F5A623" />
-                            <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                          </View>
-                        )}
-                      </View>
-                      {sess.memo
-                        ? (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                            <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                            <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                          </View>
-                        )
-                        : <Text style={{ fontSize: 12, color: T.surface2, marginTop: 2 }}>+ 메모 추가</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* ── 오늘 리포트 카드 버튼 ── */}
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(todayTotalSec, todayAvgDensity, app.settings.streak)); setShowDayReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="clipboard-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>오늘 리포트 카드</Text>
-                <Text style={S.reportBtnSub}>오늘의 공부 인증하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
-
-            {/* 집중밀도 한 줄 가이드 */}
-            {!app.settings.guideDensity && todaySessions.length > 0 && (
-              <TouchableOpacity onPress={() => app.updateSettings({ guideDensity: true })}
-                style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                  집중밀도 = 같은 시간이라도 얼마나 집중했는지! 자세한 건 설정 &gt; 사용 가이드
-                </Text>
-              </TouchableOpacity>
-            )}
+            {renderTodayTodoCard()}
+            {renderTodaySessionList()}
+            {renderDayReportBtn()}
+            {renderDensityGuideBanner()}
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
           {/* 탭: 주간 (세로) */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'weekly' && (<>
-            <View style={[S.weekNavRow, { backgroundColor: T.card, borderColor: T.border }]}>
-              <TouchableOpacity onPress={() => setWeekOffset(p => p - 1)} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                <Text style={[S.weekNavArrow, { color: T.accent }]}>◀</Text>
-              </TouchableOpacity>
-              <Text style={[S.weekNavTitle, { color: T.text }]}>
-                {weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`}
-              </Text>
-              <TouchableOpacity onPress={() => setWeekOffset(p => Math.min(0, p + 1))} disabled={weekOffset >= 0} style={S.weekNavBtn} activeOpacity={0.6} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-                <Text style={[S.weekNavArrow, { color: weekOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
-              {weekData.map((d, i) => (
-                <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
-                  <View style={S.barRow}>
-                    <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                    <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
-                      <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
-                    </View>
-                    <Text style={[S.barTime, { color: d.sec > 0 ? T.text : T.sub }]}>{d.sec > 0 ? formatShort(d.sec) : '-'}</Text>
-                    {i === weekBestDayIdx && d.sec > 0 && <Ionicons name="trophy" size={13} color={T.gold} style={{ marginLeft: 3 }} />}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {weekPlanRate !== null && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }]}>
-                <Ionicons name="calendar-outline" size={20} color={T.sub} />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }}>주간 계획 달성률</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '900', color: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }}>{weekPlanRate}%</Text>
-                  </View>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: T.surface2, overflow: 'hidden' }}>
-                    <View style={{ height: 6, borderRadius: 3, width: `${weekPlanRate}%`, backgroundColor: weekPlanRate >= 100 ? T.gold || '#FFD700' : T.accent }} />
-                  </View>
-                </View>
-                {weekPlanRate >= 100 && <Ionicons name="checkmark-circle" size={18} color={T.gold || '#FFD700'} />}
-              </View>
-            )}
-
-            {/* ── 시간대별 집중력 분석 ── */}
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>{weekOffset === 0 ? '(이번 주)' : weekOffset === -1 ? '(지난 주)' : `(${Math.abs(weekOffset)}주 전)`}</Text></Text>
-              {timeZoneAnalysis.every(z => z.count === 0) ? (
-                <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-              ) : (
-                <>
-                  {timeZoneAnalysis.map((zone, i) => {
-                    const maxSec = Math.max(...timeZoneAnalysis.map(z => z.totalSec), 1);
-                    const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                    const periodLabel = weekOffset === 0 ? '이번 주' : weekOffset === -1 ? '지난 주' : `${Math.abs(weekOffset)}주 전`;
-                    return (
-                      <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                        <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                        <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                        <View style={S.tzBarWrap}>
-                          <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                            <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                          </View>
-                          {zone.count > 0 && (
-                            <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>
-                          )}
-                        </View>
-                        {zone.count > 0 && zone.tier && (
-                          <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                            <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                          </View>
-                        )}
-                        {zone.count === 0 && (
-                          <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {bestZone && (
-                    <View style={[S.bestZoneBanner, { backgroundColor: bestZone.tier ? bestZone.tier.color + '18' : T.surface2, borderColor: bestZone.tier ? bestZone.tier.color + '40' : T.border }]}>
-                      <Ionicons name={bestZone.icon} size={14} color={bestZone.tier ? bestZone.tier.color : T.sub} />
-                      <Text style={[S.bestZoneT, { color: bestZone.tier ? bestZone.tier.color : T.text, flex: 1 }]}>
-                        {bestZone.label}에 집중력이 가장 높아요!
-                      </Text>
-                      {bestZone.tier && (
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: bestZone.tier.color }}>{bestZone.tier.label}</Text>
-                      )}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>집중 밀도 추이</Text>
-              <View style={S.densityChart}>
-                {weekData.map((d, i) => {
-                  const h = d.density > 0 ? Math.max(8, (d.density / 120) * 60) : 4;
-                  const tier = d.density > 0 ? getTier(d.density) : null;
-                  return (
-                    <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
-                      <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-                      <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
-                      {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {renderSubjects(weekSubjects, '주간 과목 비율')}
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(weekTotal, weekAvgDensity, app.settings.streak)); setShowReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="clipboard-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>주간 리포트 카드</Text>
-                <Text style={S.reportBtnSub}>이번 주 성과 자랑하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {/* 카드 렌더러는 가로모드 LEFT/RIGHT 컬럼과 공유 */}
+            {renderWeekNavRow()}
+            {renderWeekBarsCard()}
+            {renderWeekPlanRateCard()}
+            {renderTimeZoneCard()}
+            {renderDensityTrendCard()}
+            <SubjectRatioCard data={weekSubjects} label="주간 과목 비율" T={T} S={S} />
+            {renderWeekReportBtn()}
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
           {/* 탭: 월간 (세로) */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'monthly' && (<>
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <View style={S.monthNav}>
-                <TouchableOpacity onPress={() => setMonthOffset(p => p - 1)} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                  <Text style={[S.monthArrow, { color: T.accent }]}>◀</Text>
-                </TouchableOpacity>
-                <Text style={[S.monthTitle, { color: T.text }]}>{viewMonthStr}</Text>
-                <TouchableOpacity onPress={() => setMonthOffset(p => Math.min(0, p + 1))} disabled={monthOffset >= 0} activeOpacity={0.6} hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}>
-                  <Text style={[S.monthArrow, { color: monthOffset >= 0 ? T.border : T.accent }]}>▶</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={S.calWeekRow}>
-                {DAYS_KR.map(d => <Text key={d} style={[S.calWeekDay, { color: T.sub }]}>{d}</Text>)}
-              </View>
-              <View style={S.calGrid}>
-                {Array.from({ length: calendarData.length / 7 }, (_, ri) => (
-                  <View key={ri} style={S.calRow}>
-                    {calendarData.slice(ri * 7, ri * 7 + 7).map((cell, ci) => {
-                      if (!cell) return <View key={`e${ri * 7 + ci}`} style={S.calCell} />;
-                      return (
-                        <TouchableOpacity key={cell.date} style={[S.calCell, cell.isToday && { borderWidth: 1.5, borderColor: T.accent, borderRadius: 6 }]} onPress={() => cell.sec > 0 && setDayDetailDate(cell.date)} activeOpacity={cell.sec > 0 ? 0.7 : 1}>
-                          <View style={[S.calDot, { backgroundColor: getHeatColor(cell.sec) }]}>
-                            <Text style={[S.calDay, { color: cell.sec > 0 ? (cell.sec / monthMaxSec > 0.5 ? 'white' : T.text) : T.sub }]}>{cell.day}</Text>
-                          </View>
-                          {cell.sec > 0 && <Text style={[S.calTime, { color: T.sub }]}>{cell.sec >= 3600 ? `${Math.floor(cell.sec / 3600)}h` : `${Math.floor(cell.sec / 60)}m`}</Text>}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-              <View style={S.heatLegend}>
-                <Text style={[S.heatLegendT, { color: T.sub }]}>적음</Text>
-                {[T.surface2, T.accent + '66', T.accent + '99', T.accent + 'CC', T.accent].map((c, i) => (
-                  <View key={i} style={[S.heatBox, { backgroundColor: c }]} />
-                ))}
-                <Text style={[S.heatLegendT, { color: T.sub }]}>많음</Text>
-              </View>
-            </View>
-
-            {renderSubjects(monthSubjects, `${viewMonthStr} 과목 비율`)}
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <Text style={[S.secLabel, { color: T.sub }]}>시간대별 집중력 패턴 <Text style={{ fontSize: 11 }}>({viewMonthStr})</Text></Text>
-              {monthTimeZoneAnalysis.every(z => z.count === 0) ? (
-                <Text style={[S.emptyText, { color: T.sub }]}>데이터가 더 쌓이면 패턴을 알 수 있어요</Text>
-              ) : (
-                <>
-                  {monthTimeZoneAnalysis.map((zone, i) => {
-                    const maxSec = Math.max(...monthTimeZoneAnalysis.map(z => z.totalSec), 1);
-                    const barW = zone.count > 0 ? Math.max(8, (zone.totalSec / maxSec) * 100) : 4;
-                    return (
-                      <TouchableOpacity key={i} style={S.tzRow} onPress={() => zone.count > 0 && setTzDetail({ zone, periodLabel: viewMonthStr })} activeOpacity={zone.count > 0 ? 0.7 : 1}>
-                        <Ionicons name={zone.icon} size={14} color={T.sub} style={{ width: 20 }} />
-                        <Text style={[S.tzLabel, { color: T.sub }]}>{zone.label}</Text>
-                        <View style={S.tzBarWrap}>
-                          <View style={[S.tzBarTrack, { backgroundColor: T.surface2 }]}>
-                            <View style={[S.tzBarFill, { width: `${barW}%`, backgroundColor: zone.tier ? zone.tier.color : T.surface2 }]} />
-                          </View>
-                          {zone.count > 0 && <Text style={[S.tzTime, { color: T.sub }]}>{formatShort(zone.totalSec)}</Text>}
-                        </View>
-                        {zone.count > 0 && zone.tier ? (
-                          <View style={[S.tzTierBadge, { backgroundColor: zone.tier.color + '25' }]}>
-                            <Text style={[S.tzTierT, { color: zone.tier.color }]}>{zone.tier.label}</Text>
-                          </View>
-                        ) : <Text style={[S.tzEmpty, { color: T.surface2 }]}>-</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {monthBestZone && (
-                    <View style={[S.bestZoneBanner, { backgroundColor: monthBestZone.tier ? monthBestZone.tier.color + '18' : T.surface2, borderColor: monthBestZone.tier ? monthBestZone.tier.color + '40' : T.border }]}>
-                      <Ionicons name={monthBestZone.icon} size={14} color={monthBestZone.tier ? monthBestZone.tier.color : T.sub} />
-                      <Text style={[S.bestZoneT, { color: monthBestZone.tier ? monthBestZone.tier.color : T.text, flex: 1 }]}>
-                        {monthBestZone.label}에 집중력이 가장 높아요!
-                      </Text>
-                      {monthBestZone.tier && (
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: monthBestZone.tier.color }}>{monthBestZone.tier.label}</Text>
-                      )}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(monthTotalSec, monthAvgDensity, app.settings.streak)); setShowMonthReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="clipboard-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>{viewMonthStr} 월간 리포트 카드</Text>
-                <Text style={S.reportBtnSub}>한 달 기록 공유하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {/* 카드 렌더러는 가로모드 LEFT/RIGHT 컬럼과 공유 */}
+            {renderMonthCalendarCard()}
+            <SubjectRatioCard data={monthSubjects} label={`${viewMonthStr} 과목 비율`} T={T} S={S} />
+            {renderMonthTimeZoneCard()}
+            {renderMonthReportBtn()}
           </>)}
 
           {/* ──────────────────────────────────────────────────── */}
-          {/* 탭: 잔디 (세로) */}
+          {/* 탭: 잔디 (세로) — 카드 렌더러는 가로모드와 공유 */}
           {/* ──────────────────────────────────────────────────── */}
           {tab === 'heatmap' && (<>
-            {!app.settings.guideHeatmap && (
-              <TouchableOpacity onPress={() => app.updateSettings({ guideHeatmap: true })}
-                style={[S.card, { backgroundColor: T.accent + '10', borderColor: T.accent + '30', paddingVertical: 10 }]}>
-                <Text style={{ fontSize: 13, color: T.accent, fontWeight: '700', textAlign: 'center' }}>
-                  매일 공부하면 칸이 채워져요! 빈칸 없이 채워보세요!
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-              <View style={S.hmHeader}>
-                <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>최근 4개월 공부 잔디</Text>
-                <View style={[S.hmBadge, { backgroundColor: T.accent + '20' }]}>
-                  <Text style={[S.hmBadgeT, { color: T.accent }]}>{totalStudyDays365}일</Text>
-                </View>
-              </View>
-
-              <View>
-                <View>
-                  <View style={{ flexDirection: 'row', marginLeft: 16 + HM_GAP, marginBottom: 3 }}>
-                    {heatmap365.map((week, wi) => {
-                      const label = heatmapMonthLabels.find(ml => ml.wi === wi);
-                      return (
-                        <View key={wi} style={{ width: HM_CELL + HM_GAP }}>
-                          {label && (
-                            <Text style={[S.hmMonthLabel, { color: T.sub }]}>{label.label}</Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-
-                  <View style={S.hmGrid}>
-                    <View style={S.hmDayLabels}>
-                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                        <Text key={i} style={[S.hmDayLabel, { color: T.sub, height: HM_CELL, lineHeight: HM_CELL }]}>{d}</Text>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: HM_GAP }}>
-                      {heatmap365.map((week, wi) => (
-                        <View key={wi} style={{ flexDirection: 'column', gap: HM_GAP }}>
-                          {week.map((day, di) => (
-                            <TouchableOpacity
-                              key={di}
-                              onPress={() => !day.isFuture && setDayDetailDate(day.date)}
-                              activeOpacity={!day.isFuture ? 0.6 : 1}
-                              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                            >
-                              <View
-                                style={[
-                                  S.hmCell,
-                                  {
-                                    width: HM_CELL,
-                                    height: HM_CELL,
-                                    backgroundColor: getHeat365Color(day),
-                                    borderWidth: day.isToday ? 1.5 : 0,
-                                    borderColor: day.isToday ? T.accent : 'transparent',
-                                  },
-                                ]}
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={S.heatLegend}>
-                <View style={[S.heatBox, { backgroundColor: T.surface2 }]} />
-                <Text style={[S.heatLegendT, { color: T.sub }]}>0</Text>
-                {[T.heat1, T.heat2, T.heat3, T.heat4].map((c, i) => (
-                  <React.Fragment key={i}>
-                    <View style={[S.heatBox, { backgroundColor: c }]} />
-                    <Text style={[S.heatLegendT, { color: T.sub }]}>{['30분', '1시간', '2시간', '4시간+'][i]}</Text>
-                  </React.Fragment>
-                ))}
-              </View>
-              <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 10, opacity: 0.6 }}>
-                잔디를 탭하면 날짜별 상세 통계를 볼 수 있어요
-              </Text>
-            </View>
-
-            {/* 공부 일기 */}
-            {(() => {
-              const memoed = [...app.sessions]
-                .filter(s => s.memo && s.memo.trim())
-                .sort((a, b) => (b.date > a.date ? 1 : -1));
-              if (memoed.length === 0) return (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Ionicons name="journal-outline" size={13} color={T.sub} />
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                  </View>
-                  <Text style={[S.emptyText, { color: T.sub }]}>타이머 완료 후 메모를 남기면{'\n'}날짜별로 여기 쌓여요</Text>
-                </View>
-              );
-              const grouped = {};
-              memoed.forEach(s => { if (!grouped[s.date]) grouped[s.date] = []; grouped[s.date].push(s); });
-              return (
-                <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>공부 일기</Text>
-                    <Text style={[{ fontSize: 11, color: T.sub }]}>탭하면 수정</Text>
-                  </View>
-                  {Object.entries(grouped).map(([date, sess]) => {
-                    const d = new Date(date + 'T00:00:00');
-                    const dateLabel = date === today ? '오늘' : `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
-                    return (
-                      <View key={date} style={S.diaryGroup}>
-                        <Text style={[S.diaryDate, { color: T.accent }]}>{dateLabel}</Text>
-                        {sess.map(s => {
-                          const subj = app.subjects.find(sub => sub.id === s.subjectId);
-                          return (
-                            <TouchableOpacity
-                              key={s.id}
-                              style={[S.diaryRow, { borderLeftColor: subj ? subj.color : T.accent }]}
-                              onPress={() => { setEditMemo({ sessionId: s.id, memo: s.memo }); setEditMemoText(s.memo || ''); }}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[S.diaryMemo, { color: T.text }]}>{s.memo}</Text>
-                              <Text style={[S.diaryMeta, { color: T.sub }]}>
-                                {subj ? subj.name : (stripLeadingEmoji(s.label) || '—')} · {formatShort(s.durationSec)}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })()}
-
-            {/* ── 역대 기록 ── */}
-            {personalBests && personalBests.bestDaySec > 0 && (
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                  <Ionicons name="trophy-outline" size={14} color={T.accent} />
-                  <Text style={[S.secLabel, { color: T.accent, marginBottom: 0 }]}>역대 기록</Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Ionicons name="flame" size={12} color="#E17055" />
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>하루 최장</Text>
-                    </View>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.bestDaySec)}</Text>
-                    {personalBests.bestDayDate && (
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const d = new Date(personalBests.bestDayDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                      </Text>
-                    )}
-                  </View>
-
-                  {personalBests.longestSess && (
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="timer-outline" size={12} color="#4A90D9" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최장 세션</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{formatDuration(personalBests.longestSess.durationSec)}</Text>
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const s = personalBests.longestSess; const subj = app.subjects.find(x => x.id === s.subjectId); return subj ? subj.name : (stripLeadingEmoji(s.label) || '—'); })()}
-                      </Text>
-                    </View>
-                  )}
-
-                  {personalBests.bestDensitySess && (
-                    <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                        <Ionicons name="sparkles-outline" size={12} color="#FFD700" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최고 밀도</Text>
-                      </View>
-                      <Text style={{ fontSize: 18, fontWeight: '900', color: getTier(personalBests.bestDensitySess.focusDensity).color }}>
-                        {personalBests.bestDensitySess.focusDensity}점
-                      </Text>
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {getTier(personalBests.bestDensitySess.focusDensity).label}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={{ flex: 1, minWidth: '45%', backgroundColor: T.surface2, borderRadius: 10, padding: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Ionicons name="layers-outline" size={12} color="#6C5CE7" />
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>최다 세션</Text>
-                    </View>
-                    <Text style={{ fontSize: 18, fontWeight: '900', color: T.text }}>{personalBests.mostSessCount}회</Text>
-                    {personalBests.mostSessDate && (
-                      <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>
-                        {(() => { const d = new Date(personalBests.mostSessDate); return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`; })()}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  <View style={{ flex: 1, backgroundColor: '#FF7F5010', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="flame" size={18} color="#FF7F50" />
-                    <View>
-                      <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>최장 연속</Text>
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF7F50' }}>{longestStreak}일</Text>
-                    </View>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: T.accent + '10', borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="calendar" size={18} color={T.accent} />
-                    <View>
-                      <Text style={{ fontSize: 10, color: T.sub, fontWeight: '600' }}>총 공부일</Text>
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: T.accent }}>{totalStudyDays365}일</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[S.reportBtn, { backgroundColor: T.accent }]}
-              onPress={() => { setReportCheer(getInsight(yearTotalSec, 0, app.settings.streak)); setShowHeatReport(true); }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="leaf-outline" size={24} color="white" />
-              <View>
-                <Text style={S.reportBtnTitle}>공부 기록 카드</Text>
-                <Text style={S.reportBtnSub}>나의 잔디밭 자랑하기</Text>
-              </View>
-              <Text style={S.reportBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {renderHeatmapGuideBanner()}
+            {renderHeatmapCard()}
+            {renderStudyDiaryCard()}
+            {renderPersonalBestsCard()}
+            {renderHeatReportBtn()}
           </>)}
 
-          {/* ── 과목 탭 (세로) ── */}
+          {/* ── 과목 탭 (세로) — 카드 렌더러는 가로모드와 공유 ── */}
           {tab === 'subject' && (<>
-            <View style={S.subjPeriodRow}>
-              {[['week', '이번주'], ['month', '이번달'], ['all', '전체']].map(([val, label]) => (
-                <TouchableOpacity
-                  key={val}
-                  style={[S.subjPeriodBtn, {
-                    backgroundColor: subjPeriod === val ? T.accent : T.surface2,
-                    borderColor: subjPeriod === val ? T.accent : T.border,
-                  }]}
-                  onPress={() => setSubjPeriod(val)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-                >
-                  <Text style={[S.subjPeriodBtnT, { color: subjPeriod === val ? 'white' : T.sub }]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {subjectAllStats.length === 0 ? (
-              <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
-            ) : (<>
-              {(() => {
-                const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);
-                const totalSess = subjectAllStats.reduce((s, x) => s + x.sessions, 0);
-                const avgD = totalSess > 0 ? Math.round(subjectAllStats.reduce((s, x) => s + x.densitySum, 0) / totalSess) : 0;
-                const avgTier = getTier(avgD);
-                const pureSec = avgD > 0 && allSec > 0 ? Math.round(allSec * avgD / 100) : 0;
-                const mkCard = (key, label, val, valColor, sub, activeVal, activeValColor, activeSub) => {
-                  const isActive = activeCard === key;
-                  return (
-                    <TouchableOpacity
-                      style={[S.summaryCard, { flex: 1, backgroundColor: isActive ? T.surface2 : T.card, borderColor: isActive ? T.accent : T.border }]}
-                      onPress={() => tapCard(key)} activeOpacity={0.7}
-                    >
-                      <Text style={[S.sLabel, { color: T.sub }]}>{label}</Text>
-                      <Text style={[S.sVal, { color: isActive ? activeValColor : valColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                        {isActive ? activeVal : val}
-                      </Text>
-                      <Text style={[S.sSub, { color: isActive ? (activeValColor || T.sub) : T.sub }]}>
-                        {isActive ? (activeSub || ' ') : (sub || ' ')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                };
-                return (
-                  <View style={[S.summaryRow, { marginBottom: 12 }]}>
-                    {mkCard('s_count', '공부 과목', `${subjectAllStats.length}개`, T.text, null,
-                      `${subjectAllStats.length}개`, T.text, `세션 ${totalSess}회`)}
-                    {mkCard('s_time', '총 공부시간', formatDuration(allSec), T.accent,
-                      pureSec > 0 ? `순공 ${formatShort(pureSec)}` : null,
-                      pureSec > 0 ? `순공 ${formatShort(pureSec)}` : '-', T.accent,
-                      pureSec > 0 ? `전체의 ${Math.round(pureSec / allSec * 100)}%` : ' ')}
-                    {mkCard('s_density', '평균 밀도',
-                      avgD > 0 ? `${avgTier.label} ${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub, null,
-                      avgD > 0 ? `${avgD}점` : '-', avgD > 0 ? avgTier.color : T.sub,
-                      avgD > 0 ? avgTier.message : ' ')}
-                  </View>
-                );
-              })()}
-
-              <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
-                <View style={[S.stackBar, { backgroundColor: T.surface2, marginBottom: 14 }]}>
-                  {subjectAllStats.map((s, i) => (
-                    <View key={i} style={[S.stackSeg, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color }]} />
-                  ))}
-                </View>
-                {subjectAllStats.map((s, i) => {
-                  const sTier = getTier(s.avgDensity);
-                  return (
-                    <TouchableOpacity key={i} style={S.subjListItem} onPress={() => setSubjDetail(s.id)} activeOpacity={0.7}>
-                      <View style={[S.subjDot, { backgroundColor: s.color }]} />
-                      <Text style={[S.subjName, { color: T.text, flex: 1 }]} numberOfLines={1}>{s.name}</Text>
-                      <View style={S.subjListBarTrack}>
-                        <View style={[S.subjListBarFill, { width: `${Math.max(2, s.pct)}%`, backgroundColor: s.color + 'CC' }]} />
-                      </View>
-                      <Text style={[S.subjPct, { color: T.sub, minWidth: 28, textAlign: 'right' }]}>{s.pct}%</Text>
-                      {s.avgDensity > 0 && (
-                        <View style={{ backgroundColor: sTier.color + '20', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: sTier.color }}>{sTier.label}</Text>
-                        </View>
-                      )}
-                      <Text style={[S.subjTime, { color: T.text, minWidth: 46, textAlign: 'right' }]}>{formatShort(s.sec)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>)}
-
-            {/* 균형 지표 카드 */}
-            {subjectAllStats.length >= 2 && (() => {
-              const top = subjectAllStats[0];
-              const realLastDate = {};
-              app.sessions.forEach(s => {
-                const { id } = getSessionSubject(s, app.subjects);
-                if (id.startsWith('lbl_') || id === '_none') return;
-                if (!realLastDate[id] || s.date > realLastDate[id]) realLastDate[id] = s.date;
-              });
-              const neglected = [...subjectAllStats]
-                .filter(s => s.id !== top.id)
-                .sort((a, b) => {
-                  const dateCmp = (realLastDate[a.id] || '').localeCompare(realLastDate[b.id] || '');
-                  if (dateCmp !== 0) return dateCmp;
-                  return a.sec - b.sec;
-                })[0];
-              if (!neglected) return null;
-              const lastDate = realLastDate[neglected.id] || '';
-              const daysSince = lastDate
-                ? Math.floor((new Date(today) - new Date(lastDate)) / 864e5)
-                : null;
-              return (
-                <View style={[S.subjInsightCard, { backgroundColor: T.card, borderColor: T.border, borderWidth: 1 }]}>
-                  <Text style={[S.secLabel, { color: T.sub }]}>균형 지표</Text>
-                  <View style={S.subjInsightRow}>
-                    <Ionicons name="trending-up-outline" size={20} color={T.accent} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 집중한 과목</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                        {top.name}
-                        <Text style={{ fontSize: 14, fontWeight: '400', color: T.accent }}>  {formatShort(top.sec)} ({top.pct}%)</Text>
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[S.subjInsightRow, { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }]}>
-                    <Ionicons name="time-outline" size={20} color={T.sub} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, color: T.sub, marginBottom: 2 }}>가장 소홀한 과목</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>
-                        {neglected.name}
-                        {daysSince !== null && daysSince > 0 && (
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: '#E17055' }}>  ({daysSince}일째 미공부)</Text>
-                        )}
-                        {daysSince === 0 && (
-                          <Text style={{ fontSize: 14, fontWeight: '400', color: '#00B894' }}>  (오늘 공부함)</Text>
-                        )}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })()}
+            {renderSubjPeriodRow()}
+            {renderSubjOverview()}
+            {renderSubjBalanceCard()}
           </>)}
 
           {/* 인사이트 — 세로모드 */}
@@ -3152,100 +2284,8 @@ export default function StatsScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: winH * 0.88 - 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
-              {dayDetail && (<>
-                {/* 요약 3개 카드 */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>총 공부시간</Text>
-                    <Text style={[S.sVal, { color: T.accent }]}>{formatDuration(dayDetail.totalSec)}</Text>
-                    {dayDetail.avgDensity > 0 && dayDetail.totalSec > 0 && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                        <Ionicons name="flame" size={11} color="#E17055" />
-                        <Text style={{ fontSize: 11, color: T.sub }}>순공 {formatShort(Math.round(dayDetail.totalSec * dayDetail.avgDensity / 100))}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>집중밀도</Text>
-                    <Text style={[S.sVal, { color: dayDetail.tier.color }]}>
-                      {dayDetail.sessions.length > 0 ? `${dayDetail.tier.label} ${dayDetail.avgDensity}점` : '-'}
-                    </Text>
-                  </View>
-                  <View style={[S.summaryCard, { backgroundColor: T.card, borderColor: T.border, flex: 1 }]}>
-                    <Text style={[S.sLabel, { color: T.sub }]}>세션</Text>
-                    <Text style={[S.sVal, { color: T.text }]}>{dayDetail.sessions.length}회</Text>
-                  </View>
-                </View>
-                {/* 과목 비율 */}
-                {dayDetail.subjects.length > 0 && renderSubjects(dayDetail.subjects, '과목 비율')}
-                {/* 세션 리스트 */}
-                {dayDetail.sessions.length > 0 && (
-                  <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                    <Text style={[S.secLabel, { color: T.sub }]}>세션 기록</Text>
-                    {dayDetail.sessions.map(sess => {
-                      const subj = app.subjects.find(s => s.id === sess.subjectId);
-                      const tier = getTier(sess.focusDensity || 0);
-                      const startH = sess.startedAt ? formatHM(sess.startedAt) : '';
-                      const endH = sess.startedAt ? formatHM(sess.startedAt + (sess.durationSec || 0) * 1000) : '';
-                      return (
-                        <View key={sess.id} style={[S.sessCard, { borderLeftColor: subj ? subj.color : '#B2BEC3' }]}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: subj ? subj.color : '#B2BEC3' }} />
-                              <Text style={{ fontSize: 14, fontWeight: subj ? '700' : '400', color: subj ? T.text : T.sub }}>{subj ? subj.name : (stripLeadingEmoji(sess.label) || '—')}</Text>
-                            </View>
-                            <Text style={{ fontSize: 14, color: T.sub }}>{startH}{endH ? ` ~ ${endH}` : ''}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 14, color: T.accent, fontWeight: '600' }}>{formatShort(sess.durationSec)}</Text>
-                            <View style={[S.tierSmallBadge, { backgroundColor: tier.color + '25' }]}>
-                              <Text style={{ fontSize: 13, color: tier.color, fontWeight: '700' }}>{tier.label} {sess.focusDensity || 0}점</Text>
-                            </View>
-                            {sess.verified && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                <Ionicons name="trophy" size={11} color="#F5A623" />
-                                <Text style={{ fontSize: 11, color: '#F5A623', fontWeight: '700' }}>인증</Text>
-                              </View>
-                            )}
-                            {sess.ultraFocusLevel === 'exam' && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                <Ionicons name="flame" size={11} color="#FF6B6B" />
-                                <Text style={{ fontSize: 11, color: '#FF6B6B', fontWeight: '700' }}>울트라</Text>
-                              </View>
-                            )}
-                          </View>
-                          {sess.memo && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                              <Ionicons name="chatbubble-outline" size={11} color={T.sub} />
-                              <Text style={{ fontSize: 13, color: T.sub }}>{sess.memo}</Text>
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {/* 완료한 할 일 (완료 로그 — 리셋으로 항목이 삭제돼도 보존) */}
-                {(() => {
-                  const doneTodos = (app.todoLog || []).filter(e => e.date === dayDetail.date);
-                  if (doneTodos.length === 0) return null;
-                  return (
-                    <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-                      <Text style={[S.secLabel, { color: T.sub }]}>완료한 할 일 {doneTodos.length}</Text>
-                      {doneTodos.map(e => (
-                        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
-                          <Ionicons name="checkmark-circle" size={14} color={e.subjectColor || '#27AE60'} />
-                          <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={2}>{e.text}</Text>
-                          {e.subjectLabel && <Text style={{ fontSize: 11, color: T.sub }}>{e.subjectLabel}</Text>}
-                        </View>
-                      ))}
-                    </View>
-                  );
-                })()}
-                {dayDetail.sessions.length === 0 && (
-                  <Text style={[S.emptyText, { color: T.sub }]}>이 날은 공부 기록이 없어요</Text>
-                )}
-              </>)}
+              {/* 본문은 가로모드 인라인과 공용 (stats/components/DayDetail.js) */}
+              <DayDetailContent dayDetail={dayDetail} subjects={app.subjects} todoLog={app.todoLog} T={T} S={S} />
             </ScrollView>
           </View>
         </View>

@@ -8,7 +8,8 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.33',
+    version: '1.0.34',
+    platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
     // 이 설정이 포함된 빌드(안드 1.0.33+, iOS 빌드 42+)부터 동작.
@@ -30,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '45',
+      buildNumber: '49', // 48은 2열 그리드 이전 버전 (TestFlight 업로드됨, 미사용)
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -45,6 +46,8 @@ module.exports = {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // 집중 타이머 Live Activity (자체 ActivityKit — modules/live-activity + targets/widgets)
+        NSSupportsLiveActivities: true,
       },
     },
     android: {
@@ -55,7 +58,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 38,
+      versionCode: 56, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
@@ -66,17 +69,8 @@ module.exports = {
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },
     plugins: [
-      [
-        'expo-build-properties',
-        {
-          android: {
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
-            buildToolsVersion: '35.0.0',
-            enablePageAlignedJniLibs: true,
-          },
-        },
-      ],
+      // SDK 56: compileSdk/targetSdk는 SDK 기본값(36) 사용 — 16KB 페이지 정렬도 기본 지원됨.
+      // (구 expo-build-properties android 핀은 제거. Play 정책상 2026-08까지 target 36 필요)
       [
         'expo-notifications',
         {
@@ -84,15 +78,13 @@ module.exports = {
           color: '#FF6B9D',
         },
       ],
-      'expo-av',
+      'expo-asset',
       'expo-font',
-      [
-        'expo-live-activity',
-        {
-          // iOS 16.2 미만 기기에서는 throw 대신 조용히 no-op
-          silentOnUnsupportedOS: true,
-        },
-      ],
+      'expo-sharing',
+      'expo-status-bar',
+      // Live Activity는 자체 ActivityKit 구현 사용: modules/live-activity(네이티브 모듈) +
+      // targets/widgets/FocusLiveActivity.swift(UI — 홈 위젯과 같은 익스텐션).
+      // ※expo-widgets는 빌드46 실기기에서 렌더 불가(빈 카드)로 폐기 (2026-07-09)
       [
         'react-native-android-widget',
         {
@@ -149,12 +141,27 @@ module.exports = {
               resizeMode: 'horizontal|vertical',
               updatePeriodMillis: 1800000,
             },
+            {
+              name: 'TodayTodo',
+              label: '오늘 할 일',
+              description: '오늘 할 일을 확인하고 위젯에서 바로 체크해요',
+              minWidth: '70dp',                   // 1x1까지 축소 가능
+              minHeight: '70dp',
+              targetCellWidth: 2,
+              targetCellHeight: 2,                // 기본 2x2 (할 일 목록)
+              maxResizeWidth: '320dp',
+              maxResizeHeight: '320dp',           // 세로로 키워 할 일 더 노출 가능
+              resizeMode: 'horizontal|vertical',
+              updatePeriodMillis: 1800000,        // 30분 주기 보조 갱신(자정 리셋 등)
+            },
           ],
         },
       ],
       // iOS 홈 화면 위젯 (WidgetKit) — targets/widgets/ 의 Swift 코드를 익스텐션 타겟으로 추가.
       // Android에는 영향 없음(iOS prebuild 전용 플러그인).
       '@bacons/apple-targets',
+      // androidx.work 중복 클래스 정렬 (SDK 56에서 발생 — 파일 주석 참고)
+      './plugins/withAndroidWorkManagerFix',
     ],
     extra: {
       eas: {

@@ -4,7 +4,7 @@ import { AppState, Vibration, Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 const SOUND_FILES = {
   rain:    require('../../assets/sounds/rain.mp3'),
@@ -18,13 +18,13 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
-import { isTodayVisible, applyReorder } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder, applyDailyTodoReset } from '../utils/todoUtils';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
 import { getRandomMessage } from '../constants/characters';
@@ -545,6 +545,26 @@ export function AppProvider({ children }) {
           applyFocusBrightness();
         }
 
+        // 위젯에서 체크한 할 일 반영 + 자정 넘김 리셋 — 순서 보장을 위해 한 체인에서 처리
+        // (재로드가 리셋 뒤에 resolve되면 리셋 결과를 pre-리셋 storage 값으로 되덮기 때문)
+        consumeWidgetTodoDirty().then(async (dirty) => {
+          if (dirty) {
+            // 헤드리스 핸들러가 storage에 직접 썼으므로 재로드
+            // (안 하면 다음 자동저장이 메모리 todos로 덮어써 위젯 체크가 사라짐)
+            const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
+            if (Array.isArray(td)) setTodos(td);
+            if (Array.isArray(tl)) setTodoLog(tl);
+          }
+          // 자정 넘김: 앱을 재시작하지 않고 날이 바뀐 경우에도 할일 일일 리셋 실행
+          // (리셋은 원래 로드 시에만 돌아 밤새 켜두면 어제 완료 잔존/반복 인스턴스 미생성이었음)
+          // lastTodoResetDate가 비어 있으면 아직 초기 로드 전 — 로드 쪽 리셋에 맡긴다
+          const todayNow = getToday();
+          if (settingsRef.current.lastTodoResetDate && settingsRef.current.lastTodoResetDate !== todayNow) {
+            setTodos(prev => applyDailyTodoReset(prev, { today: todayNow, needsReset: true }).todos);
+            setSettings(prev => ({ ...prev, lastTodoResetDate: todayNow }));
+          }
+        });
+
         // 홈 화면 위젯 갱신 (외부에서 자정 넘김/데이터 변동 반영, iOS는 실행 중 앵커 포함)
         updateAllWidgets(timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null);
 
@@ -979,6 +999,11 @@ export function AppProvider({ children }) {
 
   // 백그라운드 알림 예약 — 타이머 시작/재개 시 OS에 미리 등록
   const scheduleTimerNotif = async (timerId, label, seconds, customTitle, customBody) => {
+    // 안드: 종료 시각에 홈 위젯 강제 갱신 알람 — 앱이 죽어 있어도 '집중 중' 해제/오늘합계 반영.
+    // 알림 설정과 무관한 위젯 표시 정확성용이라 notifEnabled 가드보다 먼저 예약한다.
+    if (Platform.OS === 'android' && seconds > 0) {
+      scheduleWidgetRefresh(`widget-refresh-${timerId}`, Date.now() + Math.ceil(seconds) * 1000 + 2000);
+    }
     if (!settingsRef.current.notifEnabled) return;
     try {
       const existingId = notifIdMap.current.get(timerId);
@@ -1042,6 +1067,8 @@ export function AppProvider({ children }) {
   const lockAlarmIds = useRef(new Map()); // timerId -> [네이티브 진동 알람 id]
   const cancelTimerNotif = async (timerId) => {
     try {
+      // 위젯 강제 갱신 알람 취소 — 일시정지/중지/앱 내 완료 시 (앱이 살아 있으면 위젯 effect가 갱신함)
+      cancelWidgetRefresh(`widget-refresh-${timerId}`);
       // 화면 고정용 네이티브 진동 알람도 함께 취소
       const alarmIds = lockAlarmIds.current.get(timerId) || [];
       lockAlarmIds.current.delete(timerId);
@@ -1065,6 +1092,13 @@ export function AppProvider({ children }) {
 
   // 뽀모도로·연속모드: 모든 미래 페이즈 알림 일괄 예약
   const scheduleAllPhaseNotifs = async (timer) => {
+    // 안드: 마지막 페이즈 종료 시각(연속모드는 전체 완료 시각)에 위젯 강제 갱신 알람.
+    // 같은 id 재예약은 기존 알람 대체 — 페이즈 전환마다 호출돼도 1개만 유지된다.
+    if (Platform.OS === 'android') {
+      const allSpecs = buildPhaseNotifSpecs(timer);
+      const lastSpec = allSpecs[allSpecs.length - 1];
+      if (lastSpec) scheduleWidgetRefresh(`widget-refresh-${timer.id}`, lastSpec.absMs + 2000);
+    }
     if (!settingsRef.current.notifEnabled) return;
     // race condition 방지: 같은 타이머에 거의 동시에 여러 번 호출될 때 최신 호출만 실행
     const runId = Date.now() + Math.random();
@@ -1652,14 +1686,14 @@ export function AppProvider({ children }) {
   }, []);
 
   // ═══ 집중 사운드 ═══
-  const soundRefsMap = useRef({}); // { [id]: Audio.Sound }
+  const soundRefsMap = useRef({}); // { [id]: AudioPlayer (expo-audio) }
 
   const stopAllSounds = async () => {
     const entries = Object.entries(soundRefsMap.current);
     soundRefsMap.current = {};
     for (const [, s] of entries) {
-      try { await s.stopAsync(); } catch {}
-      try { await s.unloadAsync(); } catch {}
+      try { s.pause(); } catch {}
+      try { s.remove(); } catch {}
     }
   };
 
@@ -1673,7 +1707,7 @@ export function AppProvider({ children }) {
     for (const id of toRemove) {
       const s = soundRefsMap.current[id];
       delete soundRefsMap.current[id];
-      if (s) { s.stopAsync().catch(() => {}); s.unloadAsync().catch(() => {}); }
+      if (s) { try { s.pause(); } catch {} try { s.remove(); } catch {} }
     }
 
     const toAdd = activeSounds.filter(id => !currentIds.includes(id) && SOUND_FILES[id]);
@@ -1681,17 +1715,16 @@ export function AppProvider({ children }) {
 
     let cancelled = false;
     const loadNew = async () => {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
       for (const id of toAdd) {
         if (cancelled) break;
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            SOUND_FILES[id],
-            { isLooping: true, volume: (settings.soundVolume ?? 70) / 100 }
-          );
-          if (cancelled) { sound.unloadAsync().catch(() => {}); break; }
-          soundRefsMap.current[id] = sound;
-          await sound.playAsync();
+          const player = createAudioPlayer(SOUND_FILES[id]);
+          player.loop = true;
+          player.volume = (settings.soundVolume ?? 70) / 100;
+          if (cancelled) { try { player.remove(); } catch {} break; }
+          soundRefsMap.current[id] = player;
+          player.play();
         } catch {}
       }
     };
@@ -1703,7 +1736,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (loading) return;
     const vol = (settings.soundVolume ?? 70) / 100;
-    Object.values(soundRefsMap.current).forEach(s => s.setVolumeAsync(vol).catch(() => {}));
+    Object.values(soundRefsMap.current).forEach(s => { try { s.volume = vol; } catch {} });
   }, [settings.soundVolume, loading]);
 
   // 앱 종료 시 정리
@@ -1798,46 +1831,17 @@ export function AppProvider({ children }) {
           migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
           setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
         }
-        // 반복 템플릿에서 오늘 할일 자동 생성 헬퍼
-        const todayDay = new Date().getDay();
-        const genFromTemplates = (base) => {
-          const templates = base.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
-          const toAdd = [];
-          templates.forEach(tmpl => {
-            if (!tmpl.repeatDays.includes(todayDay)) return;
-            if (base.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === today)) return;
-            toAdd.push({
-              id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
-              repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
-              subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
-              priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
-              memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
-              templateId: tmpl.id, createdDate: today,
-            });
-          });
-          return toAdd;
-        };
-        // 반복(고정) 할 일의 지난날 미완료 인스턴스는 이월하지 않음 — 템플릿이 매일 새 항목을
-        // 생성하므로, 미완료 이월(!done 유지)과 겹치면 못 한 날마다 같은 항목이 하나씩 쌓였다
-        // (사용자 제보: 이틀 못 하면 3일째 3개). 완료 표시된 것은 그날 목록 유지(다음 리셋 때 정리).
-        const isStaleTemplateInstance = (t) =>
-          !t.isTemplate && t.templateId && t.createdDate !== today && !t.done;
-        if (mergedSettings.lastTodoResetDate !== today) {
-          const resetTodos = migrated
-            .filter(t => !isStaleTemplateInstance(t) && (t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today')))
-            .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
-          const generated = genFromTemplates(resetTodos);
-          const finalTodos = generated.length > 0 ? [...resetTodos, ...generated] : resetTodos;
-          setTodos(finalTodos);
+        // 일일 리셋 파이프라인 (규칙/구현: todoUtils.applyDailyTodoReset, 테스트 有)
+        // — 지난날 반복 인스턴스 정리 + (날 바뀌었으면) 완료 항목 리셋 + 오늘 반복 인스턴스 생성
+        const needsReset = mergedSettings.lastTodoResetDate !== today;
+        const { todos: finalTodos, changed } = applyDailyTodoReset(migrated, { today, needsReset });
+        setTodos(finalTodos);
+        if (needsReset) {
           await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
-        } else {
-          // 같은 날 재실행에서도 이미 쌓인 지난날 중복을 즉시 정리 (업데이트 직후 자가 치유)
-          const pruned = migrated.filter(t => !isStaleTemplateInstance(t));
-          const generated = genFromTemplates(pruned);
-          const finalTodos = generated.length > 0 ? [...pruned, ...generated] : pruned;
-          setTodos(finalTodos);
-          if (generated.length > 0 || pruned.length !== migrated.length) await saveTodos(finalTodos);
+        } else if (changed) {
+          // 같은 날 재실행의 자가 치유(지난날 중복 정리 등)도 즉시 저장
+          await saveTodos(finalTodos);
         }
       }
       if (cuf) setCountupFavs(cuf);
@@ -1921,7 +1925,21 @@ export function AppProvider({ children }) {
   const saveRef = useRef(null);
   useEffect(() => {
     if (loading) return; clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => { saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays); saveTodos(todos); saveTodoLog(todoLog); saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule); }, 500);
+    saveRef.current = setTimeout(async () => {
+      saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays);
+      // 위젯이 storage의 todos를 직접 수정했으면(오늘할일 체크) 메모리로 덮어쓰지 않고 재로드.
+      // 앱 JS가 백그라운드에 살아있는 동안(실행 중 타이머의 포그라운드 서비스) 다른 상태 변화로
+      // autosave가 돌면, 이 가드 없이는 위젯 체크가 stale 메모리에 덮여 조용히 풀린다.
+      // 재로드된 setTodos가 다음 사이클의 autosave를 다시 트리거하므로 저장 누락은 없다.
+      if (await consumeWidgetTodoDirty()) {
+        const [td, tl] = await Promise.all([loadTodos(), loadTodoLog()]);
+        if (Array.isArray(td)) setTodos(td);
+        if (Array.isArray(tl)) setTodoLog(tl);
+      } else {
+        saveTodos(todos); saveTodoLog(todoLog);
+      }
+      saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
+    }, 500);
   }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
@@ -1943,7 +1961,7 @@ export function AppProvider({ children }) {
       const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
       updateAllWidgets(active);
     }, 900);
-  }, [sessions, subjects, ddays, settings, widgetTimerSig, loading]);
+  }, [sessions, subjects, ddays, settings, todos, widgetTimerSig, loading]);
 
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
@@ -2118,6 +2136,33 @@ export function AppProvider({ children }) {
   const addSubject = useCallback((s) => { const n = { id: generateId('subj_'), totalElapsedSec: 0, isFavorite: false, createdAt: new Date().toISOString(), ...s }; setSubjects(prev => [...prev, n]); return n; }, []);
   const removeSubject = useCallback((id) => setSubjects(prev => prev.filter(s => s.id !== id)), []);
   const updateSubject = useCallback((id, u) => setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...u } : s)), []);
+  // 과목 이름/색상 편집 — 비정규화 복사본(할일 subjectLabel/Color, 과목형 플래너 블록, 실행 중 타이머)까지 전파
+  const editSubject = useCallback((id, changes) => {
+    const before = subjects.find(s => s.id === id);
+    if (!before) return;
+    setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...changes } : s));
+    const name = changes.name ?? before.name;
+    const color = changes.color ?? before.color;
+    if (name === before.name && color === before.color) return;
+    setTodos(prev => prev.map(t => t.subjectId === id ? { ...t, subjectLabel: name, subjectColor: color } : t));
+    // 과목형 플래너 블록은 생성 시 과목 이름/색을 복사해 저장 (ScheduleEditorScreen) — 함께 갱신
+    setWeeklySchedule(prev => {
+      if (!prev) return prev;
+      let touched = false;
+      const next = { ...prev };
+      ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(k => {
+        const day = prev[k];
+        if (!Array.isArray(day?.plans) || !day.plans.some(p => p.subjectId === id)) return;
+        touched = true;
+        next[k] = { ...day, plans: day.plans.map(p => p.subjectId === id ? { ...p, label: name, color } : p) };
+      });
+      return touched ? next : prev;
+    });
+    // 과목에서 시작한 실행 중 타이머(라벨=과목명)도 새 이름/색으로
+    setTimers(prev => prev.map(t => t.subjectId === id ? { ...t, color, label: t.label === before.name ? name : t.label } : t));
+  }, [subjects]);
+  // 드래그 정렬 커밋: 표시 순서(orderedIds)대로 subjects 배열 재배치 — 배열 순서가 곧 수동 순서
+  const reorderSubjects = useCallback((orderedIds) => setSubjects(prev => applyReorder(prev, orderedIds)), []);
   const addDDay = useCallback((dd) => { const n = { id: generateId('dd_'), isPrimary: ddays.length === 0, ...dd }; setDDays(prev => [...prev, n]); return n; }, [ddays]);
   const removeDDay = useCallback((id) => { setDDays(prev => { const f = prev.filter(d => d.id !== id); if (f.length > 0 && !f.some(d => d.isPrimary)) f[0].isPrimary = true; return f; }); }, []);
   const updateDDay = useCallback((id, changes) => { setDDays(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d)); }, []);
@@ -2212,27 +2257,7 @@ export function AppProvider({ children }) {
   const updateTodo = useCallback((id, fields) => setTodos(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t)), []);
   // 드래그 정렬 커밋: 그룹 항목들을 배열 내 기존 자리에 새 순서로 재배치 (그룹 밖 위치 불변)
   const reorderTodos = useCallback((orderedIds) => setTodos(prev => applyReorder(prev, orderedIds)), []);
-  const generateDailyTodos = useCallback(() => {
-    const todayDay = new Date().getDay();
-    const todayStr = getToday();
-    setTodos(prev => {
-      const templates = prev.filter(t => t.isTemplate && t.repeatDays && t.repeatDays.length > 0);
-      const toAdd = [];
-      templates.forEach(tmpl => {
-        if (!tmpl.repeatDays.includes(todayDay)) return;
-        if (prev.some(t => !t.isTemplate && t.templateId === tmpl.id && t.createdDate === todayStr)) return;
-        toAdd.push({
-          id: generateId('todo_'), text: tmpl.text, done: false, completedAt: null,
-          repeat: false, subjectId: tmpl.subjectId ?? null, subjectLabel: tmpl.subjectLabel ?? null,
-          subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
-          priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
-          memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
-          templateId: tmpl.id, createdDate: todayStr,
-        });
-      });
-      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
-    });
-  }, []);
+  // (반복 인스턴스 생성은 applyDailyTodoReset 파이프라인으로 통합 — 로드/자정 넘김 두 경로 공용)
 
   // 할일 헬퍼 함수 — '오늘'은 오늘 목록 소속 + 기한 도래 항목 (isTodayVisible, My Day 모델)
   const getTodayTodos = useCallback(() =>
@@ -2336,10 +2361,10 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       loading, settings, updateSettings,
-      subjects, addSubject, removeSubject, updateSubject,
+      subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, generateDailyTodos, todoLog,
+      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,

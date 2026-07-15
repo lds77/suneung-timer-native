@@ -14,7 +14,7 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const seed = ({ sessions = [], subjects = [], settings = {}, ddays = [], weekly = null, timerSnap = null }) => {
+const seed = ({ sessions = [], subjects = [], settings = {}, ddays = [], weekly = null, timerSnap = null, todos = [] }) => {
   mockStore = {
     '@yeolgong/sessions': JSON.stringify(sessions),
     '@yeolgong/subjects': JSON.stringify(subjects),
@@ -22,6 +22,7 @@ const seed = ({ sessions = [], subjects = [], settings = {}, ddays = [], weekly 
     '@yeolgong/ddays': JSON.stringify(ddays),
     '@yeolgong/weeklySchedule': weekly === null ? null : JSON.stringify(weekly),
     '@yeolgong/timerSnapshot': timerSnap === null ? null : JSON.stringify(timerSnap),
+    '@yeolgong/todos': JSON.stringify(todos),
   };
 };
 
@@ -75,6 +76,54 @@ describe('getWidgetData 과목 합산', () => {
     seed({ subjects: SUBJECTS });
     const d = await getWidgetData();
     expect(d.date).toBe(today);
+  });
+});
+
+describe('getWidgetData 오늘 할 일', () => {
+  const today = todayStr();
+
+  test('오늘 탭 판정(My Day)과 동일 — 오늘 목록 + 기한 도래분, 미래 기한/템플릿 제외, 미완료 먼저', async () => {
+    seed({
+      subjects: SUBJECTS,
+      todos: [
+        { id: 'a', text: '완료한 것', scope: 'today', done: true, completedAt: Date.now() },
+        { id: 'b', text: '오늘 목록', scope: 'today', done: false },
+        { id: 'c', text: '미래 기한', scope: 'today', done: false, dueDate: '2099-01-01' },     // 예정 → 제외
+        { id: 'd', text: '기한 도래 커스텀', scope: 'list_x', done: false, dueDate: today },     // 오늘 등장
+        { id: 'e', text: '기한 없는 커스텀', scope: 'list_x', done: false },                     // 제외
+        { id: 'f', text: '템플릿', scope: 'today', done: false, isTemplate: true, repeatDays: [0,1,2,3,4,5,6] },
+      ],
+    });
+    const d = await getWidgetData();
+    expect(d.todos.map(t => t.id)).toEqual(['b', 'd', 'a']); // 미완료 먼저, 완료 뒤
+    expect(d.todoDone).toBe(1);
+    expect(d.todoTotal).toBe(3);
+  });
+
+  test('완료 항목은 완료한 그날만 표시 — 앱을 안 연 날 어제 체크가 위젯에 남지 않도록', async () => {
+    const yesterday = Date.now() - 86400000 * 1;
+    seed({
+      subjects: SUBJECTS,
+      todos: [
+        { id: 'a', text: '어제 완료', scope: 'today', done: true, completedAt: yesterday },
+        { id: 'b', text: '오늘 완료', scope: 'today', done: true, completedAt: Date.now() },
+        { id: 'c', text: '완료시각 없는 완료(구데이터)', scope: 'today', done: true, completedAt: null },
+        { id: 'd', text: '미완료', scope: 'today', done: false },
+      ],
+    });
+    const d = await getWidgetData();
+    expect(d.todos.map(t => t.id)).toEqual(['d', 'b']);
+    expect(d.todoDone).toBe(1);
+    expect(d.todoTotal).toBe(2);
+  });
+
+  test('8개 초과는 잘리지만 카운트는 전체 기준', async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({ id: `t${i}`, text: `할일${i}`, scope: 'today', done: i < 2, completedAt: i < 2 ? Date.now() : null }));
+    seed({ subjects: SUBJECTS, todos: many });
+    const d = await getWidgetData();
+    expect(d.todos.length).toBe(8);
+    expect(d.todoTotal).toBe(11);
+    expect(d.todoDone).toBe(2);
   });
 });
 

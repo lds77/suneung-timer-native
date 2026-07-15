@@ -289,11 +289,16 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
             }
             groupMap[key].todos.push(t);
           });
-          // 미완료 많은 순 정렬 (미분류는 마지막)
+          // 과목 탭과 동일한 순서(즐겨찾기 우선 + 수동 순서)로 고정 — 체크/추가해도 그룹 위치가 안 바뀜.
+          // 삭제된 과목은 뒤로, 미분류는 마지막 (안정 정렬이라 동순위끼리는 등장 순서 유지)
+          const subjRank = new Map();
+          [...(app.subjects || [])]
+            .sort((a, b) => (!!b.isFavorite === !!a.isFavorite) ? 0 : (b.isFavorite ? 1 : -1))
+            .forEach((s, i) => subjRank.set(s.id, i));
           groupOrder.sort((a, b) => {
             if (a === '__none__') return 1;
             if (b === '__none__') return -1;
-            return groupMap[b].todos.filter(t => !t.done).length - groupMap[a].todos.filter(t => !t.done).length;
+            return (subjRank.get(a) ?? 1e9) - (subjRank.get(b) ?? 1e9);
           });
 
           // orderedIds: 이 행이 속한 그룹의 미완료 id 목록(표시 순서) — 드래그 정렬 범위

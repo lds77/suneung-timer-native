@@ -65,6 +65,7 @@ const WIDGET_RENDERERS = {
   DDay: (React, W, data, info) => React.createElement(W.DDayWidget, { data, width: info.width, height: info.height }),
   SubjectLauncher: (React, W, data, info) => React.createElement(W.SubjectLauncherWidget, { data, width: info.width, height: info.height }),
   TodayPlan: (React, W, data, info) => React.createElement(W.TodayPlanWidget, { data, width: info.width, height: info.height }),
+  TodayTodo: (React, W, data, info) => React.createElement(W.TodayTodoWidget, { data, width: info.width, height: info.height }),
 };
 
 // 모든 열공메이트 위젯을 한 번에 갱신 (activeTimer: iOS 실시간 카운팅용, 옵션)
@@ -79,6 +80,7 @@ export async function updateAllWidgets(activeTimer = null) {
       DDayWidget: require('./DDayWidget').DDayWidget,
       SubjectLauncherWidget: require('./SubjectLauncherWidget').SubjectLauncherWidget,
       TodayPlanWidget: require('./TodayPlanWidget').TodayPlanWidget,
+      TodayTodoWidget: require('./TodayTodoWidget').TodayTodoWidget,
     };
     const { getWidgetData, activeRunningInfo } = require('./widgetData');
     const data = await getWidgetData();

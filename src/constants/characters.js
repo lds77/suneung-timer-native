@@ -43,18 +43,18 @@ export const getTodoMessage = (completedCount, allDone, characterId) => {
   }
   if (completedCount >= 5) {
     const msgs = {
-      toru:   '5개 완료! 오늘 정말 알차다!',
-      paengi: '다섯 개?! 레전드다 레전드!!',
-      taco:   '5개. 오늘 집중력 미쳤다.',
-      totoru: '5개 완료. 대단하다. 진심으로.',
+      toru:   `${completedCount}개 완료! 오늘 정말 알차다!`,
+      paengi: `${completedCount}개?! 레전드다 레전드!!`,
+      taco:   `${completedCount}개. 오늘 집중력 미쳤다.`,
+      totoru: `${completedCount}개 완료. 대단하다. 진심으로.`,
     };
     return msgs[char] || msgs.toru;
   }
-  if (completedCount >= 3) {
+  if (completedCount >= 2) {
     const msgs = {
-      toru:   '벌써 3개나! 정말 대단해!',
-      paengi: '3개?! 완전 열공 모드잖아!!',
-      taco:   '3개 완료. 꽤 괜찮은 페이스.',
+      toru:   `벌써 ${completedCount}개나! 정말 대단해!`,
+      paengi: `${completedCount}개?! 완전 열공 모드잖아!!`,
+      taco:   `${completedCount}개 완료. 꽤 괜찮은 페이스.`,
       totoru: '착착 해나가고 있어. 멋지다.',
     };
     return msgs[char] || msgs.toru;

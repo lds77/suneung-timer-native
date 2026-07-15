@@ -714,6 +714,7 @@ export default function SettingsScreen() {
                 { icon: 'calendar-number-outline', title: 'D-Day', desc: '시험까지 남은 일수를 한눈에' },
                 { icon: 'play-circle-outline', title: '과목 바로 시작', desc: '탭 한 번으로 그 과목 타이머 시작' },
                 { icon: 'checkbox-outline', title: '오늘 계획', desc: '플래너의 오늘 계획을 눌러서 바로 시작' },
+                { icon: 'checkmark-done-outline', title: '오늘 할 일', desc: Platform.OS === 'android' ? '남은 할 일을 위젯에서 바로 체크' : '오늘 할 일 진행률과 다음 할 일을 한눈에' },
               ].map((w) => (
                 <View key={w.title} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                   <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -845,7 +846,7 @@ export default function SettingsScreen() {
               </GuideSection>
 
               {/* 타이머 종류 */}
-              <GuideSection id="timers" title="타이머 4가지" color="#00B4D8" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+              <GuideSection id="timers" title="타이머 5가지" color="#00B4D8" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
                 {'카운트다운\n목표 시간을 정해놓고 카운트다운해요. 끝나면 완료 알림!\n\n자유(카운트업)\n시간 제한 없이 올라가는 스톱워치예요. 원할 때 직접 종료해요.\n\n뽀모도로\n집중(25분) → 휴식(5분)을 자동으로 반복해요.\n설정에서 집중·휴식 시간을 자유롭게 바꿀 수 있어요.\n\n연속모드\n여러 과목을 순서대로 이어서 실행해요.\n예) 수학 40분 → 영어 30분 → 국어 20분\n각 과목이 끝날 때마다 알림이 울리고 자동으로 다음으로 넘어가요.\n\n랩 스톱워치\n랩(구간) 기록을 남길 수 있는 스톱워치예요.\n문제 풀이 속도를 측정할 때 유용해요!'}
               </GuideSection>
 
@@ -886,7 +887,7 @@ export default function SettingsScreen() {
 
               {/* 집중밀도 */}
               <GuideSection id="density" title="집중밀도란?" color="#6C5CE7" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 "얼마나 몰입했는지"를 56~103점으로 측정해요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 집중 도전 이탈 0회 → Verified 최대 +15점\n• 편하게 공부 완료 시에도 +5점 보너스\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
+                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 일시정지·이탈·완주율·자가평가 같은 타이머 사용 습관으로 계산하는 56~103점 참고 점수예요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 집중 도전 이탈 0회 → Verified 최대 +15점\n• 편하게 공부 완료 시에도 +5점 보너스\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}
@@ -911,7 +912,9 @@ export default function SettingsScreen() {
 
               {/* 스마트 할 일 */}
               <GuideSection id="todo" title="스마트 할 일" color="#00B894" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'집중탭 하단의 할 일 카드에서 사용해요.\n\n빠른 추가\n• 내 과목 칩을 탭하면 과목이 미리 선택된 상태로 입력 모달이 열려요\n• 추가 후 모달이 닫히지 않아 연속으로 여러 개를 빠르게 추가할 수 있어요\n\n기한 설정\n• [오늘] — 오늘 완료할 할 일\n• [이번주] — 이번 주 안에 할 일\n• [시험] — D-Day에 연결된 체크리스트. 시험 탭에서 D-Day별로 묶여 보여요\n\n반복 할 일\n• [매일], [주중], [주말], [직접선택]으로 반복 주기를 설정할 수 있어요\n• 해당 요일에 자동으로 오늘 할 일에 추가돼요\n\n시험이 7일 이내로 다가오면 집중탭에 경고 배너가 표시돼요'}
+                {'집중탭 하단의 할 일 카드에서 사용해요.\n\n목록으로 정리\n• 오늘 — 오늘 처리할 할 일이 모여요\n• D-Day — 시험에 연결된 체크리스트예요. D-Day별로 묶여 보여요\n• + 버튼으로 "기말"처럼 나만의 목록을 만들 수 있어요\n\n추가와 편집\n• 입력창에 적고 추가를 누르면 끝! 옆의 옵션 버튼으로 과목·목록·날짜·반복·우선순위·메모까지 한 번에 설정할 수 있어요\n• 날짜를 미래로 정하면 "예정"에 있다가 그날 오늘 할 일로 자동으로 올라와요\n• 오른쪽 핸들(=)을 끌어서 순서를 바꿀 수 있어요\n\n집중 시작 — 타이머 연동\n• 할 일을 탭해 펼치고 "집중 시작"을 누르면 그 할 일로 타이머가 바로 시작돼요\n• 공부를 마치면 결과 화면에서 완료 체크까지 한 번에! 공부한 시간도 할 일에 누적 표시돼요\n• 오늘 못 한 할 일은 "내일로"로 미룰 수 있어요\n\n반복 할 일\n• 매일, 주중, 주말, 직접선택으로 반복 주기를 설정할 수 있어요\n• 해당 요일에 자동으로 오늘 할 일에 추가돼요\n'
+                + (Platform.OS === 'android' ? '\n홈 화면의 오늘 할 일 위젯에서는 앱을 열지 않고도 바로 체크할 수 있어요\n' : '')
+                + '\n시험이 7일 이내로 다가오면 집중탭에 경고 배너가 표시돼요'}
               </GuideSection>
 
               {/* 알림 팁 */}
