@@ -9,6 +9,8 @@ import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import TodoSection from './focus/TodoSection';
 import { pomoPhaseTargetSec } from '../utils/pomo';
+import { maybeAskReview } from '../utils/reviewAsk';
+import { getDensityBreakdown } from '../utils/density';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
 import Stepper from '../components/Stepper';
@@ -159,6 +161,7 @@ export default function FocusScreen() {
   const [resultSelfRating, setResultSelfRating] = useState(null);
   const [resultMemo, setResultMemo] = useState('');
   const [resultTodoDone, setResultTodoDone] = useState(false); // 결과 모달: 연결된 할 일 완료로 표시
+  const [resultShowBreakdown, setResultShowBreakdown] = useState(false); // 결과 모달: 점수 상세 펼침
 
   // 결과 모달 닫기 공통 처리 (확인/건너뛰기/뒤로가기) — 할일 완료 토글 반영 + 입력 상태 리셋
   const closeResultModal = () => {
@@ -172,6 +175,9 @@ export default function FocusScreen() {
     setResultSelfRating(null);
     setResultMemo('');
     setResultTodoDone(false);
+    setResultShowBreakdown(false);
+    // 스토어 리뷰 요청 — 모달 닫힘 애니메이션 후 (정책·빈도 제한은 reviewAsk가 판정)
+    setTimeout(() => maybeAskReview(app.sessions.length, app.settings, app.updateSettings), 700);
   };
 
   const mainScrollRef = useRef(null);
@@ -1662,6 +1668,7 @@ export default function FocusScreen() {
               const selfBonus = (resultSelfRating === 'fire' || resultSelfRating === 'perfect') ? 3 : 0;
               const displayDensity = Math.max(56, Math.min(103, (app.completedResultData.result.density || 0) + selfBonus));
               const displayTier = getTier(displayDensity);
+              const inputs = app.completedResultData.result.densityInputs; // 구 스냅샷 결과엔 없을 수 있음
               return (
                 <View style={{ alignItems: 'center', marginBottom: 16 }}>
                   <View style={[S.resTier, { backgroundColor: displayTier.color + '20', marginBottom: 4 }]}>
@@ -1674,6 +1681,37 @@ export default function FocusScreen() {
                     {formatDuration(app.completedResultData.result.durationSec || 0)}
                     {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
                   </Text>
+                  {/* 점수 근거 — 타이머 사용 행동 기반이라는 걸 투명하게 보여줌 */}
+                  {inputs && (
+                    <TouchableOpacity onPress={() => setResultShowBreakdown(v => !v)} activeOpacity={0.7}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, paddingVertical: 3, paddingHorizontal: 8 }}>
+                      <Text style={{ fontSize: 12, color: T.sub, fontWeight: '700' }}>점수 상세</Text>
+                      <Ionicons name={resultShowBreakdown ? 'chevron-up' : 'chevron-down'} size={12} color={T.sub} />
+                    </TouchableOpacity>
+                  )}
+                  {inputs && resultShowBreakdown && (() => {
+                    const bd = getDensityBreakdown({ ...inputs, selfRating: resultSelfRating });
+                    const rows = [
+                      { label: '완료', val: `${bd.completionScore}/40` },
+                      { label: `습관 · 일시정지 ${inputs.pausedCount || 0}회`, val: `${bd.habitScore}/30` },
+                      { label: '지속력', val: `${bd.persistenceBonus}/15` },
+                      { label: inputs.focusMode === 'screen_on' ? `집중 도전 · 이탈 ${inputs.exitCount || 0}회` : '편하게 공부', val: `+${bd.declarationBonus}` },
+                      { label: '자가평가', val: `+${bd.selfBonus}` },
+                    ];
+                    return (
+                      <View style={{ alignSelf: 'stretch', backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 6 }}>
+                        {rows.map(r => (
+                          <View key={r.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 12, color: T.sub }}>{r.label}</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: T.text }}>{r.val}</Text>
+                          </View>
+                        ))}
+                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 4 }}>
+                          타이머 사용 습관으로 계산하는 참고 점수예요 · 최저 56점(C) 보장
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               );
             })()}

@@ -87,16 +87,18 @@ export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 
     totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
     completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
   }
-  const d = calculateDensity({
+  const densityInputs = {
     pausedCount: t.pauseCount, totalSec,
     timerType, completionRatio,
     pomoSets: t.pomoSet || 0, focusMode,
     exitCount, schoolLevel, ultraFocusLevel,
-  });
+  };
+  const d = calculateDensity(densityInputs);
   return {
     density: d, tier: getTier(d), focusMode, exitCount,
     verified: focusMode === 'screen_on' && exitCount === 0,
     durationSec: totalSec,
+    densityInputs, // 결과 모달 점수 상세(getDensityBreakdown)용 — selfRating은 표시 시점에 합성
   };
 };
 

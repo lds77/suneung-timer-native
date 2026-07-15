@@ -23,6 +23,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
+import { backupRowSub } from '../utils/backupNudge';
 import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
@@ -771,11 +772,12 @@ export default function SettingsScreen() {
               const path = `${FileSystem.cacheDirectory}yeolgong_backup_${date}.json`;
               await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
               await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
+              app.updateSettings({ lastBackupAt: Date.now() }); // 공유 시트가 닫힌 시점 = 백업으로 간주
             } catch (e) {
               Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
             }
           }}>
-            <Row T={T} label="데이터 백업" sub="JSON 파일로 내보내기" right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
+            <Row T={T} label="데이터 백업" sub={backupRowSub(app.settings)} right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
           <TouchableOpacity onPress={async () => {
             try {

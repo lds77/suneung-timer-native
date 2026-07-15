@@ -21,6 +21,7 @@ const SOUND_FILES = {
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { isTodayVisible, applyReorder, applyDailyTodoReset } from '../utils/todoUtils';
+import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
@@ -1941,6 +1942,18 @@ export function AppProvider({ children }) {
       saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
     }, 500);
   }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
+
+  // 백업 넛지 — 로드 완료 후 1회 판정 (기록 20세션+, 마지막 백업/넛지에서 30일 경과 시 토스트)
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      if (shouldNudgeBackup(sessions.length, settings)) {
+        showToastCustom('공부 기록이 오래 백업되지 않았어요. 설정 > 데이터 백업 추천!', settings.mainCharacter || 'toru');
+        setSettings(prev => ({ ...prev, lastBackupNudgeAt: Date.now() }));
+      }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로

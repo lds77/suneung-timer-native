@@ -80,7 +80,7 @@ React.createElement = function (type, props, ...children) {
 };
 
 
-// ── 온보딩 (6단계) ──
+// ── 온보딩 (5단계) ──
 function OnboardingScreen() {
   const app = useApp();
   const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목, 5=15초체험
@@ -240,9 +240,9 @@ function OnboardingScreen() {
   return (
     <SafeAreaView style={[styles.onboarding, { backgroundColor: T.bg }]}>
       <StatusBar barStyle="dark-content" />
-      {/* 진행 표시 (6단계) */}
+      {/* 진행 표시 (5단계) */}
       <View style={styles.obProgress}>
-        {[0,1,2,3,4,5].map(i => (
+        {[0,1,2,3,4].map(i => (
           <View key={i} style={[styles.obDot, { backgroundColor: i <= step ? T.accent : T.border }]} />
         ))}
       </View>
@@ -476,278 +476,15 @@ function OnboardingScreen() {
             <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(3)}>
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(5)}>
-              <Text style={styles.obBtnT}>다음 →</Text>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={handleFinish}>
+              <Text style={styles.obBtnT}>시작하기!</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-
-      {/* ═══ Step 5: 15초 집중 체험 ═══ */}
-      {step === 5 && <OnboardingTrial T={T} selected={selected} handleFinish={handleFinish} goBack={() => setStep(4)} />}
 
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-// ── 온보딩 15초 체험 컴포넌트 ──
-function OnboardingTrial({ T, selected, handleFinish, goBack }) {
-  const app = useApp();
-  const TRIAL_SEC = 15;
-  const [phase, setPhase] = useState('ready'); // ready → running → done
-  const [remain, setRemain] = useState(TRIAL_SEC);
-  const [elapsed, setElapsed] = useState(0);
-  const [viewMode, setViewMode] = useState('default'); // mini | default | full
-  const intervalRef = useRef(null);
-  const startedAtRef = useRef(null);
-
-  const startTrial = () => {
-    setPhase('running');
-    setRemain(TRIAL_SEC);
-    setElapsed(0);
-    startedAtRef.current = Date.now();
-    intervalRef.current = setInterval(() => {
-      const el = Math.floor((Date.now() - startedAtRef.current) / 1000);
-      const r = Math.max(0, TRIAL_SEC - el);
-      setElapsed(el);
-      setRemain(r);
-      if (r <= 0) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        setPhase('done');
-      }
-    }, 200);
-  };
-
-  const skipTrial = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    handleFinish();
-  };
-
-  const finishWithSession = () => {
-    const firstSubject = app.subjects.length > 0 ? app.subjects[0] : null;
-    app.recordSession({
-      subjectId: firstSubject?.id || null,
-      label: firstSubject?.name || '체험',
-      startedAt: startedAtRef.current,
-      durationSec: TRIAL_SEC,
-      mode: 'countdown',
-      timerType: 'countdown',
-      completionRatio: 1,
-      focusMode: 'screen_on',
-      densityOverride: 95,
-    });
-    handleFinish();
-  };
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
-  const progress = elapsed / TRIAL_SEC;
-  const timeStr = `0:${String(remain).padStart(2, '0')}`;
-
-  const Svg = require('react-native-svg').default;
-  const { Circle } = require('react-native-svg');
-
-  const screenW = Dimensions.get('window').width;
-  const onbTablet = screenW >= 600;
-  // 실제 FocusScreen과 동일한 링 크기 (태블릿 대응)
-  const RING_DEF = onbTablet ? Math.min(screenW * 0.38, 340) : Math.min(screenW - 72, 248);
-  const STROKE_DEF = onbTablet ? 16 : 14;
-  const R_DEF = (RING_DEF - STROKE_DEF) / 2;
-  const C_DEF = 2 * Math.PI * R_DEF;
-
-  const RING_FULL = onbTablet ? Math.min(screenW * 0.5, 460) : Math.min(screenW - 40, 300);
-  const STROKE_FULL = onbTablet ? 20 : 16;
-  const R_FULL = (RING_FULL - STROKE_FULL) / 2;
-  const C_FULL = 2 * Math.PI * R_FULL;
-
-  // 뷰 모드 전환 탭
-  const ViewModeTab = () => (
-    <View style={{ flexDirection: 'row', backgroundColor: T.surface2, borderRadius: 8, padding: 2, gap: 1 }}>
-      {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
-        <TouchableOpacity key={opt.id} onPress={() => setViewMode(opt.id)}
-          style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: viewMode === opt.id ? T.accent : 'transparent' }}>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: viewMode === opt.id ? 'white' : T.sub }}>{opt.label}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  return (
-    <View style={[styles.obStep, phase === 'running' && { paddingHorizontal: 0 }]}>
-      {phase === 'ready' && (
-        <>
-          <CharacterAvatar characterId={selected} size={72} mood="happy" />
-          <Text style={[styles.obTitle, { color: T.text, marginTop: 12 }]}>15초 집중 체험</Text>
-          <Text style={[styles.obSub, { color: T.sub, lineHeight: 20 }]}>
-            타이머가 어떻게 동작하는지{'\n'}잠깐 체험해 볼까?
-          </Text>
-          <View style={{ marginTop: 20, gap: 10, width: '100%', paddingHorizontal: 20 }}>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent }]} onPress={startTrial}>
-              <Text style={styles.obBtnT}>15초 집중 시작</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={skipTrial}>
-              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>건너뛰기</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }}>
-            <Text style={{ color: T.sub, fontSize: 13 }}>← 이전</Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {phase === 'running' && (
-        <View style={{ flex: 1, width: '100%' }}>
-          {/* ── 미니 모드: 상단 1줄 바 ── */}
-          {viewMode === 'mini' && (
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 8,
-                backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border }}>
-                <Ionicons name="alarm-outline" size={16} color={T.accent} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }} numberOfLines={1}>15초 체험</Text>
-                <Text style={{ fontSize: 22, fontWeight: '900', color: T.accent, fontVariant: ['tabular-nums'], minWidth: 70, textAlign: 'right' }}>
-                  {timeStr}
-                </Text>
-                <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#E8404720' }}>
-                  <Text style={{ fontSize: 15, color: '#E84047' }}>||</Text>
-                </View>
-                <ViewModeTab />
-              </View>
-              {/* 미니 모드 아래 빈 공간 — 실제 앱에서는 과목 카드 등이 보이는 영역 */}
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 }}>
-                <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', lineHeight: 20 }}>
-                  미니 모드에서는 상단에 타이머가{'\n'}작게 표시되고 아래에 과목 카드가 보여요
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ── 기본 모드: 카드 + 링 타이머 ── */}
-          {viewMode === 'default' && (
-            <View style={{ flex: 1 }}>
-              <View style={{ backgroundColor: T.card, borderWidth: 1.5, borderColor: T.accent, borderRadius: T.cardRadius, margin: 10, padding: 16, paddingBottom: 14 }}>
-                {/* 상단 행 */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Ionicons name="alarm-outline" size={15} color={T.accent} />
-                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: T.text }}>15초 체험</Text>
-                  <ViewModeTab />
-                </View>
-                {/* 원형 타이머 링 */}
-                <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                  <View style={{ width: RING_DEF, height: RING_DEF, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width={RING_DEF} height={RING_DEF} style={{ position: 'absolute' }}>
-                      <Circle cx={RING_DEF / 2} cy={RING_DEF / 2} r={R_DEF}
-                        stroke={T.surface2} strokeWidth={STROKE_DEF} fill="transparent" />
-                      <Circle cx={RING_DEF / 2} cy={RING_DEF / 2} r={R_DEF}
-                        stroke={T.accent} strokeWidth={STROKE_DEF} fill="transparent"
-                        strokeDasharray={C_DEF} strokeDashoffset={C_DEF * (1 - progress)}
-                        strokeLinecap="round"
-                        transform={`rotate(-90, ${RING_DEF / 2}, ${RING_DEF / 2})`} />
-                    </Svg>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 50, fontWeight: T.timerFontWeight, color: T.accent, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
-                        {timeStr}
-                      </Text>
-                      <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>집중 중</Text>
-                    </View>
-                  </View>
-                </View>
-                {/* 컨트롤 버튼 */}
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
-                  </View>
-                  <View style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-                  </View>
-                  <View style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#E84047' }}>|| 일시정지</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* ── 전체 모드: 화면 가득 채우는 큰 링 ── */}
-          {viewMode === 'full' && (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 24 }}>
-              {/* 라벨 + 모드 전환 */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8, width: '100%' }}>
-                <Ionicons name="alarm-outline" size={18} color={T.accent} />
-                <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, flex: 1, textAlign: 'center' }}>15초 체험</Text>
-                <ViewModeTab />
-              </View>
-              {/* 큰 링 */}
-              <View style={{ width: RING_FULL, height: RING_FULL, alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
-                <Svg width={RING_FULL} height={RING_FULL} style={{ position: 'absolute' }}>
-                  <Circle cx={RING_FULL / 2} cy={RING_FULL / 2} r={R_FULL}
-                    stroke={T.surface2} strokeWidth={STROKE_FULL} fill="transparent" />
-                  <Circle cx={RING_FULL / 2} cy={RING_FULL / 2} r={R_FULL}
-                    stroke={T.accent} strokeWidth={STROKE_FULL} fill="transparent"
-                    strokeDasharray={C_FULL} strokeDashoffset={C_FULL * (1 - progress)}
-                    strokeLinecap="round"
-                    transform={`rotate(-90, ${RING_FULL / 2}, ${RING_FULL / 2})`} />
-                </Svg>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 60, fontWeight: T.timerFontWeight, color: T.accent, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
-                    {timeStr}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>집중 중</Text>
-                </View>
-              </View>
-              {/* 컨트롤 */}
-              <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
-                <View style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
-                </View>
-                <View style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-                </View>
-                <View style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#E8404720', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E84047' }}>|| 일시정지</Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* 건너뛰기 */}
-          <TouchableOpacity onPress={skipTrial} style={{ alignSelf: 'center', paddingVertical: 12 }}>
-            <Text style={{ color: T.sub, fontSize: 13 }}>건너뛰기 →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {phase === 'done' && (
-        <>
-          <Ionicons name="trophy" size={44} color={T.accent} style={{ marginBottom: 6 }} />
-          <CharacterAvatar characterId={selected} size={64} mood="happy" />
-          <Text style={[styles.obTitle, { color: T.text, marginTop: 10 }]}>첫 집중 완료!</Text>
-          <Text style={[styles.obSub, { color: T.sub, lineHeight: 20 }]}>
-            이렇게 매일 기록이 쌓이면{'\n'}잔디도 채워지고 실력도 올라가!
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 20, marginTop: 16, marginBottom: 20 }}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: T.accent }}>30초</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>공부시간</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: '#4CAF50' }}>95점</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>집중밀도</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: '#FF7F50' }}>1일</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>연속 공부</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, width: '100%', marginHorizontal: 20 }]} onPress={finishWithSession}>
-            <Text style={styles.obBtnT}>시작하기!</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
   );
 }
 
