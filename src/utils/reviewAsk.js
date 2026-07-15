@@ -19,15 +19,9 @@ export const shouldAskReview = (sessionCount, settings = {}, now = Date.now()) =
   return true;
 };
 
-// 네이티브 인앱 리뷰 모듈은 1.0.34 바이너리에 없음 — require/호출 실패 시 스토어 리뷰 페이지로 폴백
+// 스토어 리뷰 페이지 직접 열기 — 인앱 리뷰 API(Play In-App Review)는 패널을 못 띄워도
+// 성공으로 조용히 끝나는 구조라(사이드로드/쿼터 등) 신뢰할 수 없어 URL 방식으로 통일
 const openStoreReview = async () => {
-  try {
-    const StoreReview = require('expo-store-review');
-    if (await StoreReview.isAvailableAsync()) {
-      await StoreReview.requestReview();
-      return;
-    }
-  } catch {}
   const url = Platform.OS === 'ios' ? IOS_REVIEW_URL : AOS_REVIEW_URL;
   try {
     await Linking.openURL(url);
