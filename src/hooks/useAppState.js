@@ -80,7 +80,7 @@ const DEFAULT_SETTINGS = {
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
-  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'cute',
+  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'minimal',
   // 가이드 플래그 (한 번 보면 다시 안 뜸)
   guideMode: false,     // 🔥/📖 모드 선택 설명
   guideDensity: false,  // 집중밀도 설명

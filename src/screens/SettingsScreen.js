@@ -670,7 +670,7 @@ export default function SettingsScreen() {
             );
           })()}
           {(() => {
-            const sp = app.settings.stylePreset || 'cute';
+            const sp = app.settings.stylePreset || 'minimal';
             const spLabel = sp === 'minimal' ? '✦ 미니멀' : '귀여운';
             return (
               <Row T={T} label="타이머 스타일"
@@ -1051,7 +1051,7 @@ export default function SettingsScreen() {
               { id: 'cute',    label: '귀여운',  desc: '둥글고 컬러풀한 스타일' },
               { id: 'minimal', label: '✦ 미니멀',   desc: '각지고 단정한 스타일' },
             ].map(p => {
-              const sel = (app.settings.stylePreset || 'cute') === p.id;
+              const sel = (app.settings.stylePreset || 'minimal') === p.id;
               return (
                 <TouchableOpacity key={p.id} onPress={() => { app.updateSettings({ stylePreset: p.id }); setShowStylePicker(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, borderWidth: sel ? 2 : 1, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '12' : 'transparent' }}>

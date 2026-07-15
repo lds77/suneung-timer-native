@@ -73,10 +73,10 @@ const STYLE_PRESETS = {
   minimal: { cardRadius: 8,  buttonRadius: 6,  chipRadius: 4,  characterScale: 1.0,  timerFontWeight: '300', ringStroke: 2,  ringStrokeFull: 2  },
 };
 
-export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium', stylePreset = 'cute') => {
+export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium', stylePreset = 'minimal') => {
   const ac = ACCENT_COLORS[accentColor] || ACCENT_COLORS.pink;
   const fs = FONT_SCALES[fontScaleId] || 1.0;
-  const sp = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.cute;
+  const sp = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.minimal;
 
   if (darkMode) {
     return {
