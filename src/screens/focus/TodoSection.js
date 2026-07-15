@@ -78,18 +78,32 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   // PanResponder는 컴포넌트당 1개로 고정 — 렌더마다 새로 만들면 드래그 중 재렌더(setDrag) 시
   // 핸들러가 교체돼 gestureState 기준점이 끊기고 이동 이벤트가 죽는다 (grant만 되고 move 안 됨).
   // 어느 행을 잡았는지는 손잡이의 onStartShouldSetResponder에서 pendingDragRef로 전달.
+  // 드래그는 손잡이를 220ms 길게 눌러야 활성화 — 스크롤하던 손가락이 손잡이에 닿아
+  // 순서가 바뀌는 오작동 방지. 활성화 전엔 부모 ScrollView에 responder를 양보(스크롤 우선),
+  // 활성화 후(진동 알림)엔 안 뺏김.
   const pendingDragRef = useRef(null); // { todo, ids }
+  const holdTimerRef = useRef(null);
+  const clearHoldTimer = () => { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; };
+  useEffect(() => clearHoldTimer, []);
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderTerminationRequest: () => false, // 부모 ScrollView에 responder 안 뺏김
+    onPanResponderTerminationRequest: () => !dragRef.current, // 활성화 전엔 스크롤에 양보
     onPanResponderGrant: () => {
-      const p = pendingDragRef.current;
-      if (p) startDrag(p.todo, p.ids);
+      clearHoldTimer();
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        const p = pendingDragRef.current;
+        if (p) startDrag(p.todo, p.ids); // startDrag의 진동이 활성화 신호
+      }, 220);
     },
-    onPanResponderMove: (_, g) => moveDrag(g.dy),
-    onPanResponderRelease: endDrag,
-    onPanResponderTerminate: endDrag,
+    onPanResponderMove: (_, g) => {
+      if (dragRef.current) { moveDrag(g.dy); return; }
+      // 활성화 전에 손가락이 움직이면 스크롤 의도 — 길게누름 취소
+      if (holdTimerRef.current && (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6)) clearHoldTimer();
+    },
+    onPanResponderRelease: () => { clearHoldTimer(); endDrag(); },
+    onPanResponderTerminate: () => { clearHoldTimer(); endDrag(); },
   })).current;
 
   // 앱 복귀 시 키보드 자동 열림 방지
