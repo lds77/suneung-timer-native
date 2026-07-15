@@ -188,7 +188,8 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
   iOS는 `updateAllWidgets()`가 App Group(UserDefaults `widgetData` 키)에 JSON 기록 후 reloadWidget
 - iOS 전용: 잠금화면 위젯(accessory 패밀리), 실행 중 실시간 카운팅(`runningAnchorMs` + `Text(style:.timer)`),
   자정 리셋(스냅샷 `date` 비교), D-Day는 위젯이 목표일로 매 렌더 재계산
-- 딥링크: `yeolgong://start?subjectId=` (과목 자유 타이머) / `yeolgong://start?planId=` (계획 카운트다운) — App.js 처리
+- 딥링크(App.js 처리): `yeolgong://start?subjectId=`(과목 자유 타이머) / `yeolgong://start?planId=`(계획 카운트다운) /
+  `yeolgong://open?tab=planner&view=monthly`(D-Day 위젯→플래너 월간) / `yeolgong://open?tab=focus&section=plans|todos`(오늘계획/오늘할일 위젯→집중탭 해당 카드 스크롤)
 - 갱신 트리거: 세션/과목/D-Day/설정/할일 변경 + 타이머 상태 시그니처(틱 제외) — useAppState의 위젯 effect
 - **오늘할일 위젯 체크(안드 전용)**: 행 탭 → `TODO_TOGGLE` → 헤드리스가 storage에 직접 토글+완료로그
   → `@yeolgong/widgetTodoDirty` 플래그 → 앱 복귀 시 todos/todoLog 재로드 (자동저장 덮어쓰기 방지). iOS는 보기 전용

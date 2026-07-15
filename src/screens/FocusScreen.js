@@ -1,7 +1,7 @@
 // src/screens/FocusScreen.js
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
@@ -28,6 +28,7 @@ import { hexLuminance, getSchoolDefaultFavs, resolveIcon, CalendarIcon } from '.
 export default function FocusScreen() {
   const app = useApp();
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   // 집중모드 잠금화면 여부 — AppContext에서 관리 (MainApp 리마운트 시에도 유지, iOS Modal 투명 버그 방지)
   const screenLocked = app.screenLocked ?? false;
@@ -183,6 +184,23 @@ export default function FocusScreen() {
   const mainScrollRef = useRef(null);
   const [todoDragging, setTodoDragging] = useState(false); // 할일 드래그 정렬 중 메인 스크롤 잠금
   const scrollYRef = useRef(0);
+
+  // 위젯 딥링크(yeolgong://open?tab=focus&section=plans|todos) → 해당 카드로 스크롤
+  const planCardYRef = useRef(null);
+  const todoSecYRef = useRef(null);
+  useEffect(() => {
+    const section = route?.params?.section;
+    if (!section) return;
+    const t = setTimeout(() => {
+      // plans 카드는 계획이 없으면 렌더 안 됨 → 할일 카드 위치로 폴백
+      const y = section === 'plans' ? (planCardYRef.current ?? todoSecYRef.current) : todoSecYRef.current;
+      if (y != null && mainScrollRef.current) mainScrollRef.current.scrollTo({ y: Math.max(0, y - 8), animated: true });
+      // 소비 후 초기화(재클릭 시 재트리거) — 스크롤 후에 해야 함:
+      // 즉시 초기화하면 deps 변경으로 이 effect의 클린업이 돌아 타이머가 발동 전에 취소된다
+      navigation.setParams({ section: undefined });
+    }, 450); // 콜드스타트 직후엔 레이아웃 완료를 기다림
+    return () => clearTimeout(t);
+  }, [route?.params?.section]);
 
 
 
@@ -1012,6 +1030,8 @@ export default function FocusScreen() {
         </View>
 
         {/* ═══ 오늘의 계획 카드 ═══ */}
+        {/* 래퍼: 위젯 딥링크 스크롤 목적지 측정 (스크롤 컨텐츠 기준 y) */}
+        <View collapsable={false} onLayout={(e) => { planCardYRef.current = e.nativeEvent.layout.y; }}>
         {(() => {
           const ws = app.weeklySchedule;
           if (!ws || !ws.enabled) return null;
@@ -1118,9 +1138,12 @@ export default function FocusScreen() {
             </View>
           );
         })()}
+        </View>
 
         {/* 할 일 (카드+모달 — focus/TodoSection.js) */}
+        <View collapsable={false} onLayout={(e) => { todoSecYRef.current = e.nativeEvent.layout.y; }}>
         <TodoSection app={app} T={T} S={S} isTablet={isTablet} isLandscape={isLandscape} contentMaxW={contentMaxW} tabletModalW={tabletModalW} mainScrollRef={mainScrollRef} scrollYRef={scrollYRef} onDragActive={setTodoDragging} />
+        </View>
     </>
   );
 

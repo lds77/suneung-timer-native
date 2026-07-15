@@ -723,19 +723,31 @@ function LockOverlay() {
 }
 
 // ── 위젯 딥링크 ──
-// 위젯 탭 → 집중탭 이동 + 타이머 시작
-//  yeolgong://start?subjectId=... : 해당 과목 자유 타이머 시작
-//  yeolgong://start?planId=...    : 오늘 계획 블록에서 남은 시간 카운트다운 시작
+// 위젯 탭 → 탭 이동 (+ 타이머 시작)
+//  yeolgong://start?subjectId=...           : 해당 과목 자유 타이머 시작
+//  yeolgong://start?planId=...              : 오늘 계획 블록에서 남은 시간 카운트다운 시작
+//  yeolgong://open?tab=planner&view=monthly : 플래너탭 특정 뷰로 이동 (D-Day 위젯)
+//  yeolgong://open?tab=focus&section=plans|todos : 집중탭 해당 카드로 스크롤 (오늘계획/오늘할일 위젯)
 const navigationRef = createNavigationContainerRef();
 
 function parseDeepLink(url) {
   if (!url || typeof url !== 'string') return null;
-  const isStart = /:\/\/start(\b|\/|\?|$)/.test(url);
-  if (!isStart) return null;
-  const subj = url.match(/[?&]subjectId=([^&]+)/);
-  if (subj) return { action: 'start', subjectId: decodeURIComponent(subj[1]) };
-  const plan = url.match(/[?&]planId=([^&]+)/);
-  if (plan) return { action: 'startPlan', planId: decodeURIComponent(plan[1]) };
+  const q = (name) => {
+    const m = url.match(new RegExp(`[?&]${name}=([^&]+)`));
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+  if (/:\/\/start(\b|\/|\?|$)/.test(url)) {
+    const subjectId = q('subjectId');
+    if (subjectId) return { action: 'start', subjectId };
+    const planId = q('planId');
+    if (planId) return { action: 'startPlan', planId };
+    return null;
+  }
+  if (/:\/\/open(\b|\/|\?|$)/.test(url)) {
+    const tab = q('tab');
+    if (!tab) return null; // 순수 yeolgong://open은 앱만 열기 (기존 iOS 위젯 호환)
+    return { action: 'open', tab, view: q('view'), section: q('section') };
+  }
   return null;
 }
 
@@ -768,6 +780,16 @@ function MainApp() {
         go = () => {
           if (navigationRef.isReady()) navigationRef.navigate('Focus');
           a.startFromPlan?.(plan);
+        };
+      } else if (link.action === 'open') {
+        // 위젯 탭 → 특정 탭/카드로 이동 (타이머 시작 없음)
+        go = () => {
+          if (!navigationRef.isReady()) return;
+          if (link.tab === 'planner') {
+            navigationRef.navigate('Planner', link.view ? { tab: link.view } : undefined);
+          } else if (link.tab === 'focus') {
+            navigationRef.navigate('Focus', link.section ? { section: link.section } : undefined);
+          }
         };
       }
       if (!go) return;

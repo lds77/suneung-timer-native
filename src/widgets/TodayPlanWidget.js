@@ -1,11 +1,15 @@
 // src/widgets/TodayPlanWidget.js
 // 오늘 계획 위젯 — 플래너의 오늘 계획 블록 + 달성률. 항목 탭 → 그 계획으로 타이머 바로 시작.
 // 탭 → OPEN_URI 딥링크(yeolgong://start?planId=...) → App.js가 startFromPlan으로 남은 시간 카운트다운.
+// 헤더/배경 탭 → 집중탭 계획 카드로 스크롤, 계획 없음 → 플래너탭(계획 세우기).
 // iOS TodayPlanWidget.swift와 동일 구성 (done=80%, 집중탭 계획 카드와 같은 기준).
 // 3칸 이상 너비면 과목바로시작처럼 2열 그리드(3x2=6개), 완료 계획은 하단 정렬.
 
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
+
+const OPEN_FOCUS_PLANS = { uri: 'yeolgong://open?tab=focus&section=plans' };
+const OPEN_PLANNER = { uri: 'yeolgong://open?tab=planner' };
 
 const theme = (darkMode) => darkMode
   ? { bg: '#1C1C1E', text: '#FFFFFF', sub: '#9A9AA0', chip: '#2C2C2E' }
@@ -68,7 +72,7 @@ export function TodayPlanWidget({ data, width = 0, height = 0 }) {
     const base = { ...rootStyle, alignItems: 'center', padding: 8 };
     if (!next) {
       return (
-        <FlexWidget clickAction="OPEN_APP" style={base}>
+        <FlexWidget clickAction="OPEN_URI" clickActionData={plans.length > 0 ? OPEN_FOCUS_PLANS : OPEN_PLANNER} style={base}>
           <TextWidget text={plans.length > 0 ? '계획 완료!' : '오늘 계획'} style={{ fontSize: 12, fontWeight: '700', color: t.text }} maxLines={1} />
           {planPct >= 0 && <TextWidget text={`${planPct}%`} style={{ fontSize: 15, fontWeight: '800', color: planPct >= 100 ? GOLD : accent, marginTop: 3 }} />}
         </FlexWidget>
@@ -85,15 +89,15 @@ export function TodayPlanWidget({ data, width = 0, height = 0 }) {
 
   return (
     <FlexWidget style={rootStyle}>
-      {/* 헤더: 제목 + 전체 달성률 */}
-      <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* 헤더: 제목 + 전체 달성률 (탭 → 집중탭 계획 카드) */}
+      <FlexWidget clickAction="OPEN_URI" clickActionData={OPEN_FOCUS_PLANS} style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <TextWidget text="오늘 계획" style={{ flex: 1, fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} maxLines={1} />
         {planPct >= 0 && (
           <TextWidget text={`${planPct}%`} style={{ fontSize: 12, color: planPct >= 100 ? GOLD : accent, fontWeight: '800', marginLeft: 6, paddingRight: 3 }} maxLines={1} />
         )}
       </FlexWidget>
       {plans.length === 0 ? (
-        <FlexWidget clickAction="OPEN_APP" style={{ width: 'match_parent', height: 'wrap_content' }}>
+        <FlexWidget clickAction="OPEN_URI" clickActionData={OPEN_PLANNER} style={{ width: 'match_parent', height: 'wrap_content' }}>
           <TextWidget text="플래너에서 오늘 계획을 세워보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
         </FlexWidget>
       ) : (() => {

@@ -44,7 +44,7 @@ struct TodayPlanView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .widgetURL(URL(string: "yeolgong://open"))
+        .widgetURL(URL(string: "yeolgong://open?tab=planner"))
     }
 
     private var header: some View {
@@ -122,7 +122,7 @@ struct TodayPlanView: View {
         .widgetURL(planURL(allDone ? nil : p.id))
     }
 
-    // 중형/대형: 계획 목록 (탭 → 해당 계획 시작)
+    // 중형/대형: 계획 목록 (탭 → 해당 계획 시작, 항목 밖 배경 탭 → 집중탭 계획 카드)
     // 과목바로시작 위젯과 동일한 색 틴트 박스 + 재생 아이콘 → '눌러서 실행' 어포던스
     private var listBody: some View {
         Group {
@@ -132,6 +132,7 @@ struct TodayPlanView: View {
                 largeListBody
             }
         }
+        .widgetURL(URL(string: "yeolgong://open?tab=focus&section=plans"))
     }
 
     // 중형(4x2): 2열 x 3행 그리드로 6개 표시 — 칩을 컴팩트하게 줄여 3행 확보
@@ -142,7 +143,7 @@ struct TodayPlanView: View {
             header
             LazyVGrid(columns: cols, spacing: gap) {
                 ForEach(sortedPlans.prefix(6)) { p in
-                    Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open")!) {
+                    Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open?tab=focus&section=plans")!) {
                         HStack(spacing: 5) {
                             if p.done {
                                 Image(systemName: "checkmark.circle.fill")
@@ -184,7 +185,7 @@ struct TodayPlanView: View {
         VStack(alignment: .leading, spacing: 6) {
             header
             ForEach(sortedPlans.prefix(6)) { p in
-                Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open")!) {
+                Link(destination: planURL(p.id) ?? URL(string: "yeolgong://open?tab=focus&section=plans")!) {
                     HStack(spacing: 8) {
                         if p.done {
                             Image(systemName: "checkmark.circle.fill")
@@ -232,8 +233,8 @@ struct TodayPlanView: View {
     }
 
     private func planURL(_ id: String?) -> URL? {
-        guard let id = id else { return URL(string: "yeolgong://open") }
+        guard let id = id else { return URL(string: "yeolgong://open?tab=focus&section=plans") }
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? id
-        return URL(string: "yeolgong://start?planId=\(encoded)") ?? URL(string: "yeolgong://open")
+        return URL(string: "yeolgong://start?planId=\(encoded)") ?? URL(string: "yeolgong://open?tab=focus&section=plans")
     }
 }

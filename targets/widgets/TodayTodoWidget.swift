@@ -33,7 +33,7 @@ struct TodayTodoView: View {
             }
         }
         .containerBackground(d.bg, for: .widget)
-        .widgetURL(URL(string: "yeolgong://open"))
+        .widgetURL(URL(string: "yeolgong://open?tab=focus&section=todos")) // 탭 → 집중탭 할일 카드
     }
 
     private var header: some View {
