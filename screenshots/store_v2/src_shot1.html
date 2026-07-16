@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Medium.ttf'); font-weight: 500; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1290px; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'P', sans-serif;
+    background: linear-gradient(175deg, #EFEAFB 0%, #F7F5FC 45%, #E7E0F8 100%);
+    display: flex; flex-direction: column; align-items: center;
+    position: relative;
+  }
+  .brand {
+    margin-top: 150px;
+    background: #FFFFFF; color: #6C4DC4;
+    font-size: 40px; font-weight: 700;
+    padding: 16px 44px; border-radius: 999px;
+    box-shadow: 0 6px 24px rgba(108,77,196,0.18);
+  }
+  h1 {
+    margin-top: 90px;
+    font-size: 128px; line-height: 1.22; letter-spacing: -3px;
+    color: #241A47; text-align: center; font-weight: 700;
+  }
+  h1 .accent { color: #6C4DC4; }
+  .sub {
+    margin-top: 52px;
+    font-size: 52px; font-weight: 500; color: #5B5477;
+    text-align: center; line-height: 1.5;
+  }
+  /* 결과 카드 (앱 결과 시트 재구성) */
+  .card {
+    margin-top: 130px;
+    width: 950px;
+    background: #FFFFFF;
+    border-radius: 64px;
+    box-shadow: 0 40px 120px rgba(60,40,130,0.22);
+    padding: 100px 90px 110px;
+    display: flex; flex-direction: column; align-items: center;
+    position: relative;
+  }
+  .card .handle { width: 120px; height: 12px; border-radius: 6px; background: #D9D2EE; position: absolute; top: 40px; }
+  .check { width: 120px; height: 120px; }
+  .done { margin-top: 40px; font-size: 62px; font-weight: 700; color: #241A47; }
+  .tier {
+    margin-top: 56px;
+    width: 150px; height: 150px; border-radius: 40px;
+    background: linear-gradient(160deg, #FFD86B, #FFB13B);
+    color: #FFFFFF; font-size: 92px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 16px 40px rgba(255,177,59,0.45);
+  }
+  .score { margin-top: 48px; font-size: 110px; font-weight: 700; color: #F59E0B; letter-spacing: -2px; }
+  .score small { font-size: 64px; color: #F59E0B; font-weight: 700; }
+  .dur { margin-top: 24px; font-size: 46px; font-weight: 500; color: #8A82A6; }
+  .chips { margin-top: 72px; display: flex; gap: 28px; width: 100%; }
+  .chip {
+    flex: 1; border-radius: 36px; padding: 44px 0 38px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    border: 3px solid #E4DFF2; background: #FBFAFE;
+  }
+  .chip.sel { border-color: #ED5E86; background: #FFF3F7; box-shadow: 0 12px 32px rgba(237,94,134,0.18); }
+  .chip .l1 { font-size: 42px; font-weight: 700; color: #241A47; }
+  .chip .l2 { font-size: 34px; font-weight: 700; color: #ED5E86; }
+  .chip .l2.g { color: #A9A3C0; }
+  .chip svg { width: 64px; height: 64px; }
+  .foot {
+    position: absolute; bottom: 130px; left: 0; right: 0;
+    text-align: center; font-size: 44px; font-weight: 500; color: #6C4DC4;
+  }
+  @media (max-height: 2590px) {
+    html, body { height: 2580px; }
+    .brand { margin-top: 80px; }
+    h1 { margin-top: 56px; }
+    .card { margin-top: 90px; padding: 80px 90px 90px; }
+    .foot { bottom: 80px; }
+  }
+</style>
+</head>
+<body>
+  <div class="brand">열공메이트</div>
+  <h1>얼마나 오래 말고,<br><span class="accent">얼마나 집중했는지</span></h1>
+  <div class="sub">타이머가 끝나면 집중밀도 점수로 알려줘요</div>
+
+  <div class="card">
+    <div class="handle"></div>
+    <svg class="check" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10.5" stroke="#6C4DC4" stroke-width="1.6"/>
+      <path d="M7.5 12.2l3 3 6-6.4" stroke="#6C4DC4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="done">공부 완료!</div>
+    <div class="tier">S</div>
+    <div class="score">밀도 96점</div>
+    <div class="dur">2시간 40분 · 일시정지 0회</div>
+    <div class="chips">
+      <div class="chip sel">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c1 3-2.5 4.5-2.5 8a4.6 4.6 0 0 0 9.1.9C19.8 8 15 6.5 12 3z" fill="#ED5E86"/><path d="M11 13.5c-.6 1.6.4 3.5 2 3.5 1.4 0 2.4-1.2 2-2.7" fill="#FFD1DF"/></svg>
+        <div class="l1">완전 집중</div><div class="l2">+3점</div>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#A9A3C0" stroke-width="1.6"/><circle cx="9" cy="10" r="1.2" fill="#A9A3C0"/><circle cx="15" cy="10" r="1.2" fill="#A9A3C0"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8" stroke="#A9A3C0" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <div class="l1">보통이었어</div><div class="l2 g">±0점</div>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 8.5 8.5 0 1 0 20 13.5z" stroke="#A9A3C0" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <div class="l1">좀 딴 짓</div><div class="l2 g">±0점</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">같은 1시간을 공부해도, 집중한 정도는 다르니까</div>
+</body>
+</html>

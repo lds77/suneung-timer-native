@@ -1,0 +1,56 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Medium.ttf'); font-weight: 500; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1290px; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'P', sans-serif;
+    background: linear-gradient(175deg, #EFEAFB 0%, #F7F5FC 45%, #E7E0F8 100%);
+    display: flex; flex-direction: column; align-items: center; position: relative;
+  }
+  .brand { margin-top: 150px; background: #FFFFFF; color: #6C4DC4; font-size: 40px; font-weight: 700;
+    padding: 16px 44px; border-radius: 999px; box-shadow: 0 6px 24px rgba(108,77,196,0.18); }
+  h1 { margin-top: 90px; font-size: 128px; line-height: 1.22; letter-spacing: -3px;
+    color: #241A47; text-align: center; font-weight: 700; }
+  h1 .accent { color: #6C4DC4; }
+  .sub { margin-top: 52px; font-size: 52px; font-weight: 500; color: #5B5477; text-align: center; line-height: 1.5; }
+  .stage { position: relative; width: 1290px; flex: 1; }
+  .phone {
+    position: absolute; left: 140px; top: 110px;
+    width: 804px; border-radius: 108px; background: #14112B; padding: 22px;
+    box-shadow: 0 50px 140px rgba(40,25,100,0.38);
+    transform: rotate(-3deg);
+  }
+  .screen { border-radius: 86px; overflow: hidden; width: 760px; height: 1440px; background: #000; }
+  .screen img { width: 100%; display: block; margin-top: -120px; }
+  .float {
+    position: absolute; right: 90px; top: 560px;
+    width: 470px; height: 830px; border-radius: 44px; overflow: hidden;
+    box-shadow: 0 40px 110px rgba(40,25,100,0.4);
+    transform: rotate(3deg); background: #fff;
+  }
+  .float img { width: 537px; display: block; margin-left: -33px; margin-top: -118px; }
+  .badge {
+    position: absolute; left: 90px; top: 20px;
+    background: #ED5E86; color: #fff; font-size: 42px; font-weight: 700;
+    padding: 20px 46px; border-radius: 999px; box-shadow: 0 14px 40px rgba(237,94,134,0.4);
+    transform: rotate(-4deg);
+  }
+  @media (max-height: 2590px) { html, body { height: 2580px; } .brand { margin-top: 80px; } h1 { margin-top: 56px; } }
+</style>
+</head>
+<body>
+  <div class="brand">열공메이트</div>
+  <h1>폰을 잠그고<br><span class="accent">공부하세요</span></h1>
+  <div class="sub">이탈하면 타이머가 멈추고, 챌린지 문구를 써야 돌아와요</div>
+  <div class="stage">
+    <div class="badge">울트라집중 모드</div>
+    <div class="phone"><div class="screen"><img src="file:///C:/suneung-timer-native/screenshots/cap-focus-lock.png"></div></div>
+    <div class="float"><img src="file:///C:/suneung-timer-native/screenshots/cap-challenge.png"></div>
+  </div>
+</body>
+</html>

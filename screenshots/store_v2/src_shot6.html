@@ -1,0 +1,101 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Medium.ttf'); font-weight: 500; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1290px; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'P', sans-serif;
+    background: linear-gradient(175deg, #EFEAFB 0%, #F7F5FC 45%, #E7E0F8 100%);
+    display: flex; flex-direction: column; align-items: center; position: relative;
+  }
+  .brand { margin-top: 150px; background: #FFFFFF; color: #6C4DC4; font-size: 40px; font-weight: 700;
+    padding: 16px 44px; border-radius: 999px; box-shadow: 0 6px 24px rgba(108,77,196,0.18); }
+  h1 { margin-top: 90px; font-size: 128px; line-height: 1.22; letter-spacing: -3px;
+    color: #241A47; text-align: center; font-weight: 700; }
+  h1 .accent { color: #6C4DC4; }
+  .sub { margin-top: 52px; font-size: 52px; font-weight: 500; color: #5B5477; text-align: center; line-height: 1.5; }
+
+  .card {
+    margin-top: 130px; width: 1010px; background: #fff; border-radius: 60px;
+    padding: 80px 80px 86px; box-shadow: 0 36px 110px rgba(60,40,130,0.2);
+  }
+  .card .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 52px; }
+  .card .title { font-size: 54px; font-weight: 700; color: #241A47; }
+  .streak {
+    background: #FFF1E8; color: #E17055; font-size: 40px; font-weight: 700;
+    padding: 18px 38px; border-radius: 999px; display: flex; align-items: center; gap: 12px;
+  }
+  .streak svg { width: 44px; height: 44px; }
+  #grass { display: grid; grid-template-rows: repeat(7, 44px); grid-auto-flow: column; grid-auto-columns: 44px; gap: 12px; justify-content: center; }
+  #grass div { border-radius: 10px; }
+  .legend { margin-top: 44px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    font-size: 32px; font-weight: 500; color: #8A82A6; }
+  .legend i { width: 32px; height: 32px; border-radius: 8px; display: inline-block; }
+
+  .strip { margin-top: 52px; display: flex; gap: 32px; }
+  .mini {
+    flex: 1; background: #fff; border-radius: 48px; padding: 52px 56px;
+    box-shadow: 0 26px 80px rgba(60,40,130,0.16);
+  }
+  .mini .k { font-size: 38px; font-weight: 500; color: #8A82A6; }
+  .mini .v { margin-top: 16px; font-size: 58px; font-weight: 700; letter-spacing: -1px; color: #241A47; white-space: nowrap; }
+  .mini .v small { font-size: 44px; color: #6C4DC4; }
+  .foot { position: absolute; bottom: 130px; left: 0; right: 0; text-align: center;
+    font-size: 44px; font-weight: 500; color: #6C4DC4; }
+  @media (max-height: 2590px) {
+    html, body { height: 2580px; }
+    .brand { margin-top: 80px; } h1 { margin-top: 56px; }
+    .card { margin-top: 90px; } .foot { bottom: 80px; }
+  }
+</style>
+</head>
+<body>
+  <div class="brand">열공메이트</div>
+  <h1>쌓이는 기록이<br><span class="accent">계속하게 해요</span></h1>
+  <div class="sub">공부 잔디 · 주간 리포트 · 과목별 통계</div>
+<div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; padding-bottom:140px;">
+
+  <div class="card">
+    <div class="head">
+      <div class="title">공부 잔디</div>
+      <div class="streak">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c1 3-2.5 4.5-2.5 8a4.6 4.6 0 0 0 9.1.9C19.8 8 15 6.5 12 3z" fill="#E17055"/><path d="M11 13.5c-.6 1.6.4 3.5 2 3.5 1.4 0 2.4-1.2 2-2.7" fill="#FFD9C9"/></svg>
+        14일 연속
+      </div>
+    </div>
+    <div id="grass"></div>
+    <div class="legend">적음 <i style="background:#EEEBF7"></i><i style="background:#CDE8D2"></i><i style="background:#8CCB9B"></i><i style="background:#4CAA66"></i><i style="background:#2E7D44"></i> 많음</div>
+  </div>
+
+  <div class="strip">
+    <div class="mini"><div class="k">이번 주 공부</div><div class="v">32시간 40분</div></div>
+    <div class="mini"><div class="k">평균 집중밀도</div><div class="v">91점 <small>S</small></div></div>
+  </div>
+</div>
+
+  <div class="foot">주간 · 월간 리포트가 알림으로 도착해요</div>
+
+<script>
+  // 잔디 16주 × 7일 — 뒤로 갈수록 진해지는 그럴듯한 패턴
+  const colors = ['#EEEBF7', '#CDE8D2', '#8CCB9B', '#4CAA66', '#2E7D44'];
+  const g = document.getElementById('grass');
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let w = 0; w < 16; w++) {
+    for (let d = 0; d < 7; d++) {
+      const momentum = w / 16;
+      const r = rnd() * 0.75 + momentum * 0.55;
+      let lv = r < 0.28 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : r < 1.0 ? 3 : 4;
+      if (w >= 14) lv = Math.max(lv, 2);
+      const c = document.createElement('div');
+      c.style.background = colors[lv];
+      g.appendChild(c);
+    }
+  }
+</script>
+</body>
+</html>

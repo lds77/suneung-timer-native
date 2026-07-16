@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Medium.ttf'); font-weight: 500; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1290px; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'P', sans-serif;
+    background: linear-gradient(175deg, #EFEAFB 0%, #F7F5FC 45%, #E7E0F8 100%);
+    display: flex; flex-direction: column; align-items: center; position: relative;
+  }
+  .brand { margin-top: 150px; background: #FFFFFF; color: #6C4DC4; font-size: 40px; font-weight: 700;
+    padding: 16px 44px; border-radius: 999px; box-shadow: 0 6px 24px rgba(108,77,196,0.18); }
+  h1 { margin-top: 90px; font-size: 128px; line-height: 1.22; letter-spacing: -3px;
+    color: #241A47; text-align: center; font-weight: 700; }
+  h1 .accent { color: #6C4DC4; }
+  .sub { margin-top: 52px; font-size: 52px; font-weight: 500; color: #5B5477; text-align: center; line-height: 1.5; }
+
+  .grid { width: 1010px; display: flex; flex-direction: column; gap: 36px; }
+  .rowx { display: flex; gap: 36px; }
+  .mode {
+    flex: 1; background: #fff; border-radius: 52px; padding: 54px 58px;
+    box-shadow: 0 30px 90px rgba(60,40,130,0.18);
+  }
+  .mode .name { display: flex; align-items: center; gap: 18px; font-size: 46px; font-weight: 700; color: #241A47; }
+  .mode .ic { width: 64px; height: 64px; border-radius: 20px; display: flex; align-items: center; justify-content: center; }
+  .mode .ic svg { width: 36px; height: 36px; }
+  .mode .big { margin-top: 30px; font-size: 84px; font-weight: 700; letter-spacing: -1px; color: #241A47; white-space: nowrap; }
+  .mode .d { margin-top: 14px; font-size: 36px; font-weight: 500; color: #8A82A6; }
+  .pomo { margin-top: 34px; display: flex; align-items: center; gap: 14px; }
+  .pomo .seg { border-radius: 999px; padding: 18px 30px; font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .pomo .w { background: #F3EEFF; color: #6C4DC4; }
+  .pomo .b { background: #EAF6EE; color: #3E9C5F; }
+  .arr { color: #A9A3C0; font-size: 36px; font-weight: 700; }
+  .seq { margin-top: 34px; display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
+  .seq .sj { border-radius: 999px; padding: 18px 34px; font-size: 38px; font-weight: 700; white-space: nowrap; }
+  .foot { position: absolute; bottom: 130px; left: 0; right: 0; text-align: center;
+    font-size: 46px; font-weight: 700; color: #6C4DC4; }
+</style>
+</head>
+<body>
+  <div class="brand">열공메이트</div>
+  <h1>공부 스타일대로,<br><span class="accent">골라 쓰는 타이머</span></h1>
+  <div class="sub">카운트다운 · 스톱워치 · 뽀모도로 · 연속 루틴 · 랩</div>
+<div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; padding-bottom:140px;">
+
+  <div class="grid">
+    <div class="rowx">
+      <div class="mode">
+        <div class="name"><span class="ic" style="background:#F3EEFF"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="#6C4DC4" stroke-width="1.8"/><path d="M12 9v4l2.6 2" stroke="#6C4DC4" stroke-width="1.8" stroke-linecap="round"/><path d="M9.5 3h5" stroke="#6C4DC4" stroke-width="1.8" stroke-linecap="round"/></svg></span>카운트다운</div>
+        <div class="big">50:00</div>
+        <div class="d">시간을 정해놓고 집중</div>
+      </div>
+      <div class="mode">
+        <div class="name"><span class="ic" style="background:#EAF2FC"><svg viewBox="0 0 24 24" fill="none"><path d="M8.5 6.2v11.6c0 .9 1 1.5 1.8 1L19 13c.8-.5.8-1.6 0-2.1L10.3 5.2c-.8-.5-1.8.1-1.8 1z" fill="#4A90D9"/></svg></span>자유 스톱워치</div>
+        <div class="big">1:23:45</div>
+        <div class="d">부담 없이 바로 시작</div>
+      </div>
+    </div>
+    <div class="mode">
+      <div class="name"><span class="ic" style="background:#FDECEC"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#E17055" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke="#E17055" stroke-width="1.8" stroke-linecap="round"/></svg></span>뽀모도로</div>
+      <div class="pomo">
+        <span class="seg w">집중 25분</span><span class="arr">→</span>
+        <span class="seg b">휴식 5분</span><span class="arr">→</span>
+        <span class="seg w">집중 25분</span><span class="arr">→</span>
+        <span class="seg b">휴식 5분</span>
+      </div>
+      <div class="d" style="margin-top:24px;">알림이 알아서 끊어줘요 · 세트 수 자유 설정</div>
+    </div>
+    <div class="mode">
+      <div class="name"><span class="ic" style="background:#EAF6EE"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7h9M4 12h9M4 17h9" stroke="#3E9C5F" stroke-width="1.8" stroke-linecap="round"/><path d="M16 8l4 4-4 4" stroke="#3E9C5F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>연속 루틴</div>
+      <div class="seq">
+        <span class="sj" style="background:#FDECEC;color:#E17055">국어 50분</span><span class="arr">→</span>
+        <span class="sj" style="background:#EAF2FC;color:#4A90D9">수학 50분</span><span class="arr">→</span>
+        <span class="sj" style="background:#EAF6EE;color:#3E9C5F">영어 40분</span>
+      </div>
+      <div class="d" style="margin-top:24px;">과목을 이어서 자동 진행 · 수능 시간표도 이 방식</div>
+    </div>
+  </div>
+</div>
+
+  <div class="foot">이 모든 게 전부 무료, 광고 없음</div>
+</body>
+</html>
