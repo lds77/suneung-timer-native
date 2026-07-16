@@ -256,7 +256,12 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     setShowAddTodoModal(false);
   };
 
-  const openEditTodo = (t) => setEditTarget(t);
+  const openEditTodo = (t) => {
+    // 반복 인스턴스는 repeatDays가 부모 템플릿에만 있음 — 그대로 넘기면 폼이 '반복 안 함'으로
+    // 초기화되고 저장 시 템플릿까지 삭제돼 반복이 풀린다. 템플릿의 반복 요일을 주입해 유지
+    const tmpl = t.templateId ? app.todos.find(x => x.id === t.templateId) : null;
+    setEditTarget(tmpl?.repeatDays?.length ? { ...t, repeatDays: tmpl.repeatDays } : t);
+  };
 
   const handleEditSave = (fields) => {
     const todo = editTarget;
