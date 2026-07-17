@@ -2195,13 +2195,17 @@ export function AppProvider({ children }) {
     const o = isStr ? {} : (textOrObj || {});
     const isTemplate = o.isTemplate ?? false;
     const repeatDays = o.repeatDays ?? null;
+    const replaceId = o.replaceId ?? null; // 수정 저장: 이 id 자리에 교체 삽입 (맨 뒤로 밀리면 드래그 순서가 깨짐)
     const tmplId = generateId('todo_');
     setTodos(prev => {
+      const replaceIdx = replaceId ? prev.findIndex(t => t.id === replaceId) : -1;
+      const base = replaceIdx !== -1 ? prev.filter(t => t.id !== replaceId) : prev;
       // 중복 방지: 같은 목록(scope+ddayId) 안에 같은 텍스트+과목의 미완료 할일이 이미 있으면 건너뜀 (템플릿 제외)
       // scope/ddayId를 비교하지 않으면 오늘 할일이나 다른 시험에 같은 텍스트가 있을 때 추가가 조용히 무시됨
+      // 교체 대상 자신은 base에서 이미 빠져 있어 자기 자신과의 중복으로 오탐하지 않음
       if (!isTemplate) {
         const trimmed = text.trim();
-        const dup = prev.some(t => !t.isTemplate && !t.done && t.text === trimmed
+        const dup = base.some(t => !t.isTemplate && !t.done && t.text === trimmed
           && t.subjectId === (o.subjectId ?? null)
           && (t.scope ?? 'today') === (o.scope ?? 'today')
           && (t.ddayId ?? null) === (o.ddayId ?? null));
@@ -2227,23 +2231,24 @@ export function AppProvider({ children }) {
         createdDate:  o.createdDate  ?? null,
         dueDate:      o.dueDate      ?? null,
       };
+      const items = [newTmpl];
       // 반복 템플릿이면 오늘 요일에 해당할 경우 인스턴스도 즉시 생성
       if (isTemplate && repeatDays && repeatDays.length > 0) {
         const todayDay = new Date().getDay();
         const todayStr = getToday();
         if (repeatDays.includes(todayDay)) {
-          const todayInst = {
+          items.push({
             id: generateId('todo_'), text: text.trim(), done: false, completedAt: null,
             repeat: false, subjectId: o.subjectId ?? null, subjectLabel: o.subjectLabel ?? null,
             subjectColor: o.subjectColor ?? null, subjectIcon: o.subjectIcon ?? null,
             priority: o.priority ?? 'normal', scope: 'today', ddayId: null,
             memo: o.memo ?? '', isTemplate: false, repeatDays: null,
             templateId: tmplId, createdDate: todayStr,
-          };
-          return [...prev, newTmpl, todayInst];
+          });
         }
       }
-      return [...prev, newTmpl];
+      const insertAt = replaceIdx !== -1 ? replaceIdx : base.length;
+      return [...base.slice(0, insertAt), ...items, ...base.slice(insertAt)];
     });
   }, []);
   const toggleTodo = useCallback((id) => {

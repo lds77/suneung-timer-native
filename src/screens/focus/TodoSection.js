@@ -274,8 +274,8 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     if (todo.isTemplate) {
       app.todos.filter(x => x.templateId === todo.id).forEach(x => app.removeTodo(x.id));
     }
-    app.removeTodo(todo.id);
-    app.addTodo(buildTodoFields(fields));
+    // 삭제 후 재추가 대신 replaceId로 제자리 교체 — 맨 뒤로 붙으면 드래그로 정한 순서가 깨짐
+    app.addTodo({ ...buildTodoFields(fields), replaceId: todo.id });
     setEditTarget(null);
     Vibration.vibrate([0, 30]);
     app.showToastCustom('수정했어요!', 'toru');
