@@ -97,6 +97,18 @@ describe('pomoFlipCore', () => {
     const { next } = pomoFlipCore(t, NOW);
     expect(next.resumedAt).toBe(t.resumedAt + 15 * 60 * 1000);
   });
+
+  test('캐치업 플립(큰 오버슈트): 세션 시각은 실제 페이즈 구간 역산 — 호출 시점(nowMs)과 무관 (불변식 4 연계)', () => {
+    // bg 복귀/스냅샷 복원이 몇 시간 뒤에 지난 세트를 전진시켜도, 세션은 그 세트가
+    // 실제로 진행된 시각으로 기록돼야 한다 (nowMs 기준이면 전부 '지금'으로 뭉치고 날짜 귀속도 틀어짐)
+    const t = { ...base, pomoPhase: 'work', pomoSet: 0 };
+    const workEndAt = t.resumedAt + 25 * 60 * 1000;
+    const twoHoursLater = NOW + 2 * 3600 * 1000;
+    const { workSession, next } = pomoFlipCore(t, twoHoursLater);
+    expect(next.resumedAt).toBe(workEndAt); // 불변식 2: 전환 시각은 호출 시점 무관
+    expect(workSession.startedAt).toBe(workEndAt - 25 * 60 * 1000);
+    expect(workSession.startedAt + workSession.durationSec * 1000).toBe(workEndAt);
+  });
 });
 
 describe('seqFlipCore', () => {
@@ -220,6 +232,30 @@ describe('buildPhaseNotifSpecs', () => {
     expect(buildPhaseNotifSpecs({ type: 'countdown', totalSec: 60, resumedAt: NOW }, NOW)).toEqual([]);
     expect(buildPhaseNotifSpecs({ type: 'free', resumedAt: NOW }, NOW)).toEqual([]);
   });
+
+  test('stale 상태(경과가 페이즈 목표 초과)는 스펙 0개 — 복원/복귀 시 반드시 페이즈 전진 후 예약해야 하는 이유', () => {
+    // 첫 경계가 과거면 루프가 즉시 종료돼 미래 페이즈까지 전부 무음이 된다.
+    // useAppState의 fastForwardPhases가 전진을 보장하는 전제를 문서화하는 테스트
+    const stale = {
+      type: 'pomodoro', label: '수학', pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5,
+      resumedAt: NOW - 30 * 60_000, elapsedSecAtResume: 0, // work 25분이 5분 전에 끝난 상태
+    };
+    expect(buildPhaseNotifSpecs(stale, NOW)).toEqual([]);
+  });
+
+  test('stale 상태를 pomoFlipCore로 전진시키면 미래 스펙이 정상 생성된다', () => {
+    let t = {
+      id: 'tmr_1', type: 'pomodoro', label: '수학', subjectId: null, pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5, pauseCount: 0, startedAt: NOW - 3600_000,
+      resumedAt: NOW - 30 * 60_000, elapsedSecAtResume: 0, elapsedSec: 30 * 60,
+    };
+    let guard = 0;
+    while (buildPhaseNotifSpecs(t, NOW).length === 0 && guard++ < 10) t = pomoFlipCore(t, NOW).next;
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    expect(specs.length).toBeGreaterThan(0);
+    expect(specs.every(s => s.absMs > NOW)).toBe(true);
+  });
 });
 
 describe('calcTimerResult', () => {
@@ -292,5 +328,11 @@ describe('buildSessionRecord', () => {
     expect(s.todoId).toBe('todo_1');
     const none = buildSessionRecord({ ...spec, startedAt: NOW });
     expect(none.todoId).toBeNull();
+  });
+
+  test('불변식 3 연계: dedupeKey를 레코드에 보존 — 인메모리 dedupe 맵은 재시작에 유실되므로 영속 키가 복원 캐치업의 재기록을 막는다', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: NOW, dedupeKey: 'complete|tmr_1|123' });
+    expect(s.dedupeKey).toBe('complete|tmr_1|123');
+    expect(buildSessionRecord({ ...spec, startedAt: NOW }).dedupeKey).toBeNull();
   });
 });

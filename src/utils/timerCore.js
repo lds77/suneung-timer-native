@@ -43,15 +43,17 @@ export const phaseEndAtMs = (t, targetSec, nowMs = Date.now()) =>
 // }
 export const pomoFlipCore = (t, nowMs = Date.now()) => {
   if (t.pomoPhase === 'work') {
+    const workPhaseEndAt = phaseEndAtMs(t, t.pomoWorkMin * 60, nowMs);
     const workSession = {
       subjectId: t.subjectId, label: t.label,
-      startedAt: nowMs - t.pomoWorkMin * 60 * 1000,
+      // 페이즈 실제 종료 시각 기준 역산 — nowMs 기준이면 bg/복원 캐치업 플립에서
+      // 몇 시간 전 세트가 전부 '지금' 시각으로 기록됨 (자정 걸치면 날짜 귀속도 틀어짐)
+      startedAt: workPhaseEndAt - t.pomoWorkMin * 60 * 1000,
       durationSec: t.pomoWorkMin * 60, mode: 'pomodoro',
       pauseCount: t.pauseCount, timerType: 'pomodoro',
       pomoSets: t.pomoSet + 1,
       dedupeKey: `pomo|${t.id}|${t.startedAt}|${t.pomoSet}`,
     };
-    const workPhaseEndAt = phaseEndAtMs(t, t.pomoWorkMin * 60, nowMs);
     return {
       endedPhase: 'work',
       workSession,
@@ -110,7 +112,7 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     subjectId = null, label = '', startedAt = null, durationSec, mode = 'free',
     pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off',
     timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null,
-    planId = null, todoId = null, densityOverride = null,
+    planId = null, todoId = null, densityOverride = null, dedupeKey = null,
   } = spec;
   const { schoolLevel = 'high', ultraFocusLevel = 'normal', nowMs = Date.now() } = ctx;
   const density = densityOverride ?? calculateDensity({
@@ -130,6 +132,9 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     schoolLevel,
     ultraFocusLevel: fm === 'screen_on' ? ultraFocusLevel : null,
     timerType, completionRatio, pomoSets,
+    // 레코드에 보존 — 인메모리 dedupe 맵은 앱 재시작에 유실되므로,
+    // 스냅샷 복원 캐치업이 같은 세트/항목을 재기록하는 걸 영속 키로 막는다
+    dedupeKey,
   };
 };
 

@@ -179,7 +179,8 @@ export function AppProvider({ children }) {
           }
           if (t.type === 'pomodoro') {
             const target = pomoPhaseTargetSec(t); // 긴 휴식(4세트마다)은 15분
-            if (next.elapsedSec >= target) return pomoFlip(next);
+            // overshoot > 2초: bg 복귀/복원 직후 stale 상태 → OS 예약 알림이 이미 발송됨 → 진동 스킵 (countdown/sequence와 동일 가드)
+            if (next.elapsedSec >= target) return pomoFlip(next, next.elapsedSec - target > 2);
           }
           if (t.type === 'sequence') {
             const target = t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
@@ -632,30 +633,8 @@ export function AppProvider({ children }) {
               const sessId = fireComplete(completedT, true);
               return { ...completedT, status: 'completed', result: calcResult(completedT, t.totalSec), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
-            if (t.type === 'pomodoro') {
-              let tt = { ...t, elapsedSec: e };
-              while (true) {
-                const target = pomoPhaseTargetSec(tt);
-                if (tt.elapsedSec >= target) {
-                  const leftover = tt.elapsedSec - target;
-                  tt = pomoFlip({ ...tt, elapsedSec: target }, true);
-                  tt = { ...tt, elapsedSec: leftover };
-                } else break;
-              }
-              return tt;
-            }
-            if (t.type === 'sequence') {
-              let tt = { ...t, elapsedSec: e };
-              while (tt.status !== 'completed') {
-                const target = tt.seqPhase === 'work' ? tt.totalSec : tt.seqBreakSec;
-                if (tt.elapsedSec >= target) {
-                  const leftover = tt.elapsedSec - target;
-                  tt = seqFlip({ ...tt, elapsedSec: target }, true);
-                  if (tt.status === 'completed') break;
-                  tt = { ...tt, elapsedSec: leftover };
-                } else break;
-              }
-              return tt;
+            if (t.type === 'pomodoro' || t.type === 'sequence') {
+              return fastForwardPhases({ ...t, elapsedSec: e });
             }
             return { ...t, elapsedSec: e };
           }));
@@ -821,6 +800,36 @@ export function AppProvider({ children }) {
       if (core.notif) fireNotif(core.notif.title, core.notif.body, `phase-${t.id}-${core.next.resumedAt}`);
     }
     return core.next;
+  };
+
+  // bg 복귀·콜드스타트 복원 공용: 경과가 페이즈 목표를 넘긴 running 뽀모/연속을
+  // 지난 페이즈만큼 전진 (중간 세션 기록 포함, 진동/즉시알림 스킵 — OS 예약분이 이미 발송됨).
+  // 호출 전 elapsedSec에 벽시계 보정값을 넣을 것. 그 외 타입은 그대로 반환
+  const fastForwardPhases = (t) => {
+    if (t.type === 'pomodoro') {
+      let tt = t;
+      while (true) {
+        const target = pomoPhaseTargetSec(tt);
+        if (tt.elapsedSec < target) break;
+        const leftover = tt.elapsedSec - target;
+        tt = pomoFlip({ ...tt, elapsedSec: target }, true);
+        tt = { ...tt, elapsedSec: leftover };
+      }
+      return tt;
+    }
+    if (t.type === 'sequence') {
+      let tt = t;
+      while (tt.status !== 'completed') {
+        const target = tt.seqPhase === 'work' ? tt.totalSec : tt.seqBreakSec;
+        if (tt.elapsedSec < target) break;
+        const leftover = tt.elapsedSec - target;
+        tt = seqFlip({ ...tt, elapsedSec: target }, true);
+        if (tt.status === 'completed') break;
+        tt = { ...tt, elapsedSec: leftover };
+      }
+      return tt;
+    }
+    return t;
   };
 
   const fireComplete = (t, skipNotif = false) => {
@@ -1894,6 +1903,8 @@ export function AppProvider({ children }) {
                     durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
                     focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
                     completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
+                    // 완료 직후(기록됨)~스냅샷 정리 사이에 죽은 경우 영속 dedupe로 재기록 방지 (불변식 3)
+                    dedupeKey: `complete|${t.id}|${t.startedAt}`,
                   });
                   showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
                 }
@@ -1903,7 +1914,18 @@ export function AppProvider({ children }) {
               if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
               return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
             }
-            if (t.status === 'running') return { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: now, elapsedSecAtResume: newElapsed };
+            if (t.status === 'running') {
+              // 뽀모/연속: 죽어 있던 동안 지난 페이즈를 전진 (중간 세트 세션 기록 포함).
+              // stale 페이즈로 두면 buildPhaseNotifSpecs의 첫 경계가 과거 시각 → 스펙 0개로
+              // 이후 페이즈 알림이 전부 무음이 되고, 틱 캐치업이 페이즈마다 진동을 울린다.
+              // resumedAt은 epoch 기준이라 프로세스가 죽어도 유효 — 재앵커 없이 벽시계로
+              // 보정해야 전진된 세션 시각(pomoFlipCore의 페이즈 역산)이 정확하다
+              if ((t.type === 'pomodoro' || t.type === 'sequence') && t.resumedAt) {
+                const wallElapsed = (t.elapsedSecAtResume || 0) + Math.floor((now - t.resumedAt) / 1000);
+                return fastForwardPhases({ ...t, elapsedSec: wallElapsed });
+              }
+              return { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: now, elapsedSecAtResume: newElapsed };
+            }
             return { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed };
           }).filter(Boolean);
           setTimers(restored);
@@ -2083,6 +2105,13 @@ export function AppProvider({ children }) {
     if (dedupeKey) {
       const cached = sessionDedupeRef.current.get(dedupeKey);
       if (cached) return cached;
+      // 인메모리 맵은 재시작에 유실 — 스냅샷 스로틀(5초)로 뒤처진 상태에서 강제종료되면
+      // 복원 캐치업이 종료 직전 이미 기록된 세트/항목을 재기록할 수 있어 영속 레코드도 확인
+      const persisted = sessionsRef.current.find(s => s.dedupeKey === dedupeKey);
+      if (persisted) {
+        sessionDedupeRef.current.set(dedupeKey, persisted.id);
+        return persisted.id;
+      }
     }
     const ultraLevel = settingsRef.current?.ultraFocusLevel || 'normal';
     const newSess = buildSessionRecord(spec, {
