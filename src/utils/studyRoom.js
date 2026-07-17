@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
+  LOUNGE_CODES, loungeNameFor,
 } from './studyRoomCore';
 
 // firebase는 정적 import — 순수 JS라 번들 포함 비용뿐, 네트워크는 initApp() 전까지 없음
@@ -144,6 +145,44 @@ export const joinRoom = async (codeRaw, profile) => {
   } catch {
     return { ok: false, reason: '참여에 실패했어요. 네트워크를 확인해 주세요' };
   }
+};
+
+// 공개 라운지 입장 — 자리가 있는 첫 호점에 참여, 방이 없으면 생성(첫 입장자가 개설)
+export const joinLounge = async (profile) => {
+  const uid = await ensureSignedIn();
+  if (!uid) return { ok: false, reason: '연결에 실패했어요' };
+  for (const code of LOUNGE_CODES) {
+    try {
+      let snap = await get(ref(db, `rooms/${code}`));
+      if (!snap.exists()) {
+        try {
+          await set(ref(db, `rooms/${code}`), {
+            name: loungeNameFor(code), ownerUid: uid, createdAt: serverTimestamp(),
+            members: { [uid]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() } },
+          });
+          await set(ref(db, `users/${uid}/roomId`), code);
+          cachedRoomId = code;
+          return { ok: true, roomId: code };
+        } catch {
+          // 동시 첫 입장 레이스 — 다른 사람이 먼저 만들었으면 아래 일반 참여로 진행
+          snap = await get(ref(db, `rooms/${code}`));
+          if (!snap.exists()) continue;
+        }
+      }
+      const room = snap.val();
+      const alreadyIn = !!room.members?.[uid];
+      if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) continue; // 다음 호점
+      await update(ref(db), {
+        [`rooms/${code}/members/${uid}`]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() },
+        [`users/${uid}/roomId`]: code,
+      });
+      cachedRoomId = code;
+      return { ok: true, roomId: code };
+    } catch {
+      // 생성 레이스(동시 첫 입장) 등 — 다음 호점 시도
+    }
+  }
+  return { ok: false, reason: '라운지가 모두 가득 찼어요. 잠시 후 다시 시도해 주세요' };
 };
 
 export const leaveRoom = async () => {

@@ -17,6 +17,16 @@ export const isValidRoomCode = (s) =>
 export const normalizeRoomCode = (raw) =>
   String(raw || '').toUpperCase().replace(/\s/g, '').slice(0, ROOM_CODE_LEN);
 
+// 공개 라운지 — 고정 코드의 전체 공개방. 코드가 없는 유저도 스터디룸을 체험하는 통로.
+// 첫 입장자가 방을 생성(lazy), 가득 차면(30명) 다음 호점으로 자동 안내.
+// 코드는 CODE_CHARS 부분집합이어야 함 (테스트로 강제)
+export const LOUNGE_CODES = ['STUDY2', 'STUDY3', 'STUDY4', 'STUDY5'];
+export const loungeNameFor = (code) => {
+  const idx = LOUNGE_CODES.indexOf(code);
+  return idx <= 0 ? '열공 라운지' : `열공 라운지 ${idx + 1}`;
+};
+export const isLoungeCode = (code) => LOUNGE_CODES.includes(code);
+
 // 닉네임: 2~12자, 앞뒤 공백 제거. 금칙어는 포함 검사(간단 목록 — 아는 사이 전제의 최소 방어)
 const BAD_WORDS = ['시발', '씨발', '병신', '개새', '지랄', '좆', '섹스', 'fuck', 'sex'];
 export const validateNickname = (raw) => {

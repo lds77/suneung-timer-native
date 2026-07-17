@@ -15,7 +15,7 @@ import {
   validateNickname, normalizeRoomCode, displayStatus, sortMembers, todayStudySec, buildPresence,
 } from '../utils/studyRoomCore';
 import {
-  fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, leaveRoom,
+  fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
   deleteMyData, subscribeRoom, syncPresence,
 } from '../utils/studyRoom';
 
@@ -125,6 +125,16 @@ export default function StudyRoomScreen({ visible, onClose }) {
     setStep('room');
   };
 
+  const handleJoinLounge = async () => {
+    setBusy(true);
+    const r = await joinLounge(profile);
+    setBusy(false);
+    if (!r.ok) { Alert.alert('입장 실패', r.reason); return; }
+    app.updateSettings({ studyRoomEnabled: true });
+    setRoomId(r.roomId);
+    setStep('room');
+  };
+
   const handleShareCode = () => {
     const name = roomData.room?.name || '스터디룸';
     Share.share({
@@ -189,6 +199,18 @@ export default function StudyRoomScreen({ visible, onClose }) {
 
   const renderLobby = () => (
     <View>
+      <TouchableOpacity style={[S.card, { backgroundColor: T.card, borderColor: T.accent + '55' }]} onPress={handleJoinLounge} disabled={busy} activeOpacity={0.8}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[S.iconBtn, { backgroundColor: T.accent + '18' }]}>
+            <Ionicons name="people" size={18} color={T.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[S.cardTitle, { color: T.text }]}>공개 라운지 입장</Text>
+            <Text style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>전국의 열공메이트 유저들과 같이 공부해요</Text>
+          </View>
+          {busy ? <ActivityIndicator color={T.accent} /> : <Ionicons name="chevron-forward" size={18} color={T.sub} />}
+        </View>
+      </TouchableOpacity>
       <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
         <Text style={[S.cardTitle, { color: T.text }]}>새 방 만들기</Text>
         <TextInput

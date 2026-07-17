@@ -27,6 +27,15 @@ describe('방 코드', () => {
     expect(isValidRoomCode('ABCDE0')).toBe(false); // 0은 코드셋에 없음
     expect(isValidRoomCode(null)).toBe(false);
   });
+
+  test('공개 라운지 고정 코드는 전부 유효한 코드 형식 + 호점별 이름', () => {
+    const { LOUNGE_CODES, loungeNameFor, isLoungeCode } = require('../studyRoomCore');
+    LOUNGE_CODES.forEach(c => expect(isValidRoomCode(c)).toBe(true));
+    expect(loungeNameFor(LOUNGE_CODES[0])).toBe('열공 라운지');
+    expect(loungeNameFor(LOUNGE_CODES[1])).toBe('열공 라운지 2');
+    expect(isLoungeCode(LOUNGE_CODES[0])).toBe(true);
+    expect(isLoungeCode('ABCDEF')).toBe(false);
+  });
 });
 
 describe('validateNickname', () => {
