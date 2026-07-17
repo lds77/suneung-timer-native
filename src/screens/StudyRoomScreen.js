@@ -73,7 +73,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const unsub = subscribeRoom(roomId, setRoomData);
     // 입장 직후 내 presence 1회 반영 (이후엔 useAppState effect가 상태 변화 시 처리)
     const active = app.timers.find(t => t.type !== 'lap' && t.status === 'running') || null;
-    syncPresence(buildPresence(active, { todaySec: todayStudySec(app.sessions, getToday()), today: getToday() }));
+    syncPresence(buildPresence(active, {
+      todaySec: todayStudySec(app.sessions, getToday()), today: getToday(),
+      focusMode: app.focusMode, ultraFocusLevel: app.settings.ultraFocusLevel || 'normal',
+    }));
     return unsub;
   }, [visible, step, roomId]);
 
@@ -225,11 +228,27 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </View>
         </View>
 
-        {members.map(m => (
+        {members.map(m => {
+          // 공부 모드 3단계 배지 (편하게/집중/울트라집중)
+          const MODE_BADGE = {
+            book: { icon: 'book-outline', label: '편하게', color: T.sub },
+            fire: { icon: 'flame-outline', label: '집중', color: '#FF8A3D' },
+            ultra: { icon: 'flame', label: '울트라집중', color: '#E74C3C' },
+          };
+          const badge = m.studying ? MODE_BADGE[m.mode] || MODE_BADGE.book : null;
+          return (
           <View key={m.uid} style={[S.memberRow, { backgroundColor: T.card, borderColor: m.studying ? T.accent + '55' : T.border }]}>
             <CharacterAvatar characterId={m.character} size={40} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[S.memberName, { color: T.text }]} numberOfLines={1}>{m.nickname}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[S.memberName, { color: T.text }]} numberOfLines={1}>{m.nickname}</Text>
+                {badge && (
+                  <View style={[S.modeChip, { backgroundColor: badge.color + '1A' }]}>
+                    <Ionicons name={badge.icon} size={11} color={badge.color} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: badge.color }}>{badge.label}</Text>
+                  </View>
+                )}
+              </View>
               {m.studying ? (
                 <Text style={{ fontSize: 12, color: T.accent, fontWeight: '700' }} numberOfLines={1}>
                   {m.subjectLabel || '공부 중'} · {formatDuration(Math.max(0, (now - m.startedAt) / 1000))}
@@ -245,7 +264,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
               <Text style={{ fontSize: 10, color: T.sub }}>오늘</Text>
             </View>
           </View>
-        ))}
+          );
+        })}
 
         <TouchableOpacity onPress={handleLeave} style={{ alignSelf: 'center', marginTop: 16, padding: 8 }}>
           <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>방 나가기</Text>
@@ -299,6 +319,7 @@ const S = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1,
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
   },
-  memberName: { fontSize: 14, fontWeight: '800' },
+  memberName: { fontSize: 14, fontWeight: '800', flexShrink: 1 },
+  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
 });

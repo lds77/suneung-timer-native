@@ -31,7 +31,7 @@ export const validateNickname = (raw) => {
 // 활성 타이머 → presence 페이로드.
 // 규칙(설계 3.2): running만 studying, 일시정지는 idle('공부 중' 신뢰 우선),
 // 뽀모/연속 휴식 페이즈는 studying 유지 + '휴식 중' 라벨. RTDB는 undefined 금지 — null 정규화
-export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now() } = {}) => {
+export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal' } = {}) => {
   const t = activeTimer;
   const running = !!t && t.type !== 'lap' && t.status === 'running';
   const inBreak = running && (
@@ -42,6 +42,11 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     state: running ? 'studying' : 'idle',
     subjectLabel: running ? (inBreak ? '휴식 중' : (t.label || '')) : '',
     startedAt: running ? (t.startedAt ?? null) : null,
+    // 공부 모드 3단계 — 친구에게 공부 강도 전달:
+    // book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)
+    mode: !running ? null
+      : focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire')
+      : 'book',
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
     updatedAt: nowMs,
@@ -49,7 +54,7 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
 };
 
 // presence 시그니처 — 같은 값 재전송 방지용 (elapsed 틱 제외, 상태 변화만)
-export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.todaySec}|${p.date}`;
+export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.todaySec}|${p.date}`;
 
 // 서버 status → 표시 상태.
 // 규칙(설계 8): studying은 updatedAt 기준 30분까지 신뢰(스테일 소켓 방어),
@@ -64,6 +69,7 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
     studying,
     maybeAway: studying && s.state === 'bg',
     startedAt: studying ? s.startedAt : null,
+    mode: studying ? (s.mode || 'book') : null,
     todaySec: s.date === today ? (s.todaySec || 0) : 0,
   };
 };

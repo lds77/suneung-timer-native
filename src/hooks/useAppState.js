@@ -659,6 +659,8 @@ export function AppProvider({ children }) {
           const todayStr2 = getToday();
           syncStudyRoomPresence(buildStudyPresence(activeT, {
             todaySec: studyRoomTodaySec(sessionsRef.current, todayStr2), today: todayStr2,
+            focusMode: focusModeRef.current,
+            ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
           }));
         }
       }
@@ -2029,10 +2031,12 @@ export function AppProvider({ children }) {
       const today = getToday();
       syncStudyRoomPresence(buildStudyPresence(active, {
         todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
+        focusMode: focusModeRef.current,
+        ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
       }));
     }, 1000);
     return () => clearTimeout(h);
-  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, loading]);
+  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, focusMode, loading]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용

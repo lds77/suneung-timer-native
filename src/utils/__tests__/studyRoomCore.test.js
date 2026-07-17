@@ -49,9 +49,21 @@ describe('buildPresence', () => {
   test('running 타이머 → studying + 과목 라벨 + startedAt', () => {
     const t = { type: 'countdown', status: 'running', label: '수학', startedAt: NOW - 60000 };
     expect(buildPresence(t, base)).toEqual({
-      state: 'studying', subjectLabel: '수학', startedAt: NOW - 60000,
+      state: 'studying', subjectLabel: '수학', startedAt: NOW - 60000, mode: 'book',
       todaySec: 3600, date: '2027-01-15', updatedAt: NOW,
     });
+  });
+
+  test('공부 모드 3단계: 편하게(book)/집중(fire)/울트라집중(ultra), 미실행 시 null', () => {
+    const t = { type: 'countdown', status: 'running', label: '수학', startedAt: NOW };
+    expect(buildPresence(t, base).mode).toBe('book'); // focusMode 없음(screen_off) = 편하게
+    expect(buildPresence(t, { ...base, focusMode: 'screen_off' }).mode).toBe('book');
+    expect(buildPresence(t, { ...base, focusMode: 'screen_on' }).mode).toBe('fire');
+    expect(buildPresence(t, { ...base, focusMode: 'screen_on', ultraFocusLevel: 'focus' }).mode).toBe('fire');
+    expect(buildPresence(t, { ...base, focusMode: 'screen_on', ultraFocusLevel: 'exam' }).mode).toBe('ultra');
+    // screen_off면 시험 강도여도 편하게 (앱의 screen_on 게이팅과 일관)
+    expect(buildPresence(t, { ...base, focusMode: 'screen_off', ultraFocusLevel: 'exam' }).mode).toBe('book');
+    expect(buildPresence(null, base).mode).toBeNull();
   });
 
   test('일시정지/타이머 없음/랩만 → idle (공부 중 신뢰 우선)', () => {
@@ -112,7 +124,7 @@ describe('displayStatus', () => {
   });
 
   test('status 없음(신규 멤버)도 안전', () => {
-    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, maybeAway: false, startedAt: null, todaySec: 0 });
+    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0 });
   });
 });
 
