@@ -28,7 +28,7 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence } from '../utils/studyRoom';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
@@ -650,6 +650,17 @@ export function AppProvider({ children }) {
         // 포그라운드 복귀 시 리포트 알림 재예약 (최신 공부 데이터 반영)
         scheduleWeeklyReport();
         scheduleMonthlyReport();
+
+        // 스터디룸: bg 진입 시 onDisconnect가 서버에 'bg'(자리비움 가능)를 남김 —
+        // 복귀 즉시 시그니처 캐시를 비우고 현재 상태를 재전송해 표시를 되돌린다
+        if (settingsRef.current.studyRoomEnabled) {
+          forcePresenceResync();
+          const activeT = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+          const todayStr2 = getToday();
+          syncStudyRoomPresence(buildStudyPresence(activeT, {
+            todaySec: studyRoomTodaySec(sessionsRef.current, todayStr2), today: todayStr2,
+          }));
+        }
       }
     });
     return () => sub.remove();

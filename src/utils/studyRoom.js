@@ -230,3 +230,7 @@ export const armPresence = () => {
   const uid = uidOrNull();
   if (uid && cachedRoomId) setupPresence(cachedRoomId, uid);
 };
+
+// 포그라운드 복귀 시 시그니처 캐시 비우기 — bg 진입 때 onDisconnect가 서버에 'bg'를 남기는데,
+// 로컬 시그니처는 여전히 'studying'이라 재전송이 스킵돼 '자리비움일 수 있음'이 계속 남는다
+export const forcePresenceResync = () => { lastPresenceSig = null; };
