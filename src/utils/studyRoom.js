@@ -234,3 +234,16 @@ export const armPresence = () => {
 // 포그라운드 복귀 시 시그니처 캐시 비우기 — bg 진입 때 onDisconnect가 서버에 'bg'를 남기는데,
 // 로컬 시그니처는 여전히 'studying'이라 재전송이 스킵돼 '자리비움일 수 있음'이 계속 남는다
 export const forcePresenceResync = () => { lastPresenceSig = null; };
+
+// 하트비트 — 끝이 정해지지 않은 타이머(자유/뽀모)의 장시간 백그라운드 공부 유지용.
+// 안드로이드는 타이머 실행 중 포그라운드 서비스가 JS를 살려두므로 10분마다 updatedAt만
+// 갱신하면 30분 신뢰창이 계속 연장된다 (iOS bg는 JS 정지 — plannedEndAt이 커버).
+// 마지막 전송이 studying일 때만 (쉬는 중인데 갱신하면 의미 없는 쓰기)
+export const heartbeatPresence = async () => {
+  if (!isStudyRoomAvailable()) return;
+  const uid = uidOrNull();
+  if (!uid || !lastPresenceSig || !lastPresenceSig.startsWith('studying')) return;
+  const roomId = cachedRoomId !== undefined ? cachedRoomId : await fetchMyRoomId();
+  if (!roomId) return;
+  try { await update(ref(db, `status/${roomId}/${uid}`), { updatedAt: Date.now() }); } catch {}
+};

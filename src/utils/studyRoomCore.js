@@ -31,6 +31,34 @@ export const validateNickname = (raw) => {
 // 활성 타이머 → presence 페이로드.
 // 규칙(설계 3.2): running만 studying, 일시정지는 idle('공부 중' 신뢰 우선),
 // 뽀모/연속 휴식 페이즈는 studying 유지 + '휴식 중' 라벨. RTDB는 undefined 금지 — null 정규화
+// 예정 종료 시각(ms) — 끝이 정해진 타이머만 (countdown/연속). 자유·뽀모(무한 반복)·랩은 null.
+// iOS는 백그라운드에서 하트비트가 불가능하므로, 친구 화면이 이 시각까지 '공부 중'을 유지하는 근거가 된다.
+// 10초 단위 반올림 — presence 시그니처가 호출 시각에 따라 매번 달라지는 것 방지 (재전송 억제)
+export const plannedEndAtOf = (t, nowMs = Date.now()) => {
+  if (!t || t.status !== 'running') return null;
+  const elapsed = t.resumedAt
+    ? (t.elapsedSecAtResume || 0) + (nowMs - t.resumedAt) / 1000
+    : (t.elapsedSec || 0);
+  let remainSec = null;
+  if (t.type === 'countdown') {
+    remainSec = Math.max(0, (t.totalSec || 0) - elapsed);
+  } else if (t.type === 'sequence') {
+    const items = t.seqItems || [];
+    const idx = t.seqIndex || 0;
+    const breakSec = t.seqBreakSec || 0;
+    // 현재 페이즈 잔여 + 이후 항목들(각 항목 앞에 휴식) 합산
+    remainSec = t.seqPhase === 'work'
+      ? Math.max(0, (t.totalSec || 0) - elapsed)
+      : Math.max(0, breakSec - elapsed);
+    for (let i = idx + 1; i < items.length; i++) {
+      if (t.seqPhase === 'work' || i > idx + 1) remainSec += breakSec; // 남은 경계 수만큼 휴식
+      remainSec += items[i].totalSec || 0;
+    }
+  }
+  if (remainSec === null) return null;
+  return Math.round((nowMs + remainSec * 1000) / 10000) * 10000;
+};
+
 export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal' } = {}) => {
   const t = activeTimer;
   const running = !!t && t.type !== 'lap' && t.status === 'running';
@@ -47,6 +75,7 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     mode: !running ? null
       : focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire')
       : 'book',
+    plannedEndAt: running ? plannedEndAtOf(t, nowMs) : null,
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
     updatedAt: nowMs,
@@ -54,16 +83,21 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
 };
 
 // presence 시그니처 — 같은 값 재전송 방지용 (elapsed 틱 제외, 상태 변화만)
-export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.todaySec}|${p.date}`;
+export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.plannedEndAt || 0}|${p.todaySec}|${p.date}`;
 
 // 서버 status → 표시 상태.
-// 규칙(설계 8): studying은 updatedAt 기준 30분까지 신뢰(스테일 소켓 방어),
-// 'bg'(onDisconnect가 남김)는 자리비움 가능성 — 마지막 studying으로부터 30분까지는 공부 중으로 표시.
+// 규칙(설계 8): studying은 updatedAt 기준 30분까지 신뢰(스테일 소켓 방어).
+// 'bg'(onDisconnect가 남김)는 자리비움 가능성 — 30분까지는 공부 중으로 표시.
+// 예외: plannedEndAt(카운트다운/연속의 예정 종료)이 있으면 그 시각+5분까지 신뢰 연장 —
+//   iOS 백그라운드는 하트비트가 불가능해 updatedAt이 멈추지만 타이머는 벽시계로 계속 돈다.
+// 장시간 자유모드는 안드로이드 하트비트(10분)가 updatedAt을 갱신해 커버.
 // date가 오늘이 아니면 todaySec은 0으로 표시 (자정 리셋은 클라이언트 몫)
 export const STALE_MS = 30 * 60 * 1000;
+export const PLANNED_END_GRACE_MS = 5 * 60 * 1000;
 export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   const s = status || {};
-  const fresh = (nowMs - (s.updatedAt || 0)) < STALE_MS;
+  const fresh = (nowMs - (s.updatedAt || 0)) < STALE_MS
+    || (!!s.plannedEndAt && nowMs < s.plannedEndAt + PLANNED_END_GRACE_MS);
   const studying = (s.state === 'studying' || s.state === 'bg') && fresh && !!s.startedAt;
   return {
     studying,

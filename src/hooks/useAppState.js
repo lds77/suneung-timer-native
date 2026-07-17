@@ -28,7 +28,7 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence, forcePresenceResync } from '../utils/studyRoom';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
@@ -2037,6 +2037,17 @@ export function AppProvider({ children }) {
     }, 1000);
     return () => clearTimeout(h);
   }, [widgetTimerSig, sessions, settings.studyRoomEnabled, focusMode, loading]);
+
+  // 스터디룸 하트비트 — 자유/뽀모처럼 끝이 정해지지 않은 타이머의 장시간 공부 유지.
+  // 안드는 타이머 실행 중 포그라운드 서비스가 JS를 살려둬 백그라운드에서도 동작 (10분 간격 소량 쓰기)
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) return;
+    const iv = setInterval(() => {
+      const running = timersRef.current.some(t => t.type !== 'lap' && t.status === 'running');
+      if (running) heartbeatPresence();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [settings.studyRoomEnabled, loading]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용

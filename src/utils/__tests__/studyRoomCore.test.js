@@ -2,7 +2,8 @@
 
 const {
   genRoomCode, isValidRoomCode, normalizeRoomCode, validateNickname,
-  buildPresence, presenceSig, displayStatus, sortMembers, todayStudySec, STALE_MS,
+  buildPresence, presenceSig, displayStatus, sortMembers, todayStudySec,
+  plannedEndAtOf, STALE_MS, PLANNED_END_GRACE_MS,
 } = require('../studyRoomCore');
 
 const NOW = 1_800_000_000_000;
@@ -46,12 +47,29 @@ describe('validateNickname', () => {
 describe('buildPresence', () => {
   const base = { todaySec: 3600, today: '2027-01-15', nowMs: NOW };
 
-  test('running 타이머 → studying + 과목 라벨 + startedAt', () => {
-    const t = { type: 'countdown', status: 'running', label: '수학', startedAt: NOW - 60000 };
+  test('running 타이머 → studying + 과목 라벨 + startedAt + 예정 종료', () => {
+    const t = { type: 'countdown', status: 'running', label: '수학', startedAt: NOW - 60000, totalSec: 7200, resumedAt: NOW - 60000, elapsedSecAtResume: 0 };
     expect(buildPresence(t, base)).toEqual({
       state: 'studying', subjectLabel: '수학', startedAt: NOW - 60000, mode: 'book',
+      plannedEndAt: NOW - 60000 + 7200_000, // 시작 + 2시간 (10초 반올림)
       todaySec: 3600, date: '2027-01-15', updatedAt: NOW,
     });
+  });
+
+  test('plannedEndAtOf: 카운트다운/연속은 종료 시각, 자유/뽀모는 null', () => {
+    // 카운트다운 2시간, 30분 경과 → 90분 뒤 종료
+    const cd = { type: 'countdown', status: 'running', totalSec: 7200, resumedAt: NOW - 1800_000, elapsedSecAtResume: 0 };
+    expect(plannedEndAtOf(cd, NOW)).toBe(NOW + 5400_000);
+    // 연속: 항목1(40분) work 10분 지점 + 휴식 10분 + 항목2(30분) → 잔여 30+10+30 = 70분
+    const seq = {
+      type: 'sequence', status: 'running', seqPhase: 'work', seqIndex: 0, totalSec: 2400,
+      seqBreakSec: 600, seqItems: [{ totalSec: 2400 }, { totalSec: 1800 }],
+      resumedAt: NOW - 600_000, elapsedSecAtResume: 0,
+    };
+    expect(plannedEndAtOf(seq, NOW)).toBe(NOW + (1800 + 600 + 1800) * 1000);
+    expect(plannedEndAtOf({ type: 'free', status: 'running', resumedAt: NOW }, NOW)).toBeNull();
+    expect(plannedEndAtOf({ type: 'pomodoro', status: 'running', pomoPhase: 'work', resumedAt: NOW }, NOW)).toBeNull();
+    expect(plannedEndAtOf(null, NOW)).toBeNull();
   });
 
   test('공부 모드 3단계: 편하게(book)/집중(fire)/울트라집중(ultra), 미실행 시 null', () => {
@@ -116,6 +134,17 @@ describe('displayStatus', () => {
   test('30분 넘게 갱신 없으면 공부 중 아님 (스테일 방어)', () => {
     const s = { state: 'studying', startedAt: NOW, updatedAt: NOW - STALE_MS - 1, todaySec: 0, date: today };
     expect(displayStatus(s, { nowMs: NOW, today }).studying).toBe(false);
+  });
+
+  test('예정 종료(plannedEndAt)까지는 30분 넘어도 공부 중 유지 — iOS 백그라운드 장시간 카운트다운', () => {
+    // 2시간 카운트다운을 켜고 화면 끔: updatedAt은 1시간 전에 멈췄지만 종료 예정은 1시간 뒤
+    const s = {
+      state: 'bg', startedAt: NOW - 3600_000, updatedAt: NOW - 3600_000,
+      plannedEndAt: NOW + 3600_000, todaySec: 0, date: today,
+    };
+    expect(displayStatus(s, { nowMs: NOW, today }).studying).toBe(true);
+    // 종료 예정 + 유예(5분) 지나면 내려감
+    expect(displayStatus(s, { nowMs: s.plannedEndAt + PLANNED_END_GRACE_MS + 1, today }).studying).toBe(false);
   });
 
   test('어제 date의 todaySec은 0으로 표시 (자정 리셋은 클라이언트 몫)', () => {
