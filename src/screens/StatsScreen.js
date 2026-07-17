@@ -33,6 +33,8 @@ import {
   ReportGradientHeader, SubjectProportionBar, ReportFooterMessage, ReportWatermark,
 } from './stats/components/ReportComponents';
 import { createStyles, HM_WEEKS, HM_GAP } from './stats/styles';
+import StudyRoomScreen from './StudyRoomScreen';
+import { isStudyRoomAvailable } from '../utils/studyRoom';
 
 const TABLET_MAX_W = 680;
 
@@ -58,6 +60,7 @@ export default function StatsScreen() {
   }, [isLandscape, scrollW, tabletMaxW, winW]);
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const [showStudyRoom, setShowStudyRoom] = useState(false); // 스터디룸 모달 (extra.firebase 설정 시에만 진입점 노출)
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const S = useMemo(() => createStyles(fs), [fs]);
   const [tab, setTab] = useState('daily');
@@ -1479,6 +1482,14 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 13, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub }}>{t.l}</Text>
               </TouchableOpacity>
             ))}
+            {isStudyRoomAvailable() && (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 'auto' }}
+                onPress={() => setShowStudyRoom(true)}>
+                <Ionicons name="people-outline" size={15} color={T.sub} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: T.sub }}>스터디룸</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -1588,6 +1599,22 @@ export default function StatsScreen() {
               ))}
             </View>
           </View>
+
+          {/* 스터디룸 진입 배너 (Firebase 설정이 있을 때만) */}
+          {isStudyRoomAvailable() && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 8,
+                backgroundColor: T.card, borderWidth: 1, borderColor: T.accent + '40',
+                borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 10,
+              }}
+              onPress={() => setShowStudyRoom(true)} activeOpacity={0.8}>
+              <Ionicons name="people-outline" size={18} color={T.accent} />
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }}>스터디룸</Text>
+              <Text style={{ fontSize: 12, color: T.sub }}>친구와 같이 공부</Text>
+              <Ionicons name="chevron-forward" size={16} color={T.sub} />
+            </TouchableOpacity>
+          )}
 
           {tab !== 'subject' && (
             <View style={S.summaryRow}>{renderSummaryCards()}</View>
@@ -2926,6 +2953,9 @@ export default function StatsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 스터디룸 (같이 공부) */}
+      <StudyRoomScreen visible={showStudyRoom} onClose={() => setShowStudyRoom(false)} />
     </View>
   );
 }

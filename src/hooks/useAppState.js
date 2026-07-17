@@ -28,6 +28,8 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
+import { syncPresence as syncStudyRoomPresence } from '../utils/studyRoom';
+import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -2005,6 +2007,21 @@ export function AppProvider({ children }) {
     const active = timers.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
     syncLiveActivity(active, { darkMode: settings.darkMode, accentColor: settings.accentColor });
   }, [timers, loading, settings.darkMode, settings.accentColor]);
+
+  // 스터디룸 presence 동기화 — 타이머 상태 시그니처/세션(오늘 누적) 변화 시에만.
+  // 초당 쓰기 금지(설계 8): elapsed 틱 제외, 모듈 내부 presenceSig 중복 가드가 재전송도 차단.
+  // studyRoomEnabled를 켠 유저만 네트워크 사용 — 미사용자는 완전 로컬 유지
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) return;
+    const h = setTimeout(() => {
+      const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+      const today = getToday();
+      syncStudyRoomPresence(buildStudyPresence(active, {
+        todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
+      }));
+    }, 1000);
+    return () => clearTimeout(h);
+  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, loading]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용

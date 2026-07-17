@@ -1,0 +1,35 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "nickname": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 12" }
+      }
+    },
+
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.child('ownerUid').val() === auth.uid",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 16" },
+        "members": {
+          "$uid": { ".write": "auth != null && auth.uid === $uid" }
+        }
+      }
+    },
+
+    "status": {
+      "$roomId": {
+        ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          "todaySec": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" }
+        }
+      }
+    }
+  }
+}

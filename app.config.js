@@ -167,6 +167,11 @@ module.exports = {
       eas: {
         projectId: 'ff1ee02a-77f5-4799-96d9-accb8eab8b36',
       },
+      // 스터디룸(같이 공부) — Firebase 웹 앱 설정. null이면 기능 전체 비활성(진입점 숨김).
+      // 콘솔에서 프로젝트 생성 후 아래 형태로 채우면 활성화 (웹 API 키는 공개 전제 — 보안은 RTDB rules).
+      // 설계/설정 절차: docs/realtime-study-design.md
+      // firebase: { apiKey, authDomain, projectId, databaseURL, appId },
+      firebase: null,
     },
   },
 };
