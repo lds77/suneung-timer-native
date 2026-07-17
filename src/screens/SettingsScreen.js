@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView, useWindowDimensions,
+  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, Share, KeyboardAvoidingView, useWindowDimensions,
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -759,6 +759,16 @@ export default function SettingsScreen() {
         <Section T={T} title="도움말">
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Row T={T} label="사용 가이드" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/')}>
+            <Row T={T} label="열공메이트 웹사이트" sub="기능 소개와 활용 팁 보기" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => {
+            Share.share({
+              message: '공부 타이머 앱 "열공메이트"를 추천해요!\n집중밀도 점수로 공부의 질까지 기록하고, 플래너·통계·홈 위젯까지 전부 무료예요.\n\niPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer',
+            }).catch(() => {});
+          }}>
+            <Row T={T} label="친구에게 추천하기" sub="같이 공부할 친구에게 앱 알려주기" right={<Ionicons name="share-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
         </Section>
 
