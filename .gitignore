@@ -6,9 +6,10 @@ node_modules/
 # Claude Code AI memory
 .claude/
 
-# 작업 기획 문서 (CLAUDE.md 제외)
+# 작업 기획 문서 (CLAUDE.md와 docs/ 설계 문서 제외)
 *.md
 !CLAUDE.md
+!docs/*.md
 
 # 스크린샷 원본 보관함 (웹/스토어에 실제 쓰는 파일만 screenshots/ 루트에 커밋)
 screenshots/_raw/
