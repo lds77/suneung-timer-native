@@ -217,12 +217,20 @@ describe('assignSeats', () => {
   });
 });
 
-describe('좌석 도면 (SEAT_ZONES/resolveSeats)', () => {
-  const { SEAT_ZONES, TOTAL_SEATS, resolveSeats } = require('../studyRoomCore');
+describe('좌석 도면 (ROOM_THEMES/resolveSeats)', () => {
+  const { ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats } = require('../studyRoomCore');
 
-  test('도면에 1~30번 좌석이 정확히 한 번씩 (0=통로 제외)', () => {
-    const all = SEAT_ZONES.flatMap(z => z.rows.flat()).filter(n => n !== 0).sort((a, b) => a - b);
-    expect(all).toEqual(Array.from({ length: TOTAL_SEATS }, (_, i) => i + 1));
+  test('모든 테마 도면에 1~30번 좌석이 정확히 한 번씩 (0=통로 제외)', () => {
+    Object.entries(ROOM_THEMES).forEach(([key, th]) => {
+      const all = th.zones.flatMap(z => z.rows.flat()).filter(n => n !== 0).sort((a, b) => a - b);
+      expect(all).toEqual(Array.from({ length: TOTAL_SEATS }, (_, i) => i + 1));
+    });
+  });
+
+  test('themeOf: 미지정/알 수 없는 테마는 카페 폴백 (구버전 방 호환)', () => {
+    expect(themeOf(undefined)).toBe(ROOM_THEMES.cafe);
+    expect(themeOf('weird')).toBe(ROOM_THEMES.cafe);
+    expect(themeOf('library')).toBe(ROOM_THEMES.library);
   });
 
   test('본인이 고른 자리 우선, 중복 선택은 먼저 입장한 사람 승, 미선택/밀린 사람은 앞번호 자동 착석', () => {

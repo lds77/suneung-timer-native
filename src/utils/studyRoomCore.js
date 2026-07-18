@@ -148,15 +148,46 @@ export const withNicknameTags = (rows) => {
 export const assignSeats = (rows) =>
   [...rows].sort((a, b) => ((a.joinedAt || 0) - (b.joinedAt || 0)) || String(a.uid).localeCompare(String(b.uid)));
 
-// ── 스터디카페 도면 ──
-// 구역별 좌석 배치 (0 = 통로/빈 공간). 좌석 번호 1~30이 정확히 한 번씩 등장해야 한다 (테스트 강제)
+// ── 방 테마 도면 ──
+// 구역별 좌석 배치 (0 = 통로/빈 공간). 각 테마마다 좌석 번호 1~30이 정확히 한 번씩 (테스트 강제).
+// partition: 칸막이(독서실 부스), board: 칠판(교실). desk: 책상 상판 색
 export const TOTAL_SEATS = 30;
-export const SEAT_ZONES = [
-  { label: '창가석', rows: [[1, 2, 3, 4, 5, 6]] },
-  { label: '집중 열람석', rows: [[7, 8, 0, 9, 10], [11, 12, 0, 13, 14], [15, 16, 0, 17, 18]] },
-  { label: '자유석', rows: [[19, 20, 21, 22], [23, 24, 25, 26]] },
-  { label: '스터디 테이블', rows: [[27, 28, 29, 30]] },
-];
+export const ROOM_THEMES = {
+  cafe: {
+    label: '스터디카페', icon: 'cafe-outline', desk: '#C9A87C', partition: false, board: false,
+    zones: [
+      { label: '창가석', rows: [[1, 2, 3, 4, 5, 6]] },
+      { label: '집중 열람석', rows: [[7, 8, 0, 9, 10], [11, 12, 0, 13, 14], [15, 16, 0, 17, 18]] },
+      { label: '자유석', rows: [[19, 20, 21, 22], [23, 24, 25, 26]] },
+      { label: '스터디 테이블', rows: [[27, 28, 29, 30]] },
+    ],
+  },
+  library: {
+    label: '독서실', icon: 'book-outline', desk: '#8B7355', partition: true, board: false,
+    zones: [
+      {
+        label: '',
+        rows: [
+          [1, 2, 3, 0, 4, 5, 6], [7, 8, 9, 0, 10, 11, 12], [13, 14, 15, 0, 16, 17, 18],
+          [19, 20, 21, 0, 22, 23, 24], [25, 26, 27, 0, 28, 29, 30],
+        ],
+      },
+    ],
+  },
+  classroom: {
+    label: '교실', icon: 'school-outline', desk: '#D8C9A3', partition: false, board: true,
+    zones: [
+      {
+        label: '',
+        rows: [
+          [1, 2, 0, 3, 4, 0, 5, 6], [7, 8, 0, 9, 10, 0, 11, 12], [13, 14, 0, 15, 16, 0, 17, 18],
+          [19, 20, 0, 21, 22, 0, 23, 24], [25, 26, 0, 27, 28, 0, 29, 30],
+        ],
+      },
+    ],
+  },
+};
+export const themeOf = (t) => ROOM_THEMES[t] || ROOM_THEMES.cafe;
 
 // 좌석 확정: 본인이 고른 seat(멤버 레코드 저장값) 우선 — 중복 선택 레이스는 먼저 입장한
 // 사람이 이기고, 밀린 사람/미선택자는 빈 좌석 앞번호부터 자동 착석 (결정적 — 모든 클라이언트 동일)

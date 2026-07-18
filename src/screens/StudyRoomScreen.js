@@ -14,7 +14,7 @@ import { getToday, formatShort } from '../utils/format';
 import {
   validateNickname, normalizeRoomCode, displayStatus, todayStudySec, buildPresence,
   findGhostMembers, GHOST_MS, withNicknameTags,
-  SEAT_ZONES, TOTAL_SEATS, resolveSeats,
+  ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
@@ -38,6 +38,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [nickname, setNickname] = useState(app.settings.nickname || '');
   const [character, setCharacter] = useState(app.settings.mainCharacter || 'toru');
   const [roomName, setRoomName] = useState('');
+  const [roomTheme, setRoomTheme] = useState('cafe'); // 방 생성 시 테마 (카페/독서실/교실)
   const [codeInput, setCodeInput] = useState('');
 
   // 1초 틱 — 공부 중 멤버의 경과 표시용 (로컬 계산, 네트워크 없음)
@@ -128,7 +129,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
 
   const handleCreate = async () => {
     setBusy(true);
-    const r = await createRoom(roomName, profile);
+    const r = await createRoom(roomName, profile, roomTheme);
     setBusy(false);
     if (!r.ok) { Alert.alert('방 만들기 실패', r.reason); return; }
     app.updateSettings({ studyRoomEnabled: true });
@@ -240,6 +241,20 @@ export default function StudyRoomScreen({ visible, onClose }) {
           style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.surface2 }]}
           value={roomName} onChangeText={setRoomName} maxLength={16}
           placeholder="방 이름 (예: 3반 스터디)" placeholderTextColor={T.sub} />
+        <Text style={[S.label, { color: T.sub }]}>방 분위기</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+          {Object.entries(ROOM_THEMES).map(([key, th]) => (
+            <TouchableOpacity key={key}
+              style={[S.themeChip, {
+                borderColor: roomTheme === key ? T.accent : T.border,
+                backgroundColor: roomTheme === key ? T.accent + '14' : T.surface2,
+              }]}
+              onPress={() => setRoomTheme(key)} activeOpacity={0.7}>
+              <Ionicons name={th.icon} size={15} color={roomTheme === key ? T.accent : T.sub} />
+              <Text style={{ fontSize: 12, fontWeight: '800', color: roomTheme === key ? T.accent : T.sub }}>{th.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <TouchableOpacity style={[S.primaryBtn, { backgroundColor: T.accent }]} onPress={handleCreate} disabled={busy}>
           {busy ? <ActivityIndicator color="white" /> : <Text style={S.primaryBtnText}>방 만들기</Text>}
         </TouchableOpacity>
@@ -277,6 +292,11 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const seated = members.length;
     const selected = selSeat ? bySeat[selSeat] : null;
     const selMode = selected?.studying ? (MODE_TEXT[selected.mode] || MODE_TEXT.book) : null;
+    const theme = themeOf(roomData.room?.theme);
+    // 칸막이(독서실): 좌/우/위 3면 두꺼운 테두리로 부스 느낌
+    const partitionStyle = theme.partition
+      ? { borderTopWidth: 4, borderLeftWidth: 3, borderRightWidth: 3, borderTopLeftRadius: 4, borderTopRightRadius: 4 }
+      : null;
 
     const renderSeat = (no, ci) => {
       if (no === 0) return <View key={`aisle-${ci}`} style={{ flex: 0.5 }} />;
@@ -284,7 +304,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
       const mine = m && m.uid === myUid;
       if (!m) {
         return (
-          <TouchableOpacity key={no} style={[S.seat, S.seatEmptyTile, { borderColor: T.border }]}
+          <TouchableOpacity key={no}
+            style={[S.seat, !theme.partition && S.seatEmptyTile, partitionStyle, { borderColor: T.border, opacity: theme.partition ? 0.55 : 1 }]}
             onPress={() => handleSit(no)} activeOpacity={0.6}>
             <View style={[S.seatDesk, { backgroundColor: T.border, opacity: 0.45 }]} />
           </TouchableOpacity>
@@ -294,7 +315,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
         <TouchableOpacity key={no}
           style={[
             S.seat,
+            partitionStyle,
             { backgroundColor: m.studying ? T.accent + '14' : T.surface2, borderColor: m.studying ? T.accent : T.border },
+            theme.partition && { borderColor: m.studying ? T.accent : T.sub + '55' },
             mine && { borderWidth: 2 },
             selSeat === no && { borderColor: T.text },
             m.maybeAway && { opacity: 0.55 },
@@ -303,7 +326,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>
             <CharacterAvatar characterId={m.character} size={30} />
           </View>
-          <View style={[S.seatDesk, { backgroundColor: m.studying ? '#C9A87C' : T.border }]} />
+          <View style={[S.seatDesk, { backgroundColor: m.studying ? theme.desk : T.border }]} />
           {mine && <View style={[S.seatMineDot, { backgroundColor: T.accent }]} />}
         </TouchableOpacity>
       );
@@ -323,11 +346,16 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </View>
         </View>
 
-        {/* 좌석 도면 — 구역별 배치, 빈자리 탭으로 이동 */}
+        {/* 좌석 도면 — 테마별 배치(카페/독서실/교실), 빈자리 탭으로 이동 */}
         <View style={[S.floorCard, { backgroundColor: T.card, borderColor: T.border }]}>
-          {SEAT_ZONES.map(zone => (
-            <View key={zone.label} style={{ marginBottom: 12 }}>
-              <Text style={[S.zoneLabel, { color: T.sub }]}>{zone.label}</Text>
+          {theme.board && (
+            <View style={S.chalkboard}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: '#E8F0E8', letterSpacing: 4 }}>칠판</Text>
+            </View>
+          )}
+          {theme.zones.map((zone, zi) => (
+            <View key={zi} style={{ marginBottom: 10 }}>
+              {!!zone.label && <Text style={[S.zoneLabel, { color: T.sub }]}>{zone.label}</Text>}
               {zone.rows.map((row, ri) => (
                 <View key={ri} style={S.seatRow}>
                   {row.map((no, ci) => renderSeat(no, ci))}
@@ -435,4 +463,12 @@ const S = StyleSheet.create({
   seatDesk: { alignSelf: 'stretch', height: 5, borderRadius: 3, marginTop: 3, marginHorizontal: 5 },
   seatMineDot: { position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: 4 },
   seatMineChip: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1.5 },
+  themeChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderWidth: 1.5, borderRadius: 10, paddingVertical: 9,
+  },
+  chalkboard: {
+    backgroundColor: '#3E6B4F', borderRadius: 8, paddingVertical: 6,
+    alignItems: 'center', marginBottom: 12, marginHorizontal: 20,
+  },
 });

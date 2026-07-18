@@ -111,7 +111,7 @@ export const fetchMyRoomId = async () => {
   } catch { return null; }
 };
 
-export const createRoom = async (name, profile) => {
+export const createRoom = async (name, profile, theme = 'cafe') => {
   const uid = await ensureSignedIn();
   if (!uid) return { ok: false, reason: '연결에 실패했어요' };
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -122,7 +122,7 @@ export const createRoom = async (name, profile) => {
       if (existing.exists()) continue; // 코드 충돌 → 재생성
       await set(roomRef, {
         name: String(name || '').trim().slice(0, 16) || '스터디룸',
-        ownerUid: uid, createdAt: serverTimestamp(),
+        ownerUid: uid, createdAt: serverTimestamp(), theme,
         members: { [uid]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() } },
       });
       await set(ref(db, `users/${uid}/roomId`), code);
@@ -169,6 +169,7 @@ export const joinLounge = async (profile) => {
         try {
           await set(ref(db, `rooms/${code}`), {
             name: loungeNameFor(code), ownerUid: uid, createdAt: serverTimestamp(),
+            theme: 'cafe', // 라운지는 스터디카페 테마 고정
             members: { [uid]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() } },
           });
           await set(ref(db, `users/${uid}/roomId`), code);
