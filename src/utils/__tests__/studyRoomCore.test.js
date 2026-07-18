@@ -201,6 +201,22 @@ describe('sortMembers', () => {
   });
 });
 
+describe('withNicknameTags', () => {
+  const { withNicknameTags } = require('../studyRoomCore');
+
+  test('중복 닉네임만 uid 끝 4자 꼬리표, 유일하면 그대로', () => {
+    const rows = [
+      { uid: 'abcd1234', nickname: '토루' },
+      { uid: 'efgh5678', nickname: '토루' },
+      { uid: 'ijkl9012', nickname: '공부왕' },
+    ];
+    const out = withNicknameTags(rows);
+    expect(out[0].displayName).toBe('토루 #1234');
+    expect(out[1].displayName).toBe('토루 #5678');
+    expect(out[2].displayName).toBe('공부왕');
+  });
+});
+
 describe('todayStudySec', () => {
   test('오늘 세션만 합산 (date 기준 — 불변식 4)', () => {
     const sessions = [

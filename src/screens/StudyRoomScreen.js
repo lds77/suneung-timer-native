@@ -13,7 +13,7 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import { getToday, formatDuration } from '../utils/format';
 import {
   validateNickname, normalizeRoomCode, displayStatus, sortMembers, todayStudySec, buildPresence,
-  findGhostMembers, GHOST_MS,
+  findGhostMembers, GHOST_MS, withNicknameTags,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
@@ -98,13 +98,13 @@ export default function StudyRoomScreen({ visible, onClose }) {
     if (!room?.members) return [];
     const today = getToday();
     const now = Date.now();
-    return sortMembers(Object.entries(room.members)
+    return withNicknameTags(sortMembers(Object.entries(room.members)
       // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
       .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
       .map(([uid, m]) => {
         const d = displayStatus(status?.[uid], { nowMs: now, today });
         return { uid, nickname: m.nickname, character: m.character, ...d, subjectLabel: status?.[uid]?.subjectLabel || '' };
-      }));
+      })));
   })();
 
   // ── 액션 ──
@@ -278,7 +278,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             <CharacterAvatar characterId={m.character} size={40} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[S.memberName, { color: T.text }]} numberOfLines={1}>{m.nickname}</Text>
+                <Text style={[S.memberName, { color: T.text }]} numberOfLines={1}>{m.displayName}</Text>
                 {badge && (
                   <View style={[S.modeChip, { backgroundColor: badge.color + '1A' }]}>
                     <Ionicons name={badge.icon} size={11} color={badge.color} />

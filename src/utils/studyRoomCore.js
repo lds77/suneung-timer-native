@@ -131,6 +131,17 @@ export const findGhostMembers = (members, status, nowMs = Date.now()) =>
     })
     .map(([uid]) => uid);
 
+// 닉네임 중복 구분 — 같은 닉네임이 2명 이상일 때만 계정 ID 끝 4자를 꼬리표로.
+// 시스템 식별은 어차피 uid 기준이라 표시 전용 (겹치지 않으면 꼬리표 없이 깔끔하게)
+export const withNicknameTags = (rows) => {
+  const counts = {};
+  rows.forEach(r => { counts[r.nickname] = (counts[r.nickname] || 0) + 1; });
+  return rows.map(r => ({
+    ...r,
+    displayName: counts[r.nickname] > 1 ? `${r.nickname} #${String(r.uid).slice(-4)}` : r.nickname,
+  }));
+};
+
 // 멤버 정렬: 공부 중 우선 → 오늘 누적 내림차순 → 닉네임 (안정적 표시)
 export const sortMembers = (rows) => [...rows].sort((a, b) => {
   if (a.studying !== b.studying) return a.studying ? -1 : 1;
