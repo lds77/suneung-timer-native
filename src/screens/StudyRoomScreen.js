@@ -33,6 +33,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [roomData, setRoomData] = useState({ room: null, status: null });
   const [busy, setBusy] = useState(false);
 
+  const scrollRef = useRef(null);
   // 폼 상태
   const [nickname, setNickname] = useState(app.settings.nickname || '');
   const [character, setCharacter] = useState(app.settings.mainCharacter || 'toru');
@@ -262,7 +263,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
         <TextInput
           style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.surface2, letterSpacing: 4, textAlign: 'center', fontWeight: '800' }]}
           value={codeInput} onChangeText={setCodeInput} maxLength={6} autoCapitalize="characters"
-          placeholder="ABC123" placeholderTextColor={T.sub} />
+          placeholder="ABC123" placeholderTextColor={T.sub}
+          onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)} />
         <TouchableOpacity style={[S.primaryBtn, { backgroundColor: T.accent }]} onPress={handleJoin} disabled={busy}>
           {busy ? <ActivityIndicator color="white" /> : <Text style={S.primaryBtnText}>참여하기</Text>}
         </TouchableOpacity>
@@ -392,7 +394,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: T.bg }}>
+      {/* 안드 Modal은 창 밀어올리기(adjustPan)가 적용되지 않아 padding 방식으로 통일
+          (키보드 이벤트 기반이라 Dialog 창에서도 동작) + 코드 입력 포커스 시 스크롤 보정 */}
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: T.bg }}>
         <View style={[S.header, { borderBottomColor: T.border }]}>
           <TouchableOpacity onPress={onClose} style={S.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="chevron-down" size={24} color={T.text} />
@@ -404,7 +408,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             </TouchableOpacity>
           ) : <View style={S.iconBtn} />}
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
           {step === 'loading' && <ActivityIndicator color={T.accent} style={{ marginTop: 60 }} />}
           {step === 'intro' && renderIntro()}
           {step === 'lobby' && renderLobby()}
