@@ -10,8 +10,9 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
-  LOUNGE_CODES, loungeNameFor, todayStudySec, staleJoinCandidates,
+  LOUNGE_CODES, loungeNameFor, todayStudySec, staleJoinCandidates, plannedEndAtOf,
 } from './studyRoomCore';
+import { COUNTUP_MAX_SEC, wallElapsedSec } from './timerCore';
 import { getToday } from './format';
 
 // firebase는 정적 import — 순수 JS라 번들 포함 비용뿐, 네트워크는 initApp() 전까지 없음
@@ -217,11 +218,24 @@ export const leaveRoom = async () => {
   teardownPresence();
   if (!roomId) return;
   try {
+    // 마지막 멤버인지 퇴장 전에 판정 — 마지막이면 방 노드째 삭제 (빈 유령 방이 영구히 쌓이는 것 방지)
+    let lastMember = false;
+    try {
+      const m = await get(ref(db, `rooms/${roomId}/members`));
+      lastMember = Object.keys(m.val() || {}).every(k => k === uid);
+    } catch {}
     await update(ref(db), {
       [`rooms/${roomId}/members/${uid}`]: null,
       [`status/${roomId}/${uid}`]: null,
       [`users/${uid}/roomId`]: null,
     });
+    if (lastMember) {
+      // 규칙이 '멤버 0명'을 재검증 — 판정~삭제 사이에 누가 입장했으면 거부돼 방이 유지됨.
+      // 라운지도 삭제 대상 (다음 입장자가 joinLounge에서 재생성)
+      try { await remove(ref(db, `rooms/${roomId}`)); } catch {}
+      // status 잔재(스윕 잔여 등) 정리 — 규칙상 방이 사라진 뒤에만 허용되므로 방 삭제가 거부되면 같이 거부됨
+      try { await remove(ref(db, `status/${roomId}`)); } catch {}
+    }
   } catch {}
   persistRoomId(null);
   lastPresenceSig = null;
@@ -357,6 +371,12 @@ export const headlessHeartbeat = async () => {
     const snap = snapRaw ? JSON.parse(snapRaw) : null;
     const running = (snap?.timers || []).find(t => t && t.type !== 'lap' && t.status === 'running');
     if (!running) return;
+    // 좀비 스냅샷 방어 — 앱이 살아 있었으면 이미 끝났을 타이머면 하트비트 중단.
+    // 안 하면 강제종료된 앱의 running 스냅샷이 방 화면 '공부 중'을 무한 연장한다.
+    // countdown/연속은 예정 종료+1분, 자유는 카운트업 상한(5시간) 기준
+    const end = plannedEndAtOf(running, now);
+    if (end && now > end + 60 * 1000) return;
+    if (running.type === 'free' && wallElapsedSec(running, now) >= COUNTUP_MAX_SEC) return;
     const uid = await ensureSignedIn(); // AsyncStorage 영속 세션 복원 (같은 익명 uid)
     if (!uid) return;
     let todaySec = 0;
