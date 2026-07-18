@@ -217,6 +217,29 @@ describe('assignSeats', () => {
   });
 });
 
+describe('좌석 도면 (SEAT_ZONES/resolveSeats)', () => {
+  const { SEAT_ZONES, TOTAL_SEATS, resolveSeats } = require('../studyRoomCore');
+
+  test('도면에 1~30번 좌석이 정확히 한 번씩 (0=통로 제외)', () => {
+    const all = SEAT_ZONES.flatMap(z => z.rows.flat()).filter(n => n !== 0).sort((a, b) => a - b);
+    expect(all).toEqual(Array.from({ length: TOTAL_SEATS }, (_, i) => i + 1));
+  });
+
+  test('본인이 고른 자리 우선, 중복 선택은 먼저 입장한 사람 승, 미선택/밀린 사람은 앞번호 자동 착석', () => {
+    const rows = [
+      { uid: 'a', joinedAt: 100, seat: 7 },
+      { uid: 'b', joinedAt: 200, seat: 7 },  // a와 중복 → 밀림
+      { uid: 'c', joinedAt: 300 },           // 미선택
+      { uid: 'd', joinedAt: 400, seat: 99 }, // 범위 밖 → 미선택 취급
+    ];
+    const bySeat = resolveSeats(rows);
+    expect(bySeat[7].uid).toBe('a');
+    expect(bySeat[1].uid).toBe('b'); // 밀린 b가 빈 앞번호
+    expect(bySeat[2].uid).toBe('c');
+    expect(bySeat[3].uid).toBe('d');
+  });
+});
+
 describe('withNicknameTags', () => {
   const { withNicknameTags } = require('../studyRoomCore');
 

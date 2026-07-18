@@ -148,6 +148,35 @@ export const withNicknameTags = (rows) => {
 export const assignSeats = (rows) =>
   [...rows].sort((a, b) => ((a.joinedAt || 0) - (b.joinedAt || 0)) || String(a.uid).localeCompare(String(b.uid)));
 
+// ── 스터디카페 도면 ──
+// 구역별 좌석 배치 (0 = 통로/빈 공간). 좌석 번호 1~30이 정확히 한 번씩 등장해야 한다 (테스트 강제)
+export const TOTAL_SEATS = 30;
+export const SEAT_ZONES = [
+  { label: '창가석', rows: [[1, 2, 3, 4, 5, 6]] },
+  { label: '집중 열람석', rows: [[7, 8, 0, 9, 10], [11, 12, 0, 13, 14], [15, 16, 0, 17, 18]] },
+  { label: '자유석', rows: [[19, 20, 21, 22], [23, 24, 25, 26]] },
+  { label: '스터디 테이블', rows: [[27, 28, 29, 30]] },
+];
+
+// 좌석 확정: 본인이 고른 seat(멤버 레코드 저장값) 우선 — 중복 선택 레이스는 먼저 입장한
+// 사람이 이기고, 밀린 사람/미선택자는 빈 좌석 앞번호부터 자동 착석 (결정적 — 모든 클라이언트 동일)
+export const resolveSeats = (rows, totalSeats = TOTAL_SEATS) => {
+  const ordered = assignSeats(rows);
+  const bySeat = {};
+  const pending = [];
+  ordered.forEach(r => {
+    const s = Number.isInteger(r.seat) && r.seat >= 1 && r.seat <= totalSeats ? r.seat : null;
+    if (s && !bySeat[s]) bySeat[s] = r;
+    else pending.push(r);
+  });
+  let cursor = 1;
+  pending.forEach(r => {
+    while (cursor <= totalSeats && bySeat[cursor]) cursor++;
+    if (cursor <= totalSeats) bySeat[cursor] = r;
+  });
+  return bySeat; // { 좌석번호: 멤버 }
+};
+
 // 멤버 정렬: 공부 중 우선 → 오늘 누적 내림차순 → 닉네임 (안정적 표시)
 export const sortMembers = (rows) => [...rows].sort((a, b) => {
   if (a.studying !== b.studying) return a.studying ? -1 : 1;

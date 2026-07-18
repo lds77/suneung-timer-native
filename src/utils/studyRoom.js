@@ -213,6 +213,16 @@ export const leaveRoom = async () => {
   lastPresenceSig = null;
 };
 
+// 자리 선택 — 빈 좌석 탭 시 내 멤버 레코드에 seat 저장 (표시 배치는 resolveSeats가 결정)
+export const setMySeat = async (roomId, seat) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId) return false;
+  try {
+    await update(ref(db, `rooms/${roomId}/members/${uid}`), { seat });
+    return true;
+  } catch { return false; }
+};
+
 // 유령 멤버 정리 — 14일 무활동 멤버를 명단/상태에서 제거 (규칙이 무활동 검증을 서버측 강제).
 // uid별 개별 update: 동시 정리 레이스에서 한 건이 거부돼도 나머지는 진행되도록
 export const sweepGhostMembers = async (roomId, ghostUids) => {
