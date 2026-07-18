@@ -10,7 +10,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
-  LOUNGE_CODES, loungeNameFor, todayStudySec,
+  LOUNGE_CODES, loungeNameFor, todayStudySec, staleJoinCandidates,
 } from './studyRoomCore';
 import { getToday } from './format';
 
@@ -141,12 +141,19 @@ export const joinRoom = async (codeRaw, profile) => {
   const code = codeRaw;
   if (!isValidRoomCode(code)) return { ok: false, reason: '코드 형식이 맞지 않아요 (6자)' };
   try {
-    const snap = await get(ref(db, `rooms/${code}`));
+    let snap = await get(ref(db, `rooms/${code}`));
     if (!snap.exists()) return { ok: false, reason: '그 코드의 방을 찾지 못했어요' };
-    const room = snap.val();
-    const memberCount = Object.keys(room.members || {}).length;
+    let room = snap.val();
     const alreadyIn = !!room.members?.[uid];
-    if (!alreadyIn && memberCount >= MAX_ROOM_MEMBERS) return { ok: false, reason: `방이 가득 찼어요 (최대 ${MAX_ROOM_MEMBERS}명)` };
+    if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
+      // 만석: 유령 후보 정리 시도 후 재확인 (전원 유령 방 잠금 방지 — 진짜 유령만 규칙이 삭제 허용)
+      await sweepGhostMembers(code, staleJoinCandidates(room.members));
+      snap = await get(ref(db, `rooms/${code}`));
+      room = snap.val() || room;
+      if (Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
+        return { ok: false, reason: `방이 가득 찼어요 (최대 ${MAX_ROOM_MEMBERS}명)` };
+      }
+    }
     await update(ref(db), {
       [`rooms/${code}/members/${uid}`]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() },
       [`users/${uid}/roomId`]: code,
@@ -181,9 +188,15 @@ export const joinLounge = async (profile) => {
           if (!snap.exists()) continue;
         }
       }
-      const room = snap.val();
+      let room = snap.val();
       const alreadyIn = !!room.members?.[uid];
-      if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) continue; // 다음 호점
+      if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
+        // 만석 호점: 유령 후보 정리 후 재확인 — 자리가 나면 이 호점을 우선 채운다
+        await sweepGhostMembers(code, staleJoinCandidates(room.members));
+        const re = await get(ref(db, `rooms/${code}`));
+        room = re.val() || room;
+        if (Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) continue; // 여전히 만석 → 다음 호점
+      }
       await update(ref(db), {
         [`rooms/${code}/members/${uid}`]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() },
         [`users/${uid}/roomId`]: code,

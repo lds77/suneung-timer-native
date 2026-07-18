@@ -187,6 +187,16 @@ describe('findGhostMembers', () => {
     expect(findGhostMembers(members, null, NOW)).toEqual(['g']);
     expect(findGhostMembers(null, null, NOW)).toEqual([]);
   });
+
+  test('staleJoinCandidates: 입장 전(status 접근 불가) joinedAt 기준 후보만 — 만석 방 잠금 방지용', () => {
+    const { staleJoinCandidates } = require('../studyRoomCore');
+    const members = {
+      old: { joinedAt: NOW - GHOST_MS - 1 },
+      fresh: { joinedAt: NOW - 1000 },
+    };
+    expect(staleJoinCandidates(members, NOW)).toEqual(['old']);
+    expect(staleJoinCandidates(null, NOW)).toEqual([]);
+  });
 });
 
 describe('sortMembers', () => {

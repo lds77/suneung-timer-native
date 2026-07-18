@@ -131,6 +131,14 @@ export const findGhostMembers = (members, status, nowMs = Date.now()) =>
     })
     .map(([uid]) => uid);
 
+// 만석 방 입장 시 유령 '후보' — 입장 전엔 status를 읽을 권한이 없어 joinedAt만으로 추림.
+// 실제 삭제 가능 여부는 서버 규칙이 status 무활동(14일)까지 검증 — 활동 중인 장기 멤버 삭제는 거부됨.
+// 전원 유령이 된 방이 영구 잠기는 것 방지 (정리해줄 활동 멤버가 없는 경우)
+export const staleJoinCandidates = (members, nowMs = Date.now()) =>
+  Object.entries(members || {})
+    .filter(([, m]) => (nowMs - (m?.joinedAt || 0)) > GHOST_MS)
+    .map(([uid]) => uid);
+
 // 닉네임 중복 구분 — 같은 닉네임이 2명 이상일 때만 계정 ID 끝 4자를 꼬리표로.
 // 시스템 식별은 어차피 uid 기준이라 표시 전용 (겹치지 않으면 꼬리표 없이 깔끔하게)
 export const withNicknameTags = (rows) => {
