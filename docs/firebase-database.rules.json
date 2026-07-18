@@ -17,7 +17,9 @@
         ".write": "auth != null && !data.exists() && newData.child('ownerUid').val() === auth.uid",
         "name": { ".validate": "newData.isString() && newData.val().length <= 16" },
         "members": {
-          "$uid": { ".write": "auth != null && auth.uid === $uid" }
+          "$uid": {
+            ".write": "auth != null && (auth.uid === $uid || (!newData.exists() && root.child('rooms').child($roomId).child('members').child(auth.uid).exists() && data.child('joinedAt').val() < now - 1209600000 && (!root.child('status').child($roomId).child($uid).child('updatedAt').exists() || root.child('status').child($roomId).child($uid).child('updatedAt').val() < now - 1209600000)))"
+          }
         }
       }
     },
@@ -26,7 +28,7 @@
       "$roomId": {
         ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
         "$uid": {
-          ".write": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && (auth.uid === $uid || (!newData.exists() && root.child('rooms').child($roomId).child('members').child(auth.uid).exists() && (!data.child('updatedAt').exists() || data.child('updatedAt').val() < now - 1209600000)))",
           "todaySec": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" }
         }
       }

@@ -166,6 +166,29 @@ describe('displayStatus', () => {
   });
 });
 
+describe('findGhostMembers', () => {
+  const { findGhostMembers, GHOST_MS } = require('../studyRoomCore');
+
+  test('마지막 생존 신호(가입/상태 갱신) 14일 경과 시 유령', () => {
+    const members = {
+      ghost: { nickname: '유령', joinedAt: NOW - GHOST_MS - 1000 },
+      aliveByStatus: { nickname: '상태갱신', joinedAt: NOW - GHOST_MS - 1000 },
+      aliveByJoin: { nickname: '신규', joinedAt: NOW - 1000 },
+    };
+    const status = {
+      aliveByStatus: { updatedAt: NOW - 1000 }, // 가입은 오래됐지만 최근 활동
+      ghost: { updatedAt: NOW - GHOST_MS - 1000 },
+    };
+    expect(findGhostMembers(members, status, NOW)).toEqual(['ghost']);
+  });
+
+  test('status 없는 오래된 멤버도 유령, 빈 입력 안전', () => {
+    const members = { g: { joinedAt: NOW - GHOST_MS - 1 } };
+    expect(findGhostMembers(members, null, NOW)).toEqual(['g']);
+    expect(findGhostMembers(null, null, NOW)).toEqual([]);
+  });
+});
+
 describe('sortMembers', () => {
   test('공부 중 우선 → 오늘 누적 내림차순 → 닉네임', () => {
     const rows = [

@@ -212,6 +212,24 @@ export const leaveRoom = async () => {
   lastPresenceSig = null;
 };
 
+// 유령 멤버 정리 — 14일 무활동 멤버를 명단/상태에서 제거 (규칙이 무활동 검증을 서버측 강제).
+// uid별 개별 update: 동시 정리 레이스에서 한 건이 거부돼도 나머지는 진행되도록
+export const sweepGhostMembers = async (roomId, ghostUids) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId || !ghostUids?.length) return;
+  for (const g of ghostUids.slice(0, 20)) {
+    if (g === uid) continue;
+    try {
+      await update(ref(db), {
+        [`rooms/${roomId}/members/${g}`]: null,
+        [`status/${roomId}/${g}`]: null,
+      });
+    } catch {
+      // 이미 다른 멤버가 정리했거나 규칙 거부(방금 활동 재개) — 무시
+    }
+  }
+};
+
 // 기능 끄기(탈퇴): 방 나가기 + 서버 프로필 삭제 (설계 6 — 계정 삭제 정책 대응)
 export const deleteMyData = async () => {
   const uid = uidOrNull();

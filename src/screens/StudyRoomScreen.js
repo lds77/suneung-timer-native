@@ -1,7 +1,7 @@
 // 스터디룸(같이 공부) — 방 코드 기반 실시간 presence 화면. 설계: docs/realtime-study-design.md
 // Modal 전체 화면. app.config.js extra.firebase가 없으면 진입점 자체가 렌더되지 않음 (StatsScreen 가드)
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert,
   StyleSheet, Share, ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -13,10 +13,11 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import { getToday, formatDuration } from '../utils/format';
 import {
   validateNickname, normalizeRoomCode, displayStatus, sortMembers, todayStudySec, buildPresence,
+  findGhostMembers, GHOST_MS,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
-  deleteMyData, subscribeRoom, syncPresence,
+  deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers,
 } from '../utils/studyRoom';
 
 const STORE_LINKS = 'iPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer';
@@ -67,6 +68,17 @@ export default function StudyRoomScreen({ visible, onClose }) {
     return () => { alive = false; };
   }, [visible]);
 
+  // 유령 멤버 정리 — 방 진입당 1회 (14일 무활동 익명 계정이 정원을 잠식하는 것 방지)
+  const sweptRef = useRef(null); // 마지막으로 정리를 시도한 roomId
+  useEffect(() => {
+    if (step !== 'room' || !roomId || sweptRef.current === roomId) return;
+    const { room, status } = roomData;
+    if (!room?.members) return;
+    sweptRef.current = roomId;
+    const ghosts = findGhostMembers(room.members, status);
+    if (ghosts.length) sweepGhostMembers(roomId, ghosts);
+  }, [roomData, step, roomId]);
+
   // 방 실시간 구독
   useEffect(() => {
     if (!visible || step !== 'room' || !roomId) return;
@@ -86,10 +98,13 @@ export default function StudyRoomScreen({ visible, onClose }) {
     if (!room?.members) return [];
     const today = getToday();
     const now = Date.now();
-    return sortMembers(Object.entries(room.members).map(([uid, m]) => {
-      const d = displayStatus(status?.[uid], { nowMs: now, today });
-      return { uid, nickname: m.nickname, character: m.character, ...d, subjectLabel: status?.[uid]?.subjectLabel || '' };
-    }));
+    return sortMembers(Object.entries(room.members)
+      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
+      .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
+      .map(([uid, m]) => {
+        const d = displayStatus(status?.[uid], { nowMs: now, today });
+        return { uid, nickname: m.nickname, character: m.character, ...d, subjectLabel: status?.[uid]?.subjectLabel || '' };
+      }));
   })();
 
   // ── 액션 ──

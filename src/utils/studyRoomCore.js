@@ -119,6 +119,18 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   };
 };
 
+// 유령 멤버 판정 — 익명 계정은 앱 삭제 시 영영 못 돌아오는데 명단에는 남아
+// 방 정원(30)을 잠식한다. 마지막 생존 신호(가입 or 상태 갱신) 후 14일 무소식이면 정리 대상.
+// 정리돼도 코드로 재입장 가능하므로 오탐 피해는 없음
+export const GHOST_MS = 14 * 24 * 60 * 60 * 1000;
+export const findGhostMembers = (members, status, nowMs = Date.now()) =>
+  Object.entries(members || {})
+    .filter(([uid, m]) => {
+      const lastAlive = Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0);
+      return (nowMs - lastAlive) > GHOST_MS;
+    })
+    .map(([uid]) => uid);
+
 // 멤버 정렬: 공부 중 우선 → 오늘 누적 내림차순 → 닉네임 (안정적 표시)
 export const sortMembers = (rows) => [...rows].sort((a, b) => {
   if (a.studying !== b.studying) return a.studying ? -1 : 1;
