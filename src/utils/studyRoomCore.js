@@ -96,13 +96,14 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
 export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.plannedEndAt || 0}|${p.todaySec}|${p.date}`;
 
 // 서버 status → 표시 상태.
-// 규칙(설계 8): studying은 updatedAt 기준 30분까지 신뢰(스테일 소켓 방어).
-// 'bg'(onDisconnect가 남김)는 자리비움 가능성 — 30분까지는 공부 중으로 표시.
-// 예외: plannedEndAt(카운트다운/연속의 예정 종료)이 있으면 그 시각+5분까지 신뢰 연장 —
-//   iOS 백그라운드는 하트비트가 불가능해 updatedAt이 멈추지만 타이머는 벽시계로 계속 돈다.
-// 장시간 자유모드는 안드로이드 하트비트(10분)가 updatedAt을 갱신해 커버.
+// 규칙(설계 8): studying/bg는 updatedAt 기준 60분까지 신뢰.
+//   30분에서 연장(2026-07-18 사용자 결정) — iOS는 bg에서 하트비트가 불가능해 카운트업
+//   장시간 공부가 일찍 내려가는 문제. 유령 표시(끄는 걸 잊은 채 방치)는 최대 1시간 수용.
+// 예외: plannedEndAt(카운트다운/연속의 예정 종료)이 있으면 그 시각+5분까지 신뢰 연장.
+// 안드로이드 장시간 자유모드는 위젯 헤드리스 하트비트(15분 스로틀)가 updatedAt을 갱신해 커버
+//   (JS 인터벌은 bg에서 멈추므로 헤드리스 이벤트에 실어야 함 — 실기기 확인된 사실).
 // date가 오늘이 아니면 todaySec은 0으로 표시 (자정 리셋은 클라이언트 몫)
-export const STALE_MS = 30 * 60 * 1000;
+export const STALE_MS = 60 * 60 * 1000;
 export const PLANNED_END_GRACE_MS = 5 * 60 * 1000;
 export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   const s = status || {};

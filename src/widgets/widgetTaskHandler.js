@@ -10,6 +10,7 @@ import { SubjectLauncherWidget } from './SubjectLauncherWidget';
 import { TodayPlanWidget } from './TodayPlanWidget';
 import { TodayTodoWidget } from './TodayTodoWidget';
 import { getWidgetData } from './widgetData';
+import { headlessHeartbeat } from '../utils/studyRoom';
 
 const nameToWidget = {
   StudyTime: StudyTimeWidget,
@@ -82,6 +83,9 @@ export async function widgetTaskHandler(props) {
       }
       const data = await getWidgetData();
       renderWidget(<Widget data={data} width={widgetInfo.width} height={widgetInfo.height} />);
+      // 스터디룸 하트비트 — 앱 JS 인터벌은 bg에서 멈추므로 30분 주기 위젯 갱신에 실어 보낸다.
+      // (렌더 후 실행 — 위젯 표시를 지연시키지 않음. 내부에서 방 미참여/15분 스로틀 가드)
+      await headlessHeartbeat();
       break;
     }
     case 'WIDGET_DELETED':

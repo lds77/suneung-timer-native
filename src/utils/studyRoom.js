@@ -10,8 +10,9 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
-  LOUNGE_CODES, loungeNameFor,
+  LOUNGE_CODES, loungeNameFor, todayStudySec,
 } from './studyRoomCore';
+import { getToday } from './format';
 
 // firebase는 정적 import — 순수 JS라 번들 포함 비용뿐, 네트워크는 initApp() 전까지 없음
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -31,6 +32,15 @@ let cachedRoomId; // undefined = 미조회, null = 방 없음
 let lastPresenceSig = null;
 let disconnectArmed = false;
 let connectedUnsub = null;
+
+// roomId를 storage에도 영속 — 위젯 헤드리스(별도 JS 컨텍스트)가 서버 조회 없이 읽는다
+const ROOM_ID_KEY = '@yeolgong/studyRoomId';
+const HEARTBEAT_AT_KEY = '@yeolgong/studyRoomLastHb';
+const persistRoomId = (id) => {
+  cachedRoomId = id;
+  if (id) AsyncStorage.setItem(ROOM_ID_KEY, id).catch(() => {});
+  else AsyncStorage.removeItem(ROOM_ID_KEY).catch(() => {});
+};
 
 const initApp = () => {
   if (app) return true;
@@ -95,7 +105,7 @@ export const fetchMyRoomId = async () => {
   if (!uid) return null;
   try {
     const snap = await get(ref(db, `users/${uid}/roomId`));
-    cachedRoomId = snap.exists() ? snap.val() : null;
+    persistRoomId(snap.exists() ? snap.val() : null);
     return cachedRoomId;
   } catch { return null; }
 };
@@ -115,7 +125,7 @@ export const createRoom = async (name, profile) => {
         members: { [uid]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() } },
       });
       await set(ref(db, `users/${uid}/roomId`), code);
-      cachedRoomId = code;
+      persistRoomId(code);
       return { ok: true, roomId: code };
     } catch {
       // 권한 거부(동시 생성 레이스) 포함 — 다음 시도
@@ -140,7 +150,7 @@ export const joinRoom = async (codeRaw, profile) => {
       [`rooms/${code}/members/${uid}`]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() },
       [`users/${uid}/roomId`]: code,
     });
-    cachedRoomId = code;
+    persistRoomId(code);
     return { ok: true, roomId: code, roomName: room.name };
   } catch {
     return { ok: false, reason: '참여에 실패했어요. 네트워크를 확인해 주세요' };
@@ -161,7 +171,7 @@ export const joinLounge = async (profile) => {
             members: { [uid]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() } },
           });
           await set(ref(db, `users/${uid}/roomId`), code);
-          cachedRoomId = code;
+          persistRoomId(code);
           return { ok: true, roomId: code };
         } catch {
           // 동시 첫 입장 레이스 — 다른 사람이 먼저 만들었으면 아래 일반 참여로 진행
@@ -176,7 +186,7 @@ export const joinLounge = async (profile) => {
         [`rooms/${code}/members/${uid}`]: { nickname: profile.nickname, character: profile.character || 'toru', joinedAt: serverTimestamp() },
         [`users/${uid}/roomId`]: code,
       });
-      cachedRoomId = code;
+      persistRoomId(code);
       return { ok: true, roomId: code };
     } catch {
       // 생성 레이스(동시 첫 입장) 등 — 다음 호점 시도
@@ -198,7 +208,7 @@ export const leaveRoom = async () => {
       [`users/${uid}/roomId`]: null,
     });
   } catch {}
-  cachedRoomId = null;
+  persistRoomId(null);
   lastPresenceSig = null;
 };
 
@@ -274,9 +284,8 @@ export const armPresence = () => {
 // 로컬 시그니처는 여전히 'studying'이라 재전송이 스킵돼 '자리비움일 수 있음'이 계속 남는다
 export const forcePresenceResync = () => { lastPresenceSig = null; };
 
-// 하트비트 — 끝이 정해지지 않은 타이머(자유/뽀모)의 장시간 백그라운드 공부 유지용.
-// 안드로이드는 타이머 실행 중 포그라운드 서비스가 JS를 살려두므로 10분마다 updatedAt만
-// 갱신하면 30분 신뢰창이 계속 연장된다 (iOS bg는 JS 정지 — plannedEndAt이 커버).
+// 하트비트(포그라운드용) — 앱이 떠 있는 동안 10분 간격 updatedAt 갱신.
+// ※JS 인터벌은 백그라운드에서 멈추므로(실기기 확인) bg 커버는 아래 headlessHeartbeat가 담당.
 // 마지막 전송이 studying일 때만 (쉬는 중인데 갱신하면 의미 없는 쓰기)
 export const heartbeatPresence = async () => {
   if (!isStudyRoomAvailable()) return;
@@ -285,4 +294,39 @@ export const heartbeatPresence = async () => {
   const roomId = cachedRoomId !== undefined ? cachedRoomId : await fetchMyRoomId();
   if (!roomId) return;
   try { await update(ref(db, `status/${roomId}/${uid}`), { updatedAt: Date.now() }); } catch {}
+};
+
+// 헤드리스 하트비트 — 위젯 갱신 이벤트(30분 주기 updatePeriodMillis)에 실려 백그라운드에서 실행.
+// 앱 JS의 인터벌이 bg에서 멈추기 때문에, 안드 장시간 공부 유지는 이 경로가 유일하다.
+// 별도 JS 컨텍스트라 모듈 상태(cachedRoomId 등)가 비어 있음 — 전부 storage에서 읽는다.
+// 타이머 스냅샷(5초 스로틀 저장)의 running 타이머가 있을 때만: resumedAt이 epoch 기준이라
+// bg에서도 벽시계로 유효 = 실제로 아직 공부 중. state를 studying으로 되돌려 bg 마킹도 해제.
+// mode/subjectLabel/startedAt은 건드리지 않음(RTDB update 머지) — 마지막 전체 전송값 유지
+export const headlessHeartbeat = async () => {
+  try {
+    if (!isStudyRoomAvailable()) return;
+    const roomId = await AsyncStorage.getItem(ROOM_ID_KEY);
+    if (!roomId) return;
+    const now = Date.now();
+    const lastHb = Number(await AsyncStorage.getItem(HEARTBEAT_AT_KEY)) || 0;
+    if (now - lastHb < 15 * 60 * 1000) return; // 위젯 여러 개가 연달아 호출해도 15분 스로틀
+    const snapRaw = await AsyncStorage.getItem('@yeolgong/timerSnapshot');
+    const snap = snapRaw ? JSON.parse(snapRaw) : null;
+    const running = (snap?.timers || []).find(t => t && t.type !== 'lap' && t.status === 'running');
+    if (!running) return;
+    const uid = await ensureSignedIn(); // AsyncStorage 영속 세션 복원 (같은 익명 uid)
+    if (!uid) return;
+    let todaySec = 0;
+    try {
+      const sessRaw = await AsyncStorage.getItem('@yeolgong/sessions');
+      todaySec = todayStudySec(sessRaw ? JSON.parse(sessRaw) : [], getToday());
+    } catch {}
+    await update(ref(db, `status/${roomId}/${uid}`), {
+      state: 'studying', updatedAt: now,
+      todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))), date: getToday(),
+    });
+    await AsyncStorage.setItem(HEARTBEAT_AT_KEY, String(now));
+  } catch {
+    // 헤드리스 실패는 조용히 — 다음 위젯 갱신 주기에 재시도되는 셈
+  }
 };

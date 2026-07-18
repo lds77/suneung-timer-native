@@ -133,14 +133,14 @@ describe('displayStatus', () => {
     expect(d.maybeAway).toBe(false);
   });
 
-  test('bg(소켓 끊김)는 30분까지 공부 중 취급 + 자리비움 표시', () => {
+  test('bg(소켓 끊김)는 신뢰창(60분)까지 공부 중 취급 + 자리비움 표시', () => {
     const s = { state: 'bg', startedAt: NOW - 100, updatedAt: NOW - STALE_MS + 60_000, todaySec: 0, date: today };
     const d = displayStatus(s, { nowMs: NOW, today });
     expect(d.studying).toBe(true);
     expect(d.maybeAway).toBe(true);
   });
 
-  test('30분 넘게 갱신 없으면 공부 중 아님 (스테일 방어)', () => {
+  test('신뢰창(60분) 넘게 갱신 없으면 공부 중 아님 (스테일 방어)', () => {
     const s = { state: 'studying', startedAt: NOW, updatedAt: NOW - STALE_MS - 1, todaySec: 0, date: today };
     expect(displayStatus(s, { nowMs: NOW, today }).studying).toBe(false);
   });
