@@ -201,6 +201,22 @@ describe('sortMembers', () => {
   });
 });
 
+describe('assignSeats', () => {
+  const { assignSeats } = require('../studyRoomCore');
+
+  test('입장 순서(joinedAt)대로 앞자리부터, 동률은 uid 타이브레이크 — 결정적', () => {
+    const rows = [
+      { uid: 'c', joinedAt: 300 },
+      { uid: 'b', joinedAt: 100 },
+      { uid: 'z', joinedAt: 200 },
+      { uid: 'a', joinedAt: 200 },
+    ];
+    expect(assignSeats(rows).map(r => r.uid)).toEqual(['b', 'a', 'z', 'c']);
+    // 원본 불변
+    expect(rows[0].uid).toBe('c');
+  });
+});
+
 describe('withNicknameTags', () => {
   const { withNicknameTags } = require('../studyRoomCore');
 

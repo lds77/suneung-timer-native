@@ -10,14 +10,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import CharacterAvatar from '../components/CharacterAvatar';
-import { getToday, formatDuration } from '../utils/format';
+import { getToday, formatShort } from '../utils/format';
 import {
-  validateNickname, normalizeRoomCode, displayStatus, sortMembers, todayStudySec, buildPresence,
-  findGhostMembers, GHOST_MS, withNicknameTags,
+  validateNickname, normalizeRoomCode, displayStatus, todayStudySec, buildPresence,
+  findGhostMembers, GHOST_MS, withNicknameTags, assignSeats, MAX_ROOM_MEMBERS,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
-  deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers,
+  deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers, getMyUid,
 } from '../utils/studyRoom';
 
 const STORE_LINKS = 'iPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer';
@@ -92,18 +92,19 @@ export default function StudyRoomScreen({ visible, onClose }) {
     return unsub;
   }, [visible, step, roomId]);
 
-  // 멤버 ≤30이라 매 렌더 계산 (1초 틱 렌더에서 경과/스테일 판정이 같이 갱신됨)
+  // 멤버 ≤30이라 매 렌더 계산 (1초 틱 렌더에서 경과/스테일 판정이 같이 갱신됨).
+  // 자리 배정(입장 순) — 스터디카페 좌석 뷰: 자리가 고정돼야 '내 자리' 느낌이 산다
   const members = (() => {
     const { room, status } = roomData;
     if (!room?.members) return [];
     const today = getToday();
     const now = Date.now();
-    return withNicknameTags(sortMembers(Object.entries(room.members)
+    return withNicknameTags(assignSeats(Object.entries(room.members)
       // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
       .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
       .map(([uid, m]) => {
         const d = displayStatus(status?.[uid], { nowMs: now, today });
-        return { uid, nickname: m.nickname, character: m.character, ...d, subjectLabel: status?.[uid]?.subjectLabel || '' };
+        return { uid, nickname: m.nickname, character: m.character, joinedAt: m.joinedAt || 0, ...d, subjectLabel: status?.[uid]?.subjectLabel || '' };
       })));
   })();
 
@@ -251,13 +252,22 @@ export default function StudyRoomScreen({ visible, onClose }) {
 
   const renderRoom = () => {
     const now = Date.now();
+    const myUid = getMyUid();
+    // 공부 모드 3단계 (편하게/집중/울트라집중)
+    const MODE_BADGE = {
+      book: { icon: 'book-outline', label: '편하게', color: T.sub },
+      fire: { icon: 'flame-outline', label: '집중', color: '#FF8A3D' },
+      ultra: { icon: 'flame', label: '울트라집중', color: '#E74C3C' },
+    };
+    // 빈 책상은 현재 줄 나머지 + 한 줄(3석)까지만 — 30석 전부 그리면 스크롤만 길어짐
+    const emptyCount = Math.min(MAX_ROOM_MEMBERS - members.length, ((3 - (members.length % 3)) % 3) + 3);
     return (
       <View>
         <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={[S.cardTitle, { color: T.text }]} numberOfLines={1}>{roomData.room?.name || '스터디룸'}</Text>
-              <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>코드 {roomId} · {members.length}명</Text>
+              <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>코드 {roomId} · {members.length}/{MAX_ROOM_MEMBERS}석</Text>
             </View>
             <TouchableOpacity style={[S.iconBtn, { backgroundColor: T.accent + '18' }]} onPress={handleShareCode}>
               <Ionicons name="share-outline" size={18} color={T.accent} />
@@ -265,44 +275,49 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </View>
         </View>
 
-        {members.map(m => {
-          // 공부 모드 3단계 배지 (편하게/집중/울트라집중)
-          const MODE_BADGE = {
-            book: { icon: 'book-outline', label: '편하게', color: T.sub },
-            fire: { icon: 'flame-outline', label: '집중', color: '#FF8A3D' },
-            ultra: { icon: 'flame', label: '울트라집중', color: '#E74C3C' },
-          };
-          const badge = m.studying ? MODE_BADGE[m.mode] || MODE_BADGE.book : null;
-          return (
-          <View key={m.uid} style={[S.memberRow, { backgroundColor: T.card, borderColor: m.studying ? T.accent + '55' : T.border }]}>
-            <CharacterAvatar characterId={m.character} size={40} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[S.memberName, { color: T.text }]} numberOfLines={1}>{m.displayName}</Text>
-                {badge && (
-                  <View style={[S.modeChip, { backgroundColor: badge.color + '1A' }]}>
-                    <Ionicons name={badge.icon} size={11} color={badge.color} />
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: badge.color }}>{badge.label}</Text>
-                  </View>
+        {/* 좌석 그리드 — 입장 순서대로 앞자리부터, 스터디카페 느낌 */}
+        <View style={S.seatGrid}>
+          {members.map(m => {
+            const badge = m.studying ? (MODE_BADGE[m.mode] || MODE_BADGE.book) : null;
+            const mine = m.uid === myUid;
+            return (
+              <View key={m.uid} style={[
+                S.seatTile,
+                { backgroundColor: m.studying ? T.accent + '0D' : T.card, borderColor: m.studying ? T.accent + '66' : T.border },
+                m.maybeAway && { opacity: 0.6 },
+              ]}>
+                <View style={S.seatTopRow}>
+                  {mine ? (
+                    <View style={[S.seatMineChip, { backgroundColor: T.accent }]}>
+                      <Text style={{ fontSize: 8, fontWeight: '900', color: 'white' }}>내 자리</Text>
+                    </View>
+                  ) : <View />}
+                  {badge && <Ionicons name={badge.icon} size={12} color={badge.color} />}
+                </View>
+                <View style={{ opacity: m.studying ? 1 : 0.55 }}>
+                  <CharacterAvatar characterId={m.character} size={42} />
+                </View>
+                <View style={[S.deskBar, { backgroundColor: m.studying ? '#C9A87C' : T.border }]} />
+                <Text style={[S.seatName, { color: T.text }]} numberOfLines={1}>{m.displayName}</Text>
+                {m.studying ? (
+                  <Text style={[S.seatStatus, { color: T.accent }]} numberOfLines={1}>
+                    {m.subjectLabel || '공부 중'} {formatShort(Math.max(0, (now - m.startedAt) / 1000))}
+                  </Text>
+                ) : (
+                  <Text style={[S.seatStatus, { color: T.sub }]} numberOfLines={1}>
+                    {m.todaySec > 0 ? `오늘 ${formatShort(m.todaySec)}` : '쉬는 중'}
+                  </Text>
                 )}
               </View>
-              {m.studying ? (
-                <Text style={{ fontSize: 12, color: T.accent, fontWeight: '700' }} numberOfLines={1}>
-                  {m.subjectLabel || '공부 중'} · {formatDuration(Math.max(0, (now - m.startedAt) / 1000))}
-                  {m.maybeAway ? ' (자리비움일 수 있음)' : ''}
-                </Text>
-              ) : (
-                <Text style={{ fontSize: 12, color: T.sub }}>쉬는 중</Text>
-              )}
+            );
+          })}
+          {Array.from({ length: Math.max(0, emptyCount) }).map((_, i) => (
+            <View key={`empty-${i}`} style={[S.seatTile, S.seatEmpty, { borderColor: T.border }]}>
+              <View style={[S.deskBar, { backgroundColor: T.border, opacity: 0.5, marginTop: 34 }]} />
+              <Text style={{ fontSize: 10, color: T.sub, opacity: 0.6, marginTop: 4 }}>빈자리</Text>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <View style={[S.dot, { backgroundColor: m.studying ? '#2ECC71' : T.border }]} />
-              <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, marginTop: 4 }}>{formatDuration(m.todaySec) || '0분'}</Text>
-              <Text style={{ fontSize: 10, color: T.sub }}>오늘</Text>
-            </View>
-          </View>
-          );
-        })}
+          ))}
+        </View>
 
         <TouchableOpacity onPress={handleLeave} style={{ alignSelf: 'center', marginTop: 16, padding: 8 }}>
           <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>방 나가기</Text>
@@ -352,11 +367,18 @@ const S = StyleSheet.create({
   primaryBtn: { borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 12 },
   primaryBtnText: { color: 'white', fontSize: 15, fontWeight: '900' },
   fineprint: { fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' },
-  memberRow: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
+  seatGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  seatTile: {
+    width: '31.5%', borderRadius: 14, borderWidth: 1.5, alignItems: 'center',
+    paddingTop: 4, paddingBottom: 8, paddingHorizontal: 6, marginBottom: 10,
   },
-  memberName: { fontSize: 14, fontWeight: '800', flexShrink: 1 },
-  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  seatEmpty: { borderStyle: 'dashed', borderWidth: 1, backgroundColor: 'transparent', justifyContent: 'center' },
+  seatTopRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    alignSelf: 'stretch', height: 16,
+  },
+  seatMineChip: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1.5 },
+  deskBar: { alignSelf: 'stretch', height: 7, borderRadius: 4, marginTop: 3 },
+  seatName: { fontSize: 11, fontWeight: '800', marginTop: 5, maxWidth: '100%' },
+  seatStatus: { fontSize: 9.5, fontWeight: '700', marginTop: 2, maxWidth: '100%' },
 });

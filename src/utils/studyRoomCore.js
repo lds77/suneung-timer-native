@@ -142,6 +142,12 @@ export const withNicknameTags = (rows) => {
   }));
 };
 
+// 자리 배정 — 입장 순서(joinedAt)대로 앞자리부터. 데이터 변경 없이 모든 클라이언트가
+// 같은 결과를 계산하는 결정적 규칙 (동시 입장 동률은 uid로 타이브레이크).
+// 자리는 먼저 온 멤버가 나가지 않는 한 고정 — '내 자리' 소속감의 근거
+export const assignSeats = (rows) =>
+  [...rows].sort((a, b) => ((a.joinedAt || 0) - (b.joinedAt || 0)) || String(a.uid).localeCompare(String(b.uid)));
+
 // 멤버 정렬: 공부 중 우선 → 오늘 누적 내림차순 → 닉네임 (안정적 표시)
 export const sortMembers = (rows) => [...rows].sort((a, b) => {
   if (a.studying !== b.studying) return a.studying ? -1 : 1;

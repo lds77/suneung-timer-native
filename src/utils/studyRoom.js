@@ -76,6 +76,7 @@ export const ensureSignedIn = async () => {
 };
 
 const uidOrNull = () => auth?.currentUser?.uid || null;
+export const getMyUid = () => uidOrNull(); // 화면에서 '내 자리' 표시용
 
 // ── 프로필 ──
 export const fetchProfile = async () => {
