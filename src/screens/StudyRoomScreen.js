@@ -279,10 +279,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const renderRoom = () => {
     const now = Date.now();
     const myUid = getMyUid();
-    // 공부 모드 3단계 = 자리 테두리 색 (일반/집중/울트라집중 — 도면 아래 범례)
-    const MODE_COLOR = { book: T.accent, fire: '#FF8A3D', ultra: '#E74C3C' };
+    // 공부 모드 3단계 = 자리 테두리 색 (일반 녹색/집중 주황/울트라 빨강 — 신호등 직관, 도면 아래 범례)
+    const MODE_COLOR = { book: '#2ECC71', fire: '#FF8A3D', ultra: '#E74C3C' };
     const MODE_LEGEND = [
-      { label: '일반', color: T.accent },
+      { label: '일반', color: '#2ECC71' },
       { label: '집중', color: '#FF8A3D' },
       { label: '울트라집중', color: '#E74C3C' },
     ];
