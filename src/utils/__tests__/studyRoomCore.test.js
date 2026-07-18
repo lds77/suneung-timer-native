@@ -286,3 +286,39 @@ describe('todayStudySec', () => {
     expect(todayStudySec(null, '2027-01-15')).toBe(0);
   });
 });
+
+describe('heartbeatEligible (좀비 스냅샷 방어)', () => {
+  const { heartbeatEligible } = require('../studyRoomCore');
+
+  test('카운트다운: 예정 종료+1분까지만 — 지난 스냅샷은 좀비', () => {
+    const cd = { type: 'countdown', status: 'running', totalSec: 3600, resumedAt: NOW - 1800_000, elapsedSecAtResume: 0 };
+    expect(heartbeatEligible(cd, NOW)).toBe(true); // 30분 경과, 30분 남음
+    expect(heartbeatEligible(cd, NOW + 1800_000 + 30_000)).toBe(true); // 종료 후 30초 (유예 내)
+    expect(heartbeatEligible(cd, NOW + 1800_000 + 120_000)).toBe(false); // 종료 후 2분 → 좀비
+  });
+
+  test('자유/뽀모(끝없는 타이머): 벽시계 경과 5시간 상한 — 강제종료된 앱의 무한 공부 중 방지', () => {
+    const mk = (type, elapsedHr) => ({
+      type, status: 'running', pomoPhase: 'work',
+      resumedAt: NOW - elapsedHr * 3600_000, elapsedSecAtResume: 0,
+    });
+    expect(heartbeatEligible(mk('free', 4.9), NOW)).toBe(true);
+    expect(heartbeatEligible(mk('free', 5.1), NOW)).toBe(false);
+    expect(heartbeatEligible(mk('pomodoro', 4.9), NOW)).toBe(true);
+    expect(heartbeatEligible(mk('pomodoro', 5.1), NOW)).toBe(false); // 뽀모 좀비도 차단 (페이즈 전환엔 앱 JS 필요)
+  });
+
+  test('미실행/랩/null은 자격 없음', () => {
+    expect(heartbeatEligible(null, NOW)).toBe(false);
+    expect(heartbeatEligible({ type: 'lap', status: 'running', resumedAt: NOW }, NOW)).toBe(false);
+    expect(heartbeatEligible({ type: 'free', status: 'paused', elapsedSec: 100 }, NOW)).toBe(false);
+  });
+});
+
+describe('subjectLabel 클램프', () => {
+  test('60자 초과 라벨은 잘라서 전송 (서버 규칙 subjectLabel<=60과 쌍)', () => {
+    const t = { type: 'free', status: 'running', label: '가'.repeat(100), startedAt: NOW };
+    const p = buildPresence(t, { todaySec: 0, today: '2027-01-15', nowMs: NOW });
+    expect(p.subjectLabel).toHaveLength(60);
+  });
+});

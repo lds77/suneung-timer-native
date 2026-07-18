@@ -10,9 +10,8 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
-  LOUNGE_CODES, loungeNameFor, todayStudySec, staleJoinCandidates, plannedEndAtOf,
+  LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
 } from './studyRoomCore';
-import { COUNTUP_MAX_SEC, wallElapsedSec } from './timerCore';
 import { getToday } from './format';
 
 // firebase는 정적 import — 순수 JS라 번들 포함 비용뿐, 네트워크는 initApp() 전까지 없음
@@ -112,9 +111,19 @@ export const fetchMyRoomId = async () => {
   } catch { return null; }
 };
 
+// 입장/개설 전 이전 방 정리 — 네트워크 오류로 fetchMyRoomId가 null을 돌려줘 로비에 떨어진 유저가
+// 다른 방에 들어가면 이전 방에 14일짜리 고아 멤버십이 남는다 (서버 roomId를 진실로 재확인 후 퇴장)
+const leavePrevRoomIfAny = async (exceptCode = null) => {
+  try {
+    const prev = await fetchMyRoomId();
+    if (prev && prev !== exceptCode) await leaveRoom();
+  } catch {}
+};
+
 export const createRoom = async (name, profile, theme = 'cafe') => {
   const uid = await ensureSignedIn();
   if (!uid) return { ok: false, reason: '연결에 실패했어요' };
+  await leavePrevRoomIfAny();
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = genRoomCode();
     try {
@@ -141,12 +150,19 @@ export const joinRoom = async (codeRaw, profile) => {
   if (!uid) return { ok: false, reason: '연결에 실패했어요' };
   const code = codeRaw;
   if (!isValidRoomCode(code)) return { ok: false, reason: '코드 형식이 맞지 않아요 (6자)' };
+  await leavePrevRoomIfAny(code);
   try {
     let snap = await get(ref(db, `rooms/${code}`));
     if (!snap.exists()) return { ok: false, reason: '그 코드의 방을 찾지 못했어요' };
     let room = snap.val();
     const alreadyIn = !!room.members?.[uid];
-    if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
+    if (alreadyIn) {
+      // 재입장 — 멤버 레코드를 다시 쓰면 joinedAt(자리 순번)과 seat 선택이 초기화되므로 그대로 둔다
+      await set(ref(db, `users/${uid}/roomId`), code);
+      persistRoomId(code);
+      return { ok: true, roomId: code, roomName: room.name };
+    }
+    if (Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
       // 만석: 유령 후보 정리 시도 후 재확인 (전원 유령 방 잠금 방지 — 진짜 유령만 규칙이 삭제 허용)
       await sweepGhostMembers(code, staleJoinCandidates(room.members));
       snap = await get(ref(db, `rooms/${code}`));
@@ -170,6 +186,20 @@ export const joinRoom = async (codeRaw, profile) => {
 export const joinLounge = async (profile) => {
   const uid = await ensureSignedIn();
   if (!uid) return { ok: false, reason: '연결에 실패했어요' };
+  const prevId = await fetchMyRoomId();
+  if (prevId) {
+    if (isLoungeCode(prevId)) {
+      // 이미 라운지 소속 — 있던 호점으로 재입장 (자리 순번/선택 보존, 다른 호점으로 중복 가입 방지)
+      try {
+        const snap = await get(ref(db, `rooms/${prevId}`));
+        if (snap.exists() && snap.val().members?.[uid]) {
+          persistRoomId(prevId);
+          return { ok: true, roomId: prevId };
+        }
+      } catch {}
+    }
+    await leaveRoom();
+  }
   for (const code of LOUNGE_CODES) {
     try {
       let snap = await get(ref(db, `rooms/${code}`));
@@ -190,8 +220,13 @@ export const joinLounge = async (profile) => {
         }
       }
       let room = snap.val();
-      const alreadyIn = !!room.members?.[uid];
-      if (!alreadyIn && Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
+      if (room.members?.[uid]) {
+        // 이미 이 호점 멤버 (방어적 — 위 prevId 처리로 보통 도달 안 함). 레코드 재작성 없이 복귀
+        await set(ref(db, `users/${uid}/roomId`), code);
+        persistRoomId(code);
+        return { ok: true, roomId: code };
+      }
+      if (Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
         // 만석 호점: 유령 후보 정리 후 재확인 — 자리가 나면 이 호점을 우선 채운다
         await sweepGhostMembers(code, staleJoinCandidates(room.members));
         const re = await get(ref(db, `rooms/${code}`));
@@ -291,7 +326,7 @@ export const subscribeRoom = (roomId, cb) => {
 
 // ── Presence ──
 // 연결될 때마다 onDisconnect 재등록 (설계 8: 한 번 등록으로 영구가 아님).
-// onDisconnect는 state를 'bg'로 — 클라이언트 표시 규칙(displayStatus)이 30분까지 공부 중으로 그려줌
+// onDisconnect는 state를 'bg'로 — 클라이언트 표시 규칙(displayStatus)이 60분까지 공부 중으로 그려줌
 let armedStatusRef = null;
 const setupPresence = (roomId, uid) => {
   if (disconnectArmed) return;
@@ -373,10 +408,8 @@ export const headlessHeartbeat = async () => {
     if (!running) return;
     // 좀비 스냅샷 방어 — 앱이 살아 있었으면 이미 끝났을 타이머면 하트비트 중단.
     // 안 하면 강제종료된 앱의 running 스냅샷이 방 화면 '공부 중'을 무한 연장한다.
-    // countdown/연속은 예정 종료+1분, 자유는 카운트업 상한(5시간) 기준
-    const end = plannedEndAtOf(running, now);
-    if (end && now > end + 60 * 1000) return;
-    if (running.type === 'free' && wallElapsedSec(running, now) >= COUNTUP_MAX_SEC) return;
+    // countdown/연속은 예정 종료+1분, 끝없는 타이머(자유/뽀모)는 벽시계 경과 5시간 상한
+    if (!heartbeatEligible(running, now)) return;
     const uid = await ensureSignedIn(); // AsyncStorage 영속 세션 복원 (같은 익명 uid)
     if (!uid) return;
     let todaySec = 0;

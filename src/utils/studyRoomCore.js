@@ -2,6 +2,8 @@
 // Firebase 의존 없음 — 방코드/닉네임 검증, presence 페이로드, 표시 규칙, 정렬.
 // 부수효과(네트워크)는 studyRoom.js가 담당. 테스트: __tests__/studyRoomCore.test.js
 
+import { COUNTUP_MAX_SEC, wallElapsedSec } from './timerCore';
+
 // 방 코드: 혼동 문자(0/O/1/I/L) 제외 6자
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LEN = 6;
@@ -69,6 +71,19 @@ export const plannedEndAtOf = (t, nowMs = Date.now()) => {
   return Math.round((nowMs + remainSec * 1000) / 10000) * 10000;
 };
 
+// 하트비트 자격 — 강제종료된 앱의 running 스냅샷(좀비)이 친구 화면 '공부 중'을 무한 연장하는 것 방지.
+// 끝이 정해진 타이머(카운트다운/연속)는 예정 종료+1분까지, 끝이 없는 타이머는 벽시계 경과
+// 5시간(COUNTUP_MAX_SEC)까지만 인정. 자유는 불변식 9의 자동 종료와 같은 기준이고,
+// 뽀모도로는 페이즈 전환에 앱 JS가 필요하므로 5시간 무접촉이면 죽은 스냅샷으로 간주
+export const heartbeatEligible = (t, nowMs = Date.now()) => {
+  if (!t || t.type === 'lap' || t.status !== 'running') return false;
+  // 예정 종료는 '지금'이 아니라 재개 시점 기준으로 계산해야 한다 — nowMs 기준이면 잔여가
+  // 0으로 클램프돼 이미 지난 타이머도 '지금 종료 예정'이 되어 좀비 판별이 영원히 안 된다
+  const end = plannedEndAtOf(t, t.resumedAt || nowMs);
+  if (end !== null) return nowMs <= end + 60 * 1000;
+  return wallElapsedSec(t, nowMs) < COUNTUP_MAX_SEC;
+};
+
 export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal' } = {}) => {
   const t = activeTimer;
   const running = !!t && t.type !== 'lap' && t.status === 'running';
@@ -78,7 +93,8 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
   );
   return {
     state: running ? 'studying' : 'idle',
-    subjectLabel: running ? (inBreak ? '휴식 중' : (t.label || '')) : '',
+    // 라벨은 60자 클램프 — 서버 규칙(subjectLabel ≤ 60)과 쌍. 입력 maxLength(50)보다 넉넉한 안전판
+    subjectLabel: running ? (inBreak ? '휴식 중' : String(t.label || '').slice(0, 60)) : '',
     startedAt: running ? (t.startedAt ?? null) : null,
     // 공부 모드 3단계 — 친구에게 공부 강도 전달:
     // book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)

@@ -7,7 +7,11 @@
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
-        "nickname": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 12" }
+        "nickname": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 12" },
+        "character": { ".validate": "newData.isString() && newData.val().length <= 24" },
+        "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+        "roomId": { ".validate": "newData.isString() && newData.val().length === 6" },
+        "$other": { ".validate": false }
       }
     },
 
@@ -15,12 +19,23 @@
       "$roomId": {
         ".read": "auth != null",
         ".write": "auth != null && ((!data.exists() && newData.child('ownerUid').val() === auth.uid) || (!newData.exists() && !data.child('members').hasChildren()))",
-        "name": { ".validate": "newData.isString() && newData.val().length <= 16" },
+        ".validate": "data.exists() || (newData.hasChildren(['name', 'ownerUid', 'createdAt', 'members']) && (!$roomId.matches(/^STUDY[0-9]$/) || (newData.child('name').val().beginsWith('열공 라운지') && newData.child('theme').val() === 'cafe')))",
+        "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+        "ownerUid": { ".validate": "newData.isString()" },
+        "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+        "theme": { ".validate": "newData.isString() && newData.val().matches(/^(cafe|library|classroom)$/)" },
         "members": {
           "$uid": {
-            ".write": "auth != null && root.child('rooms').child($roomId).exists() && (auth.uid === $uid || (!newData.exists() && data.child('joinedAt').val() < now - 1209600000 && (!root.child('status').child($roomId).child($uid).child('updatedAt').exists() || root.child('status').child($roomId).child($uid).child('updatedAt').val() < now - 1209600000)))"
+            ".write": "auth != null && root.child('rooms').child($roomId).exists() && (auth.uid === $uid || (!newData.exists() && (!data.child('joinedAt').exists() || data.child('joinedAt').val() < now - 1209600000) && (!root.child('status').child($roomId).child($uid).child('updatedAt').exists() || root.child('status').child($roomId).child($uid).child('updatedAt').val() < now - 1209600000)))",
+            ".validate": "newData.hasChildren(['nickname', 'joinedAt'])",
+            "nickname": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+            "character": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "joinedAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+            "seat": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
           }
-        }
+        },
+        "$other": { ".validate": false }
       }
     },
 
@@ -30,7 +45,15 @@
         ".write": "auth != null && !newData.exists() && !root.child('rooms').child($roomId).exists()",
         "$uid": {
           ".write": "auth != null && ((auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()) || (!newData.exists() && (!data.child('updatedAt').exists() || data.child('updatedAt').val() < now - 1209600000)))",
-          "todaySec": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" }
+          "state": { ".validate": "newData.isString() && newData.val().matches(/^(studying|idle|bg)$/)" },
+          "subjectLabel": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "startedAt": { ".validate": "newData.isNumber()" },
+          "mode": { ".validate": "newData.isString() && newData.val().matches(/^(book|fire|ultra)$/)" },
+          "plannedEndAt": { ".validate": "newData.isNumber()" },
+          "todaySec": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+          "date": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "updatedAt": { ".validate": "newData.isNumber() && newData.val() <= now + 86400000" },
+          "$other": { ".validate": false }
         }
       }
     }
