@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -34,9 +34,20 @@ describe('realRemainingSec', () => {
     expect(realRemainingSec(lb, NOW)).toBeCloseTo(15 * 60); // 긴 휴식은 최소 15분
   });
 
-  test('자유/랩은 0 (남은 시간 개념 없음)', () => {
-    expect(realRemainingSec({ type: 'free', resumedAt: NOW }, NOW)).toBe(0);
-    expect(realRemainingSec({ type: 'lap', resumedAt: NOW }, NOW)).toBe(0);
+  test('자유/랩: 카운트업 상한(5시간)까지 남은 시간', () => {
+    expect(COUNTUP_MAX_SEC).toBe(5 * 3600);
+    expect(realRemainingSec({ type: 'free', resumedAt: NOW, elapsedSecAtResume: 0 }, NOW)).toBe(COUNTUP_MAX_SEC);
+    const oneHourIn = { type: 'free', resumedAt: NOW - 3600_000, elapsedSecAtResume: 0 };
+    expect(realRemainingSec(oneHourIn, NOW)).toBeCloseTo(4 * 3600);
+    // 일시정지 누적 포함 (elapsedSecAtResume)
+    const resumed = { type: 'lap', resumedAt: NOW - 1000_000, elapsedSecAtResume: 7200 };
+    expect(realRemainingSec(resumed, NOW)).toBeCloseTo(COUNTUP_MAX_SEC - 7200 - 1000);
+  });
+
+  test('자유/랩 상한 오버슈트는 0으로 클램프 (311시간 방치 방어)', () => {
+    const zombie = { type: 'free', resumedAt: NOW - 311 * 3600_000, elapsedSecAtResume: 0 };
+    expect(realRemainingSec(zombie, NOW)).toBe(0);
+    expect(realRemainingSec({ type: 'lap', resumedAt: NOW - 6 * 3600_000, elapsedSecAtResume: 0 }, NOW)).toBe(0);
   });
 });
 

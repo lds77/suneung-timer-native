@@ -27,7 +27,7 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
@@ -172,8 +172,14 @@ export function AppProvider({ children }) {
           if (newElapsed === t.elapsedSec) return t;
           anyChanged = true;
           const next = { ...t, elapsedSec: newElapsed };
-          // 랩 스톱워치는 무한
-          if (t.type === 'lap') return next;
+          // 랩 스톱워치: 상한(5시간)까지만 — 세션은 원래 기록하지 않으므로 조용히 종료
+          if (t.type === 'lap') {
+            if (next.elapsedSec >= COUNTUP_MAX_SEC) {
+              const capped = { ...next, elapsedSec: COUNTUP_MAX_SEC };
+              return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC) };
+            }
+            return next;
+          }
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
             // overshoot > 2초: bg 복귀 직후 stale 상태 → OS 예약 알림이 이미 발송됨 → skipNotif (sequence와 동일 가드)
             const sessId = fireComplete(next, next.elapsedSec - t.totalSec > 2);
@@ -189,7 +195,13 @@ export function AppProvider({ children }) {
             // overshoot > 2초: bg 복귀 직후 stale 상태 (ticker 100ms 기준 정상은 ≤1초) → OS가 이미 알림 발송 → skipNotif
             if (next.elapsedSec >= target) return seqFlip(next, next.elapsedSec - target > 2);
           }
-          if (t.type === 'free') return next;
+          if (t.type === 'free' && next.elapsedSec >= COUNTUP_MAX_SEC) {
+            // 카운트업 상한(5시간) 도달 → 카운트다운 완료와 동일하게 자동 종료 + 세션 기록.
+            // overshoot > 2초: bg 복귀 직후 stale 상태 → OS 예약 상한 알림이 이미 발송됨 → skipNotif
+            const capped = { ...next, elapsedSec: COUNTUP_MAX_SEC };
+            const sessId = fireComplete(capped, next.elapsedSec - COUNTUP_MAX_SEC > 2);
+            return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC), ...(sessId ? { memoSessionId: sessId } : {}) };
+          }
           return next;
         });
         return anyChanged ? mapped : prev;
@@ -614,12 +626,13 @@ export function AppProvider({ children }) {
           if (screenLockedRef.current) applyFocusBrightness();
         }
 
-        // 백그라운드 복귀 시 countdown 알림 재예약 (elapsedSec 보정 후 기존 알림이 부정확할 수 있음)
+        // 백그라운드 복귀 시 countdown/자유(상한) 알림 재예약 (elapsedSec 보정 후 기존 알림이 부정확할 수 있음)
         if (gap > 1) {
           timersRef.current.filter(t => t.status === 'running' && t.type === 'countdown').forEach(t => {
             const remain = getRealRemainingSec(t);
             if (remain > 0) scheduleTimerNotif(t.id, t.label, remain);
           });
+          timersRef.current.filter(t => t.status === 'running' && t.type === 'free').forEach(t => scheduleCapNotif(t));
         }
 
         // 백그라운드 시간 보정 (모드 상관없이)
@@ -637,6 +650,12 @@ export function AppProvider({ children }) {
             }
             if (t.type === 'pomodoro' || t.type === 'sequence') {
               return fastForwardPhases({ ...t, elapsedSec: e });
+            }
+            // 카운트업 상한(5시간): bg 중 도달 → 자유는 세션 기록(OS 알림은 상한 시각에 이미 발송), 랩은 조용히 종료
+            if ((t.type === 'free' || t.type === 'lap') && e >= COUNTUP_MAX_SEC) {
+              const capped = { ...t, elapsedSec: COUNTUP_MAX_SEC };
+              const sessId = t.type === 'free' ? fireComplete(capped, true) : null;
+              return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
             return { ...t, elapsedSec: e };
           }));
@@ -702,6 +721,8 @@ export function AppProvider({ children }) {
           scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
         } else if (t.type === 'pomodoro' || t.type === 'sequence') {
           scheduleAllPhaseNotifs(t);
+        } else if (t.type === 'free') {
+          scheduleCapNotif(t);
         }
       });
       setTimers(prev => prev.map(t => t.pausedByUltra && t.status === 'paused' ? { ...t, status: 'running', pausedByUltra: false, resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
@@ -853,8 +874,10 @@ export function AppProvider({ children }) {
     // 이길 수 없어 중복 알림이 떴다(같은 identifier 교체도 실기기에서 미동작 재현).
     // → 자연 완료는 아무것도 취소하지 않고 즉시 알림도 쏘지 않는다.
     //   완료 알림은 예약분이 단일 소스(뽀모도로 페이즈 알림과 동일 설계).
-    // 중도 종료(포기 등)·자유/랩 타이머는 기존대로: 예약분 취소(알람이 멀어 확실히 취소됨) + 즉시 알림.
-    const naturalEnd = t.type === 'countdown' && t.totalSec > 0 && t.elapsedSec >= t.totalSec;
+    // 중도 종료(포기 등)·상한 전 자유/랩 타이머는 기존대로: 예약분 취소(알람이 멀어 확실히 취소됨) + 즉시 알림.
+    // 자유 타이머 상한(5시간) 도달도 자연 완료 — 시작/재개 시 상한 시각에 예약해 둔 알림이 단일 소스.
+    const naturalEnd = (t.type === 'countdown' && t.totalSec > 0 && t.elapsedSec >= t.totalSec)
+      || (t.type === 'free' && t.elapsedSec >= COUNTUP_MAX_SEC);
     if (!naturalEnd) cancelTimerNotif(t.id);
     const mode = focusModeRef.current || 'screen_off';
     const ufState = ultraRef.current;
@@ -1069,6 +1092,14 @@ export function AppProvider({ children }) {
         if (!prev.includes(aid)) lockAlarmIds.current.set(timerId, [...prev, aid]);
       }
     } catch {}
+  };
+
+  // 자유(카운트업) 타이머 상한(5시간) 도달 알림 — 카운트다운 완료 예약과 같은 identifier
+  // 체계(complete-{id})라 취소/교체/위젯 갱신 알람을 그대로 탄다. 랩은 세션을 기록하지
+  // 않으므로 알림 없이 틱/복귀 경로에서 조용히 종료된다.
+  const scheduleCapNotif = (t) => {
+    const remain = getRealRemainingSec(t);
+    if (remain > 0) scheduleTimerNotif(t.id, t.label, remain, `${t.label} 자동 종료`, '5시간 연속 기록! 여기까지 저장하고 타이머를 종료했어요');
   };
 
   // OS 예약 저장소에서 이 타이머의 알림을 태그(content.data)로 찾아 일괄 취소.
@@ -1546,6 +1577,7 @@ export function AppProvider({ children }) {
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(t);
+      else if (t.type === 'free') scheduleCapNotif(t);
       setTimers(prev => [...prev, t]);
       showToast('start');
     };
@@ -1606,6 +1638,8 @@ export function AppProvider({ children }) {
         scheduleTimerNotif(id, t.label, getRealRemainingSec(t));
       } else if (t.type === 'pomodoro' || t.type === 'sequence') {
         scheduleAllPhaseNotifs(t);
+      } else if (t.type === 'free') {
+        scheduleCapNotif(t);
       }
     }
     setTimers(prev => prev.map(t => t.id === id && t.status === 'paused' ? { ...t, status: 'running', resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
@@ -1666,6 +1700,7 @@ export function AppProvider({ children }) {
       const restarted = { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(id, t.label, t.totalSec);
       else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(restarted);
+      else if (t.type === 'free') scheduleCapNotif(restarted);
     }
     setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) } : t));
     showToast('start');
@@ -1929,6 +1964,21 @@ export function AppProvider({ children }) {
               if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
               return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
             }
+            // 카운트업 상한(5시간): 죽어 있는 동안 도달 → 자유는 세션 기록 후 제거(카운트다운 완료와 동일),
+            // 랩은 세션 없이 제거. dedupeKey로 재기록 방지 (불변식 3)
+            if ((t.type === 'free' || t.type === 'lap') && t.status === 'running' && newElapsed >= COUNTUP_MAX_SEC) {
+              if (t.type === 'free') {
+                recordSessionInternal({
+                  subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+                  durationSec: COUNTUP_MAX_SEC, mode: 'free', pauseCount: t.pauseCount || 0,
+                  focusMode: 'screen_off', exitCount: 0, timerType: 'free',
+                  completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
+                  dedupeKey: `complete|${t.id}|${t.startedAt}`,
+                });
+                showToastCustom(`${t.label} 5시간 자동 종료! 공부 기록을 저장했어요`, 'toru');
+              }
+              return null;
+            }
             if (t.status === 'running') {
               // 뽀모/연속: 죽어 있던 동안 지난 페이즈를 전진 (중간 세트 세션 기록 포함).
               // stale 페이즈로 두면 buildPhaseNotifSpecs의 첫 경계가 과거 시각 → 스펙 0개로
@@ -1949,6 +1999,7 @@ export function AppProvider({ children }) {
             if (t.status !== 'running') return;
             if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
             else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(t);
+            else if (t.type === 'free') scheduleCapNotif(t);
           });
         }
         await clearTimerSnapshot();

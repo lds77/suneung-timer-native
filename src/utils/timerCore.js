@@ -18,14 +18,22 @@ export const wallElapsedSec = (t, nowMs = Date.now()) =>
     ? (t.elapsedSecAtResume || 0) + Math.floor((nowMs - t.resumedAt) / 1000)
     : t.elapsedSec;
 
+// 카운트업(자유/랩) 상한 — 도달 시 카운트다운 완료와 동일하게 자동 종료.
+// 잊힌 타이머 방어: 방치된 카운트업이 수백 시간짜리 세션으로 기록되면 통계가 오염된다
+// (2026-07 아이패드 311시간 방치 사례). 일시정지 시간은 경과에 포함되지 않으므로
+// 실공부 중 밥/화장실 일시정지 사용자는 상한에 실질적으로 닿지 않는다.
+export const COUNTUP_MAX_SEC = 5 * 60 * 60;
+
 // 실제 남은 초 정밀 계산 (소수점 포함 — 알림 예약용).
-// countdown은 전체 목표, pomodoro는 현재 페이즈 목표 기준. 그 외 타입은 0.
+// countdown은 전체 목표, pomodoro는 현재 페이즈 목표, 자유/랩은 상한(COUNTUP_MAX_SEC) 기준.
+// sequence는 0 (페이즈 알림은 buildPhaseNotifSpecs가 별도 계산).
 export const realRemainingSec = (t, nowMs = Date.now()) => {
   const realElapsedSec = t.resumedAt
     ? (t.elapsedSecAtResume || 0) + (nowMs - t.resumedAt) / 1000
     : t.elapsedSec;
   if (t.type === 'countdown') return Math.max(0, t.totalSec - realElapsedSec);
   if (t.type === 'pomodoro') return Math.max(0, pomoPhaseTargetSec(t) - realElapsedSec);
+  if (t.type === 'free' || t.type === 'lap') return Math.max(0, COUNTUP_MAX_SEC - realElapsedSec);
   return 0;
 };
 
