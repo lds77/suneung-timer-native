@@ -32,7 +32,6 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [roomId, setRoomId] = useState(null);
   const [roomData, setRoomData] = useState({ room: null, status: null });
   const [busy, setBusy] = useState(false);
-  const [selSeat, setSelSeat] = useState(null); // 도면에서 탭한 좌석 번호 (상세 패널)
 
   // 폼 상태
   const [nickname, setNickname] = useState(app.settings.nickname || '');
@@ -172,7 +171,6 @@ export default function StudyRoomScreen({ visible, onClose }) {
         await leaveRoom();
         setRoomId(null);
         setRoomData({ room: null, status: null });
-        setSelSeat(null);
         setStep('lobby');
       } },
     ]);
@@ -276,22 +274,20 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const handleSit = async (seatNo) => {
     Vibration.vibrate([0, 20]);
     await setMySeat(roomId, seatNo);
-    setSelSeat(null);
   };
 
   const renderRoom = () => {
     const now = Date.now();
     const myUid = getMyUid();
-    // 공부 모드 텍스트 3단계 — 앱의 잠금 강도 명칭과 동일 (일반/집중/울트라집중)
-    const MODE_TEXT = {
-      book: { label: '일반', color: T.sub },
-      fire: { label: '집중', color: '#FF8A3D' },
-      ultra: { label: '울트라집중', color: '#E74C3C' },
-    };
+    // 공부 모드 3단계 = 자리 테두리 색 (일반/집중/울트라집중 — 도면 아래 범례)
+    const MODE_COLOR = { book: T.accent, fire: '#FF8A3D', ultra: '#E74C3C' };
+    const MODE_LEGEND = [
+      { label: '일반', color: T.accent },
+      { label: '집중', color: '#FF8A3D' },
+      { label: '울트라집중', color: '#E74C3C' },
+    ];
     const bySeat = resolveSeats(members);
     const seated = members.length;
-    const selected = selSeat ? bySeat[selSeat] : null;
-    const selMode = selected?.studying ? (MODE_TEXT[selected.mode] || MODE_TEXT.book) : null;
     const theme = themeOf(roomData.room?.theme);
     // 칸막이(독서실): 좌/우/위 3면 두꺼운 테두리로 부스 느낌
     const partitionStyle = theme.partition
@@ -299,7 +295,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
       : null;
 
     const renderSeat = (no, ci) => {
-      if (no === 0) return <View key={`aisle-${ci}`} style={{ flex: 0.5 }} />;
+      if (no === 0) return <View key={`aisle-${ci}`} style={{ flex: theme.aisleFlex || 0.5 }} />;
       const m = bySeat[no];
       const mine = m && m.uid === myUid;
       if (!m) {
@@ -308,27 +304,37 @@ export default function StudyRoomScreen({ visible, onClose }) {
             style={[S.seat, !theme.partition && S.seatEmptyTile, partitionStyle, { borderColor: T.border, opacity: theme.partition ? 0.55 : 1 }]}
             onPress={() => handleSit(no)} activeOpacity={0.6}>
             <View style={[S.seatDesk, { backgroundColor: T.border, opacity: 0.45 }]} />
+            <Text style={{ fontSize: 7, color: T.sub, opacity: 0.7, marginTop: 2 }}>빈자리</Text>
           </TouchableOpacity>
         );
       }
+      const modeColor = MODE_COLOR[m.mode] || T.accent;
       return (
-        <TouchableOpacity key={no}
+        <View key={no}
           style={[
             S.seat,
             partitionStyle,
-            { backgroundColor: m.studying ? T.accent + '14' : T.surface2, borderColor: m.studying ? T.accent : T.border },
-            theme.partition && { borderColor: m.studying ? T.accent : T.sub + '55' },
+            { backgroundColor: m.studying ? modeColor + '12' : T.surface2, borderColor: m.studying ? modeColor : T.border },
+            theme.partition && !m.studying && { borderColor: T.sub + '55' },
             mine && { borderWidth: 2 },
-            selSeat === no && { borderColor: T.text },
             m.maybeAway && { opacity: 0.55 },
-          ]}
-          onPress={() => setSelSeat(selSeat === no ? null : no)} activeOpacity={0.7}>
+          ]}>
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>
-            <CharacterAvatar characterId={m.character} size={30} />
+            <CharacterAvatar characterId={m.character} size={24} />
           </View>
           <View style={[S.seatDesk, { backgroundColor: m.studying ? theme.desk : T.border }]} />
+          <Text style={[S.seatName, { color: T.text }]} numberOfLines={1}>{m.displayName}</Text>
+          {m.studying ? (
+            <Text style={[S.seatInfo, { color: modeColor }]} numberOfLines={1}>
+              {(m.subjectLabel || '공부')} {formatShort(Math.max(0, (now - m.startedAt) / 1000))}
+            </Text>
+          ) : (
+            <Text style={[S.seatInfo, { color: T.sub }]} numberOfLines={1}>
+              {m.todaySec > 0 ? formatShort(m.todaySec) : '휴식'}
+            </Text>
+          )}
           {mine && <View style={[S.seatMineDot, { backgroundColor: T.accent }]} />}
-        </TouchableOpacity>
+        </View>
       );
     };
 
@@ -363,46 +369,19 @@ export default function StudyRoomScreen({ visible, onClose }) {
               ))}
             </View>
           ))}
+          {/* 모드 범례 + 안내 */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 4 }}>
+            {MODE_LEGEND.map(l => (
+              <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 2, borderWidth: 2, borderColor: l.color }} />
+                <Text style={{ fontSize: 9, color: T.sub }}>{l.label}</Text>
+              </View>
+            ))}
+          </View>
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
             빈 책상을 누르면 그 자리로 옮겨요
           </Text>
         </View>
-
-        {/* 선택한 좌석 상세 */}
-        {selected && (
-          <View style={[S.card, { backgroundColor: T.card, borderColor: selected.studying ? T.accent + '66' : T.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <CharacterAvatar characterId={selected.character} size={44} />
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: T.text }} numberOfLines={1}>{selected.displayName}</Text>
-                  {selected.uid === myUid && (
-                    <View style={[S.seatMineChip, { backgroundColor: T.accent }]}>
-                      <Text style={{ fontSize: 9, fontWeight: '900', color: 'white' }}>나</Text>
-                    </View>
-                  )}
-                  {selMode && (
-                    <View style={[S.seatMineChip, { backgroundColor: selMode.color + '1A' }]}>
-                      <Text style={{ fontSize: 10, fontWeight: '900', color: selMode.color }}>{selMode.label}</Text>
-                    </View>
-                  )}
-                </View>
-                {selected.studying ? (
-                  <Text style={{ fontSize: 12, color: T.accent, fontWeight: '700', marginTop: 3 }} numberOfLines={1}>
-                    {selected.subjectLabel || '공부 중'} · {formatShort(Math.max(0, (now - selected.startedAt) / 1000))} 째
-                    {selected.maybeAway ? ' (자리비움일 수 있음)' : ''}
-                  </Text>
-                ) : (
-                  <Text style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>쉬는 중</Text>
-                )}
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>{formatShort(selected.todaySec) || '0m'}</Text>
-                <Text style={{ fontSize: 10, color: T.sub }}>오늘</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         <TouchableOpacity onPress={handleLeave} style={{ alignSelf: 'center', marginTop: 16, padding: 8 }}>
           <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>방 나가기</Text>
@@ -456,11 +435,13 @@ const S = StyleSheet.create({
   zoneLabel: { fontSize: 10, fontWeight: '800', marginBottom: 5, letterSpacing: 0.5 },
   seatRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
   seat: {
-    flex: 1, aspectRatio: 0.95, borderRadius: 10, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 5, overflow: 'hidden',
+    flex: 1, height: 80, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 2, overflow: 'hidden',
   },
   seatEmptyTile: { borderStyle: 'dashed', backgroundColor: 'transparent' },
-  seatDesk: { alignSelf: 'stretch', height: 5, borderRadius: 3, marginTop: 3, marginHorizontal: 5 },
+  seatDesk: { alignSelf: 'stretch', height: 5, borderRadius: 3, marginTop: 2, marginHorizontal: 5 },
+  seatName: { fontSize: 8, fontWeight: '800', marginTop: 3, maxWidth: '96%' },
+  seatInfo: { fontSize: 7.5, fontWeight: '700', marginTop: 1, maxWidth: '96%' },
   seatMineDot: { position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: 4 },
   seatMineChip: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1.5 },
   themeChip: {

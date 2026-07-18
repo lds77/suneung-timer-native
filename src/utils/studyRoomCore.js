@@ -154,16 +154,26 @@ export const assignSeats = (rows) =>
 export const TOTAL_SEATS = 30;
 export const ROOM_THEMES = {
   cafe: {
-    label: '스터디카페', icon: 'cafe-outline', desk: '#C9A87C', partition: false, board: false,
+    // 사설독서실 홀 느낌: 좌우 벽면 1인석 + 중앙 2인 아일랜드 (통로로 분리) + 상단 창가석.
+    // aisleFlex 1 = 통로가 좌석 1칸 폭 → 모든 줄이 6칸 합으로 좌석 크기 통일
+    label: '스터디카페', icon: 'cafe-outline', desk: '#B08954', partition: false, board: false, aisleFlex: 1,
     zones: [
       { label: '창가석', rows: [[1, 2, 3, 4, 5, 6]] },
-      { label: '집중 열람석', rows: [[7, 8, 0, 9, 10], [11, 12, 0, 13, 14], [15, 16, 0, 17, 18]] },
-      { label: '자유석', rows: [[19, 20, 21, 22], [23, 24, 25, 26]] },
-      { label: '스터디 테이블', rows: [[27, 28, 29, 30]] },
+      {
+        label: '',
+        rows: [
+          [7, 0, 8, 9, 0, 10],
+          [11, 0, 12, 13, 0, 14],
+          [15, 0, 16, 17, 0, 18],
+          [19, 0, 20, 21, 0, 22],
+          [23, 0, 24, 25, 0, 26],
+          [27, 0, 28, 29, 0, 30],
+        ],
+      },
     ],
   },
   library: {
-    label: '독서실', icon: 'book-outline', desk: '#8B7355', partition: true, board: false,
+    label: '독서실', icon: 'book-outline', desk: '#8B7355', partition: true, board: false, aisleFlex: 0.5,
     zones: [
       {
         label: '',
@@ -175,7 +185,7 @@ export const ROOM_THEMES = {
     ],
   },
   classroom: {
-    label: '교실', icon: 'school-outline', desk: '#D8C9A3', partition: false, board: true,
+    label: '교실', icon: 'school-outline', desk: '#D8C9A3', partition: false, board: true, aisleFlex: 0.5,
     zones: [
       {
         label: '',
