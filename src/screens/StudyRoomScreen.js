@@ -281,13 +281,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const renderRoom = () => {
     const now = Date.now();
     const myUid = getMyUid();
-    // 공부 모드 3단계 = 자리 테두리 색 (일반 녹색/집중 주황/울트라 빨강 — 신호등 직관, 도면 아래 범례)
+    // 공부 모드 3단계 — 자리 테두리 색 + 자리 상단 텍스트 (일반 녹색/집중 주황/울트라 빨강)
     const MODE_COLOR = { book: '#2ECC71', fire: '#FF8A3D', ultra: '#E74C3C' };
-    const MODE_LEGEND = [
-      { label: '일반', color: '#2ECC71' },
-      { label: '집중', color: '#FF8A3D' },
-      { label: '울트라집중', color: '#E74C3C' },
-    ];
+    const MODE_LABEL = { book: '일반', fire: '집중', ultra: '울트라집중' };
     const bySeat = resolveSeats(members);
     const seated = members.length;
     const theme = themeOf(roomData.room?.theme);
@@ -321,6 +317,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
             mine && { borderWidth: 2 },
             m.maybeAway && { opacity: 0.55 },
           ]}>
+          {m.studying && (
+            <Text style={[S.seatMode, { color: modeColor }]} numberOfLines={1}>{MODE_LABEL[m.mode] || '일반'}</Text>
+          )}
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>
             <CharacterAvatar characterId={m.character} size={24} />
           </View>
@@ -371,15 +370,6 @@ export default function StudyRoomScreen({ visible, onClose }) {
               ))}
             </View>
           ))}
-          {/* 모드 범례 + 안내 */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 4 }}>
-            {MODE_LEGEND.map(l => (
-              <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 2, borderWidth: 2, borderColor: l.color }} />
-                <Text style={{ fontSize: 9, color: T.sub }}>{l.label}</Text>
-              </View>
-            ))}
-          </View>
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
             빈 책상을 누르면 그 자리로 옮겨요
           </Text>
@@ -439,9 +429,10 @@ const S = StyleSheet.create({
   zoneLabel: { fontSize: 10, fontWeight: '800', marginBottom: 5, letterSpacing: 0.5 },
   seatRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
   seat: {
-    flex: 1, height: 80, borderRadius: 10, borderWidth: 1,
+    flex: 1, height: 90, borderRadius: 10, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 2, overflow: 'hidden',
   },
+  seatMode: { fontSize: 7, fontWeight: '900', letterSpacing: 0.3, marginBottom: 1, maxWidth: '96%' },
   seatEmptyTile: { borderStyle: 'dashed', backgroundColor: 'transparent' },
   seatDesk: { alignSelf: 'stretch', height: 5, borderRadius: 3, marginTop: 2, marginHorizontal: 5 },
   seatName: { fontSize: 8, fontWeight: '800', marginTop: 3, maxWidth: '96%' },
