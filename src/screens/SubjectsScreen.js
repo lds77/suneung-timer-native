@@ -12,6 +12,7 @@ import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { formatShort, formatTime, getWeekStartStr } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
+import FavoritesCard from './focus/FavoritesCard';
 import { Ionicons } from '@expo/vector-icons';
 
 // ═══ 추천 루틴 ═══
@@ -782,6 +783,8 @@ export default function SubjectsScreen({ navigation }) {
               {/* 내 과목 — 과목 리스트 */}
               {tab === 'subjects' && (
                 <>
+                  {/* 즐겨찾기 타이머 (집중탭에서 이전) — 시작하면 집중탭으로 이동 */}
+                  <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
                   {renderSubjectHeader()}
                   {sorted.length === 0 && (
                     <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -884,6 +887,8 @@ export default function SubjectsScreen({ navigation }) {
             {/* ═══ 탭: 내 과목 ═══ */}
             {tab === 'subjects' && (
               <>
+                {/* 즐겨찾기 타이머 (집중탭에서 이전, 2026-07-19) — 시작하면 집중탭으로 이동 */}
+                <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
                 {renderSubjectHeader()}
                 {sorted.length === 0 && (
                   <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>

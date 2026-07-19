@@ -864,7 +864,7 @@ export default function SettingsScreen() {
 
               {/* 즐겨찾기 팁 */}
               <GuideSection id="fav" title="즐겨찾기 사용법" color="#FFD700" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'자주 쓰는 타이머를 즐겨찾기에 저장하면 한 번의 탭으로 바로 시작할 수 있어요!\n\n저장 방법:\n• 실행 중인 타이머 이름 왼쪽 별표 탭 → 즐겨찾기 추가\n• 편집 버튼으로 직접 추가·수정도 가능해요\n\n관리:\n• 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나와요'}
+                {'자주 쓰는 타이머를 즐겨찾기에 저장하면 한 번의 탭으로 바로 시작할 수 있어요!\n\n위치: 과목탭 > 내 과목 상단 (시작하면 집중탭으로 이동해요)\n\n저장 방법:\n• 실행 중인 타이머 이름 왼쪽 별표 탭 → 즐겨찾기 추가\n• 편집 버튼으로 직접 추가·수정도 가능해요\n\n관리:\n• 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나와요'}
               </GuideSection>
 
               {/* 집중 모드 */}
