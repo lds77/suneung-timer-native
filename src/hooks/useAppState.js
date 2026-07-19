@@ -148,6 +148,9 @@ export function AppProvider({ children }) {
   const [pendingModeAction, setPendingModeAction] = useState(null);
   const [showExactAlarmModal, setShowExactAlarmModal] = useState(false);
   const [pendingReportTab, setPendingReportTab] = useState(null);
+  // 스터디룸 초대 딥링크(yeolgong://join?code=)로 받은 코드 — StatsScreen이 모달을 열고
+  // StudyRoomScreen이 소비(입장 제안)한 뒤 클리어. 클립보드 감지와 같은 joinByCode 경로 사용
+  const [pendingStudyRoomCode, setPendingStudyRoomCode] = useState(null);
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
@@ -2515,6 +2518,7 @@ export function AppProvider({ children }) {
       pendingModeAction, requestModeSelect, resolveModeSelect, cancelModeSelect,
       showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
       pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
+      pendingStudyRoomCode, setPendingStudyRoomCode,
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,

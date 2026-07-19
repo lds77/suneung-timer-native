@@ -73,6 +73,11 @@ export default function StatsScreen() {
       app.clearPendingReportTab?.();
     }
   }, [app.pendingReportTab]);
+
+  // 스터디룸 초대 딥링크 → 모달 열기 (코드 소비/클리어는 StudyRoomScreen이 담당)
+  useEffect(() => {
+    if (app.pendingStudyRoomCode) setShowStudyRoom(true);
+  }, [app.pendingStudyRoomCode]);
   const [activeCard, setActiveCard] = useState(null);
   const activeCardTimer = useRef(null);
   const tapCard = useCallback((key) => {

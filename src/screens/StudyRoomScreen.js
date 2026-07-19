@@ -156,11 +156,25 @@ export default function StudyRoomScreen({ visible, onClose }) {
   };
   const handleJoin = () => joinByCode(normalizeRoomCode(codeInput));
 
+  // 스터디룸 초대 딥링크(yeolgong://join?code=) → 명시적 초대이므로 클립보드보다 우선.
+  // 프로필 준비 + 로비/방 상태에서 입장 제안, 코드는 즉시 클리어(재프롬프트 방지)
+  useEffect(() => {
+    const code = app.pendingStudyRoomCode;
+    if (!visible || !code || !profile || (step !== 'lobby' && step !== 'room')) return;
+    app.setPendingStudyRoomCode?.(null);
+    setCodeInput(code);
+    Alert.alert('스터디룸 초대', `초대받은 방(${code})에 입장할까요?`, [
+      { text: '나중에' },
+      { text: '입장', onPress: () => joinByCode(code) },
+    ]);
+  }, [visible, step, profile, app.pendingStudyRoomCode]);
+
   // 클립보드 초대 코드 감지 — 로비 진입 시 1회, 복사해둔 코드가 있으면 바로 입장 제안
   // (초대 여정을 '코드 복사 → 앱 열기 → 확인 탭'으로 단축. 줌/디스코드 패턴)
   const clipPromptedRef = useRef(null);
   useEffect(() => {
     if (!visible || step !== 'lobby' || !Clipboard || !profile) return;
+    if (app.pendingStudyRoomCode) return; // 딥링크 초대가 처리 중이면 클립보드 감지는 양보
     let alive = true;
     (async () => {
       try {
@@ -176,7 +190,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
       } catch {}
     })();
     return () => { alive = false; };
-  }, [visible, step, profile]);
+  }, [visible, step, profile, app.pendingStudyRoomCode]);
 
   const handleJoinLounge = async () => {
     setBusy(true);

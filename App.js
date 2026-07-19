@@ -19,6 +19,7 @@ import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
 import { DEFAULT_SCHEDULES } from './src/constants/presets';
 import { generateId } from './src/utils/format';
+import { normalizeRoomCode, isValidRoomCode } from './src/utils/studyRoomCore';
 import { openExactAlarmSettings } from './src/utils/permissions';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
@@ -748,6 +749,12 @@ function parseDeepLink(url) {
     if (!tab) return null; // 순수 yeolgong://open은 앱만 열기 (기존 iOS 위젯 호환)
     return { action: 'open', tab, view: q('view'), section: q('section') };
   }
+  // 스터디룸 초대: yeolgong://join?code=ABC123 (웹 랜딩의 '앱에서 열기' 버튼 대상)
+  if (/:\/\/join(\b|\/|\?|$)/.test(url)) {
+    const code = normalizeRoomCode(q('code'));
+    if (isValidRoomCode(code)) return { action: 'joinRoom', code };
+    return null;
+  }
   return null;
 }
 
@@ -790,6 +797,13 @@ function MainApp() {
           } else if (link.tab === 'focus') {
             navigationRef.navigate('Focus', link.section ? { section: link.section } : undefined);
           }
+        };
+      } else if (link.action === 'joinRoom') {
+        // 스터디룸 초대 링크: 통계탭으로 이동 후 코드를 전역 신호로 전달 →
+        // StatsScreen이 모달을 열고 StudyRoomScreen이 입장 제안 (클립보드 감지와 같은 경로)
+        go = () => {
+          if (navigationRef.isReady()) navigationRef.navigate('Stats');
+          a.setPendingStudyRoomCode?.(link.code);
         };
       }
       if (!go) return;
