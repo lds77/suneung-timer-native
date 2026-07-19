@@ -66,8 +66,9 @@ src/
     StudyTimeWidget.js / DDayWidget.js / SubjectLauncherWidget.js / TodayPlanWidget.js / TodayTodoWidget.js
   utils/
     timerCore.js          타이머 핵심 순수 로직 — 벽시계 경과/남은시간, 뽀모·연속 페이즈 전환,
-                          페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성.
-                          불변식 1~7의 구현부이자 테스트 대상 (__tests__/timerCore.test.js).
+                          페이즈 알림 스펙, 결과(밀도/verified) 계산, 세션 레코드 생성,
+                          콜드스타트 스냅샷 복원 분기(restoreTimerCore).
+                          불변식 1~9의 구현부이자 테스트 대상 (__tests__/timerCore.test.js).
                           useAppState는 여기에 상태를 주입하고 부수효과만 수행
     storage.js            AsyncStorage 래퍼 (타이머 스냅샷·백업/복원 포함)
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)

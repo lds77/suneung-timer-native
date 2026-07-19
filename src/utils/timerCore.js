@@ -264,3 +264,44 @@ export const seqFlipCore = (t, nowMs = Date.now()) => {
     },
   };
 };
+
+// ─── 콜드스타트 스냅샷 복원 (불변식 8·9의 복원 경로) ───
+// 강제종료 후 재실행 시 스냅샷 타이머 하나를 어떻게 살릴지 결정하는 순수 함수.
+// 부수효과 없음 — 호출부(useAppState)가 kind에 따라 세션 기록/토스트/페이즈 전진을 수행한다.
+//   gapSec: 스냅샷 저장 시각 ~ 지금 사이의 경과 초 (running만 가산)
+// 반환 kind:
+//   'complete'    죽어 있는 동안 목표/상한 도달 → 타이머 제거. record면 세션 기록
+//                 (durationSec/timerType 포함, dedupe는 호출부가 complete|id|startedAt).
+//                 capped=true는 카운트업 5시간 상한 (토스트 문구 구분용)
+//   'fastforward' running 뽀모/연속 — timer.elapsedSec에 벽시계 경과를 넣었으니
+//                 호출부가 fastForwardPhases(중간 세션 기록 포함)로 페이즈를 전진시킬 것
+//   'resume'      running 유지 — resumedAt을 지금으로 재앵커한 timer 반환
+//   'pause'       paused 유지 — resumedAt null로 정리한 timer 반환
+export const restoreTimerCore = (t, gapSec, nowMs = Date.now()) => {
+  const addedSec = t.status === 'running' ? gapSec : 0;
+  const newElapsed = t.elapsedSec + addedSec;
+  if (t.type === 'countdown') {
+    const e = Math.min(newElapsed, t.totalSec);
+    if (e >= t.totalSec) {
+      // 불변식 7: 5분(계획·할일 연결 시 30초) 미만은 미기록
+      const record = t.totalSec >= 300 || (!!(t.planId || t.todoId) && t.totalSec >= 30);
+      return { kind: 'complete', record, durationSec: t.totalSec, timerType: 'countdown', capped: false };
+    }
+    if (t.status === 'running') return { kind: 'resume', timer: { ...t, elapsedSec: e, status: 'running', resumedAt: nowMs, elapsedSecAtResume: e } };
+    return { kind: 'pause', timer: { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e } };
+  }
+  // 불변식 9: 카운트업 상한 — 자유는 기록 후 제거, 랩은 조용히 제거. paused는 상한 미적용(경과 정지 상태)
+  if ((t.type === 'free' || t.type === 'lap') && t.status === 'running' && newElapsed >= COUNTUP_MAX_SEC) {
+    return { kind: 'complete', record: t.type === 'free', durationSec: COUNTUP_MAX_SEC, timerType: 'free', capped: true };
+  }
+  if (t.status === 'running') {
+    // 뽀모/연속: stale 페이즈로 재앵커하면 페이즈 알림 스펙이 0개가 되고 틱 캐치업이 페이즈마다
+    // 진동을 울린다 → 벽시계 경과(resumedAt은 epoch라 프로세스가 죽어도 유효)로 전진 대상 표시
+    if ((t.type === 'pomodoro' || t.type === 'sequence') && t.resumedAt) {
+      const wallElapsed = (t.elapsedSecAtResume || 0) + Math.floor((nowMs - t.resumedAt) / 1000);
+      return { kind: 'fastforward', timer: { ...t, elapsedSec: wallElapsed } };
+    }
+    return { kind: 'resume', timer: { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: nowMs, elapsedSecAtResume: newElapsed } };
+  }
+  return { kind: 'pause', timer: { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed } };
+};

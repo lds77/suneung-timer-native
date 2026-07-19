@@ -27,7 +27,7 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
@@ -1945,58 +1945,29 @@ export function AppProvider({ children }) {
         const activeTimers = snapshot.timers.filter(t => t.status === 'running' || t.status === 'paused');
         if (activeTimers.length > 0) {
           const now = Date.now();
+          // 분기 결정은 timerCore.restoreTimerCore(순수, 테스트 有) — 여기선 부수효과만 수행
           const restored = activeTimers.map(t => {
-            const addedSec = t.status === 'running' ? gap : 0;
-            const newElapsed = t.elapsedSec + addedSec;
-            if (t.type === 'countdown') {
-              const e = Math.min(newElapsed, t.totalSec);
-              // 앱이 꺼져 있는 동안 완료된 카운트다운: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실)
-              if (e >= t.totalSec) {
-                if (t.totalSec >= 300 || ((t.planId || t.todoId) && t.totalSec >= 30)) {
-                  recordSessionInternal({
-                    subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-                    durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
-                    focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
-                    completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
-                    // 완료 직후(기록됨)~스냅샷 정리 사이에 죽은 경우 영속 dedupe로 재기록 방지 (불변식 3)
-                    dedupeKey: `complete|${t.id}|${t.startedAt}`,
-                  });
-                  showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
-                }
-                return null;
-              }
-              // 실행 중이었으면 running 유지 (resumedAt 갱신)
-              if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
-              return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
-            }
-            // 카운트업 상한(5시간): 죽어 있는 동안 도달 → 자유는 세션 기록 후 제거(카운트다운 완료와 동일),
-            // 랩은 세션 없이 제거. dedupeKey로 재기록 방지 (불변식 3)
-            if ((t.type === 'free' || t.type === 'lap') && t.status === 'running' && newElapsed >= COUNTUP_MAX_SEC) {
-              if (t.type === 'free') {
+            const plan = restoreTimerCore(t, gap, now);
+            if (plan.kind === 'complete') {
+              // 앱이 꺼져 있는 동안 목표/상한 도달: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실).
+              // 완료 직후~스냅샷 정리 사이에 죽은 경우는 영속 dedupe로 재기록 방지 (불변식 3)
+              if (plan.record) {
                 recordSessionInternal({
                   subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-                  durationSec: COUNTUP_MAX_SEC, mode: 'free', pauseCount: t.pauseCount || 0,
-                  focusMode: 'screen_off', exitCount: 0, timerType: 'free',
+                  durationSec: plan.durationSec, mode: plan.timerType, pauseCount: t.pauseCount || 0,
+                  focusMode: 'screen_off', exitCount: 0, timerType: plan.timerType,
                   completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
                   dedupeKey: `complete|${t.id}|${t.startedAt}`,
                 });
-                showToastCustom(`${t.label} 5시간 자동 종료! 공부 기록을 저장했어요`, 'toru');
+                showToastCustom(plan.capped
+                  ? `${t.label} 5시간 자동 종료! 공부 기록을 저장했어요`
+                  : `${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
               }
               return null;
             }
-            if (t.status === 'running') {
-              // 뽀모/연속: 죽어 있던 동안 지난 페이즈를 전진 (중간 세트 세션 기록 포함).
-              // stale 페이즈로 두면 buildPhaseNotifSpecs의 첫 경계가 과거 시각 → 스펙 0개로
-              // 이후 페이즈 알림이 전부 무음이 되고, 틱 캐치업이 페이즈마다 진동을 울린다.
-              // resumedAt은 epoch 기준이라 프로세스가 죽어도 유효 — 재앵커 없이 벽시계로
-              // 보정해야 전진된 세션 시각(pomoFlipCore의 페이즈 역산)이 정확하다
-              if ((t.type === 'pomodoro' || t.type === 'sequence') && t.resumedAt) {
-                const wallElapsed = (t.elapsedSecAtResume || 0) + Math.floor((now - t.resumedAt) / 1000);
-                return fastForwardPhases({ ...t, elapsedSec: wallElapsed });
-              }
-              return { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: now, elapsedSecAtResume: newElapsed };
-            }
-            return { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed };
+            // 뽀모/연속: 죽어 있던 동안 지난 페이즈를 전진 (중간 세트 세션 기록 포함)
+            if (plan.kind === 'fastforward') return fastForwardPhases(plan.timer);
+            return plan.timer; // 'resume' | 'pause'
           }).filter(Boolean);
           setTimers(restored);
           // running으로 복원된 타이머 알림 재예약

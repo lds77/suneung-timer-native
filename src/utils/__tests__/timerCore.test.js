@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -345,5 +345,66 @@ describe('buildSessionRecord', () => {
     const s = buildSessionRecord({ ...spec, startedAt: NOW, dedupeKey: 'complete|tmr_1|123' });
     expect(s.dedupeKey).toBe('complete|tmr_1|123');
     expect(buildSessionRecord({ ...spec, startedAt: NOW }).dedupeKey).toBeNull();
+  });
+});
+
+describe('restoreTimerCore — 콜드스타트 스냅샷 복원 분기 (불변식 8·9)', () => {
+  const NOW = 1_700_000_000_000;
+  const base = { id: 'tm1', label: '수학', subjectId: 's1', startedAt: NOW - 3_600_000, pauseCount: 0 };
+
+  test('countdown running: 죽은 사이 완료 → complete + 기록 (durationSec=totalSec)', () => {
+    const t = { ...base, type: 'countdown', status: 'running', totalSec: 1500, elapsedSec: 1400 };
+    const r = restoreTimerCore(t, 200, NOW); // 1400+200 >= 1500
+    expect(r).toMatchObject({ kind: 'complete', record: true, durationSec: 1500, timerType: 'countdown', capped: false });
+  });
+
+  test('countdown 5분 미만은 미기록, 계획/할일 연결 시 30초부터 기록 (불변식 7)', () => {
+    const short = { ...base, type: 'countdown', status: 'running', totalSec: 120, elapsedSec: 100 };
+    expect(restoreTimerCore(short, 60, NOW).record).toBe(false);
+    expect(restoreTimerCore({ ...short, planId: 'p1' }, 60, NOW).record).toBe(true);
+    expect(restoreTimerCore({ ...short, todoId: 'td1' }, 60, NOW).record).toBe(true);
+  });
+
+  test('countdown running 미완료 → resume: 경과에 gap 가산 + 지금으로 재앵커', () => {
+    const t = { ...base, type: 'countdown', status: 'running', totalSec: 1500, elapsedSec: 600, resumedAt: NOW - 700_000 };
+    const r = restoreTimerCore(t, 100, NOW);
+    expect(r.kind).toBe('resume');
+    expect(r.timer).toMatchObject({ elapsedSec: 700, status: 'running', resumedAt: NOW, elapsedSecAtResume: 700 });
+  });
+
+  test('countdown paused: gap 미가산, 경과가 이미 목표 이상이면 완료 처리', () => {
+    const t = { ...base, type: 'countdown', status: 'paused', totalSec: 1500, elapsedSec: 600 };
+    const r = restoreTimerCore(t, 99999, NOW);
+    expect(r.kind).toBe('pause');
+    expect(r.timer).toMatchObject({ elapsedSec: 600, resumedAt: null, elapsedSecAtResume: 600 });
+    expect(restoreTimerCore({ ...t, elapsedSec: 1500 }, 0, NOW).kind).toBe('complete');
+  });
+
+  test('free running 상한 도달 → complete + 기록(5시간, capped), lap은 기록 없이 제거', () => {
+    const free = { ...base, type: 'free', status: 'running', elapsedSec: COUNTUP_MAX_SEC - 100 };
+    const r = restoreTimerCore(free, 200, NOW);
+    expect(r).toMatchObject({ kind: 'complete', record: true, durationSec: COUNTUP_MAX_SEC, timerType: 'free', capped: true });
+    const lap = { ...base, type: 'lap', status: 'running', elapsedSec: COUNTUP_MAX_SEC };
+    expect(restoreTimerCore(lap, 0, NOW)).toMatchObject({ kind: 'complete', record: false });
+  });
+
+  test('free paused는 상한 미적용 (경과 정지 상태) → pause 유지', () => {
+    const t = { ...base, type: 'free', status: 'paused', elapsedSec: COUNTUP_MAX_SEC + 999 };
+    expect(restoreTimerCore(t, 0, NOW).kind).toBe('pause');
+  });
+
+  test('pomodoro running(resumedAt 有) → fastforward: gap이 아니라 벽시계 경과 사용', () => {
+    const t = { ...base, type: 'pomodoro', status: 'running', elapsedSec: 100,
+      resumedAt: NOW - 2_000_000, elapsedSecAtResume: 50 };
+    const r = restoreTimerCore(t, 777, NOW);
+    expect(r.kind).toBe('fastforward');
+    expect(r.timer.elapsedSec).toBe(50 + 2000); // resumedAt 기준 (gap 777 무시)
+  });
+
+  test('pomodoro running인데 resumedAt 없으면(방어) 일반 resume 재앵커', () => {
+    const t = { ...base, type: 'pomodoro', status: 'running', elapsedSec: 100, resumedAt: null };
+    const r = restoreTimerCore(t, 60, NOW);
+    expect(r.kind).toBe('resume');
+    expect(r.timer).toMatchObject({ elapsedSec: 160, resumedAt: NOW });
   });
 });
