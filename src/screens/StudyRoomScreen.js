@@ -21,7 +21,9 @@ import {
   deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers, getMyUid, setMySeat,
 } from '../utils/studyRoom';
 
-const STORE_LINKS = 'iPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer';
+// 초대 랜딩 페이지 (GitHub Pages, main) — 메신저에서 tappable한 https 링크로 앱 열기/설치/코드 복사를
+// 모두 처리. 링크 클릭 → 설치자는 yeolgong://join?code= 로 앱 입장 제안, 미설치자는 스토어로.
+const LANDING_URL = 'https://lds77.github.io/suneung-timer-native/join.html';
 
 // 클립보드 초대 코드 감지 — expo-clipboard 네이티브 모듈은 빌드 51+/vc60+에만 포함.
 // 구빌드에 OTA로 이 코드가 실려도 require가 던지고 null 폴백 → 기능만 조용히 꺼짐 (durableAuthStorage와 동일 패턴)
@@ -205,7 +207,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const handleShareCode = () => {
     const name = roomData.room?.name || '스터디룸';
     Share.share({
-      message: `[열공메이트] "${name}" 스터디룸에 초대해요!\n앱에서 통계탭 > 스터디룸 > 코드 입력: ${roomId}\n\n${STORE_LINKS}`,
+      message: `[열공메이트] "${name}" 스터디룸에 초대해요!\n아래 링크를 누르면 바로 입장할 수 있어요.\n${LANDING_URL}?code=${roomId}\n\n(방 코드: ${roomId})`,
     }).catch(() => {});
   };
 
