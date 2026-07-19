@@ -154,14 +154,15 @@ export default function StatsScreen() {
     return { sec, avgDensity: calcAverageDensity(sess) };
   }, [app.sessions, today]); // today 의존: 자정 넘겨 열어둔 화면에서 '어제'가 그저께로 남는 것 방지
 
-  // ─── 7일 데이터 ───────────────────────────────────────────────
+  // ─── 주간 데이터 (달력 주 일~토 — 플래너/위젯/잔디와 주 기준 통일) ───
+  // 과거: 오늘 포함 롤링 7일 창이라 '이번 주/지난 주' 라벨·플래너 주간 달성률과 어긋났음
   const weekData = useMemo(() => {
     const data = [];
-    const base = addDays(new Date(), weekOffset * 7);
-    for (let i = 6; i >= 0; i--) {
-      const d = addDays(base, -i); const ds = dateStr(d);
+    const weekStart = new Date(getWeekStartStr(weekOffset) + 'T00:00:00');
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i); const ds = dateStr(d);
       const sess = app.sessions.filter(s => s.date === ds);
-      data.push({ date: ds, day: DAYS_KR[d.getDay()], sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), density: calcAverageDensity(sess), isToday: ds === today, sessions: sess.length });
+      data.push({ date: ds, day: DAYS_KR[d.getDay()], sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), density: calcAverageDensity(sess), isToday: ds === today, isFuture: ds > today, sessions: sess.length });
     }
     return data;
   }, [app.sessions, today, weekOffset]);
@@ -169,16 +170,16 @@ export default function StatsScreen() {
   const weekTotal = weekData.reduce((s, d) => s + d.sec, 0);
   const weekStudyDays = weekData.filter(d => d.sec > 0).length;
 
+  // 지난주(이전 달력 주) 날짜 7개 — 비교 카드/리포트 공용
+  const prevWeekDates = useMemo(() => {
+    const prevStart = new Date(getWeekStartStr(weekOffset - 1) + 'T00:00:00');
+    return Array.from({ length: 7 }, (_, i) => dateStr(addDays(prevStart, i)));
+  }, [weekOffset, today]);
+
   // 지난주 데이터 (리포트용)
-  const weekPrevTotal = useMemo(() => {
-    let total = 0;
-    const base = addDays(new Date(), weekOffset * 7);
-    for (let i = 13; i >= 7; i--) {
-      const ds = dateStr(addDays(base, -i));
-      total += app.sessions.filter(s => s.date === ds).reduce((s, x) => s + (x.durationSec || 0), 0);
-    }
-    return total;
-  }, [app.sessions, weekOffset, today]);
+  const weekPrevTotal = useMemo(
+    () => app.sessions.filter(s => prevWeekDates.includes(s.date)).reduce((s, x) => s + (x.durationSec || 0), 0),
+    [app.sessions, prevWeekDates]);
 
   // 주간 평균 밀도 (리포트용)
   const weekAvgDensity = useMemo(() => {
@@ -188,13 +189,10 @@ export default function StatsScreen() {
 
   // 지난주 공부일수 + 평균밀도 (카드 비교용)
   const weekPrevData = useMemo(() => {
-    const base = addDays(new Date(), weekOffset * 7);
-    const days = [];
-    for (let i = 13; i >= 7; i--) days.push(dateStr(addDays(base, -i)));
-    const sess = app.sessions.filter(s => days.includes(s.date));
+    const sess = app.sessions.filter(s => prevWeekDates.includes(s.date));
     const studyDays = new Set(sess.map(s => s.date)).size;
     return { studyDays, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions, weekOffset, today]);
+  }, [app.sessions, prevWeekDates]);
 
   // 주간 과목별 (stats/helpers.aggregateSubjectTotals)
   const weekSubjects = useMemo(() => {
@@ -647,11 +645,11 @@ export default function StatsScreen() {
 
   const renderWeekBarsCard = () => (
     <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-      <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
+      <Text style={[S.secLabel, { color: T.sub }]}>요일별 공부량</Text>
       {weekData.map((d, i) => (
         <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
           <View style={S.barRow}>
-            <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+            <Text style={[S.barDay, { color: d.isToday ? T.accent : d.isFuture ? T.border : T.sub }]}>{d.day}</Text>
             <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
               <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
             </View>
@@ -739,7 +737,7 @@ export default function StatsScreen() {
           return (
             <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
               <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-              <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+              <Text style={[S.densityDay, { color: d.isToday ? T.accent : d.isFuture ? T.border : T.sub }]}>{d.day}</Text>
               {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
             </TouchableOpacity>
           );
