@@ -384,7 +384,18 @@ export function AppProvider({ children }) {
     // setFocusMode는 await 전에 호출 — focusModeRef가 빨리 null이 되도록 (race condition 방지)
     setFocusMode(null);
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
-    if (brightnessToRestore !== null) { try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {} }
+    if (wasScreenOn) {
+      // 안드: 앱 창의 밝기 오버라이드를 걷어 시스템(자동밝기)에 제어권 반환.
+      // 캡처값을 절대값으로 다시 쓰면 종료 후에도 고정 밝기로 남는다 (백그라운드를
+      // 다녀와야만 풀리던 문제 — 2026-07-19 제보). iOS는 시스템 복원 API가 없어 캡처값 복원 유지
+      if (Platform.OS === 'android') {
+        try { await Brightness.restoreSystemBrightnessAsync(); } catch {
+          if (brightnessToRestore !== null) { try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {} }
+        }
+      } else if (brightnessToRestore !== null) {
+        try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {}
+      }
+    }
   }, []);
 
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
