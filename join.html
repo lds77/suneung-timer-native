@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#6C5CE7">
+<link rel="icon" type="image/png" href="screenshots/store-icon-512.png">
+<link rel="apple-touch-icon" href="screenshots/store-icon-512.png">
+<title>스터디룸 초대 · 열공메이트</title>
+<meta property="og:title" content="열공메이트 스터디룸에 초대받았어요!">
+<meta property="og:description" content="친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 봐요. 앱을 열거나 설치해서 입장하세요.">
+<meta property="og:image" content="https://lds77.github.io/suneung-timer-native/screenshots/store-icon-512.png">
+<style>
+  :root {
+    --pink: #FF6B9D; --purple: #6C5CE7; --ink: #2b2440; --sub: #6b6480;
+    --bg: #f5f4fb; --card: #ffffff; --line: #ece9f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #f0eefb; --sub: #a49fc0; --bg: #14121f; --card: #1e1b2e; --line: #2c2840; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    display: flex; align-items: center; justify-content: center; padding: 24px; line-height: 1.6;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    width: 100%; max-width: 420px; padding: 32px 24px; text-align: center;
+    box-shadow: 0 12px 40px rgba(80,60,140,0.10);
+  }
+  .icon { width: 76px; height: 76px; border-radius: 18px; margin-bottom: 16px; }
+  h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.4px; }
+  .lead { color: var(--sub); font-size: 14px; margin: 0 0 22px; }
+  .code-box {
+    background: linear-gradient(135deg, var(--purple), var(--pink)); color: #fff;
+    border-radius: 14px; padding: 16px; margin-bottom: 22px;
+  }
+  .code-label { font-size: 12px; opacity: 0.9; margin-bottom: 4px; }
+  .code { font-size: 30px; font-weight: 800; letter-spacing: 6px; font-variant-numeric: tabular-nums; }
+  .btn {
+    display: block; width: 100%; padding: 15px; border-radius: 13px; border: none;
+    font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 10px;
+    text-decoration: none; box-sizing: border-box; font-family: inherit;
+  }
+  .btn-primary { background: var(--purple); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--purple); border: 1.5px solid var(--purple); }
+  .divider { display: flex; align-items: center; gap: 10px; color: var(--sub); font-size: 12px; margin: 20px 0 14px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .stores { display: flex; flex-direction: column; gap: 10px; }
+  .store-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px;
+    background: #000; color: #fff; border: 1px solid #000;
+  }
+  .store-btn.light { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .note { color: var(--sub); font-size: 12px; margin-top: 18px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 20px; font-size: 13px;
+    opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img class="icon" src="screenshots/store-icon-512.png" alt="열공메이트">
+    <h1 id="title">스터디룸 초대</h1>
+    <p class="lead" id="lead">친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 봐요.</p>
+
+    <div class="code-box" id="codeBox" hidden>
+      <div class="code-label">초대 코드</div>
+      <div class="code" id="codeText"></div>
+    </div>
+
+    <a class="btn btn-primary" id="openBtn" href="#">앱에서 열기</a>
+    <button class="btn btn-ghost" id="copyBtn" hidden>코드 복사하기</button>
+
+    <div class="divider">앱이 없다면 설치하세요</div>
+    <div class="stores">
+      <a class="store-btn" id="iosBtn" href="https://apps.apple.com/app/id6759892516" target="_blank" rel="noopener">App Store</a>
+      <a class="store-btn light" id="playBtn" href="https://play.google.com/store/apps/details?id=com.yeolgong.timer&referrer=utm_source%3Dinvite%26utm_medium%3Dweb" target="_blank" rel="noopener">Google Play</a>
+    </div>
+
+    <p class="note" id="note">앱 설치 후 이 링크를 다시 열면 자동으로 방에 입장할 수 있어요.</p>
+  </div>
+
+  <div class="toast" id="toast">코드를 복사했어요</div>
+
+  <script>
+    // 코드 정규화: 앱과 동일한 문자셋(0/O/1/I/L 제외) · 6자 · 대문자
+    var CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    function sanitizeCode(raw) {
+      var up = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (up.length !== 6) return null;
+      for (var i = 0; i < up.length; i++) { if (CODE_CHARS.indexOf(up[i]) === -1) return null; }
+      return up;
+    }
+    function getParam(name) {
+      var m = location.search.match(new RegExp('[?&]' + name + '=([^&]+)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    var code = sanitizeCode(getParam('code'));
+    var openBtn = document.getElementById('openBtn');
+    var copyBtn = document.getElementById('copyBtn');
+
+    if (code) {
+      document.getElementById('title').textContent = '스터디룸에 초대받았어요!';
+      document.getElementById('codeText').textContent = code;
+      document.getElementById('codeBox').hidden = false;
+      openBtn.setAttribute('href', 'yeolgong://join?code=' + code);
+      copyBtn.hidden = false;
+      copyBtn.addEventListener('click', function () {
+        var done = function () { showToast(); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done, fallbackCopy);
+        } else { fallbackCopy(); }
+      });
+    } else {
+      // 코드가 없으면 앱 소개로 (앱 열기 버튼은 앱만 열기)
+      openBtn.setAttribute('href', 'yeolgong://open');
+      document.getElementById('note').textContent = '초대 코드가 없어요. 앱을 설치하고 친구에게 코드를 받아 입장하세요.';
+    }
+
+    function fallbackCopy() {
+      var t = document.createElement('textarea');
+      t.value = code; document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); showToast(); } catch (e) {}
+      document.body.removeChild(t);
+    }
+    var toastTimer;
+    function showToast() {
+      var el = document.getElementById('toast');
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1800);
+    }
+  </script>
+</body>
+</html>
