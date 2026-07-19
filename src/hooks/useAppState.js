@@ -20,7 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
-import { isTodayVisible, applyReorder, applyDailyTodoReset } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
 import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
@@ -1891,6 +1891,11 @@ export function AppProvider({ children }) {
           migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
           setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
         }
+        // 고아 시험 할일 청소 (자가 치유): 과거 removeDDay가 exam 할일을 안 지워
+        // 삭제된 시험의 할일이 잔존 — 기한 지난 것은 오늘 목록에 유령으로 계속 표시됐음
+        const sweep = sweepOrphanExamTodos(migrated, dd);
+        migrated = sweep.todos;
+        const orphanSwept = sweep.swept;
         // 일일 리셋 파이프라인 (규칙/구현: todoUtils.applyDailyTodoReset, 테스트 有)
         // — 지난날 반복 인스턴스 정리 + (날 바뀌었으면) 완료 항목 리셋 + 오늘 반복 인스턴스 생성
         const needsReset = mergedSettings.lastTodoResetDate !== today;
@@ -1899,7 +1904,7 @@ export function AppProvider({ children }) {
         if (needsReset) {
           await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
-        } else if (changed) {
+        } else if (changed || orphanSwept) {
           // 같은 날 재실행의 자가 치유(지난날 중복 정리 등)도 즉시 저장
           await saveTodos(finalTodos);
         }
@@ -2300,7 +2305,16 @@ export function AppProvider({ children }) {
   // 드래그 정렬 커밋: 표시 순서(orderedIds)대로 subjects 배열 재배치 — 배열 순서가 곧 수동 순서
   const reorderSubjects = useCallback((orderedIds) => setSubjects(prev => applyReorder(prev, orderedIds)), []);
   const addDDay = useCallback((dd) => { const n = { id: generateId('dd_'), isPrimary: ddays.length === 0, ...dd }; setDDays(prev => [...prev, n]); return n; }, [ddays]);
-  const removeDDay = useCallback((id) => { setDDays(prev => { const f = prev.filter(d => d.id !== id); if (f.length > 0 && !f.some(d => d.isPrimary)) f[0].isPrimary = true; return f; }); }, []);
+  const removeDDay = useCallback((id) => {
+    setDDays(prev => {
+      const f = prev.filter(d => d.id !== id);
+      // 대표 승계는 새 객체로 (f[0] 직접 변이는 이전 상태와 공유된 객체를 바꿔 memo 비교를 깨뜨림)
+      if (f.length > 0 && !f.some(d => d.isPrimary)) return f.map((d, i) => i === 0 ? { ...d, isPrimary: true } : d);
+      return f;
+    });
+    // 시험 준비 할일 동반 삭제 — 남기면 기한 지난 고아가 오늘 목록에 매일 유령으로 표시됨 (isTodayVisible)
+    setTodos(prev => prev.filter(t => !(t.scope === 'exam' && t.ddayId === id)));
+  }, []);
   const updateDDay = useCallback((id, changes) => { setDDays(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d)); }, []);
   const setPrimaryDDay = useCallback((id) => setDDays(prev => {
     const target = prev.find(d => d.id === id);

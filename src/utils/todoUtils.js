@@ -13,6 +13,16 @@ export const diffDays = (fromStr, toStr) => {
   return Math.round((b - a) / 86400000);
 };
 
+// 고아 시험 할일 청소 — 삭제된 D-Day에 매달린 exam 할일 제거 (기한 지난 고아는
+// isTodayVisible 규칙상 오늘 목록에 매일 표시되는 유령이 됨). ddays가 배열이 아니면
+// (로드 실패 등) 오판 방지를 위해 원본 그대로 반환
+export const sweepOrphanExamTodos = (todos, ddays) => {
+  if (!Array.isArray(ddays)) return { todos, swept: false };
+  const ids = new Set(ddays.map(d => d.id));
+  const kept = (todos || []).filter(t => !(t.scope === 'exam' && !ids.has(t.ddayId)));
+  return kept.length === (todos || []).length ? { todos, swept: false } : { todos: kept, swept: true };
+};
+
 // '오늘' 탭 표시 판정 (My Day 모델):
 // - 오늘 목록 소속(scope today/null)은 기한이 없거나 도래했을 때 표시 (미래 기한은 '예정' 섹션으로 분리)
 // - 다른 목록 소속은 기한이 도래(지남 포함)하면 오늘 탭에도 등장.
