@@ -18,6 +18,7 @@
 | 계정 영속: Android allowBackup true | f854bca | 아래 2절 시나리오 |
 | iOS 위젯 stale 스냅샷의 어제 완료 항목 제거 (SharedData.swift) | 이 커밋 | 앱 안 연 다음날 아침 오늘할일 위젯에 어제 완료가 없어야 |
 | expo-store-review 네이티브 리뷰 시트 (현재는 스토어 URL 폴백) | b3b7b61(07-15) | 세션 5회+ 후 리뷰 요청이 인앱 시트로 뜨는지 |
+| 스터디룸 클립보드 초대 코드 감지 (expo-clipboard, 구빌드는 조용히 꺼짐) | 07-19 심야 | 초대 문자를 복사 → 스터디룸 로비 진입 → "초대 코드 발견" 입장 제안 확인 |
 
 ## 2. 계정 영속 실기기 검증 (필수 — docs/account-persistence-design.md 구현 순서 3)
 

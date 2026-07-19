@@ -12,7 +12,7 @@ import { getTheme } from '../constants/colors';
 import CharacterAvatar from '../components/CharacterAvatar';
 import { getToday, formatShort } from '../utils/format';
 import {
-  validateNickname, normalizeRoomCode, displayStatus, todayStudySec, buildPresence,
+  validateNickname, normalizeRoomCode, extractRoomCode, displayStatus, todayStudySec, buildPresence,
   findGhostMembers, GHOST_MS, withNicknameTags,
   ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
 } from '../utils/studyRoomCore';
@@ -22,6 +22,14 @@ import {
 } from '../utils/studyRoom';
 
 const STORE_LINKS = 'iPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer';
+
+// 클립보드 초대 코드 감지 — expo-clipboard 네이티브 모듈은 빌드 51+/vc60+에만 포함.
+// 구빌드에 OTA로 이 코드가 실려도 require가 던지고 null 폴백 → 기능만 조용히 꺼짐 (durableAuthStorage와 동일 패턴)
+let Clipboard = null;
+try {
+  const C = require('expo-clipboard');
+  if (C && typeof C.getStringAsync === 'function') Clipboard = C;
+} catch {}
 
 export default function StudyRoomScreen({ visible, onClose }) {
   const app = useApp();
@@ -137,8 +145,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
     setStep('room');
   };
 
-  const handleJoin = async () => {
-    const code = normalizeRoomCode(codeInput);
+  const joinByCode = async (code) => {
     setBusy(true);
     const r = await joinRoom(code, profile);
     setBusy(false);
@@ -147,6 +154,29 @@ export default function StudyRoomScreen({ visible, onClose }) {
     setRoomId(r.roomId);
     setStep('room');
   };
+  const handleJoin = () => joinByCode(normalizeRoomCode(codeInput));
+
+  // 클립보드 초대 코드 감지 — 로비 진입 시 1회, 복사해둔 코드가 있으면 바로 입장 제안
+  // (초대 여정을 '코드 복사 → 앱 열기 → 확인 탭'으로 단축. 줌/디스코드 패턴)
+  const clipPromptedRef = useRef(null);
+  useEffect(() => {
+    if (!visible || step !== 'lobby' || !Clipboard || !profile) return;
+    let alive = true;
+    (async () => {
+      try {
+        const raw = await Clipboard.getStringAsync();
+        const code = extractRoomCode(raw);
+        if (!alive || !code || clipPromptedRef.current === code) return;
+        clipPromptedRef.current = code; // 같은 코드로 반복 제안 방지 (거절 존중)
+        setCodeInput(code);
+        Alert.alert('초대 코드 발견', `복사한 코드 ${code}로 스터디룸에 입장할까요?`, [
+          { text: '나중에' },
+          { text: '입장', onPress: () => joinByCode(code) },
+        ]);
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, [visible, step, profile]);
 
   const handleJoinLounge = async () => {
     setBusy(true);

@@ -322,3 +322,33 @@ describe('subjectLabel 클램프', () => {
     expect(p.subjectLabel).toHaveLength(60);
   });
 });
+
+describe('extractRoomCode — 클립보드 텍스트에서 초대 코드 추출', () => {
+  const { extractRoomCode, genRoomCode } = require('../studyRoomCore');
+
+  test('공유 메시지 전체에서 코드만 찾는다 (스토어 URL의 영숫자 런은 무시)', () => {
+    const msg = '[열공메이트] "우리방" 스터디룸에 초대해요!\n앱에서 통계탭 > 스터디룸 > 코드 입력: XK7P2M\n\niPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer';
+    expect(extractRoomCode(msg)).toBe('XK7P2M');
+  });
+
+  test('코드 단독/소문자/앞뒤 공백도 인식', () => {
+    expect(extractRoomCode('XK7P2M')).toBe('XK7P2M');
+    expect(extractRoomCode('  xk7p2m \n')).toBe('XK7P2M');
+  });
+
+  test('제외 문자(0/O/1/I/L) 포함 6자 단어나 길이 다른 토큰은 거부', () => {
+    expect(extractRoomCode('IPHONE')).toBe(null);   // I, O 미포함 문자셋
+    expect(extractRoomCode('ABC12')).toBe(null);    // 5자
+    expect(extractRoomCode('ABCD123')).toBe(null);  // 7자 런
+    expect(extractRoomCode('')).toBe(null);
+    expect(extractRoomCode(null)).toBe(null);
+    expect(extractRoomCode('x'.repeat(3000))).toBe(null); // 과대 입력 가드
+  });
+
+  test('생성된 코드는 항상 추출 가능 (라운드트립)', () => {
+    for (let i = 0; i < 20; i++) {
+      const c = genRoomCode();
+      expect(extractRoomCode(`초대 코드: ${c} 입니다`)).toBe(c);
+    }
+  });
+});

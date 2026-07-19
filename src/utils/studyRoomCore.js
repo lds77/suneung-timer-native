@@ -19,6 +19,18 @@ export const isValidRoomCode = (s) =>
 export const normalizeRoomCode = (raw) =>
   String(raw || '').toUpperCase().replace(/\s/g, '').slice(0, ROOM_CODE_LEN);
 
+// 텍스트에서 초대 코드 추출 — 클립보드에 공유 메시지 전체가 들어 있어도 코드만 찾는다.
+// 영숫자 연속 토큰 중 정확히 6자이고 CODE_CHARS만으로 된 첫 번째를 반환 (없으면 null).
+// 스토어 URL의 긴 영숫자 런(길이≠6)이나 IPHONE 같은 단어(제외 문자 포함)는 걸러진다
+export const extractRoomCode = (text) => {
+  if (typeof text !== 'string' || !text || text.length > 2000) return null;
+  const tokens = text.toUpperCase().match(/[A-Z0-9]+/g) || [];
+  for (const tok of tokens) {
+    if (tok.length === ROOM_CODE_LEN && isValidRoomCode(tok)) return tok;
+  }
+  return null;
+};
+
 // 공개 라운지 — 고정 코드의 전체 공개방. 코드가 없는 유저도 스터디룸을 체험하는 통로.
 // 첫 입장자가 방을 생성(lazy), 가득 차면(30명) 다음 호점으로 자동 안내.
 // 코드는 CODE_CHARS 부분집합이어야 함 (테스트로 강제)
