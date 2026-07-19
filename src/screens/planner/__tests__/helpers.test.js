@@ -82,6 +82,24 @@ describe('occupiedIntervalsForDay — 점유 구간', () => {
     const ivs = occupiedIntervalsForDay(ws2, 'tue', W);
     expect(ivs).toContainEqual({ start: 1320, end: 1440 });
   });
+
+  test('일요일의 전날(토) 캐리는 이전 주 기준으로 onlyWeek/skipWeeks 판정', () => {
+    const prevW = '2026-06-21'; // W(06-28)의 이전 주
+    const ws3 = {
+      sat: {
+        fixed: [],
+        plans: [
+          { id: 'a', start: '23:00', end: '01:00', onlyWeek: prevW },  // 지난주 토 일회성 → 이번주 일 오전 점유
+          { id: 'b', start: '22:00', end: '02:00', onlyWeek: W },      // 이번주 토 일회성 → 캐리 아님
+          { id: 'c', start: '21:00', end: '03:00', skipWeeks: [prevW] }, // 지난주 휴무 반복 → 캐리 아님
+        ],
+      },
+      sun: { fixed: [], plans: [] },
+    };
+    const ivs = occupiedIntervalsForDay(ws3, 'sun', W);
+    expect(ivs).toContainEqual({ start: 0, end: 60 });  // a만 캐리 (0~01:00)
+    expect(ivs).toHaveLength(1);
+  });
 });
 
 describe('intervalsOverlap / findFreeStartMin', () => {

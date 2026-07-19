@@ -49,9 +49,13 @@ export const occupiedIntervalsForDay = (ws, dayKey, weekStartStr, excludeId) => 
   const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
   const prevDd = ws[prevKey] || { fixed: [], plans: [] };
   const toIv = (it) => ({ start: parseTimeToMin(it.start), end: isMidnightCrossing(it.start, it.end) ? 24 * 60 : parseTimeToMin(it.end) });
-  // 전날 자정 넘어온 일정 → 이 날 오전 점유
+  // 전날 자정 넘어온 일정 → 이 날 오전 점유.
+  // 일요일의 전날(토)은 '이전 주' 소속이므로 onlyWeek/skipWeeks 판정도 이전 주 기준으로
+  const carryWeekStart = dayKey === 'sun'
+    ? toDateStr((() => { const d = new Date(weekStartStr + 'T00:00:00'); d.setDate(d.getDate() - 7); return d; })())
+    : weekStartStr;
   const carry = [...(prevDd.fixed || []), ...(prevDd.plans || [])]
-    .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, weekStartStr))
+    .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, carryWeekStart))
     .map(it => ({ start: 0, end: parseTimeToMin(it.end) }));
   return [
     ...carry,

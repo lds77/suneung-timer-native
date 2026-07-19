@@ -733,7 +733,8 @@ export default function PlannerScreen({ navigation, route }) {
   const [showDDayModal, setShowDDayModal] = useState(false);
   const [editingDDay, setEditingDDay]     = useState(null);
   const [ddLabel, setDdLabel]             = useState('');
-  const [ddPickerMonth, setDdPickerMonth] = useState(new Date());
+  // 1일로 정규화 — 29~31일에 setMonth 이전/다음 이동 시 짧은 달 오버플로(2월 건너뜀 등) 방지
+  const [ddPickerMonth, setDdPickerMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [ddSelectedDates, setDdSelectedDates] = useState(new Set()); // 다중 날짜 선택
   const [selectedDate, setSelectedDate]   = useState(null); // 캘린더 탭한 날짜
 

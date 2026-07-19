@@ -103,9 +103,10 @@ export default function StatsScreen() {
 
   // 월간 탭 네비게이션
   const [monthOffset, setMonthOffset] = useState(0);
+  // 1일로 정규화 — 29~31일에 setMonth로 이동하면 짧은 달에서 오버플로돼 달이 건너뛰거나 제자리
   const viewMonth = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset); return d;
-  }, [monthOffset]);
+    const now = new Date(); return new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  }, [monthOffset, today]);
   const viewMonthStr = `${viewMonth.getFullYear()}.${String(viewMonth.getMonth() + 1).padStart(2, '0')}`;
 
   // 리포트 카드 모달
@@ -151,7 +152,7 @@ export default function StatsScreen() {
     const sess = app.sessions.filter(s => s.date === yd);
     const sec = sess.reduce((s, x) => s + (x.durationSec || 0), 0);
     return { sec, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions]);
+  }, [app.sessions, today]); // today 의존: 자정 넘겨 열어둔 화면에서 '어제'가 그저께로 남는 것 방지
 
   // ─── 7일 데이터 ───────────────────────────────────────────────
   const weekData = useMemo(() => {
@@ -177,7 +178,7 @@ export default function StatsScreen() {
       total += app.sessions.filter(s => s.date === ds).reduce((s, x) => s + (x.durationSec || 0), 0);
     }
     return total;
-  }, [app.sessions, weekOffset]);
+  }, [app.sessions, weekOffset, today]);
 
   // 주간 평균 밀도 (리포트용)
   const weekAvgDensity = useMemo(() => {
@@ -193,7 +194,7 @@ export default function StatsScreen() {
     const sess = app.sessions.filter(s => days.includes(s.date));
     const studyDays = new Set(sess.map(s => s.date)).size;
     return { studyDays, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions, weekOffset]);
+  }, [app.sessions, weekOffset, today]);
 
   // 주간 과목별 (stats/helpers.aggregateSubjectTotals)
   const weekSubjects = useMemo(() => {
@@ -216,14 +217,6 @@ export default function StatsScreen() {
 
   // 일간 과목별 (stats/helpers.aggregateSubjectTotals)
   const daySubjects = useMemo(() => aggregateSubjectTotals(todaySessions, app.subjects), [todaySessions, todayTotalSec]);
-
-  // 타임라인 (시간별 24칸)
-  const timeline = useMemo(() => {
-    const hours = new Array(24).fill(0);
-    todaySessions.forEach(s => { if (s.startedAt) hours[new Date(s.startedAt).getHours()] += s.durationSec || 0; });
-    return hours;
-  }, [todaySessions]);
-  const timelineMax = Math.max(...timeline, 1800);
 
   // 시간대별 상세 (타임라인 팝업) — 계산은 stats/helpers.buildHourlyDetail
   const hourlyDetail = useMemo(() => buildHourlyDetail(todaySessions, app.subjects), [todaySessions, app.subjects]);
@@ -312,12 +305,12 @@ export default function StatsScreen() {
   const yearTotalSec = useMemo(() => {
     const thisYear = new Date().getFullYear().toString();
     return app.sessions.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.durationSec || 0), 0);
-  }, [app.sessions]);
+  }, [app.sessions, today]);
   const yearAvgDensity = useMemo(() => {
+    // calcAverageDensity로 통일 (5분 미만 제외) — 30초 밀도 100 고정 세션이 평균을 부풀리지 않게 (타 탭과 동일 기준)
     const thisYear = new Date().getFullYear().toString();
-    const ySess = app.sessions.filter(s => s.date?.startsWith(thisYear) && (s.focusDensity || 0) > 0);
-    return ySess.length > 0 ? Math.round(ySess.reduce((s, x) => s + (x.focusDensity || 0), 0) / ySess.length) : 0;
-  }, [app.sessions]);
+    return calcAverageDensity(app.sessions.filter(s => s.date?.startsWith(thisYear)));
+  }, [app.sessions, today]);
 
   // ─── 역대 기록 (stats/helpers.calcPersonalBests) ───
   const personalBests = useMemo(() => calcPersonalBests(app.sessions), [app.sessions]);
@@ -364,7 +357,7 @@ export default function StatsScreen() {
       pct: total > 0 ? Math.round((m.sec / total) * 100) : 0,
       avgDensity: m.sessions > 0 ? Math.round(m.densitySum / m.sessions) : 0,
     })).sort((a, b) => b.sec - a.sec);
-  }, [app.sessions, app.subjects, subjPeriod]);
+  }, [app.sessions, app.subjects, subjPeriod, today]);
 
   // ─── 과목 상세 시트 데이터 ──────────────────────────────────
   const subjDetailData = useMemo(() => {
@@ -1257,13 +1250,13 @@ export default function StatsScreen() {
 
   // 이전 달 데이터 (월간 카드 비교용)
   const prevMonthData = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset - 1);
+    const d = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
     const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const sess = app.sessions.filter(s => s.date?.startsWith(prefix));
     const sec = sess.reduce((s, x) => s + (x.durationSec || 0), 0);
     const studyDays = new Set(sess.map(s => s.date)).size;
     return { sec, studyDays, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions, monthOffset]);
+  }, [app.sessions, viewMonth]);
 
   // 리포트 카드 캡처용 ref
   const reportRef = useRef();
