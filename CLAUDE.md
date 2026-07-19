@@ -254,3 +254,7 @@ eas build --profile preview --platform android
    KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
 8. **로직 변경 후 `npm test`** (Jest 207개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기)
 9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
+10. **월 이동은 `new Date(y, m ± n, 1)`로 1일 정규화** — `new Date()`에 그대로 `setMonth(±n)`
+    하면 29~31일에 짧은 달로 넘칠 때 달이 건너뛰거나 제자리 (2026-07-19 감사에서 3곳 일소)
+11. **useMemo 안에서 `new Date()`/`getToday()`를 쓰면 `today`를 의존성에 포함** — 자정 넘겨
+    열어둔 화면에서 어제/주간 경계가 옛 날짜로 굳는 스테일 버그의 원인

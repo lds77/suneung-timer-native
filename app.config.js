@@ -51,7 +51,9 @@ module.exports = {
       },
     },
     android: {
-      allowBackup: false,
+      // true: OS 자동백업(기기 잠금 암호화)으로 재설치 시 AsyncStorage(익명 uid+공부 데이터) 복원
+      // — 계정 영속 1단계 (docs/account-persistence-design.md, 2026-07-19 사용자 승인)
+      allowBackup: true,
       softwareKeyboardLayoutMode: 'pan',
       adaptiveIcon: {
         foregroundImage: './assets/icons/adaptive-icon.png',

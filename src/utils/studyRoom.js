@@ -13,6 +13,7 @@ import {
   LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
 } from './studyRoomCore';
 import { getToday } from './format';
+import { durableAuthStorage } from './durableAuthStorage';
 
 // firebase는 정적 import — 순수 JS라 번들 포함 비용뿐, 네트워크는 initApp() 전까지 없음
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -49,7 +50,8 @@ const initApp = () => {
   app = getApps().length ? getApp() : initializeApp(cfg);
   try {
     // RN 영속화 필수 — 기본 메모리 영속이면 재시작마다 새 익명 uid가 생겨 유령 유저가 쌓임 (설계 3.1)
-    auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+    // durableAuthStorage: iOS는 키체인 복제로 재설치에도 uid 생존, 안드/구빌드는 AsyncStorage 동일 동작
+    auth = initializeAuth(app, { persistence: getReactNativePersistence(durableAuthStorage) });
   } catch {
     auth = getAuth(app); // 이미 초기화된 경우 (핫리로드 등)
   }
