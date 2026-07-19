@@ -431,6 +431,12 @@ export function AppProvider({ children }) {
   // 🔥모드 이탈 시 밝기 복원 / 복귀 시 다시 적용
   // 다크모드는 FocusScreen의 screenLocked 로컬 상태로만 처리 — 전역 settings.darkMode는 건드리지 않음
   const restoreBrightness = async () => {
+    // 안드: 시스템(자동밝기)에 제어권 반환 — 캡처값 복원은 자동밝기 상태에서
+    // getBrightnessAsync가 시스템의 '수동 밝기 설정값'(최대치일 수 있음)을 읽어와
+    // 잠금 해제 시 최대 밝기처럼 튀는 문제가 있었음 (2026-07-19 제보)
+    if (Platform.OS === 'android') {
+      try { await Brightness.restoreSystemBrightnessAsync(); return; } catch {}
+    }
     if (originalBrightness.current !== null) { try { await Brightness.setBrightnessAsync(originalBrightness.current); } catch {} }
   };
   const applyFocusBrightness = async () => {
