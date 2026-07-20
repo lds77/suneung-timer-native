@@ -68,6 +68,20 @@ export const dateChipLabel = (dateStr, todayStr) => {
   return `${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
 };
 
+// 같은 목록(scope+ddayId)·과목 안에 같은 텍스트의 미완료 할일이 이미 있는지 (자기 자신 selfId 제외).
+// addTodo 내부 중복 가드와 동일 기준 — 저장 전 사전 판정으로 "왜 안 되는지" 안내 + 시트 유지에 사용.
+// 반복 템플릿(isTemplate)은 addTodo가 중복 검사를 건너뛰므로 여기서도 항상 false.
+export const isTodoDuplicate = (todos, fields, selfId = null) => {
+  if (!fields || fields.isTemplate) return false;
+  const trimmed = (fields.text || '').trim();
+  if (!trimmed) return false;
+  return (todos || []).some(t => t.id !== selfId && !t.isTemplate && !t.done
+    && t.text === trimmed
+    && (t.subjectId ?? null) === (fields.subjectId ?? null)
+    && (t.scope ?? 'today') === (fields.scope ?? 'today')
+    && (t.ddayId ?? null) === (fields.ddayId ?? null));
+};
+
 // 드래그 정렬 커밋: orderedIds에 해당하는 항목들을 배열 내 기존 자리(슬롯)에 새 순서로 재배치.
 // 그룹 밖 항목들의 위치는 그대로 유지 — 과목 그룹 안에서만 순서를 바꾸는 용도
 export const applyReorder = (list, orderedIds) => {

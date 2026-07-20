@@ -18,9 +18,10 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty, saveReviewNotes, loadReviewNotes } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
+import { makeNoteFromTodo } from '../utils/reviewNotes';
 import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
@@ -129,6 +130,7 @@ export function AppProvider({ children }) {
   const [ddays, setDDays] = useState([]);
   const [todos, setTodos] = useState([]);
   const [todoLog, setTodoLog] = useState([]); // 완료 이력 (통계용 — 리셋 삭제와 무관하게 보존)
+  const [reviewNotes, setReviewNotes] = useState([]); // 오답노트 (영구 학습 노트 — 일일 리셋과 독립)
   // 즐겨찾기 설정 (FocusScreen에서 사용)
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
@@ -1851,7 +1853,7 @@ export function AppProvider({ children }) {
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
-      let [s, subj, sess, dd, td, cuf, fv, tl] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog()]);
+      let [s, subj, sess, dd, td, cuf, fv, tl, rn] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog(), loadReviewNotes()]);
       // 형태 방어: 손상된 저장값(비배열 등)이 있으면 그 키만 무시 — .filter/.map 크래시로 앱이 먹통되는 것 방지
       if (s && (typeof s !== 'object' || Array.isArray(s))) s = null;
       if (!Array.isArray(subj)) subj = null;
@@ -1861,6 +1863,7 @@ export function AppProvider({ children }) {
       if (cuf && !Array.isArray(cuf)) cuf = null;
       if (!Array.isArray(fv)) fv = null;
       if (Array.isArray(tl)) setTodoLog(tl);
+      if (Array.isArray(rn)) setReviewNotes(rn);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -2024,8 +2027,9 @@ export function AppProvider({ children }) {
         saveTodos(todos); saveTodoLog(todoLog);
       }
       saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
+      saveReviewNotes(reviewNotes);
     }, 500);
-  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
+  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, reviewNotes, loading]);
 
   // 백업 넛지 — 로드 완료 후 1회 판정 (기록 20세션+, 마지막 백업/넛지에서 30일 경과 시 토스트)
   useEffect(() => {
@@ -2243,6 +2247,21 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
+  // 세션 삭제 (결과 모달의 '기록 폐기'). subject 누적시간도 감산. 나머지 통계는 sessions 파생이라 자동 반영.
+  // ※streak(연속일)는 '그날 공부했는지' 기준이라 금액 변화와 무관 — 건드리지 않음(방금 만든 기록 폐기 시 미세 오차는 감수).
+  const deleteSessions = useCallback((ids) => {
+    const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
+    const removed = sessionsRef.current.filter(s => idSet.has(s.id));
+    if (removed.length === 0) return;
+    setSessions(prev => prev.filter(s => !idSet.has(s.id)));
+    const bySubj = {};
+    removed.forEach(s => { if (s.subjectId) bySubj[s.subjectId] = (bySubj[s.subjectId] || 0) + (s.durationSec || 0); });
+    if (Object.keys(bySubj).length > 0) {
+      setSubjects(prev => prev.map(s => bySubj[s.id]
+        ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) - bySubj[s.id]) } : s));
+    }
+  }, []);
+
   // 타이머 메모 업데이트 (완료 카드 표시용)
   const updateTimerMemo = useCallback((timerId, memo) => {
     setTimers(prev => prev.map(t => t.id === timerId ? { ...t, memoText: memo } : t));
@@ -2277,6 +2296,8 @@ export function AppProvider({ children }) {
     const color = changes.color ?? before.color;
     if (name === before.name && color === before.color) return;
     setTodos(prev => prev.map(t => t.subjectId === id ? { ...t, subjectLabel: name, subjectColor: color } : t));
+    // 오답노트의 과목 비정규화 라벨/색도 동기화 (todos와 동일 패턴 — 과목 삭제 시엔 노트를 두어 '삭제된 과목' 그룹으로 표시)
+    setReviewNotes(prev => prev.map(n => n.subjectId === id ? { ...n, subjectLabel: name, subjectColor: color } : n));
     // 과목형 플래너 블록은 생성 시 과목 이름/색을 복사해 저장 (ScheduleEditorScreen) — 함께 갱신
     setWeeklySchedule(prev => {
       if (!prev) return prev;
@@ -2486,6 +2507,48 @@ export function AppProvider({ children }) {
     showToastCustom('즐겨찾기에서 제거됐어요', 'paengi');
   }, []);
 
+  // ═══ 오답노트 (영구 학습 노트) ═══
+  const addReviewNote = useCallback((partial) => {
+    const now = Date.now();
+    const n = {
+      id: generateId('rn_'), subjectId: null, subjectLabel: null, subjectColor: null, subjectIcon: null,
+      chapter: '', title: '', body: '', color: null, sourceTodoId: null,
+      reviewCount: 0, lastReviewedAt: null, mastered: false,  // 복습 루프
+      ...partial, createdAt: now, updatedAt: now,
+    };
+    setReviewNotes(prev => [n, ...prev]);
+    return n;
+  }, []);
+  const updateReviewNote = useCallback((id, patch) => {
+    setReviewNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n));
+  }, []);
+  const deleteReviewNotes = useCallback((ids) => {
+    const set = new Set(Array.isArray(ids) ? ids : [ids]);
+    setReviewNotes(prev => prev.filter(n => !set.has(n.id)));
+  }, []);
+  // 복습 완료 1회 — updatedAt은 건드리지 않음(복습은 내용 수정이 아니므로 '최신순'을 흔들지 않게)
+  const markReviewed = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => n.id === id
+      ? { ...n, reviewCount: (n.reviewCount || 0) + 1, lastReviewedAt: Date.now() } : n));
+  }, []);
+  // 복습 취소 1회 — 실수로 올라간 카운트 보정. 0이 되면 마지막 복습일도 지움.
+  const unmarkReviewed = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => {
+      if (n.id !== id) return n;
+      const c = Math.max(0, (n.reviewCount || 0) - 1);
+      return { ...n, reviewCount: c, lastReviewedAt: c === 0 ? null : n.lastReviewedAt };
+    }));
+  }, []);
+  const toggleMastered = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => n.id === id ? { ...n, mastered: !n.mastered } : n));
+  }, []);
+  // 할일 → 오답노트 이관 (콘텐츠 스냅샷 복사). overrides로 과목/챕터 확정. 원본 할일 처리는 호출부(toggleTodo/removeTodo)에서.
+  const archiveTodoToNote = useCallback((todoId, overrides = {}) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) return null;
+    return addReviewNote({ ...makeNoteFromTodo(todo), ...overrides });
+  }, [todos, addReviewNote]);
+
   // 백업 복원 후 전체 상태 다시 로드
   const reloadAllData = useCallback(async () => {
     const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([
@@ -2502,16 +2565,19 @@ export function AppProvider({ children }) {
     if (fv && fv.length > 0) setFavs(fv);
     const ws = await loadWeeklySchedule();
     if (ws) setWeeklySchedule(ws);
+    const rn = await loadReviewNotes();
+    if (Array.isArray(rn)) setReviewNotes(rn);
   }, []);
 
   return (
     <AppContext.Provider value={{
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
-      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
+      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating, deleteSessions,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
+      reviewNotes, addReviewNote, updateReviewNote, deleteReviewNotes, archiveTodoToNote, markReviewed, unmarkReviewed, toggleMastered,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
       completedResultData, setCompletedResultData,

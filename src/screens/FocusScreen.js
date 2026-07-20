@@ -1640,10 +1640,35 @@ export default function FocusScreen() {
               style={{ alignItems: 'center', paddingVertical: 10 }}>
               <Text style={{ fontSize: 14, color: T.sub }}>건너뛰기</Text>
             </TouchableOpacity>
+            {/* 방금 끝난 기록 폐기 — 잊은 타이머 등 잘못 기록된 세션 삭제 (지나간 통계는 건드리지 않음) */}
+            {(() => {
+              const data = app.completedResultData;
+              if (!data) return null;
+              const ids = data.sessionId ? [data.sessionId] : (data.planSessionIds || data.seqSessionIds || []);
+              if (ids.length === 0) return null;
+              return (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: 2, paddingBottom: 6 }}>
+                  <TouchableOpacity onPress={() => {
+                    Alert.alert('기록 삭제', '방금 기록한 공부 시간을 삭제(폐기)할까요?\n통계에서도 빠집니다.', [
+                      { text: '취소', style: 'cancel' },
+                      { text: '삭제', style: 'destructive', onPress: () => {
+                        app.deleteSessions(ids);
+                        app.showToastCustom('기록을 삭제했어요', 'paengi');
+                        closeResultModal();
+                      } },
+                    ]);
+                  }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="trash-outline" size={14} color="#E8575A" />
+                    <Text style={{ fontSize: 13, color: '#E8575A', fontWeight: '700' }}>기록 삭제</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
           </View>
         </View>
         </KeyboardAvoidingView>
       </Modal>
+
 
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />

@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '51', // 1.0.36: 계정영속(키체인) + 스터디룸 클립보드 초대 + iOS 위젯 stale done 필터
+      buildNumber: '52', // 1.0.36: 오답노트+복습루프, 세션삭제, 계정영속(키체인), 스터디룸 클립보드 초대 (빌드51은 오답노트 전 미제출본)
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -60,7 +60,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 60, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
+      versionCode: 62, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능 (vc60은 오답노트 전 미제출본)
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',

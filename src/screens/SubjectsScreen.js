@@ -13,6 +13,7 @@ import { formatShort, formatTime, getWeekStartStr } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
 import FavoritesCard from './focus/FavoritesCard';
+import ReviewNotesScreen from './ReviewNotesScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 // ═══ 추천 루틴 ═══
@@ -175,6 +176,7 @@ export default function SubjectsScreen({ navigation }) {
 
   const [goalSubj, setGoalSubj] = useState(null);
   const [goalInput, setGoalInput] = useState('');
+  const [showReviewNotes, setShowReviewNotes] = useState(false);
 
   const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
@@ -686,10 +688,10 @@ export default function SubjectsScreen({ navigation }) {
 
   const renderSubjectHeader = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
+      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0, flex: 1, marginRight: 8 }]} numberOfLines={1}>
         {editMode ? '탭하면 수정 · 손잡이를 끌면 순서 변경' : '과목별 타이머 바로 시작'}
       </Text>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0 }}>
         {sorted.length > 0 && (
           <TouchableOpacity
             style={[S.addBtn, editMode
@@ -785,6 +787,16 @@ export default function SubjectsScreen({ navigation }) {
                 <>
                   {/* 즐겨찾기 타이머 (집중탭에서 이전) — 시작하면 집중탭으로 이동 */}
                   <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
+                  {/* 오답노트 진입 — 편집/추가와 분리된 별도 줄 */}
+                  <TouchableOpacity activeOpacity={0.8} onPress={() => setShowReviewNotes(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.accent + '12', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: T.accent + '40' }}>
+                    <Ionicons name="reader-outline" size={19} color={T.accent} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>오답노트</Text>
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>과목별로 오답·메모를 모아 복습해요</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={T.accent} />
+                  </TouchableOpacity>
                   {renderSubjectHeader()}
                   {sorted.length === 0 && (
                     <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -889,6 +901,16 @@ export default function SubjectsScreen({ navigation }) {
               <>
                 {/* 즐겨찾기 타이머 (집중탭에서 이전, 2026-07-19) — 시작하면 집중탭으로 이동 */}
                 <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
+                {/* 오답노트 진입 — 편집/추가와 분리된 별도 줄 */}
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setShowReviewNotes(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.accent + '12', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: T.accent + '40' }}>
+                  <Ionicons name="reader-outline" size={19} color={T.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>오답노트</Text>
+                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>과목별로 오답·메모를 모아 복습해요</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={T.accent} />
+                </TouchableOpacity>
                 {renderSubjectHeader()}
                 {sorted.length === 0 && (
                   <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1042,6 +1064,8 @@ export default function SubjectsScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      <ReviewNotesScreen visible={showReviewNotes} onClose={() => setShowReviewNotes(false)} />
 
     </View>
   );

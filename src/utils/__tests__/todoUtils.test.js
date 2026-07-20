@@ -1,7 +1,29 @@
 // 할일 기한(dueDate) 순수 로직 테스트
-import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex, applyDailyTodoReset, sweepOrphanExamTodos } from '../todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex, applyDailyTodoReset, sweepOrphanExamTodos, isTodoDuplicate } from '../todoUtils';
 
 const TODAY = '2026-07-10';
+
+describe('isTodoDuplicate', () => {
+  const todos = [
+    { id: 'a', text: '복습', subjectId: 'sci', scope: 'today', done: false },
+    { id: 'b', text: '복습', subjectId: 'math', scope: 'today', done: false },
+    { id: 'c', text: '숙제', subjectId: 'math', scope: 'today', done: true }, // 완료 → 무시
+  ];
+  it('같은 과목·목록에 같은 이름 있으면 true', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today' })).toBe(true));
+  it('과목이 다르면 false', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'eng', scope: 'today' })).toBe(false));
+  it('자기 자신(selfId)은 제외 — 수정 시 자기와 충돌 안 함', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'sci', scope: 'today' }, 'a')).toBe(false));
+  it('수학으로 옮길 때 수학에 같은 이름 있으면 true (사장님 신고 케이스)', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today' }, 'a')).toBe(true));
+  it('완료된 할일은 중복으로 치지 않음', () =>
+    expect(isTodoDuplicate(todos, { text: '숙제', subjectId: 'math', scope: 'today' })).toBe(false));
+  it('반복 템플릿(isTemplate)은 항상 false', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today', isTemplate: true })).toBe(false));
+  it('빈 텍스트는 false', () =>
+    expect(isTodoDuplicate(todos, { text: '  ', subjectId: 'math', scope: 'today' })).toBe(false));
+});
 
 describe('diffDays', () => {
   it('같은 날은 0', () => expect(diffDays(TODAY, TODAY)).toBe(0));
