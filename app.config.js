@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.35',
+    version: '1.0.36',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '50', // 새 온보딩 내장 + 위젯 딥링크 Swift + expo-store-review 네이티브
+      buildNumber: '51', // 1.0.36: 계정영속(키체인) + 스터디룸 클립보드 초대 + iOS 위젯 stale done 필터
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -60,7 +60,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 58, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
+      versionCode: 60, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
