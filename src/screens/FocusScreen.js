@@ -156,6 +156,9 @@ export default function FocusScreen() {
   const [resultMemo, setResultMemo] = useState('');
   const [resultTodoDone, setResultTodoDone] = useState(false); // 결과 모달: 연결된 할 일 완료로 표시
   const [resultShowBreakdown, setResultShowBreakdown] = useState(false); // 결과 모달: 점수 상세 펼침
+  const [editingDuration, setEditingDuration] = useState(false); // 결과 모달: 공부시간 수정 시트 열림
+  const [editHour, setEditHour] = useState(0);   // 수정할 시간(시)
+  const [editMin, setEditMin] = useState(0);     // 수정할 시간(분)
 
   // 결과 모달 닫기 공통 처리 (확인/건너뛰기/뒤로가기) — 할일 완료 토글 반영 + 입력 상태 리셋
   const closeResultModal = () => {
@@ -170,6 +173,7 @@ export default function FocusScreen() {
     setResultMemo('');
     setResultTodoDone(false);
     setResultShowBreakdown(false);
+    setEditingDuration(false);
     // 스토어 리뷰 요청 — 모달 닫힘 애니메이션 후 (정책·빈도 제한은 reviewAsk가 판정)
     setTimeout(() => maybeAskReview(app.sessions.length, app.settings, app.updateSettings), 700);
   };
@@ -1640,14 +1644,26 @@ export default function FocusScreen() {
               style={{ alignItems: 'center', paddingVertical: 10 }}>
               <Text style={{ fontSize: 14, color: T.sub }}>건너뛰기</Text>
             </TouchableOpacity>
-            {/* 방금 끝난 기록 폐기 — 잊은 타이머 등 잘못 기록된 세션 삭제 (지나간 통계는 건드리지 않음) */}
+            {/* 방금 끝난 기록 정정 — 잊은 타이머 등 잘못 기록된 세션의 시간 수정/삭제 (지나간 통계는 건드리지 않음) */}
             {(() => {
               const data = app.completedResultData;
               if (!data) return null;
               const ids = data.sessionId ? [data.sessionId] : (data.planSessionIds || data.seqSessionIds || []);
               if (ids.length === 0) return null;
+              const canEditTime = !!data.sessionId; // 계획/연속(여러 세션 묶음)은 시간 정정 대상에서 제외 — 삭제만
               return (
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: 2, paddingBottom: 6 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingTop: 2, paddingBottom: 6 }}>
+                  {canEditTime && (
+                    <TouchableOpacity onPress={() => {
+                      const cur = data.result?.durationSec || 0;
+                      setEditHour(Math.floor(cur / 3600));
+                      setEditMin(Math.round((cur % 3600) / 60));
+                      setEditingDuration(true);
+                    }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="create-outline" size={14} color={T.sub} />
+                      <Text style={{ fontSize: 13, color: T.sub, fontWeight: '700' }}>시간 수정</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => {
                     Alert.alert('기록 삭제', '방금 기록한 공부 시간을 삭제(폐기)할까요?\n통계에서도 빠집니다.', [
                       { text: '취소', style: 'cancel' },
@@ -1669,6 +1685,55 @@ export default function FocusScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* 공부 시간 수정 시트 — 결과 모달 위 오버레이. 잊은 타이머 등을 실제 시간으로 정정 (한 번 수정하면 재수정·삭제 불가) */}
+      <Modal visible={editingDuration} transparent animationType="fade" onRequestClose={() => setEditingDuration(false)}>
+        <View style={[S.mo, { justifyContent: 'center', paddingHorizontal: 24 }]}>
+          <View style={[{ backgroundColor: T.bg, borderRadius: 20, padding: 20 }, isTablet && { maxWidth: 420, width: '100%', alignSelf: 'center' }]}>
+            <Text style={{ fontSize: 17, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>공부 시간 수정</Text>
+            <Text style={{ fontSize: 14, fontWeight: '900', color: T.accent, textAlign: 'center', marginBottom: 16 }}>
+              {editHour > 0 ? `${editHour}시간 ` : ''}{editMin}분
+            </Text>
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>시간</Text>
+              <Stepper value={editHour} onChange={setEditHour} min={0} max={5} step={1} unit="시간" colors={T} />
+            </View>
+            <View style={{ marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>분</Text>
+              <Stepper value={editMin} onChange={setEditMin} min={0} max={59} step={10} unit="분" colors={T} />
+            </View>
+            <View style={{ backgroundColor: '#E8575A18', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
+                입력한 시간이 통계에 그대로 반영됩니다. 실제 공부한 시간을 정확히 입력해 주세요.{'\n'}수정한 뒤에는 이 기록을 다시 바꾸거나 삭제할 수 없어요.
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity onPress={() => setEditingDuration(false)}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => {
+                const data = app.completedResultData;
+                if (!data?.sessionId) { setEditingDuration(false); return; }
+                const newSec = editHour * 3600 + editMin * 60;
+                if (newSec < 60) { app.showToastCustom('1분 이상 입력해 주세요', 'paengi'); return; }
+                if (newSec > 5 * 3600) { app.showToastCustom('최대 5시간까지 입력할 수 있어요', 'paengi'); return; }
+                Alert.alert('시간 수정', `${editHour > 0 ? editHour + '시간 ' : ''}${editMin}분으로 수정할까요?\n\n입력한 시간이 통계에 그대로 반영되며, 수정 후에는 되돌릴 수 없어요.`, [
+                  { text: '취소', style: 'cancel' },
+                  { text: '수정', onPress: () => {
+                    app.updateSessionDuration(data.sessionId, newSec);
+                    app.setCompletedResultData(prev => prev ? { ...prev, result: { ...prev.result, durationSec: newSec } } : prev);
+                    setEditingDuration(false);
+                    app.showToastCustom('시간을 수정했어요', 'toru');
+                  } },
+                ]);
+              }}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: 'white' }}>수정하기</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />

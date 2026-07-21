@@ -945,7 +945,9 @@ export function AppProvider({ children }) {
       if (t.type !== 'sequence') {
         const result = calcResult(t, realDurationSec);
         const durationSec = realDurationSec;
-        if (t.planId) {
+        // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 80% 게이트를 건너뛰고 할일 결과 모달을 띄운다
+        // — 세션은 이미 planId로 계획 진행에 반영되지만, 자기평가·완료토글·시간수정 UX는 할일 것을 유지.
+        if (t.planId && !t.todoId) {
           const ws = weeklyScheduleRef.current;
           const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
           const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
@@ -1681,7 +1683,8 @@ export function AppProvider({ children }) {
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
-        if (t.planId) {
+        // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 게이트를 건너뛰고 할일 결과 모달을 띄운다 (위 stop 경로와 동일 규칙)
+        if (t.planId && !t.todoId) {
           const ws = weeklyScheduleRef.current;
           const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
           const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
@@ -2162,6 +2165,27 @@ export function AppProvider({ children }) {
       .reduce((sum, s) => sum + (s.durationSec || 0), 0);
   }, [sessions]);
 
+  // 할일→계획 연동(정방향 전용): 할일 타이머 시작 시 같은 과목의 오늘 계획 블록을 찾아 planId를 반환.
+  // 매칭: (1) subjectId 일치 — 과목을 '선택'해 만든 계획, (2) 과목명 일치 — 계획을 과목명으로 직접 입력해
+  //       subjectId가 비어 있는 경우 폴백(PlannerScreen.js:226 — 과목 미선택 시 label 자유입력).
+  // 규칙: 매칭 블록 중 아직 목표 80% 미달인 첫 블록(order순). 없으면 null → 계획 미반영.
+  // ※역방향(계획→할일)은 계획 타이머에 todoId를 넣지 않으므로 구조적으로 차단됨.
+  const findTodayPlanIdForSubject = useCallback((subjectId, subjectLabel) => {
+    if (!subjectId && !subjectLabel) return null;
+    const dayData = getTodaySchedule();
+    if (!dayData?.plans?.length) return null;
+    const name = (subjectLabel || '').trim();
+    const candidates = dayData.plans.filter(p => {
+      if (subjectId && p.subjectId === subjectId) return true;
+      if (!p.subjectId && name && (p.label || '').trim() === name) return true;
+      return false;
+    }).sort((a, b) => (a.order || 0) - (b.order || 0));
+    for (const p of candidates) {
+      if (getPlanCompletedSec(p.id) < (p.targetMin || 0) * 60 * 0.8) return p.id;
+    }
+    return null;
+  }, [getTodaySchedule, getPlanCompletedSec]);
+
   const getTodayPlanRate = useCallback(() => {
     const todaySched = getTodaySchedule();
     if (!todaySched || !todaySched.plans || todaySched.plans.length === 0) return null;
@@ -2259,6 +2283,23 @@ export function AppProvider({ children }) {
     if (Object.keys(bySubj).length > 0) {
       setSubjects(prev => prev.map(s => bySubj[s.id]
         ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) - bySubj[s.id]) } : s));
+    }
+  }, []);
+
+  // 세션 공부시간 수정 (결과 모달의 '시간 수정'). 잊은 타이머 등 잘못 기록된 세션을 실제 시간으로 정정.
+  // subject 누적시간을 차액만큼 조정. 나머지 통계는 sessions 파생이라 자동 반영.
+  // ※밀도(focusDensity)/tier는 유지 — 시간만 정정하는 것이지 집중 행동을 바꾸는 게 아니므로.
+  // edited 플래그로 '사용자 수정본'임을 기록(데이터 정직성). 결과 모달은 세션당 한 번만 떠서 구조적으로 재수정 불가.
+  const updateSessionDuration = useCallback((sessionId, newSec) => {
+    const target = sessionsRef.current.find(s => s.id === sessionId);
+    if (!target) return;
+    const oldSec = target.durationSec || 0;
+    const delta = newSec - oldSec;
+    if (delta === 0) return;
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, durationSec: newSec, edited: true } : s));
+    if (target.subjectId) {
+      setSubjects(prev => prev.map(s => s.id === target.subjectId
+        ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) + delta) } : s));
     }
   }, []);
 
@@ -2573,7 +2614,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
-      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating, deleteSessions,
+      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating, deleteSessions, updateSessionDuration,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
@@ -2593,7 +2634,7 @@ export function AppProvider({ children }) {
       countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,
       weeklySchedule, setWeeklySchedule,
-      getTodaySchedule, getPlanCompletedSec, getTodayPlanRate,
+      getTodaySchedule, getPlanCompletedSec, getTodayPlanRate, findTodayPlanIdForSubject,
       startFromPlan, getAvailableMin, getDayKey, schedulePlannerReminders,
       reloadAllData,
     }}>

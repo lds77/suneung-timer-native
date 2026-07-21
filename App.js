@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
-import { DEFAULT_SCHEDULES } from './src/constants/presets';
+import { DEFAULT_SCHEDULES, SCHOOL_DEFAULT_SUBJECTS } from './src/constants/presets';
 import { generateId } from './src/utils/format';
 import { normalizeRoomCode, isValidRoomCode } from './src/utils/studyRoomCore';
 import { openExactAlarmSettings } from './src/utils/permissions';
@@ -179,30 +179,10 @@ function OnboardingScreen() {
     setDdLabel(''); setDdSelectedDates(new Set());
   };
 
-  // 과목
-  const [subjName, setSubjName] = useState('');
-  const SUBJ_PRESETS = (() => {
-    if (selectedSchool === 'elementary') return [
-      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
-      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
-      { name: '사회', color: '#9B6FC3' }, { name: '한자', color: '#E17055' },
-    ];
-    if (selectedSchool === 'university') return [
-      { name: '전공', color: '#4A90D9' }, { name: '교양', color: '#5CB85C' },
-      { name: '영어', color: '#E8575A' }, { name: '수학', color: '#F5A623' },
-      { name: '자격증', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
-    ];
-    if (selectedSchool === 'exam_prep') return [
-      { name: '국어', color: '#E8575A' }, { name: '영어', color: '#5CB85C' },
-      { name: '한국사', color: '#F5A623' }, { name: '행정학', color: '#4A90D9' },
-      { name: '행정법', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
-    ];
-    return [
-      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
-      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
-      { name: '사회', color: '#9B6FC3' }, { name: '역사', color: '#E17055' },
-    ];
-  })();
+  // 과목 — 학교급 선택 시 자동 세팅되므로 온보딩에선 미리보기만 (실제 추가는 handleFinish)
+  const previewLevel = selectedSchool === 'elementary' ? `elementary_${selectedElemGrade}` : selectedSchool;
+  const previewSubjects = SCHOOL_DEFAULT_SUBJECTS[previewLevel] || [];
+  const isCustomSubjects = selectedSchool === 'university' || selectedSchool === 'exam_prep';
 
   // getSchoolDefaultFavs는 src/screens/focus/helpers.js와 공유 (초등 고학년 20/30/45 기준으로 통일)
 
@@ -221,7 +201,15 @@ function OnboardingScreen() {
     });
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
 
-    // 학교급 기본 시간표 자동 적용
+    // 학교급 기본 과목 자동 세팅 (온보딩에서 과목 추가 단계 제거 — 사용자는 과목탭에서 수정·삭제).
+    // 이름→id 맵을 만들어 아래 계획 블록과 subjectId로 연결 → 할일↔계획 연동이 바로 작동.
+    const nameToId = {};
+    (app.subjects || []).forEach(x => { nameToId[x.name] = x.id; });
+    (SCHOOL_DEFAULT_SUBJECTS[schoolLevel] || []).forEach(s => {
+      if (!nameToId[s.name]) { const n = app.addSubject({ name: s.name, color: s.color }); nameToId[s.name] = n.id; }
+    });
+
+    // 학교급 기본 시간표 자동 적용 — 계획 블록은 같은 이름의 과목과 subjectId로 연결
     const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
     const template = DEFAULT_SCHEDULES[schoolLevel];
@@ -231,7 +219,7 @@ function OnboardingScreen() {
         const src = weekdays.includes(key) ? template.weekday : template.weekend;
         newWs[key] = {
           fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
-          plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: null })),
+          plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: nameToId[p.label] || null })),
         };
       });
       app.setWeeklySchedule?.(newWs);
@@ -431,38 +419,27 @@ function OnboardingScreen() {
       {step === 4 && (
         <View style={styles.obStep}>
           <Ionicons name="library-outline" size={36} color={T.accent} />
-          <Text style={[styles.obTitle, { color: T.text }]}>공부할 과목을 추가해!</Text>
-          <Text style={[styles.obSub, { color: T.sub }]}>탭하면 바로 추가돼. 나중에 수정 가능!</Text>
-          <View style={styles.obSubjGrid}>
-            {SUBJ_PRESETS.map(s => {
-              const added = app.subjects.some(x => x.name === s.name);
-              return (
-                <TouchableOpacity key={s.name}
-                  style={[styles.obSubjBtn, { backgroundColor: added ? s.color + '20' : T.card, borderColor: added ? s.color : T.border }]}
-                  onPress={() => { if (!added) app.addSubject({ name: s.name, color: s.color }); }}>
-                  <Ionicons name={added ? 'checkmark-circle' : 'add-circle-outline'} size={22} color={added ? s.color : T.sub} style={{ marginBottom: 2 }} />
-                  <Text style={[styles.obSubjName, { color: added ? s.color : T.text }]}>{s.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <Text style={[styles.obTitle, { color: T.text }]}>이 과목으로 시작할게!</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>학교급에 맞는 과목을 준비했어. 과목탭에서 언제든 수정할 수 있어!</Text>
+          <View style={styles.obSubjList}>
+            {previewSubjects.map(s => (
+              <View key={s.name} style={[styles.obSubjChip, { backgroundColor: s.color + '15', borderColor: s.color + '40' }]}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: s.color }}>{s.name}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.obSubjInputRow}>
-            <TextInput value={subjName} onChangeText={setSubjName} placeholder="직접 입력 (예: 한국사)" placeholderTextColor={T.sub}
-              style={[styles.obInput, { borderColor: T.border, backgroundColor: T.card, color: T.text, flex: 1 }]} />
-            <TouchableOpacity style={[styles.obSubjAddBtn, { backgroundColor: T.accent }]}
-              onPress={() => { if (subjName.trim()) { app.addSubject({ name: subjName.trim(), color: T.accent }); setSubjName(''); } }}>
-              <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>추가</Text>
-            </TouchableOpacity>
-          </View>
-          {app.subjects.length > 0 && (
-            <View style={styles.obSubjList}>
-              {app.subjects.map(s => (
-                <View key={s.id} style={[styles.obSubjChip, { backgroundColor: s.color + '15', borderColor: s.color + '40' }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: s.color }}>{s.name}</Text>
-                </View>
-              ))}
+          {isCustomSubjects && (
+            <View style={{ marginHorizontal: 4, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: '#FDCB6E20', borderWidth: 1, borderColor: '#FDCB6E55' }}>
+              <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
+                {selectedSchool === 'university'
+                  ? '대학생은 전공 과목이 사람마다 달라요. 과목탭에서 실제 수강 과목명으로 바꿔주세요.'
+                  : '공무원·자격증은 직렬마다 과목이 달라요. 과목탭에서 본인 시험 과목으로 바꿔주세요.'}
+              </Text>
             </View>
           )}
+          <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 12, marginBottom: 4, lineHeight: 18 }}>
+            해야 할 일과 오늘의 계획이 이 과목으로 연결돼요.
+          </Text>
           {/* 알림 안내 */}
           <View style={{ marginHorizontal: 4, marginBottom: 14, padding: 14, borderRadius: 14, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>

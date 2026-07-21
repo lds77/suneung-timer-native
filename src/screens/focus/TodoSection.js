@@ -436,12 +436,16 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                       <TouchableOpacity onPress={() => {
                         setExpandedTodo(null);
+                        // 정방향 연동: 같은 과목의 오늘 계획 블록(80% 미달)이 있으면 planId 주입 → 계획 진행도에 반영.
+                        // 없으면(과목 미지정 포함) null → 예전처럼 계획 미반영 폴백.
+                        const linkedPlanId = app.findTodayPlanIdForSubject?.(t.subjectId, t.subjectLabel) || null;
                         app.addTimer({
                           type: 'free',
                           label: t.text.length > 18 ? t.text.slice(0, 18) + '…' : t.text,
                           subjectId: t.subjectId || null,
                           color: t.subjectColor || T.accent,
                           todoId: t.id, // 종료 시 완료 확인 + 할일에 집중시간 누적 표시
+                          planId: linkedPlanId, // 할일→계획 정방향 연동 (역방향은 계획 타이머에 todoId 없어 자동 차단)
                         });
                       }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.accent }}>
