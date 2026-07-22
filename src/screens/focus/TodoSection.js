@@ -23,9 +23,13 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
 
   // 할일 → 오답노트로 복사 (메모/제목 스냅샷). 원본 할일은 그대로 — 챕터/색은 오답노트에서 정리.
   const handleArchiveTodo = (t) => {
-    app.archiveTodoToNote(t.id);
+    const res = app.archiveTodoToNote(t.id);
     Vibration.vibrate([0, 30]);
-    app.showToastCustom('오답노트에 저장했어요', 'toru');
+    if (res && res.duplicate) {
+      app.showToastCustom('이미 오답노트에 있어요', 'paengi');
+    } else {
+      app.showToastCustom('오답노트에 저장했어요', 'toru');
+    }
   };
   const [addTodoText, setAddTodoText] = useState('');
 

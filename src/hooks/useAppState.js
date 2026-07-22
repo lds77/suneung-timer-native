@@ -2590,8 +2590,11 @@ export function AppProvider({ children }) {
   const archiveTodoToNote = useCallback((todoId, overrides = {}) => {
     const todo = todos.find(t => t.id === todoId);
     if (!todo) return null;
+    // 같은 할일을 두 번 저장하면 동일 노트가 중복 생성됨 → sourceTodoId로 가드.
+    // 반복 인스턴스는 날마다 id가 달라 각각 저장 가능(의도).
+    if (reviewNotes.some(n => n.sourceTodoId === todoId)) return { duplicate: true };
     return addReviewNote({ ...makeNoteFromTodo(todo), ...overrides });
-  }, [todos, addReviewNote]);
+  }, [todos, reviewNotes, addReviewNote]);
 
   // 백업 복원 후 전체 상태 다시 로드
   const reloadAllData = useCallback(async () => {
