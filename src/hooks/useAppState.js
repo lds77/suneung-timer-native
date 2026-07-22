@@ -2390,6 +2390,9 @@ export function AppProvider({ children }) {
     setTodos(prev => {
       const replaceIdx = replaceId ? prev.findIndex(t => t.id === replaceId) : -1;
       const base = replaceIdx !== -1 ? prev.filter(t => t.id !== replaceId) : prev;
+      // 수정 저장 시 id를 보존한다 — 세션(todoId)/누적시간 칩·계획 연동이 id로 걸려 있어
+      // 새 id를 발급하면 링크가 끊겨 기록된 학습시간이 사라져 보인다 (김진 제보, 메모 수정 후 시간 증발)
+      const newId = replaceIdx !== -1 ? replaceId : tmplId;
       // 중복 방지: 같은 목록(scope+ddayId) 안에 같은 텍스트+과목의 미완료 할일이 이미 있으면 건너뜀 (템플릿 제외)
       // scope/ddayId를 비교하지 않으면 오늘 할일이나 다른 시험에 같은 텍스트가 있을 때 추가가 조용히 무시됨
       // 교체 대상 자신은 base에서 이미 빠져 있어 자기 자신과의 중복으로 오탐하지 않음
@@ -2402,7 +2405,7 @@ export function AppProvider({ children }) {
         if (dup) return prev;
       }
       const newTmpl = {
-        id:           tmplId,
+        id:           newId,
         text:         text.trim(),
         done:         false,
         completedAt:  null,
@@ -2433,7 +2436,7 @@ export function AppProvider({ children }) {
             subjectColor: o.subjectColor ?? null, subjectIcon: o.subjectIcon ?? null,
             priority: o.priority ?? 'normal', scope: 'today', ddayId: null,
             memo: o.memo ?? '', isTemplate: false, repeatDays: null,
-            templateId: tmplId, createdDate: todayStr,
+            templateId: newId, createdDate: todayStr,
           });
         }
       }
