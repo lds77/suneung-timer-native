@@ -46,6 +46,10 @@ module.exports = {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // 앱 기본 언어를 한국어로 선언 — 미선언 시 App Store가 언어를 English로 표시(검색·인상 손해).
+        // 네이티브 설정이라 OTA 불가, 빌드 53+부터 반영됨
+        CFBundleDevelopmentRegion: 'ko',
+        CFBundleLocalizations: ['ko'],
         // 집중 타이머 Live Activity (자체 ActivityKit — modules/live-activity + targets/widgets)
         NSSupportsLiveActivities: true,
       },
