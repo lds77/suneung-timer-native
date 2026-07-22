@@ -143,15 +143,36 @@ struct TodayTodoView: View {
         )
     }
 
-    // 중형(4x2): 2열 x 3행 그리드로 6개 표시
+    // "+N개 더" 칩 (홈 위젯은 스크롤 불가 → 잘린 개수를 마지막 칸에 표시, 탭하면 앱으로)
+    private func moreChip(_ n: Int) -> some View {
+        Text("+\(n)개 더")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(d.subColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .background(
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(d.subColor.opacity(d.darkMode ? 0.16 : 0.09))
+            )
+    }
+
+    // 중형(4x2): 2열 x 3행 그리드로 6개 표시. 6개 넘으면 마지막 칸을 "+N개 더"로 대체
     private var mediumGridBody: some View {
         let gap: CGFloat = 6
         let cols = [GridItem(.flexible(), spacing: gap), GridItem(.flexible(), spacing: gap)]
+        let cap = 6
+        let overflow = d.todos.count > cap
+        let shown = Array(d.todos.prefix(overflow ? cap - 1 : cap))
+        let moreCount = d.todos.count - shown.count
         return VStack(alignment: .leading, spacing: gap) {
             header
             LazyVGrid(columns: cols, spacing: gap) {
-                ForEach(d.todos.prefix(6)) { t in
+                ForEach(shown) { t in
                     todoChip(t, fontSize: 12)
+                }
+                if overflow {
+                    moreChip(moreCount)
                 }
             }
             Spacer(minLength: 0)
