@@ -52,6 +52,9 @@ module.exports = {
         CFBundleLocalizations: ['ko'],
         // 집중 타이머 Live Activity (자체 ActivityKit — modules/live-activity + targets/widgets)
         NSSupportsLiveActivities: true,
+        // 오답노트 사진 첨부 (expo-image-picker) — 촬영/앨범. 사진은 기기 내 앱 폴더에만 저장, 외부 전송 없음.
+        NSCameraUsageDescription: '오답 문제를 사진으로 찍어 오답노트에 첨부할 때 사용해요. 사진은 기기에만 저장돼요.',
+        NSPhotoLibraryUsageDescription: '오답노트에 첨부할 사진을 앨범에서 고를 때 사용해요. 사진은 기기에만 저장돼요.',
       },
     },
     android: {
@@ -71,6 +74,7 @@ module.exports = {
         'SCHEDULE_EXACT_ALARM',
         'android.permission.USE_EXACT_ALARM',
         'android.permission.MODIFY_AUDIO_SETTINGS',
+        'android.permission.CAMERA', // 오답노트 사진 촬영 (expo-image-picker). 앨범 선택은 시스템 피커라 권한 불필요
       ],
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },

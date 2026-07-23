@@ -22,6 +22,7 @@ import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, l
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
 import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
 import { makeNoteFromTodo } from '../utils/reviewNotes';
+import { deleteFiles as deleteAttachmentFiles } from '../utils/attachments';
 import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
@@ -2558,17 +2559,33 @@ export function AppProvider({ children }) {
       id: generateId('rn_'), subjectId: null, subjectLabel: null, subjectColor: null, subjectIcon: null,
       chapter: '', title: '', body: '', color: null, sourceTodoId: null,
       reviewCount: 0, lastReviewedAt: null, mastered: false,  // 복습 루프
+      attachments: [],                                        // 사진 첨부 [{ file }] — 파일명(상대경로)만 저장
       ...partial, createdAt: now, updatedAt: now,
     };
     setReviewNotes(prev => [n, ...prev]);
     return n;
   }, []);
   const updateReviewNote = useCallback((id, patch) => {
-    setReviewNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n));
+    setReviewNotes(prev => prev.map(n => {
+      if (n.id !== id) return n;
+      // 첨부가 바뀌면(사진 삭제) 더 이상 참조 안 되는 파일은 디스크에서 정리
+      if (Array.isArray(patch.attachments)) {
+        const keep = new Set(patch.attachments.map(a => a.file));
+        const removed = (n.attachments || []).map(a => a.file).filter(f => f && !keep.has(f));
+        if (removed.length) deleteAttachmentFiles(removed);
+      }
+      return { ...n, ...patch, updatedAt: Date.now() };
+    }));
   }, []);
   const deleteReviewNotes = useCallback((ids) => {
     const set = new Set(Array.isArray(ids) ? ids : [ids]);
-    setReviewNotes(prev => prev.filter(n => !set.has(n.id)));
+    setReviewNotes(prev => {
+      // 삭제되는 노트의 사진 파일도 함께 정리 (고아 파일 방지)
+      const files = prev.filter(n => set.has(n.id))
+        .flatMap(n => (n.attachments || []).map(a => a.file).filter(Boolean));
+      if (files.length) deleteAttachmentFiles(files);
+      return prev.filter(n => !set.has(n.id));
+    });
   }, []);
   // 복습 완료 1회 — updatedAt은 건드리지 않음(복습은 내용 수정이 아니므로 '최신순'을 흔들지 않게)
   const markReviewed = useCallback((id) => {

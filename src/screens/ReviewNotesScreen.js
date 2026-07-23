@@ -2,11 +2,13 @@
 // 오답노트 — 영구 학습 노트(과목·챕터별). 과목 탭/할일 양쪽에서 { visible, onClose }로 재사용.
 // 설계: docs/review-notes-design.md. 순수 로직: utils/reviewNotes.js
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import { groupBySubjectChapter, chapterSuggestions, UNCATEGORIZED } from '../utils/reviewNotes';
+import { saveImage, deleteFiles, resolveUri, canAddMore, MAX_ATTACH } from '../utils/attachments';
 
 // 강조 색 라벨 팔레트 (요청#3 흡수 — 항목 전체 색 강조)
 const NOTE_COLORS = ['#E8575A', '#F5A623', '#4A90D9', '#5CB85C', '#9B6FC3'];
@@ -28,6 +30,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
   const [collapsed, setCollapsed] = useState({}); // 챕터 접기: key `${sid}|${chapterRaw}` → true
   const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'review'(안 본 순)
   const [reviewOnly, setReviewOnly] = useState(false); // 마스터 안 한 것만 (복습 필요)
+  const [viewer, setViewer] = useState(null);   // 전체보기 이미지 uri (null=닫힘)
 
   useEffect(() => {
     if (!visible) return;
@@ -78,11 +81,23 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
     id: null,
     subjectId: (filterSubject !== 'all' && filterSubject !== 'null') ? filterSubject : null,
     chapter: '', title: '', body: '', color: null,
+    attachments: [], origFiles: [],
   });
-  const openEdit = (note) => setEditor({
-    id: note.id, subjectId: note.subjectId ?? null, chapter: note.chapter ?? '',
-    title: note.title ?? '', body: note.body ?? '', color: note.color ?? null,
-  });
+  const openEdit = (note) => {
+    const atts = Array.isArray(note.attachments) ? note.attachments.map(a => ({ file: a.file })) : [];
+    setEditor({
+      id: note.id, subjectId: note.subjectId ?? null, chapter: note.chapter ?? '',
+      title: note.title ?? '', body: note.body ?? '', color: note.color ?? null,
+      attachments: atts, origFiles: atts.map(a => a.file),
+    });
+  };
+  // 저장 없이 닫을 때: 이번에 새로 추가했다가 남은 사진 파일을 정리(고아 방지)
+  const discardAddedFiles = (e) => {
+    if (!e) return;
+    const added = (e.attachments || []).map(a => a.file).filter(f => f && !e.origFiles.includes(f));
+    if (added.length) deleteFiles(added);
+  };
+  const closeEditor = () => { discardAddedFiles(editor); setEditor(null); };
   const saveEditor = () => {
     const e = editor;
     if (!e) return;
@@ -92,17 +107,57 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       subjectId: e.subjectId ?? null,
       subjectLabel: subj?.name ?? null, subjectColor: subj?.color ?? null, subjectIcon: subj?.character ?? null,
       chapter: e.chapter.trim(), title: e.title.trim(), body: e.body.trim(), color: e.color ?? null,
+      attachments: (e.attachments || []).map(a => ({ file: a.file })),
     };
     if (e.id) app.updateReviewNote(e.id, patch);
     else app.addReviewNote(patch);
-    setEditor(null);
+    setEditor(null); // 저장했으므로 discard 안 함 (추가한 사진 유지)
   };
   const deleteFromEditor = () => {
-    if (!editor?.id) { setEditor(null); return; }
-    Alert.alert('오답 삭제', '이 오답을 삭제할까요?', [
+    if (!editor?.id) { closeEditor(); return; }
+    Alert.alert('오답 삭제', '이 오답을 삭제할까요? 첨부한 사진도 함께 삭제돼요.', [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: () => { app.deleteReviewNotes(editor.id); setEditor(null); } },
+      { text: '삭제', style: 'destructive', onPress: () => {
+        discardAddedFiles(editor);              // 저장 안 한 새 사진 정리
+        app.deleteReviewNotes(editor.id);       // 노트 + 저장된 사진 정리(useAppState)
+        setEditor(null);
+      } },
     ]);
+  };
+  // 사진 추가 — 카메라/앨범 선택 → 리사이즈·압축 저장 → 파일명만 편집기에 추가
+  const pickFrom = async (source) => {
+    if (!canAddMore(editor?.attachments, 1)) { app.showToastCustom(`사진은 최대 ${MAX_ATTACH}장까지예요`, 'paengi'); return; }
+    try {
+      let res;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('권한 필요', '카메라 권한을 허용하면 문제를 찍어 첨부할 수 있어요.'); return; }
+        res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+      } else {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+      }
+      if (res.canceled) return;
+      const asset = res.assets?.[0];
+      if (!asset?.uri) return;
+      const file = await saveImage(asset.uri);
+      if (!file) { app.showToastCustom('사진 저장에 실패했어요', 'paengi'); return; }
+      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), { file }] }));
+    } catch {
+      app.showToastCustom('사진을 불러오지 못했어요', 'paengi');
+    }
+  };
+  const addPhoto = () => {
+    Alert.alert('사진 추가', '오답 문제를 사진으로 남겨보세요', [
+      { text: '카메라로 촬영', onPress: () => pickFrom('camera') },
+      { text: '앨범에서 선택', onPress: () => pickFrom('album') },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+  const removePhoto = (file) => {
+    setEditor(e => {
+      if (!e.origFiles.includes(file)) deleteFiles([file]); // 새로 추가했다 뺀 사진은 즉시 정리
+      return { ...e, attachments: (e.attachments || []).filter(a => a.file !== file) };
+    });
   };
 
   const chapterSug = editor ? chapterSuggestions(notes, editor.subjectId) : [];
@@ -227,6 +282,14 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                               )}
                             </View>
                           </View>
+                          {!selectMode && n.attachments?.length > 0 && (
+                            <View style={{ marginLeft: 8 }}>
+                              <Image source={{ uri: resolveUri(n.attachments[0].file) }} style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.bg }} />
+                              {n.attachments.length > 1 && (
+                                <View style={S.thumbBadge}><Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{n.attachments.length}</Text></View>
+                              )}
+                            </View>
+                          )}
                           {selectMode ? (
                             <Ionicons name={sel ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={sel ? T.accent : T.sub} style={{ marginLeft: 8 }} />
                           ) : !mastered ? (
@@ -250,11 +313,11 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
         </ScrollView>
 
         {/* 편집기 */}
-        <Modal visible={!!editor} animationType="slide" transparent onRequestClose={() => setEditor(null)}>
+        <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
             <View style={[S.sheet, { backgroundColor: T.bg }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <TouchableOpacity onPress={() => setEditor(null)}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
+                <TouchableOpacity onPress={closeEditor}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
                 <Text style={{ color: T.text, fontSize: 16, fontWeight: '800' }}>{editor?.id ? '오답 수정' : '새 오답'}</Text>
                 <TouchableOpacity onPress={saveEditor}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
               </View>
@@ -266,6 +329,30 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                   <TextInput value={editor.body} onChangeText={t => setEditor(e => ({ ...e, body: t }))}
                     placeholder="내용 · 오답 이유 · 기억할 것" placeholderTextColor={T.sub} multiline
                     style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, minHeight: 100, textAlignVertical: 'top' }]} />
+
+                  <Text style={[S.lbl, { color: T.sub }]}>사진 (선택 · 최대 {MAX_ATTACH}장)</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                    {(editor.attachments || []).map(a => (
+                      <View key={a.file} style={{ position: 'relative' }}>
+                        <TouchableOpacity activeOpacity={0.8} onPress={() => setViewer(resolveUri(a.file))}>
+                          <Image source={{ uri: resolveUri(a.file) }} style={S.thumb} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => removePhoto(a.file)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          style={S.thumbX}>
+                          <Ionicons name="close" size={13} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {(editor.attachments || []).length < MAX_ATTACH && (
+                      <TouchableOpacity onPress={addPhoto} style={[S.thumb, S.thumbAdd, { borderColor: T.border, backgroundColor: T.card }]}>
+                        <Ionicons name="camera-outline" size={22} color={T.sub} />
+                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>추가</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 11, color: T.sub, marginBottom: 10, lineHeight: 15 }}>
+                    사진은 이 기기에만 저장돼요. 백업 파일이나 기기를 바꿀 때는 함께 옮겨지지 않아요.
+                  </Text>
 
                   <Text style={[S.lbl, { color: T.sub }]}>과목</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
@@ -351,6 +438,15 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* 사진 전체보기 */}
+        <Modal visible={!!viewer} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setViewer(null)}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }}>
+            {viewer && <Image source={{ uri: viewer }} style={{ width: '92%', height: '78%' }} resizeMode="contain" />}
+            <Text style={{ color: '#fff', position: 'absolute', bottom: 44, fontSize: 13, opacity: 0.8 }}>탭하여 닫기</Text>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </Modal>
   );
@@ -367,4 +463,8 @@ const S = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
   lbl: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 4 },
   colorDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2 },
+  thumb: { width: 72, height: 72, borderRadius: 8 },
+  thumbAdd: { borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  thumbX: { position: 'absolute', top: -6, right: -6, backgroundColor: DANGER, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  thumbBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#333', borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
 });

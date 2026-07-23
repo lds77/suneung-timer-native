@@ -24,6 +24,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
 import { backupRowSub } from '../utils/backupNudge';
+import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
 import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
@@ -391,6 +392,11 @@ export default function SettingsScreen() {
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
+  const [photoUsage, setPhotoUsage] = useState(null); // 오답노트 사진 사용량 { count, bytes }
+  const refreshPhotoUsage = useCallback(async () => {
+    try { setPhotoUsage(await usageStats(app.reviewNotes || [])); } catch {}
+  }, [app.reviewNotes]);
+  useEffect(() => { refreshPhotoUsage(); }, [refreshPhotoUsage]);
 
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
@@ -824,6 +830,23 @@ export default function SettingsScreen() {
             }
           }}>
             <Row T={T} label="데이터 복원" sub="백업 파일에서 불러오기" right={<Ionicons name="cloud-download-outline" size={18} color={T.accent} />} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={async () => {
+            try {
+              const { removed, bytes } = await cleanupOrphans(app.reviewNotes || []);
+              await refreshPhotoUsage();
+              Alert.alert('사진 정리', removed > 0
+                ? `삭제된 오답이 남긴 사진 ${removed}장(${formatBytes(bytes)})을 정리했어요.`
+                : '정리할 사진이 없어요. 깔끔합니다!');
+            } catch {
+              Alert.alert('사진 정리', '사진을 정리하는 중 오류가 발생했어요.');
+            }
+          }}>
+            <Row T={T} label="오답노트 사진 정리"
+              sub={photoUsage && photoUsage.count > 0
+                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중 · 눌러서 정리`
+                : '오답노트에 첨부한 사진은 기기에만 저장돼요'}
+              right={<Ionicons name="images-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
         </Section>
 
