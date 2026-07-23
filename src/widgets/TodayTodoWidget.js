@@ -92,7 +92,7 @@ export function TodayTodoWidget({ data, width = 0, height = 0 }) {
         // 높이에 맞춰 행 수 결정 (행 ≈ 38dp + 헤더 여유, TodayPlan과 동일 기준). 높이 모르면 3개.
         const rowsFit = height > 0 ? Math.max(1, Math.floor((height - 28) / 38)) : 3;
         // 3칸 이상 너비면 2열 그리드 (과목바로시작/오늘계획과 동일 기준)
-        const cols = width >= 200 ? 2 : 1;
+        const cols = width >= 170 ? 2 : 1;
         const capacity = rowsFit * cols;
         // 홈 위젯은 스크롤이 안 되므로, 넘치면 마지막 한 줄을 "+N개 더"로 대체해 잘린 걸 알린다(탭 → 앱).
         // 한 줄만 들어가는 작은 크기(rowsFit 1)에선 항목을 우선하고 안내는 생략.

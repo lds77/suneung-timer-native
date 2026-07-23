@@ -104,7 +104,7 @@ export function TodayPlanWidget({ data, width = 0, height = 0 }) {
         // 완료 계획은 하단으로 (남은 할 일이 먼저, 원래 순서 유지)
         const sorted = [...plans.filter(p => !p.done), ...plans.filter(p => p.done)];
         // 너비로 열 수 결정 (과목바로시작과 동일 기준) — 3칸 이상이면 2열 x 3행 = 6개
-        const cols = width >= 200 ? 2 : 1;
+        const cols = width >= 170 ? 2 : 1;
         if (cols === 1) {
           // 1열: 높이에 맞춰 행 수 결정 (행 ≈ 38dp + 헤더 여유). 높이 모르면 3개.
           return sorted
