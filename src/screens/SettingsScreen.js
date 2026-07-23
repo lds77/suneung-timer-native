@@ -837,7 +837,7 @@ export default function SettingsScreen() {
               await refreshPhotoUsage();
               Alert.alert('사진 정리', removed > 0
                 ? `삭제된 오답이 남긴 사진 ${removed}장(${formatBytes(bytes)})을 정리했어요.`
-                : '정리할 사진이 없어요. 깔끔합니다!');
+                : '정리할 사진이 없어요. 오답노트에 첨부된 사진은 그대로 유지돼요.\n(이 정리는 삭제된 오답이 남긴 사진 파일만 지워요.)');
             } catch {
               Alert.alert('사진 정리', '사진을 정리하는 중 오류가 발생했어요.');
             }

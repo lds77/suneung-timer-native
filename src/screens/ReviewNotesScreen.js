@@ -124,9 +124,10 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       } },
     ]);
   };
-  // 사진 추가 — 카메라/앨범 선택 → 리사이즈·압축 저장 → 파일명만 편집기에 추가
+  // 사진 추가 — 카메라(1장)/앨범(여러 장) → 리사이즈·압축 저장 → 파일명만 편집기에 추가
   const pickFrom = async (source) => {
-    if (!canAddMore(editor?.attachments, 1)) { app.showToastCustom(`사진은 최대 ${MAX_ATTACH}장까지예요`, 'paengi'); return; }
+    const remaining = MAX_ATTACH - (editor?.attachments?.length || 0);
+    if (remaining <= 0) { app.showToastCustom(`사진은 최대 ${MAX_ATTACH}장까지예요`, 'paengi'); return; }
     try {
       let res;
       if (source === 'camera') {
@@ -134,14 +135,22 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
         if (!perm.granted) { Alert.alert('권한 필요', '카메라 권한을 허용하면 문제를 찍어 첨부할 수 있어요.'); return; }
         res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
       } else {
-        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+        res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'], quality: 1,
+          allowsMultipleSelection: true, selectionLimit: remaining, // 앨범은 남은 장수만큼 여러 장 선택
+        });
       }
       if (res.canceled) return;
-      const asset = res.assets?.[0];
-      if (!asset?.uri) return;
-      const file = await saveImage(asset.uri);
-      if (!file) { app.showToastCustom('사진 저장에 실패했어요', 'paengi'); return; }
-      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), { file }] }));
+      const assets = (res.assets || []).slice(0, remaining);
+      const files = [];
+      for (const a of assets) {
+        if (!a?.uri) continue;
+        const file = await saveImage(a.uri);
+        if (file) files.push({ file });
+      }
+      if (files.length === 0) { app.showToastCustom('사진 저장에 실패했어요', 'paengi'); return; }
+      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), ...files] }));
+      if ((res.assets || []).length > remaining) app.showToastCustom(`최대 ${MAX_ATTACH}장까지만 담았어요`, 'paengi');
     } catch {
       app.showToastCustom('사진을 불러오지 못했어요', 'paengi');
     }
@@ -158,6 +167,13 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       if (!e.origFiles.includes(file)) deleteFiles([file]); // 새로 추가했다 뺀 사진은 즉시 정리
       return { ...e, attachments: (e.attachments || []).filter(a => a.file !== file) };
     });
+  };
+  // 실수 삭제 방지 — × 탭 시 한 번 확인
+  const confirmRemovePhoto = (file) => {
+    Alert.alert('사진 삭제', '이 사진을 뺄까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => removePhoto(file) },
+    ]);
   };
 
   const chapterSug = editor ? chapterSuggestions(notes, editor.subjectId) : [];
@@ -337,7 +353,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                         <TouchableOpacity activeOpacity={0.8} onPress={() => setViewer(resolveUri(a.file))}>
                           <Image source={{ uri: resolveUri(a.file) }} style={S.thumb} />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => removePhoto(a.file)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        <TouchableOpacity onPress={() => confirmRemovePhoto(a.file)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                           style={S.thumbX}>
                           <Ionicons name="close" size={13} color="#fff" />
                         </TouchableOpacity>
