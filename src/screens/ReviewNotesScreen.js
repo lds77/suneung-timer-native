@@ -2,7 +2,7 @@
 // 오답노트 — 영구 학습 노트(과목·챕터별). 과목 탭/할일 양쪽에서 { visible, onClose }로 재사용.
 // 설계: docs/review-notes-design.md. 순수 로직: utils/reviewNotes.js
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../hooks/useAppState';
@@ -17,8 +17,6 @@ const MASTERED = '#00B894'; // 마스터 완료 표시(성공 녹색)
 
 export default function ReviewNotesScreen({ visible, onClose, initialSubjectId = null }) {
   const app = useApp();
-  const { height: winH } = useWindowDimensions();
-  const sheetScrollMax = Math.round(winH * 0.78); // 시트를 화면에 맞춰 크게 — 보통은 스크롤 없이 한눈에
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
   const notes = app.reviewNotes || [];
   const subjects = app.subjects || [];
@@ -328,17 +326,17 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
           ))}
         </ScrollView>
 
-        {/* 편집기 */}
-        <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-            <View style={[S.sheet, { backgroundColor: T.bg, flexShrink: 1 }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <TouchableOpacity onPress={closeEditor}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
-                <Text style={{ color: T.text, fontSize: 16, fontWeight: '800' }}>{editor?.id ? '오답 수정' : '새 오답'}</Text>
-                <TouchableOpacity onPress={saveEditor}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
-              </View>
-              {editor && (
-                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled showsVerticalScrollIndicator style={{ maxHeight: sheetScrollMax, flexShrink: 1 }}>
+        {/* 편집기 (전체화면 — 바텀시트 키보드 문제 회피) */}
+        <Modal visible={!!editor} animationType="slide" onRequestClose={closeEditor} transparent={false}>
+          <View style={{ flex: 1, backgroundColor: T.bg }}>
+            <View style={[S.header, { borderColor: T.border, paddingTop: Platform.OS === 'ios' ? 54 : 16 }]}>
+              <TouchableOpacity onPress={closeEditor} style={S.hBtn}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
+              <Text style={{ color: T.text, fontSize: 17, fontWeight: '800' }}>{editor?.id ? '오답 수정' : '새 오답'}</Text>
+              <TouchableOpacity onPress={saveEditor} style={S.hBtn}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
+            </View>
+            {editor && (
+              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator contentContainerStyle={{ padding: 18, paddingBottom: 48 }}>
                   <TextInput value={editor.title} onChangeText={t => setEditor(e => ({ ...e, title: t }))}
                     placeholder="제목 (예: 이차함수 판별식)" placeholderTextColor={T.sub}
                     style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, fontWeight: '700' }]} />
@@ -450,9 +448,9 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                     </TouchableOpacity>
                   )}
                 </ScrollView>
-              )}
-            </View>
-          </KeyboardAvoidingView>
+              </KeyboardAvoidingView>
+            )}
+          </View>
         </Modal>
 
         {/* 사진 전체보기 */}
