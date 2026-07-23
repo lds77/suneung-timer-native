@@ -77,7 +77,7 @@ export function SubjectLauncherWidget({ data, width = 0, height = 0 }) {
         <TextWidget text="과목을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
       ) : (() => {
         // 너비로 열 수(넓으면 2열). 행은 최대 3 고정(1칸 높이일 때만 1행) → 2x2=3, 3x2=6.
-        const cols = width >= 170 ? 2 : 1;
+        const cols = width >= 200 ? 2 : 1;
         const rowsFit = height && height < 130 ? 1 : 3;
         const shown = launcherSubjects.slice(0, cols * rowsFit);
         const rows = [];
