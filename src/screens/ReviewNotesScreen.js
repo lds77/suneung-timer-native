@@ -330,7 +330,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
 
         {/* 편집기 */}
         <Modal visible={!!editor} animationType="slide" transparent onRequestClose={closeEditor}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
             <View style={[S.sheet, { backgroundColor: T.bg }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <TouchableOpacity onPress={closeEditor}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
