@@ -338,7 +338,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                 <TouchableOpacity onPress={saveEditor}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
               </View>
               {editor && (
-                <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator style={{ maxHeight: sheetScrollMax, flexShrink: 1 }}>
+                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled showsVerticalScrollIndicator style={{ maxHeight: sheetScrollMax, flexShrink: 1 }}>
                   <TextInput value={editor.title} onChangeText={t => setEditor(e => ({ ...e, title: t }))}
                     placeholder="제목 (예: 이차함수 판별식)" placeholderTextColor={T.sub}
                     style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, fontWeight: '700' }]} />
