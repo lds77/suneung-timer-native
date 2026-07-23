@@ -2,7 +2,7 @@
 // 오답노트 — 영구 학습 노트(과목·챕터별). 과목 탭/할일 양쪽에서 { visible, onClose }로 재사용.
 // 설계: docs/review-notes-design.md. 순수 로직: utils/reviewNotes.js
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Image, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../hooks/useAppState';
@@ -31,6 +31,17 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
   const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'review'(안 본 순)
   const [reviewOnly, setReviewOnly] = useState(false); // 마스터 안 한 것만 (복습 필요)
   const [viewer, setViewer] = useState(null);   // 전체보기 이미지 uri (null=닫힘)
+  const [kbHeight, setKbHeight] = useState(0);  // 키보드 높이 (편집 시트 넘침 방지용)
+
+  useEffect(() => {
+    const s = Keyboard.addListener('keyboardDidShow', e => setKbHeight(e.endCoordinates?.height || 0));
+    const h = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => { s.remove(); h.remove(); };
+  }, []);
+  // 키보드가 뜨면 시트 스크롤 높이를 '키보드 위 공간'에 맞춰 축소 → 상단 입력도 넘치지 않게
+  const editorScrollMax = kbHeight > 0
+    ? Math.max(180, Math.min(sheetScrollMax, winH - kbHeight - 130))
+    : sheetScrollMax;
 
   useEffect(() => {
     if (!visible) return;
@@ -338,7 +349,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                 <TouchableOpacity onPress={saveEditor}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
               </View>
               {editor && (
-                <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator style={{ maxHeight: sheetScrollMax }}>
+                <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator style={{ maxHeight: editorScrollMax }}>
                   <TextInput value={editor.title} onChangeText={t => setEditor(e => ({ ...e, title: t }))}
                     placeholder="제목 (예: 이차함수 판별식)" placeholderTextColor={T.sub}
                     style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, fontWeight: '700' }]} />
