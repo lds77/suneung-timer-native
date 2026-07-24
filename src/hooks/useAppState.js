@@ -2110,7 +2110,7 @@ export function AppProvider({ children }) {
   // 켠 유저만 리스너 1개. 스테일(60분 신뢰창) 판정이 시간에 따라 바뀌므로 30초마다 재계산.
   useEffect(() => {
     if (loading || !settings.studyRoomEnabled) { setRoomStudyingCount(0); return; }
-    let unsub = () => {};
+    let unsub = null;
     let lastStatus = null;
     let alive = true;
     const recompute = () => {
@@ -2124,13 +2124,17 @@ export function AppProvider({ children }) {
       });
       if (alive) setRoomStudyingCount(n);
     };
-    (async () => {
+    // 콜드스타트 레이스(auth/네트워크 준비 전 roomId null)나 이 세션 뒤늦은 입장에도 붙도록
+    // 구독될 때까지 재시도. 구독 성공하면 이후엔 로컬 재계산만(네트워크 없음).
+    const trySubscribe = async () => {
+      if (!alive || unsub) return;
       const roomId = await fetchMyStudyRoomId();
-      if (!alive || !roomId) { setRoomStudyingCount(0); return; }
+      if (!alive || unsub || !roomId) return;
       unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
-    })();
-    const iv = setInterval(recompute, 30 * 1000); // 스테일 경계 반영
-    return () => { alive = false; clearInterval(iv); unsub(); };
+    };
+    trySubscribe();
+    const iv = setInterval(() => { if (unsub) recompute(); else trySubscribe(); }, 15 * 1000);
+    return () => { alive = false; clearInterval(iv); if (unsub) unsub(); };
   }, [settings.studyRoomEnabled, loading]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
