@@ -398,10 +398,11 @@ export default function StudyRoomScreen({ visible, onClose }) {
           {m.studying && (
             <Text style={[S.seatMode, { color: modeColor }]} numberOfLines={1}>{MODE_LABEL[m.mode] || '일반'}</Text>
           )}
-          {/* 화면끔(📖) 몰입 중 — 화면을 끄고 공부하느라 백그라운드지만 자리비움 아님. 달 뱃지로 승격 표시 */}
+          {/* 화면끔(📖) 몰입 중 — 화면을 끄고 공부하느라 백그라운드지만 자리비움 아님.
+              책 뱃지로 '조용히 공부 중'을 긍정 표시 (자는 느낌의 달 대신) */}
           {m.screenOff && (
             <View style={[S.seatMoon, { backgroundColor: T.surface2, borderColor: T.border }]}>
-              <Ionicons name="moon" size={7} color={T.sub} />
+              <Ionicons name="book" size={8} color={m.studying ? (MODE_COLOR[m.mode] || T.accent) : T.sub} />
             </View>
           )}
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>

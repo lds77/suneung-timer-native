@@ -156,6 +156,8 @@ export function AppProvider({ children }) {
   const [pendingStudyRoomCode, setPendingStudyRoomCode] = useState(null);
   // '우리 방 N명 집중 중' — 나 말고 방에서 지금 공부 중인 인원 (집중 화면/잠금 오버레이 표시용)
   const [roomStudyingCount, setRoomStudyingCount] = useState(0);
+  // 집중탭 pill 등에서 '스터디룸 바로 열기' 요청 (타임스탬프 — StatsScreen이 감지해 모달 오픈)
+  const [openStudyRoomAt, setOpenStudyRoomAt] = useState(0);
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
@@ -2683,6 +2685,7 @@ export function AppProvider({ children }) {
       pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
       pendingStudyRoomCode, setPendingStudyRoomCode,
       roomStudyingCount,
+      openStudyRoomAt, requestOpenStudyRoom: () => setOpenStudyRoomAt(Date.now()),
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,

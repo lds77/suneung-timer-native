@@ -78,6 +78,10 @@ export default function StatsScreen() {
   useEffect(() => {
     if (app.pendingStudyRoomCode) setShowStudyRoom(true);
   }, [app.pendingStudyRoomCode]);
+  // 집중탭 '우리 방 N명' pill 등에서 바로 열기 요청
+  useEffect(() => {
+    if (app.openStudyRoomAt) setShowStudyRoom(true);
+  }, [app.openStudyRoomAt]);
   const [activeCard, setActiveCard] = useState(null);
   const activeCardTimer = useRef(null);
   const tapCard = useCallback((key) => {
