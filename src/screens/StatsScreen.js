@@ -78,9 +78,10 @@ export default function StatsScreen() {
   useEffect(() => {
     if (app.pendingStudyRoomCode) setShowStudyRoom(true);
   }, [app.pendingStudyRoomCode]);
-  // 집중탭 '우리 방 N명' pill 등에서 바로 열기 요청
+  // 집중탭 '우리 방 N명' pill 등에서 바로 열기 요청 — 소비 후 클리어
+  // (안 하면 스테일 값이 남아 StatsScreen 리마운트(폰트 변경 등) 때 모달이 예기치 않게 열림)
   useEffect(() => {
-    if (app.openStudyRoomAt) setShowStudyRoom(true);
+    if (app.openStudyRoomAt) { setShowStudyRoom(true); app.clearOpenStudyRoom?.(); }
   }, [app.openStudyRoomAt]);
   const [activeCard, setActiveCard] = useState(null);
   const activeCardTimer = useRef(null);

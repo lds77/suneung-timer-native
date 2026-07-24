@@ -358,10 +358,15 @@ export const reportMember = async (roomId, reportedUid, reportedNick, byNick) =>
 
 // status만 구독 (방 화면 밖에서 '우리 방 N명 집중 중' 인원 계산용 — 경량, room/members 안 읽음).
 // 켠 유저 1인당 리스너 1개. 방이 없으면 즉시 no-op.
+// 취소(방 나가기로 read 권한 상실 등) 시 cb(null) — 옛 방 스냅샷이 카운트에 잔존하는 것 방지
 export const subscribeRoomStatus = (roomId, cb) => {
   if (!initApp() || !roomId) return () => {};
-  return onValue(ref(db, `status/${roomId}`), s => cb(s.val()), () => {});
+  return onValue(ref(db, `status/${roomId}`), s => cb(s.val()), () => cb(null));
 };
+
+// 모듈 캐시 roomId 노출 — useAppState의 카운트 구독이 방 이동/나가기를 폴링 없이 감지
+// (leave/join/create가 같은 JS 컨텍스트에서 persistRoomId로 갱신). undefined = 아직 미조회
+export const getCachedRoomId = () => cachedRoomId;
 
 // ── Presence ──
 // 연결될 때마다 onDisconnect 재등록 (설계 8: 한 번 등록으로 영구가 아님).

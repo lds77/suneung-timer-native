@@ -30,7 +30,7 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid } from '../utils/studyRoom';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
@@ -2127,15 +2127,26 @@ export function AppProvider({ children }) {
       if (alive) setRoomStudyingCount(n);
     };
     // 콜드스타트 레이스(auth/네트워크 준비 전 roomId null)나 이 세션 뒤늦은 입장에도 붙도록
-    // 구독될 때까지 재시도. 구독 성공하면 이후엔 로컬 재계산만(네트워크 없음).
+    // 구독될 때까지 재시도. 캐시(cachedRoomId) 우선 — 무방 유저가 15초마다 서버 get 하지 않게.
+    let subRoomId = null; // 현재 구독 중인 방
     const trySubscribe = async () => {
       if (!alive || unsub) return;
-      const roomId = await fetchMyStudyRoomId();
+      const cached = getCachedStudyRoomId();
+      const roomId = cached !== undefined ? cached : await fetchMyStudyRoomId();
       if (!alive || unsub || !roomId) return;
+      subRoomId = roomId;
       unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
     };
     trySubscribe();
-    const iv = setInterval(() => { if (unsub) recompute(); else trySubscribe(); }, 15 * 1000);
+    const iv = setInterval(() => {
+      // 방 이동/나가기 감지 — leave/join은 studyRoomEnabled를 안 바꿔 effect가 재실행되지 않으므로
+      // 캐시와 대조해 옛 방 구독을 접고 재구독 (안 하면 옛 방 인원이 최대 60분 pill에 잔존)
+      const cur = getCachedStudyRoomId();
+      if (unsub && cur !== undefined && cur !== subRoomId) {
+        unsub(); unsub = null; subRoomId = null; lastStatus = null; recompute();
+      }
+      if (unsub) recompute(); else trySubscribe();
+    }, 15 * 1000);
     return () => { alive = false; clearInterval(iv); if (unsub) unsub(); };
   }, [settings.studyRoomEnabled, loading]);
 
@@ -2686,6 +2697,7 @@ export function AppProvider({ children }) {
       pendingStudyRoomCode, setPendingStudyRoomCode,
       roomStudyingCount,
       openStudyRoomAt, requestOpenStudyRoom: () => setOpenStudyRoomAt(Date.now()),
+      clearOpenStudyRoom: () => setOpenStudyRoomAt(0),
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
