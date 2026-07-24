@@ -52,6 +52,25 @@ describe('validateNickname', () => {
     expect(validateNickname('Fuck공부').ok).toBe(false);
     expect(validateNickname('시발이').ok).toBe(false);
   });
+
+  test('우회(띄어쓰기/구분자 삽입)도 거부', () => {
+    expect(validateNickname('시 발').ok).toBe(false);   // 공백 삽입
+    expect(validateNickname('s.e.x').ok).toBe(false);    // 구분자 삽입
+    expect(validateNickname('병_신').ok).toBe(false);
+    expect(validateNickname('공부하는지민').ok).toBe(true); // 정상 닉은 통과
+  });
+});
+
+describe('buildReport', () => {
+  const { buildReport } = require('../studyRoomCore');
+  test('필드 구성 + 길이 클램프', () => {
+    const r = buildReport('A3K9QZ', 'reportedUidX', '나쁜닉', 'myUid', '신고자', NOW);
+    expect(r).toEqual({
+      roomId: 'A3K9QZ', reportedUid: 'reportedUidX', reportedNick: '나쁜닉',
+      byUid: 'myUid', byNick: '신고자', at: NOW,
+    });
+    expect(buildReport('A3K9QZ', 'u', '가나다라마바사아자차카타파', 'm', '가나다라마바사아자차카타파', NOW).reportedNick.length).toBe(12);
+  });
 });
 
 describe('buildPresence', () => {

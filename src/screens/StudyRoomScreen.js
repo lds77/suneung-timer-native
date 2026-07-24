@@ -7,6 +7,7 @@ import {
   StyleSheet, Share, ActivityIndicator, KeyboardAvoidingView, Platform, Vibration,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -20,8 +21,10 @@ import {
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
   deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers, getMyUid, setMySeat,
-  startFocusSession, clearFocusSession,
+  startFocusSession, clearFocusSession, reportMember,
 } from '../utils/studyRoom';
+
+const BLOCKED_KEY = '@yeolgong/studyRoomBlocked'; // 숨긴 사용자 uid 목록 (로컬 전용)
 
 // 초대 랜딩 페이지 (GitHub Pages, main) — 메신저에서 tappable한 https 링크로 앱 열기/설치/코드 복사를
 // 모두 처리. 링크 클릭 → 설치자는 yeolgong://join?code= 로 앱 입장 제안, 미설치자는 스토어로.
@@ -53,6 +56,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [roomTheme, setRoomTheme] = useState('cafe'); // 방 생성 시 테마 (카페/독서실/교실)
   const [codeInput, setCodeInput] = useState('');
   const [customMin, setCustomMin] = useState(''); // 다같이 집중 직접 시간 입력
+  const [blockedUids, setBlockedUids] = useState([]); // 숨긴 사용자 (로컬 차단 — H 최소 안전)
 
   // 1초 틱 — 공부 중 멤버의 경과 표시용 (로컬 계산, 네트워크 없음)
   const [, setTick] = useState(0);
@@ -61,6 +65,14 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const iv = setInterval(() => setTick(x => x + 1), 1000);
     return () => clearInterval(iv);
   }, [visible, step]);
+
+  // 숨긴 사용자 목록 로드 (로컬)
+  useEffect(() => {
+    if (!visible) return;
+    AsyncStorage.getItem(BLOCKED_KEY).then(raw => {
+      try { setBlockedUids(raw ? JSON.parse(raw) : []); } catch { setBlockedUids([]); }
+    }).catch(() => {});
+  }, [visible]);
 
   // 열 때 초기화: 프로필 → 방 조회
   useEffect(() => {
@@ -116,8 +128,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const today = getToday();
     const now = Date.now();
     return withNicknameTags(Object.entries(room.members)
-      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
-      .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
+      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외 + 내가 숨긴 사용자 제외
+      .filter(([uid, m]) => !blockedUids.includes(uid) && (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
       .map(([uid, m]) => {
         const d = displayStatus(status?.[uid], { nowMs: now, today });
         return {
@@ -327,6 +339,29 @@ export default function StudyRoomScreen({ visible, onClose }) {
     await setMySeat(roomId, seatNo);
   };
 
+  // ── 숨기기/신고 (H 최소 안전) ──
+  const persistBlocked = (next) => { AsyncStorage.setItem(BLOCKED_KEY, JSON.stringify(next)).catch(() => {}); };
+  const hideMember = (uid) => setBlockedUids(prev => {
+    if (prev.includes(uid)) return prev;
+    const next = [...prev, uid]; persistBlocked(next); return next;
+  });
+  const unblockAll = () => setBlockedUids(() => { persistBlocked([]); return []; });
+  const reportAndHide = async (m) => {
+    hideMember(m.uid);
+    const ok = await reportMember(roomId, m.uid, m.displayName, profile?.nickname);
+    Alert.alert(ok ? '신고 접수' : '숨김 완료',
+      ok ? '신고해 주셔서 감사해요. 해당 사용자는 이제 내 화면에서 숨겨져요.'
+         : '해당 사용자를 숨겼어요. (신고 전송은 실패했지만 숨김은 적용됐어요)');
+  };
+  // 다른 사람 좌석 탭 → 숨기기/신고 메뉴 (내 자리는 제외)
+  const seatMenu = (m) => {
+    Alert.alert(m.displayName, '이 사용자를 어떻게 할까요?', [
+      { text: '숨기기', onPress: () => hideMember(m.uid) },
+      { text: '신고하고 숨기기', style: 'destructive', onPress: () => reportAndHide(m) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
   // ── 다같이 집중 (B) ──
   const handleStartFocus = async (min) => {
     setBusy(true);
@@ -393,8 +428,13 @@ export default function StudyRoomScreen({ visible, onClose }) {
         );
       }
       const modeColor = MODE_COLOR[m.mode] || T.accent;
+      // 다른 사람 좌석은 탭 → 숨기기/신고 메뉴, 내 자리는 비탭
+      const SeatCont = mine ? View : TouchableOpacity;
       return (
-        <View key={no}
+        <SeatCont key={no}
+          onPress={mine ? undefined : () => seatMenu(m)}
+          onLongPress={mine ? undefined : () => seatMenu(m)}
+          activeOpacity={0.7}
           style={[
             S.seat,
             partitionStyle,
@@ -428,7 +468,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             </Text>
           )}
           {mine && <View style={[S.seatMineDot, { backgroundColor: T.accent }]} />}
-        </View>
+        </SeatCont>
       );
     };
 
@@ -519,9 +559,15 @@ export default function StudyRoomScreen({ visible, onClose }) {
             </View>
           ))}
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
-            빈 책상을 누르면 그 자리로 옮겨요
+            빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 숨기기/신고
           </Text>
         </View>
+
+        {blockedUids.length > 0 && (
+          <TouchableOpacity onPress={unblockAll} style={{ alignSelf: 'center', marginTop: 4, padding: 6 }}>
+            <Text style={{ fontSize: 12, color: T.sub, textDecorationLine: 'underline' }}>숨긴 사용자 {blockedUids.length}명 · 모두 다시 보기</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity onPress={handleLeave} style={{ alignSelf: 'center', marginTop: 16, padding: 8 }}>
           <Text style={{ fontSize: 13, color: T.sub, textDecorationLine: 'underline' }}>방 나가기</Text>

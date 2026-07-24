@@ -48,6 +48,21 @@
       }
     },
 
+    "reports": {
+      ".read": false,
+      "$reportId": {
+        ".write": "auth != null && !data.exists() && newData.child('byUid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['roomId', 'reportedUid', 'byUid', 'at'])",
+        "roomId": { ".validate": "newData.isString() && newData.val().length <= 6" },
+        "reportedUid": { ".validate": "newData.isString() && newData.val().length <= 64" },
+        "reportedNick": { ".validate": "newData.isString() && newData.val().length <= 12" },
+        "byUid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+        "byNick": { ".validate": "newData.isString() && newData.val().length <= 12" },
+        "at": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+        "$other": { ".validate": false }
+      }
+    },
+
     "status": {
       "$roomId": {
         ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",

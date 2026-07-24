@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
   LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
-  buildFocusSession,
+  buildFocusSession, buildReport,
 } from './studyRoomCore';
 import { getToday } from './format';
 import { durableAuthStorage } from './durableAuthStorage';
@@ -20,7 +20,7 @@ import { durableAuthStorage } from './durableAuthStorage';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getAuth, getReactNativePersistence, signInAnonymously } from 'firebase/auth';
 import {
-  getDatabase, ref, get, set, update, remove, onValue, onDisconnect, serverTimestamp,
+  getDatabase, ref, get, set, update, remove, onValue, onDisconnect, serverTimestamp, push,
 } from 'firebase/database';
 
 const getConfig = () => Constants.expoConfig?.extra?.firebase || null;
@@ -344,6 +344,16 @@ export const clearFocusSession = async (roomId) => {
   const uid = uidOrNull();
   if (!uid || !roomId) return;
   try { await remove(ref(db, `rooms/${roomId}/focusSession`)); } catch {}
+};
+
+// 신고 — /reports에 append (create-only, 본인 것만). 콘솔에서 검토. 실패는 조용히 false.
+export const reportMember = async (roomId, reportedUid, reportedNick, byNick) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId || !reportedUid) return false;
+  try {
+    await push(ref(db, 'reports'), buildReport(roomId, reportedUid, reportedNick, uid, byNick));
+    return true;
+  } catch { return false; }
 };
 
 // status만 구독 (방 화면 밖에서 '우리 방 N명 집중 중' 인원 계산용 — 경량, room/members 안 읽음).

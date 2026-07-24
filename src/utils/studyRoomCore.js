@@ -41,16 +41,34 @@ export const loungeNameFor = (code) => {
 };
 export const isLoungeCode = (code) => LOUNGE_CODES.includes(code);
 
-// 닉네임: 2~12자, 앞뒤 공백 제거. 금칙어는 포함 검사(간단 목록 — 아는 사이 전제의 최소 방어)
-const BAD_WORDS = ['시발', '씨발', '병신', '개새', '지랄', '좆', '섹스', 'fuck', 'sex'];
+// 닉네임: 2~12자, 앞뒤 공백 제거. 금칙어 포함 검사 — 완벽하진 않고(공개 라운지 UGC 1차 방어),
+// 우회(띄어쓰기/구분자 삽입) 대응 위해 정규화 문자열도 함께 검사. 최종 방어는 숨기기/신고.
+const BAD_WORDS = [
+  '시발', '씨발', '시바', '씨바', '시팔', '씨팔', 'ㅅㅂ', '병신', 'ㅂㅅ', '개새', '개색', '개세',
+  '지랄', 'ㅈㄹ', '좆', '존나', 'ㅈㄴ', '썅', '씹', 'ㅆㅂ', '자지', '보지', '섹스', '섹스', '창녀', '걸레', '느금',
+  'fuck', 'fuk', 'fck', 'shit', 'sex', 'bitch', 'pussy', 'dick', 'asshole', 'nigger',
+];
+// 공백·구분자(_.-·) 제거 + 소문자화 — "시 발", "s.e.x" 같은 우회 차단
+export const normalizeForFilter = (s) => String(s || '').toLowerCase().replace(/[\s_.\-·*]/g, '');
 export const validateNickname = (raw) => {
   const v = String(raw || '').trim();
   if (v.length < 2) return { ok: false, reason: '닉네임은 2자 이상이어야 해요' };
   if (v.length > 12) return { ok: false, reason: '닉네임은 12자 이하여야 해요' };
   const low = v.toLowerCase();
-  if (BAD_WORDS.some(w => low.includes(w))) return { ok: false, reason: '사용할 수 없는 단어가 있어요' };
+  const norm = normalizeForFilter(v);
+  if (BAD_WORDS.some(w => low.includes(w) || norm.includes(w))) return { ok: false, reason: '사용할 수 없는 단어가 있어요' };
   return { ok: true, value: v };
 };
+
+// 신고 페이로드 — 서버 /reports에 쌓아 콘솔에서 검토 (자동 처리는 약속하지 않음: 검토 인력 없음).
+export const buildReport = (roomId, reportedUid, reportedNick, byUid, byNick, nowMs = Date.now()) => ({
+  roomId: String(roomId || '').slice(0, 6),
+  reportedUid: String(reportedUid || '').slice(0, 64),
+  reportedNick: String(reportedNick || '').slice(0, 12),
+  byUid: String(byUid || '').slice(0, 64),
+  byNick: String(byNick || '').slice(0, 12),
+  at: nowMs,
+});
 
 // 활성 타이머 → presence 페이로드.
 // 규칙(설계 3.2): running만 studying, 일시정지는 idle('공부 중' 신뢰 우선),
