@@ -128,13 +128,16 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const today = getToday();
     const now = Date.now();
     return withNicknameTags(Object.entries(room.members)
-      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외 + 내가 숨긴 사용자 제외
-      .filter(([uid, m]) => !blockedUids.includes(uid) && (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
+      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
+      .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
       .map(([uid, m]) => {
         const d = displayStatus(status?.[uid], { nowMs: now, today });
         return {
           uid, nickname: m.nickname, character: m.character,
           joinedAt: m.joinedAt || 0, seat: m.seat,
+          // 숨긴 사용자는 명단에서 빼지 않고 익명 타일로 렌더 — 빼면 그 좌석이 내 화면에서만
+          // '빈자리'가 되어 앉을 수 있고, 클라이언트 간 좌석 배치가 어긋난다 (버그헌트 4번)
+          hidden: blockedUids.includes(uid),
           ...d, subjectLabel: status?.[uid]?.subjectLabel || '',
         };
       }));
@@ -346,6 +349,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const next = [...prev, uid]; persistBlocked(next); return next;
   });
   const unblockAll = () => setBlockedUids(() => { persistBlocked([]); return []; });
+  const unhideMember = (uid) => setBlockedUids(prev => {
+    const next = prev.filter(u => u !== uid); persistBlocked(next); return next;
+  });
   const reportAndHide = async (m) => {
     hideMember(m.uid);
     const ok = await reportMember(roomId, m.uid, m.displayName, profile?.nickname);
@@ -424,6 +430,21 @@ export default function StudyRoomScreen({ visible, onClose }) {
             onPress={() => handleSit(no)} activeOpacity={0.6}>
             <View style={[S.seatDesk, { backgroundColor: T.border, opacity: 0.45 }]} />
             <Text style={{ fontSize: 7, color: T.sub, opacity: 0.7, marginTop: 2 }}>빈자리</Text>
+          </TouchableOpacity>
+        );
+      }
+      // 숨긴 사용자 — 좌석은 점유 유지(배치 일관성), 정체만 익명화. 탭 → 다시 보기
+      if (m.hidden) {
+        return (
+          <TouchableOpacity key={no}
+            style={[S.seat, partitionStyle, { borderColor: T.border, backgroundColor: T.surface2, opacity: 0.45 }]}
+            onPress={() => Alert.alert('숨긴 사용자', '이 사용자를 다시 보이게 할까요?', [
+              { text: '다시 보기', onPress: () => unhideMember(m.uid) },
+              { text: '취소', style: 'cancel' },
+            ])} activeOpacity={0.7}>
+            <Ionicons name="eye-off-outline" size={16} color={T.sub} />
+            <View style={[S.seatDesk, { backgroundColor: T.border, opacity: 0.6 }]} />
+            <Text style={[S.seatName, { color: T.sub }]} numberOfLines={1}>숨긴 사용자</Text>
           </TouchableOpacity>
         );
       }
