@@ -15,7 +15,7 @@ import {
   validateNickname, normalizeRoomCode, extractRoomCode, displayStatus, todayStudySec, buildPresence,
   findGhostMembers, GHOST_MS, withNicknameTags,
   ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
-  focusSessionView, fmtClock, FOCUS_SESSION_OPTIONS,
+  focusSessionView, fmtClock, FOCUS_SESSION_OPTIONS, FOCUS_SESSION_MAX_MIN, isLoungeCode,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
@@ -52,6 +52,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [roomName, setRoomName] = useState('');
   const [roomTheme, setRoomTheme] = useState('cafe'); // 방 생성 시 테마 (카페/독서실/교실)
   const [codeInput, setCodeInput] = useState('');
+  const [customMin, setCustomMin] = useState(''); // 다같이 집중 직접 시간 입력
 
   // 1초 틱 — 공부 중 멤버의 경과 표시용 (로컬 계산, 네트워크 없음)
   const [, setTick] = useState(0);
@@ -333,6 +334,12 @@ export default function StudyRoomScreen({ visible, onClose }) {
     setBusy(false);
     if (!r.ok) { Alert.alert('시작 실패', r.reason); return; }
   };
+  const handleStartCustom = () => {
+    const n = parseInt(customMin, 10);
+    if (!n || n < 1 || n > FOCUS_SESSION_MAX_MIN) { Alert.alert('시간 확인', `1~${FOCUS_SESSION_MAX_MIN}분 사이로 입력해 주세요`); return; }
+    setCustomMin('');
+    handleStartFocus(n);
+  };
   // '나도 시작' — 남은 시간만큼 내 카운트다운 켜기 (addTimer가 단일 타이머 가드·모드 선택 처리).
   // 모달을 닫아 집중 화면의 모드 선택/타이머가 보이게 한다.
   const handleJoinFocus = (remainingSec) => {
@@ -356,7 +363,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const renderRoom = () => {
     const now = Date.now();
     const myUid = getMyUid();
-    // 다같이 집중 세션 상태 (배너/시작 카드 분기)
+    // 다같이 집중 세션 상태 (배너/시작 카드 분기). 공개 라운지는 모르는 사람끼리라 미노출 — 그룹(코드) 방 전용
+    const showFocusSession = !isLoungeCode(roomId);
     const fsv = focusSessionView(roomData.room?.focusSession, now);
     const iAmStudying = app.timers.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
     // 공부 모드 3단계 — 자리 테두리 색 + 자리 상단 텍스트 (일반 녹색/집중 주황/울트라 빨강)
@@ -438,8 +446,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </View>
         </View>
 
-        {/* 다같이 집중 세션 (B) — 활성 배너 또는 시작 카드 */}
-        {fsv.active ? (
+        {/* 다같이 집중 세션 (B) — 활성 배너 또는 시작 카드. 공개 라운지에선 미노출 */}
+        {showFocusSession && (fsv.active ? (
           <View style={[S.focusBanner, { backgroundColor: T.accent + '14', borderColor: T.accent + '55' }]}>
             {fsv.finished ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -468,20 +476,30 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </View>
         ) : (
           <View style={[S.focusStartCard, { backgroundColor: T.card, borderColor: T.border }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[S.cardTitle, { color: T.text }]}>다같이 집중</Text>
-              <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2 }}>같은 카운트다운으로 함께 몰입해요</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Text style={[S.cardTitle, { color: T.text }]}>다같이 집중</Text>
+            <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2 }}>같은 카운트다운으로 함께 몰입해요</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               {FOCUS_SESSION_OPTIONS.map(min => (
                 <TouchableOpacity key={min} style={[S.focusMinBtn, { borderColor: T.accent, backgroundColor: T.accent + '10' }]}
                   onPress={() => handleStartFocus(min)} disabled={busy} activeOpacity={0.7}>
                   <Text style={{ fontSize: 14, fontWeight: '900', color: T.accent }}>{min}분</Text>
                 </TouchableOpacity>
               ))}
+              {/* 직접 입력 (1~180분) */}
+              <View style={[S.focusCustomWrap, { borderColor: T.border, backgroundColor: T.surface2 }]}>
+                <TextInput
+                  style={[S.focusCustomInput, { color: T.text }]}
+                  value={customMin} onChangeText={t => setCustomMin(t.replace(/[^0-9]/g, '').slice(0, 3))}
+                  keyboardType="number-pad" placeholder="직접" placeholderTextColor={T.sub} maxLength={3} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>분</Text>
+              </View>
+              <TouchableOpacity style={[S.focusStartBtn, { backgroundColor: customMin ? T.accent : T.border }]}
+                onPress={handleStartCustom} disabled={busy || !customMin} activeOpacity={0.8}>
+                <Ionicons name="play" size={15} color="white" />
+              </TouchableOpacity>
             </View>
           </View>
-        )}
+        ))}
 
         {/* 좌석 도면 — 테마별 배치(카페/독서실/교실), 빈자리 탭으로 이동 */}
         <View style={[S.floorCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -560,8 +578,11 @@ const S = StyleSheet.create({
   focusClock: { fontSize: 20, fontWeight: '900', fontVariant: ['tabular-nums'], marginLeft: 8 },
   focusJoinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 11, paddingVertical: 11, marginTop: 12 },
   focusJoinText: { color: 'white', fontSize: 14, fontWeight: '900' },
-  focusStartCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  focusStartCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
   focusMinBtn: { borderWidth: 1.5, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 14, alignItems: 'center' },
+  focusCustomWrap: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 11, paddingLeft: 10, paddingRight: 10, paddingVertical: 4 },
+  focusCustomInput: { fontSize: 14, fontWeight: '800', minWidth: 34, paddingVertical: 4, textAlign: 'center' },
+  focusStartBtn: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   floorCard: { borderRadius: 16, borderWidth: 1, padding: 12, paddingBottom: 8, marginBottom: 12 },
   zoneLabel: { fontSize: 10, fontWeight: '800', marginBottom: 5, letterSpacing: 0.5 },
   seatRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
