@@ -366,6 +366,12 @@ export default function StudyRoomScreen({ visible, onClose }) {
           {m.studying && (
             <Text style={[S.seatMode, { color: modeColor }]} numberOfLines={1}>{MODE_LABEL[m.mode] || '일반'}</Text>
           )}
+          {/* 화면끔(📖) 몰입 중 — 화면을 끄고 공부하느라 백그라운드지만 자리비움 아님. 달 뱃지로 승격 표시 */}
+          {m.screenOff && (
+            <View style={[S.seatMoon, { backgroundColor: T.surface2, borderColor: T.border }]}>
+              <Ionicons name="moon" size={7} color={T.sub} />
+            </View>
+          )}
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>
             <CharacterAvatar characterId={m.character} size={24} />
           </View>
@@ -484,6 +490,7 @@ const S = StyleSheet.create({
   seatName: { fontSize: 8, fontWeight: '800', marginTop: 3, maxWidth: '96%' },
   seatInfo: { fontSize: 7.5, fontWeight: '700', marginTop: 1, maxWidth: '96%' },
   seatMineDot: { position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: 4 },
+  seatMoon: { position: 'absolute', top: 3, left: 3, width: 13, height: 13, borderRadius: 7, borderWidth: 0.5, alignItems: 'center', justifyContent: 'center' },
   seatMineChip: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1.5 },
   themeChip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,

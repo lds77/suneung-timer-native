@@ -133,11 +133,34 @@ describe('displayStatus', () => {
     expect(d.maybeAway).toBe(false);
   });
 
-  test('bg(소켓 끊김)는 신뢰창(60분)까지 공부 중 취급 + 자리비움 표시', () => {
-    const s = { state: 'bg', startedAt: NOW - 100, updatedAt: NOW - STALE_MS + 60_000, todaySec: 0, date: today };
+  test('화면켬(집중) bg는 잠금 이탈 = 자리비움 가능성 표시', () => {
+    const s = { state: 'bg', mode: 'fire', startedAt: NOW - 100, updatedAt: NOW - STALE_MS + 60_000, todaySec: 0, date: today };
     const d = displayStatus(s, { nowMs: NOW, today });
     expect(d.studying).toBe(true);
     expect(d.maybeAway).toBe(true);
+    expect(d.screenOff).toBe(false);
+  });
+
+  test('울트라집중 bg도 자리비움 가능성 (screenOff 아님)', () => {
+    const s = { state: 'bg', mode: 'ultra', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.maybeAway).toBe(true);
+    expect(d.screenOff).toBe(false);
+  });
+
+  test('화면끔(📖 book) bg는 자리비움이 아니라 화면끔 몰입으로 승격', () => {
+    const s = { state: 'bg', mode: 'book', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.studying).toBe(true);
+    expect(d.screenOff).toBe(true);
+    expect(d.maybeAway).toBe(false); // 흐려지지 않음
+  });
+
+  test('mode 불명 bg는 관대하게 화면끔(present)으로 해석', () => {
+    const s = { state: 'bg', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.screenOff).toBe(true);
+    expect(d.maybeAway).toBe(false);
   });
 
   test('신뢰창(60분) 넘게 갱신 없으면 공부 중 아님 (스테일 방어)', () => {
@@ -162,7 +185,7 @@ describe('displayStatus', () => {
   });
 
   test('status 없음(신규 멤버)도 안전', () => {
-    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0 });
+    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0 });
   });
 });
 

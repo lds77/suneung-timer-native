@@ -138,9 +138,16 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   const fresh = (nowMs - (s.updatedAt || 0)) < STALE_MS
     || (!!s.plannedEndAt && nowMs < s.plannedEndAt + PLANNED_END_GRACE_MS);
   const studying = (s.state === 'studying' || s.state === 'bg') && fresh && !!s.startedAt;
+  const bg = studying && s.state === 'bg';
+  // 화면끔(📖 book)은 백그라운드가 정상 동작 — 화면을 끄고 몰입 중이므로 자리비움으로 취급하지 않는다.
+  //   (성실한 screen_off 공부가 소켓 단절로 흐려 보이던 문제 — 오히려 '화면끔' 뱃지로 승격)
+  // 화면켬(집중/울트라)에서의 bg는 잠금 이탈 = 자리비움 가능성 → 흐리게 유지.
+  // mode 불명 시엔 '공부 중을 신뢰' 철학에 따라 화면끔(present)으로 관대하게 해석.
+  const screenOff = bg && (s.mode || 'book') === 'book';
   return {
     studying,
-    maybeAway: studying && s.state === 'bg',
+    screenOff,
+    maybeAway: bg && !screenOff,
     startedAt: studying ? s.startedAt : null,
     mode: studying ? (s.mode || 'book') : null,
     todaySec: s.date === today ? (s.todaySec || 0) : 0,
