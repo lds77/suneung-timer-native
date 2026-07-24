@@ -1020,6 +1020,16 @@ export default function FocusScreen() {
           })}</View>
         )}
 
+        {/* 우리 방 집중 인원 — 방 화면을 안 봐도 공부 중 '같이 있는 느낌' (탭 → 스터디룸) */}
+        {app.roomStudyingCount > 0 && (
+          <TouchableOpacity style={[S.roomPill, { backgroundColor: T.accent + '14', borderColor: T.accent + '44' }]}
+            onPress={() => navigation.navigate('Stats')} activeOpacity={0.7}>
+            <Ionicons name="people" size={14} color={T.accent} />
+            <Text style={[S.roomPillText, { color: T.accent }]}>우리 방에서 {app.roomStudyingCount}명이 함께 집중 중</Text>
+            <Ionicons name="chevron-forward" size={13} color={T.accent} />
+          </TouchableOpacity>
+        )}
+
         {/* 진행률 */}
         <View style={[S.progCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <View style={S.progRow}><Text style={[S.progLabel, { color: T.sub }]}>오늘</Text><Text style={[S.progVal, { color: T.accent }]}>{formatDuration(realToday)}</Text></View>

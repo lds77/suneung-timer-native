@@ -672,6 +672,14 @@ function LockOverlay() {
           </View>
         )}
 
+        {/* 우리 방 집중 인원 — 잠금 상태(공부 중)에서도 '같이 있는 느낌'. 비탭 표시 */}
+        {app.roomStudyingCount > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20, marginTop: -4 }}>
+            <Ionicons name="people" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.6)" />
+            <Text style={{ fontSize: subFontSize, fontWeight: '700', color: 'rgba(255,255,255,0.6)' }}>우리 방에서 {app.roomStudyingCount}명이 함께 집중 중</Text>
+          </View>
+        )}
+
         {/* 잠깐 쉬기 */}
         {!app.ultraFocus?.pauseAllowed && app.settings.ultraFocusLevel !== 'exam' && (
           <TouchableOpacity onPress={() => { allowPauseRef.current?.(); setScreenLockedRef.current?.(false); }}

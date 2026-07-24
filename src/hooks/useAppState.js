@@ -30,8 +30,8 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence } from '../utils/studyRoom';
-import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec } from '../utils/studyRoomCore';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid } from '../utils/studyRoom';
+import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -154,6 +154,8 @@ export function AppProvider({ children }) {
   // 스터디룸 초대 딥링크(yeolgong://join?code=)로 받은 코드 — StatsScreen이 모달을 열고
   // StudyRoomScreen이 소비(입장 제안)한 뒤 클리어. 클립보드 감지와 같은 joinByCode 경로 사용
   const [pendingStudyRoomCode, setPendingStudyRoomCode] = useState(null);
+  // '우리 방 N명 집중 중' — 나 말고 방에서 지금 공부 중인 인원 (집중 화면/잠금 오버레이 표시용)
+  const [roomStudyingCount, setRoomStudyingCount] = useState(0);
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
@@ -2104,6 +2106,33 @@ export function AppProvider({ children }) {
     return () => clearInterval(iv);
   }, [settings.studyRoomEnabled, loading]);
 
+  // '우리 방 N명 집중 중' 구독 — 방 화면을 닫아도 방의 집중 인원을 집중탭/잠금 오버레이에 표시.
+  // 켠 유저만 리스너 1개. 스테일(60분 신뢰창) 판정이 시간에 따라 바뀌므로 30초마다 재계산.
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) { setRoomStudyingCount(0); return; }
+    let unsub = () => {};
+    let lastStatus = null;
+    let alive = true;
+    const recompute = () => {
+      const myUid = getMyStudyRoomUid();
+      const now = Date.now();
+      const today = getToday();
+      let n = 0;
+      Object.entries(lastStatus || {}).forEach(([uid, st]) => {
+        if (uid === myUid) return; // 나는 제외 — '나 말고 함께 집중 중인 사람'
+        if (studyRoomDisplayStatus(st, { nowMs: now, today }).studying) n += 1;
+      });
+      if (alive) setRoomStudyingCount(n);
+    };
+    (async () => {
+      const roomId = await fetchMyStudyRoomId();
+      if (!alive || !roomId) { setRoomStudyingCount(0); return; }
+      unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
+    })();
+    const iv = setInterval(recompute, 30 * 1000); // 스테일 경계 반영
+    return () => { alive = false; clearInterval(iv); unsub(); };
+  }, [settings.studyRoomEnabled, loading]);
+
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용
   const lastSnapshotSaveRef = useRef(0);
@@ -2649,6 +2678,7 @@ export function AppProvider({ children }) {
       showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
       pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
       pendingStudyRoomCode, setPendingStudyRoomCode,
+      roomStudyingCount,
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
