@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
   LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
+  buildFocusSession,
 } from './studyRoomCore';
 import { getToday } from './format';
 import { durableAuthStorage } from './durableAuthStorage';
@@ -324,6 +325,25 @@ export const subscribeRoom = (roomId, cb) => {
   const u1 = onValue(ref(db, `rooms/${roomId}`), s => { room = s.val(); emit(); }, () => {});
   const u2 = onValue(ref(db, `status/${roomId}`), s => { status = s.val(); emit(); }, () => {});
   return () => { u1(); u2(); };
+};
+
+// ── 다같이 집중 세션 (B) ──
+// 멤버 누구나 시작 가능(방 노드에 focusSession 기록). 방 구독(subscribeRoom)이 room.focusSession으로 전달.
+// 규칙: rooms/$id/focusSession에 멤버 write 허용 필요 (docs/firebase-database.rules.json — 콘솔 배포 필수).
+export const startFocusSession = async (roomId, durationMin, profile) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId) return { ok: false, reason: '연결에 실패했어요' };
+  try {
+    await set(ref(db, `rooms/${roomId}/focusSession`), buildFocusSession(durationMin, uid, profile?.nickname || ''));
+    return { ok: true };
+  } catch { return { ok: false, reason: '시작에 실패했어요. 잠시 후 다시 시도해 주세요' }; }
+};
+
+// 만료 세션 정리 — 어떤 멤버든 지운다 (다음 세션이 덮어쓰기도 하지만 노드 위생용).
+export const clearFocusSession = async (roomId) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId) return;
+  try { await remove(ref(db, `rooms/${roomId}/focusSession`)); } catch {}
 };
 
 // status만 구독 (방 화면 밖에서 '우리 방 N명 집중 중' 인원 계산용 — 경량, room/members 안 읽음).

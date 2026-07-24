@@ -271,3 +271,36 @@ export const sortMembers = (rows) => [...rows].sort((a, b) => {
 // 오늘 공부 합계(초) — 세션 date 기준 (불변식 4: date는 시작일 귀속)
 export const todayStudySec = (sessions, today) =>
   (sessions || []).reduce((sum, s) => sum + (s.date === today ? (s.durationSec || 0) : 0), 0);
+
+// ── 다같이 집중 세션 (B) ──
+// 방에서 한 명이 시작하면 모두가 같은 카운트다운을 본다 (벽시계 startedAt 기준 — 서버 틱 없음).
+// 타이머를 강제로 켜지 않음: 배너 + '나도 시작'으로 각자 자기 카운트다운을 켠다 (타이머 불변식과 분리).
+export const FOCUS_SESSION_OPTIONS = [25, 50]; // 분 — 뽀모(25)·롱세션(50)
+export const FOCUS_SESSION_COMPLETE_MS = 90 * 1000; // 종료 후 '다같이 완주'를 잠깐 유지
+export const FOCUS_SESSION_MAX_MIN = 180;
+
+export const buildFocusSession = (durationMin, uid, nick, nowMs = Date.now()) => ({
+  startedAt: nowMs,
+  durationMin: Math.max(1, Math.min(FOCUS_SESSION_MAX_MIN, Math.round(durationMin))),
+  by: uid,
+  byNick: String(nick || '').slice(0, 12),
+});
+
+// focusSession 노드 → 표시 상태.
+//   active=배너 노출, finished=완주 직후 축하창, remainingSec=남은 초, expired=만료(정리 대상).
+export const focusSessionView = (fs, nowMs = Date.now()) => {
+  if (!fs || !fs.startedAt || !fs.durationMin) return { active: false };
+  const endsAt = fs.startedAt + fs.durationMin * 60 * 1000;
+  const base = { endsAt, durationMin: fs.durationMin, by: fs.by, byNick: fs.byNick || '', startedAt: fs.startedAt };
+  if (nowMs >= endsAt) {
+    if (nowMs < endsAt + FOCUS_SESSION_COMPLETE_MS) return { ...base, active: true, finished: true, remainingSec: 0 };
+    return { ...base, active: false, expired: true };
+  }
+  return { ...base, active: true, finished: false, remainingSec: Math.ceil((endsAt - nowMs) / 1000) };
+};
+
+// mm:ss (다같이 집중 남은시간 — 라이브 카운트다운 전용)
+export const fmtClock = (sec) => {
+  const s = Math.max(0, Math.floor(sec));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};

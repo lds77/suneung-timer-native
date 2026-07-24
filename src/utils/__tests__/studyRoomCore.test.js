@@ -4,6 +4,7 @@ const {
   genRoomCode, isValidRoomCode, normalizeRoomCode, validateNickname,
   buildPresence, presenceSig, displayStatus, sortMembers, todayStudySec,
   plannedEndAtOf, STALE_MS, PLANNED_END_GRACE_MS,
+  buildFocusSession, focusSessionView, fmtClock, FOCUS_SESSION_COMPLETE_MS,
 } = require('../studyRoomCore');
 
 const NOW = 1_800_000_000_000;
@@ -186,6 +187,52 @@ describe('displayStatus', () => {
 
   test('status 없음(신규 멤버)도 안전', () => {
     expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0 });
+  });
+});
+
+describe('다같이 집중 세션 (focusSessionView)', () => {
+  test('buildFocusSession: 분 클램프 + 필드', () => {
+    const fs = buildFocusSession(25, 'uidA', '지민', NOW);
+    expect(fs).toEqual({ startedAt: NOW, durationMin: 25, by: 'uidA', byNick: '지민' });
+    expect(buildFocusSession(999, 'u', 'n', NOW).durationMin).toBe(180); // 상한
+    expect(buildFocusSession(0, 'u', 'n', NOW).durationMin).toBe(1); // 하한
+    expect(buildFocusSession(25, 'u', '가나다라마바사아자차카타파', NOW).byNick.length).toBe(12); // 닉 12자 클램프
+  });
+
+  test('진행 중: active + 남은 초 계산', () => {
+    const fs = { startedAt: NOW, durationMin: 25, by: 'u', byNick: '지민' };
+    const v = focusSessionView(fs, NOW + 10 * 60 * 1000);
+    expect(v.active).toBe(true);
+    expect(v.finished).toBe(false);
+    expect(v.remainingSec).toBe(15 * 60); // 25분 중 10분 경과 → 15분
+  });
+
+  test('종료 직후: 완주 축하창 유지 (finished)', () => {
+    const fs = { startedAt: NOW, durationMin: 25 };
+    const v = focusSessionView(fs, NOW + 25 * 60 * 1000 + 1000);
+    expect(v.active).toBe(true);
+    expect(v.finished).toBe(true);
+    expect(v.remainingSec).toBe(0);
+  });
+
+  test('완주창(90초) 이후: 만료 (정리 대상)', () => {
+    const fs = { startedAt: NOW, durationMin: 25 };
+    const v = focusSessionView(fs, NOW + 25 * 60 * 1000 + FOCUS_SESSION_COMPLETE_MS + 1);
+    expect(v.active).toBe(false);
+    expect(v.expired).toBe(true);
+  });
+
+  test('세션 없음/불완전은 비활성', () => {
+    expect(focusSessionView(null).active).toBe(false);
+    expect(focusSessionView({ durationMin: 25 }).active).toBe(false); // startedAt 없음
+    expect(focusSessionView({ startedAt: NOW }).active).toBe(false); // durationMin 없음
+  });
+
+  test('fmtClock: mm:ss (음수/소수 방어)', () => {
+    expect(fmtClock(754)).toBe('12:34');
+    expect(fmtClock(5)).toBe('00:05');
+    expect(fmtClock(-3)).toBe('00:00');
+    expect(fmtClock(90.9)).toBe('01:30');
   });
 });
 

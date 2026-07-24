@@ -35,6 +35,15 @@
             "$other": { ".validate": false }
           }
         },
+        "focusSession": {
+          ".write": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+          ".validate": "!newData.exists() || newData.hasChildren(['startedAt', 'durationMin', 'by'])",
+          "startedAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+          "durationMin": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 180" },
+          "by": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+          "byNick": { ".validate": "newData.isString() && newData.val().length <= 12" },
+          "$other": { ".validate": false }
+        },
         "$other": { ".validate": false }
       }
     },
