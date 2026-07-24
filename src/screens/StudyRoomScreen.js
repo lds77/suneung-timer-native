@@ -633,7 +633,7 @@ const S = StyleSheet.create({
   zoneLabel: { fontSize: 10, fontWeight: '800', marginBottom: 5, letterSpacing: 0.5 },
   seatRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
   seat: {
-    flex: 1, height: 90, borderRadius: 10, borderWidth: 1,
+    flex: 1, height: 90, borderRadius: 10, borderWidth: 1, borderStyle: 'solid', // solid 명시 — 빈자리(dashed)→점유 전환 시 안드 borderStyle 미리셋 버그 방지
     alignItems: 'center', justifyContent: 'center', paddingVertical: 4, paddingHorizontal: 2, overflow: 'hidden',
   },
   seatMode: { fontSize: 7, fontWeight: '900', letterSpacing: 0.3, marginBottom: 1, maxWidth: '96%' },

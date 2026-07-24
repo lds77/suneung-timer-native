@@ -157,11 +157,12 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
     || (!!s.plannedEndAt && nowMs < s.plannedEndAt + PLANNED_END_GRACE_MS);
   const studying = (s.state === 'studying' || s.state === 'bg') && fresh && !!s.startedAt;
   const bg = studying && s.state === 'bg';
-  // 화면끔(📖 book)은 백그라운드가 정상 동작 — 화면을 끄고 몰입 중이므로 자리비움으로 취급하지 않는다.
-  //   (성실한 screen_off 공부가 소켓 단절로 흐려 보이던 문제 — 오히려 '화면끔' 뱃지로 승격)
-  // 화면켬(집중/울트라)에서의 bg는 잠금 이탈 = 자리비움 가능성 → 흐리게 유지.
+  // 화면끔(📖 book/일반 모드)은 모드 자체가 screen_off이므로 bg 여부와 무관하게 항상 '화면끔' 표식.
+  //   (안드는 타이머 포그라운드 서비스가 소켓을 살려둬 화면을 꺼도 state가 'studying'으로 유지됨 —
+  //    bg 기준이면 안드에서 책 뱃지가 안 떠서, 모드 기준으로 판정한다.)
+  // 화면켬(집중/울트라)에서 소켓이 끊긴(bg) 경우만 잠금 이탈 = 자리비움 가능성 → 흐리게.
   // mode 불명 시엔 '공부 중을 신뢰' 철학에 따라 화면끔(present)으로 관대하게 해석.
-  const screenOff = bg && (s.mode || 'book') === 'book';
+  const screenOff = studying && (s.mode || 'book') === 'book';
   return {
     studying,
     screenOff,

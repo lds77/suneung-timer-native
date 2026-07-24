@@ -176,6 +176,21 @@ describe('displayStatus', () => {
     expect(d.maybeAway).toBe(false); // 흐려지지 않음
   });
 
+  test('화면끔(book)은 bg 아니어도 책 뱃지 — 안드 포그라운드 서비스가 소켓을 살려두는 경우', () => {
+    const s = { state: 'studying', mode: 'book', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.studying).toBe(true);
+    expect(d.screenOff).toBe(true);  // 모드 기준 판정 (bg 무관)
+    expect(d.maybeAway).toBe(false);
+  });
+
+  test('화면켬(집중) 포그라운드는 책 뱃지 없음', () => {
+    const s = { state: 'studying', mode: 'fire', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.screenOff).toBe(false);
+    expect(d.maybeAway).toBe(false);
+  });
+
   test('mode 불명 bg는 관대하게 화면끔(present)으로 해석', () => {
     const s = { state: 'bg', startedAt: NOW - 100, updatedAt: NOW - 1000, todaySec: 0, date: today };
     const d = displayStatus(s, { nowMs: NOW, today });
