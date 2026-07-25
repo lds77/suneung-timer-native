@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import CharacterAvatar from '../components/CharacterAvatar';
+import Toast from '../components/Toast';
 import { getToday, formatShort } from '../utils/format';
 import {
   validateNickname, normalizeRoomCode, extractRoomCode, displayStatus, todayStudySec, buildPresence,
@@ -716,6 +717,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
           {step === 'lobby' && renderLobby()}
           {step === 'room' && renderRoom()}
         </ScrollView>
+
+        {/* 토스트 재렌더 — App.js의 토스트는 루트 뷰에 있어 이 Modal(별도 네이티브 창) 뒤에 가린다.
+            zIndex로는 못 뚫으므로 모달 안에도 같은 상태로 하나 더 그린다 (응원/프로필 수정 알림) */}
+        <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
 
         {/* 프로필 수정 — 닉네임/캐릭터. 방에 있으면 멤버 레코드까지 원자 갱신(updateProfile) */}
         <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
