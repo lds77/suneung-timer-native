@@ -392,7 +392,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
   //   기본 non-cancelable이라 숨기기/신고 말고는 빠져나갈 수 없게 된다. 그래서 2단계로 나눔
   const seatMenu = (m) => {
     Alert.alert(m.displayName, '무엇을 할까요?', [
-      { text: '응원 보내기', onPress: () => handleCheer(m) },
+      // '익명으로'를 문구에 명시 — 누가 보냈는지 안 남는다는 걸 눌러보기 전에 알아야 부담이 없다
+      { text: '익명으로 응원 보내기', onPress: () => handleCheer(m) },
       { text: '숨기기·신고', onPress: () => safetyMenu(m) },
       { text: '취소', style: 'cancel' },
     ]);
