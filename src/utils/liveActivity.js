@@ -40,14 +40,15 @@ export const initLiveActivity = async () => {
 };
 
 // 현재 페이즈의 목표 시간 (자유/랩은 0 → 카운트업)
-const phaseTargetSec = (t) => {
+// ※export: 안드 상시 알림(src/utils/ongoingNotif.js)도 같은 표시 규칙을 공유
+export const phaseTargetSec = (t) => {
   if (t.type === 'countdown') return t.totalSec;
   if (t.type === 'pomodoro') return pomoPhaseTargetSec(t); // 긴 휴식(4세트마다)은 15분
   if (t.type === 'sequence') return t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
   return 0;
 };
 
-const buildSubtitle = (t) => {
+export const buildSubtitle = (t) => {
   if (t.status === 'paused') return `일시정지 · ${formatDuration(t.elapsedSec)} 집중함`;
   if (t.type === 'pomodoro') {
     if (t.pomoPhase === 'work') return `뽀모도로 ${t.pomoSet + 1}세트 집중`;
@@ -62,7 +63,7 @@ const buildSubtitle = (t) => {
 };
 
 // 연속모드: 현재 페이즈 + 남은 항목/휴식을 전부 합산한 전체 종료 시각(ms)
-const getSequenceTotalEndMs = (t) => {
+export const getSequenceTotalEndMs = (t) => {
   const target = t.seqPhase === 'work' ? (t.totalSec || 0) : (t.seqBreakSec || 0);
   const baseMs = (t.resumedAt || Date.now()) - (t.elapsedSecAtResume || 0) * 1000;
   let endMs = baseMs + target * 1000; // 현재 페이즈 종료 시각

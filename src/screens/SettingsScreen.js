@@ -549,6 +549,21 @@ export default function SettingsScreen() {
               <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 4 }}>세부 설정</Text>
               </View>
+              {Platform.OS === 'android' && (
+                <Row
+                  T={T}
+                  label="잠금화면 타이머 표시"
+                  sub="타이머 실행 중 상단바·잠금화면에 흐르는 시간을 보여줘요"
+                  right={
+                    <Switch
+                      value={app.settings.timerOngoingNotif !== false}
+                      onValueChange={(v) => app.updateSettings({ timerOngoingNotif: v })}
+                      trackColor={{ true: T.accent }}
+                      thumbColor="white"
+                    />
+                  }
+                />
+              )}
               <Row
                 T={T}
                 label="공부 리마인더"

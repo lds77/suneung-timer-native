@@ -27,6 +27,7 @@ import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
+import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
@@ -79,6 +80,7 @@ let staleNotifCleanupDone = false;
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
+  timerOngoingNotif: true, // 안드: 타이머 실행 중 상단바/잠금화면 상시 알림 (iOS Live Activity 대응물)
   appBlockEnabled: false, // iOS 울트라집중 앱 차단 (Screen Time) — 설정탭에서 켬
   ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
@@ -559,6 +561,8 @@ export function AppProvider({ children }) {
         // bg 진입 시점엔 timers 상태가 안 바뀌어 동기화 effect가 안 돌므로 명시적으로 호출
         const laTimerBg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
         if (laTimerBg) syncLiveActivity(laTimerBg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
+        // 안드 상시 알림도 백그라운드 표시 모드로 갱신 (연속모드 → 전체 남은 시간 카운트다운)
+        if (laTimerBg) syncOngoingNotif(laTimerBg, { enabled: ongoingNotifEnabled() });
       }
       else if (state === 'active') {
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
@@ -692,6 +696,9 @@ export function AppProvider({ children }) {
         // (페이즈 전환 보정은 위 setTimers 이후 동기화 effect가 마저 갱신)
         const laTimerFg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
         if (laTimerFg) syncLiveActivity(laTimerFg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
+        // 안드 상시 알림: 포그라운드 복귀 시 강제 재게시 — 사용자가 지웠거나(안드 14+)
+        // timeout으로 사라진 알림을 복구 (시그니처가 같아도 다시 게시)
+        if (laTimerFg) syncOngoingNotif(laTimerFg, { enabled: ongoingNotifEnabled(), force: true });
 
         // 포그라운드 복귀 시 리포트 알림 재예약 (최신 공부 데이터 반영)
         scheduleWeeklyReport();
@@ -2072,13 +2079,18 @@ export function AppProvider({ children }) {
     }, 900);
   }, [sessions, subjects, ddays, settings, todos, widgetTimerSig, loading]);
 
+  // 안드 상시 타이머 알림 사용 여부 — 알림 전체 허용 + 상시 알림 토글(기본 켬)
+  const ongoingNotifEnabled = () => !!settingsRef.current.notifEnabled && settingsRef.current.timerOngoingNotif !== false;
+
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
+  // 안드: 같은 트리거로 상시 알림(chronometer) 동기화 — 상단바/잠금화면에서 흐르는 시간 확인
   useEffect(() => {
     if (loading) return;
     const active = timers.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
     syncLiveActivity(active, { darkMode: settings.darkMode, accentColor: settings.accentColor });
-  }, [timers, loading, settings.darkMode, settings.accentColor]);
+    syncOngoingNotif(active, { enabled: ongoingNotifEnabled() });
+  }, [timers, loading, settings.darkMode, settings.accentColor, settings.notifEnabled, settings.timerOngoingNotif]);
 
   // 스터디룸 presence 동기화 — 타이머 상태 시그니처/세션(오늘 누적) 변화 시에만.
   // 초당 쓰기 금지(설계 8): elapsed 틱 제외, 모듈 내부 presenceSig 중복 가드가 재전송도 차단.

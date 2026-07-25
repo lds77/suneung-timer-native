@@ -182,6 +182,10 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
   - 카운트다운/업은 `Text(timerInterval:)`(OS가 그림), 일시정지는 mode 'none' + 정적 subtitle
   - useAppState의 동기화 useEffect 1개가 시그니처 비교로 start/update/end 판단 (초당 호출 없음)
   - 잔존 activity는 `listIds()`로 재부착/정리 (id 저장 불필요)
+- **안드 상시 타이머 알림 (잠금화면/상단바)**: 실행 중 타이머를 chronometer 상시 알림으로 표시 —
+  iOS Live Activity의 안드 대응물. `modules/timer-notif`(Kotlin) + `src/utils/ongoingNotif.js`(동기화,
+  liveActivity.js와 표시 규칙 공유). OS가 벽시계 앵커(when) 기준으로 초를 직접 그려 백그라운드/앱 종료
+  후에도 정확, timeout 상한으로 좀비 방지. 설정 토글 `timerOngoingNotif`. 다음 안드 네이티브 빌드부터 활성
 - **안드 위젯 강제 갱신 알람 (B단계)**: 타이머 종료 시각에 AlarmManager →
   `AlarmReceiver`(WIDGET_REFRESH) → APPWIDGET_UPDATE 브로드캐스트 → 헤드리스 재렌더.
   앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
