@@ -319,24 +319,22 @@ export const focusSessionView = (fs, nowMs = Date.now()) => {
 };
 
 // ── 응원 보내기 (D) ──
-// /cheers/{roomId}/{targetUid}/{senderUid} = { nick, at }
+// /cheers/{roomId}/{targetUid}/{senderUid} = { at }
 // 보낸이 uid가 키라 연타해도 자기 것만 덮어씀 = 스팸이 구조적으로 억제됨(별도 스로틀 불필요).
+// **익명**: 보낸 사람 이름을 저장하지도 표시하지도 않는다 — 누가 보냈는지 남으면 아는 사이끼리만
+// 주고받게 되어 '모르는 사람에게 부담 없이'라는 기능의 핵심이 죽는다 (2026-07-25 사용자 결정).
 // 표시는 5분간만 — 지나간 응원이 좌석에 계속 붙어 있으면 '지금 받았다'는 신호가 죽는다.
 export const CHEER_FRESH_MS = 5 * 60 * 1000;
 
-export const buildCheer = (nick, nowMs = Date.now()) => ({
-  nick: String(nick || '').slice(0, 12),
-  at: nowMs,
-});
+export const buildCheer = (nowMs = Date.now()) => ({ at: nowMs });
 
-// 한 사람이 받은 응원 노드 → 표시 상태 { count, latestNick, latestAt }
+// 한 사람이 받은 응원 노드 → 표시 상태 { count, latestAt }
 // count는 최근 5분 내 보낸 사람 수 (같은 사람의 재응원은 1로 합쳐짐 — uid 키라 자연스럽게)
 export const cheerView = (node, nowMs = Date.now()) => {
   const fresh = Object.values(node || {})
     .filter(c => c && typeof c.at === 'number' && (nowMs - c.at) < CHEER_FRESH_MS);
-  if (!fresh.length) return { count: 0, latestNick: '', latestAt: 0 };
-  const latest = fresh.reduce((a, b) => (b.at > a.at ? b : a));
-  return { count: fresh.length, latestNick: latest.nick || '', latestAt: latest.at };
+  if (!fresh.length) return { count: 0, latestAt: 0 };
+  return { count: fresh.length, latestAt: fresh.reduce((m, c) => (c.at > m ? c.at : m), 0) };
 };
 
 // mm:ss (다같이 집중 남은시간 — 라이브 카운트다운 전용)

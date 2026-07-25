@@ -2186,7 +2186,8 @@ export function AppProvider({ children }) {
         }
         if (v.latestAt > lastCheerAtRef.current) {
           lastCheerAtRef.current = v.latestAt;
-          showToastCustom(`${v.latestNick || '누군가'}님이 응원을 보냈어요!`, 'paengi');
+          // 익명 — 보낸 사람을 밝히지 않는다 (누군지 남으면 아는 사이끼리만 주고받게 됨)
+          showToastCustom('같은 방 누군가가 응원을 보냈어요!', 'paengi');
         }
       });
     };

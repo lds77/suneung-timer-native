@@ -358,12 +358,13 @@ export const subscribeRoom = (roomId, cb) => {
 
 // ── 응원 보내기 (D) ──
 // /cheers/{roomId}/{targetUid}/{senderUid} — 보낸이 uid가 키라 연타해도 자기 것만 덮어씀(스팸 억제).
+// 익명: 값에는 시각만 저장하고 보낸 사람 이름은 담지 않는다 (studyRoomCore.buildCheer 주석 참고).
 // 규칙: 같은 방 멤버만, 본인 sender 키에만, 자기 자신에겐 불가 (docs/firebase-database.rules.json — 콘솔 배포 필요)
-export const sendCheer = async (roomId, targetUid, myNick) => {
+export const sendCheer = async (roomId, targetUid) => {
   const uid = uidOrNull();
   if (!uid || !roomId || !targetUid || targetUid === uid) return false;
   try {
-    await set(ref(db, `cheers/${roomId}/${targetUid}/${uid}`), buildCheer(myNick));
+    await set(ref(db, `cheers/${roomId}/${targetUid}/${uid}`), buildCheer());
     return true;
   } catch { return false; }
 };

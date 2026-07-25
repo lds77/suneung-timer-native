@@ -370,9 +370,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const allowCheer = !isLoungeCode(roomId);
   const handleCheer = async (m) => {
     Vibration.vibrate([0, 15]);
-    const ok = await sendCheer(roomId, m.uid, profile?.nickname);
+    const ok = await sendCheer(roomId, m.uid);
     if (!ok) { Alert.alert('응원 실패', '잠시 후 다시 시도해 주세요.'); return; }
-    app.showToastCustom(`${m.displayName}님에게 응원을 보냈어요!`, profile?.character || 'toru');
+    // 받는 사람에겐 익명으로 전해진다는 걸 보내는 쪽에도 알려 부담을 낮춘다
+    app.showToastCustom(`${m.displayName}님에게 익명으로 응원을 보냈어요!`, profile?.character || 'toru');
   };
 
   // 숨기기/신고 (안전 조치) — 취소 포함 3개
@@ -528,10 +529,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
               <Ionicons name="book" size={8} color="#8B5E34" />
             </View>
           )}
-          {/* 최근 5분 내 받은 응원 — 하트 뱃지(2명 이상이면 수). 내 자리는 mineDot과 겹치지 않게 왼쪽 아래 */}
+          {/* 최근 5분 내 받은 응원 — 엄지척 뱃지(2명 이상이면 수). 내 자리는 mineDot과 겹치지 않게 아래로 */}
           {m.cheer?.count > 0 && (
             <View style={[S.seatCheer, mine ? S.seatCheerMine : null, { backgroundColor: T.accent }]}>
-              <Ionicons name="heart" size={7} color="white" />
+              <Ionicons name="thumbs-up" size={8} color="white" />
               {m.cheer.count > 1 && <Text style={S.seatCheerCount}>{m.cheer.count}</Text>}
             </View>
           )}
