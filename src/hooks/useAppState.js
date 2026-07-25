@@ -31,8 +31,8 @@ import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
 import { setShield, shieldSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
-import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus } from '../utils/studyRoomCore';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
+import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 
 Notifications.setNotificationHandler({
@@ -160,6 +160,11 @@ export function AppProvider({ children }) {
   const [roomStudyingCount, setRoomStudyingCount] = useState(0);
   // 집중탭 pill 등에서 '스터디룸 바로 열기' 요청 (타임스탬프 — StatsScreen이 감지해 모달 오픈)
   const [openStudyRoomAt, setOpenStudyRoomAt] = useState(0);
+  // 방에서 '다같이 집중' 세션이 진행 중인지 (방 화면 밖에서도 인지 — pill 문구 확장)
+  const [roomFocusActive, setRoomFocusActive] = useState(false);
+  const lastFsToastRef = useRef(0);  // 이미 알린 세션의 startedAt (중복 토스트 방지)
+  const lastCheerAtRef = useRef(0);  // 마지막으로 알린 응원 시각
+  const cheerReadyRef = useRef(false); // 기준값 확보 여부 (첫 스냅샷 침묵용 — 응원 0건 방과 구분)
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
   // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
@@ -2123,9 +2128,12 @@ export function AppProvider({ children }) {
   // '우리 방 N명 집중 중' 구독 — 방 화면을 닫아도 방의 집중 인원을 집중탭/잠금 오버레이에 표시.
   // 켠 유저만 리스너 1개. 스테일(60분 신뢰창) 판정이 시간에 따라 바뀌므로 30초마다 재계산.
   useEffect(() => {
-    if (loading || !settings.studyRoomEnabled) { setRoomStudyingCount(0); return; }
+    if (loading || !settings.studyRoomEnabled) { setRoomStudyingCount(0); setRoomFocusActive(false); return; }
     let unsub = null;
+    let unsubFs = null;    // 다같이 집중 세션 (방 밖 인지)
+    let unsubCheer = null; // 내가 받은 응원 (토스트)
     let lastStatus = null;
+    let lastFs = null;
     let alive = true;
     const recompute = () => {
       const myUid = getMyStudyRoomUid();
@@ -2137,6 +2145,9 @@ export function AppProvider({ children }) {
         if (studyRoomDisplayStatus(st, { nowMs: now, today }).studying) n += 1;
       });
       if (alive) setRoomStudyingCount(n);
+      // 진행 중 판정은 시간이 지나면 스스로 바뀌므로 15초 재계산에 함께 태운다
+      // (pill은 '진행 중' 정적 표기 — 남은 시간 라이브 카운트는 방 화면 몫, 초당 리렌더 회피)
+      if (alive) setRoomFocusActive(!!studyFocusSessionView(lastFs, now).active);
     };
     // 콜드스타트 레이스(auth/네트워크 준비 전 roomId null)나 이 세션 뒤늦은 입장에도 붙도록
     // 구독될 때까지 재시도. 캐시(cachedRoomId) 우선 — 무방 유저가 15초마다 서버 get 하지 않게.
@@ -2148,6 +2159,41 @@ export function AppProvider({ children }) {
       if (!alive || unsub || !roomId) return;
       subRoomId = roomId;
       unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
+      // 다같이 집중 — 방 밖에서도 인지 (라운지는 B 자체가 미노출이라 구독하지 않음)
+      if (!isStudyLoungeCode(roomId)) {
+        unsubFs = subscribeStudyFocusSession(roomId, (fs) => {
+          lastFs = fs;
+          // 새 세션 시작 알림 — 남이 시작했고 2분 이내인 것만 1회 (재구독/재시작 시 중복 방지)
+          const startedAt = fs?.startedAt || 0;
+          if (startedAt && startedAt !== lastFsToastRef.current
+              && fs.by !== getMyStudyRoomUid() && (Date.now() - startedAt) < 2 * 60 * 1000) {
+            lastFsToastRef.current = startedAt;
+            showToastCustom(`${fs.byNick || '누군가'}님이 다같이 집중 ${fs.durationMin}분을 시작했어요`, 'toru');
+          }
+          recompute();
+        });
+      }
+      // 받은 응원 토스트 — 공부 중(방 화면 밖)에 받아야 의미가 있다
+      unsubCheer = subscribeStudyMyCheers(roomId, (node) => {
+        const v = studyCheerView(node, Date.now());
+        // 첫 스냅샷은 기준값만 잡고 침묵 (앱 켤 때마다 옛 응원이 다시 뜨는 것 방지).
+        // '기준 잡힘'은 별도 플래그로 — latestAt만 보면 응원 0건으로 시작한 방에서
+        // 정작 받은 첫 응원이 침묵 처리된다
+        if (!cheerReadyRef.current) {
+          cheerReadyRef.current = true;
+          lastCheerAtRef.current = v.latestAt || 0;
+          return;
+        }
+        if (v.latestAt > lastCheerAtRef.current) {
+          lastCheerAtRef.current = v.latestAt;
+          showToastCustom(`${v.latestNick || '누군가'}님이 응원을 보냈어요!`, 'paengi');
+        }
+      });
+    };
+    const dropSubs = () => {
+      if (unsub) { unsub(); unsub = null; }
+      if (unsubFs) { unsubFs(); unsubFs = null; }
+      if (unsubCheer) { unsubCheer(); unsubCheer = null; }
     };
     trySubscribe();
     const iv = setInterval(() => {
@@ -2155,12 +2201,17 @@ export function AppProvider({ children }) {
       // 캐시와 대조해 옛 방 구독을 접고 재구독 (안 하면 옛 방 인원이 최대 60분 pill에 잔존)
       const cur = getCachedStudyRoomId();
       if (unsub && cur !== undefined && cur !== subRoomId) {
-        unsub(); unsub = null; subRoomId = null; lastStatus = null; recompute();
+        dropSubs();
+        subRoomId = null; lastStatus = null; lastFs = null;
+        // 새 방에선 기준값 재설정 (옛 방 응원 시각과 섞이지 않게)
+        lastCheerAtRef.current = 0; cheerReadyRef.current = false;
+        lastFsToastRef.current = 0;
+        recompute();
       }
       if (unsub) recompute(); else trySubscribe();
     }, 15 * 1000);
-    return () => { alive = false; clearInterval(iv); if (unsub) unsub(); };
-  }, [settings.studyRoomEnabled, loading]);
+    return () => { alive = false; clearInterval(iv); dropSubs(); };
+  }, [settings.studyRoomEnabled, loading, showToastCustom]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용
@@ -2707,7 +2758,7 @@ export function AppProvider({ children }) {
       showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
       pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
       pendingStudyRoomCode, setPendingStudyRoomCode,
-      roomStudyingCount,
+      roomStudyingCount, roomFocusActive,
       openStudyRoomAt, requestOpenStudyRoom: () => setOpenStudyRoomAt(Date.now()),
       clearOpenStudyRoom: () => setOpenStudyRoomAt(0),
       toast, showToast, showToastCustom,

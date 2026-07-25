@@ -1021,11 +1021,15 @@ export default function FocusScreen() {
         )}
 
         {/* 우리 방 집중 인원 — 방 화면을 안 봐도 공부 중 '같이 있는 느낌' (탭 → 스터디룸) */}
-        {app.roomStudyingCount > 0 && (
+        {(app.roomStudyingCount > 0 || app.roomFocusActive) && (
           <TouchableOpacity style={[S.roomPill, { backgroundColor: T.accent + '14', borderColor: T.accent + '44' }]}
             onPress={() => { navigation.navigate('Stats'); app.requestOpenStudyRoom(); }} activeOpacity={0.7}>
-            <Ionicons name="people" size={14} color={T.accent} />
-            <Text style={[S.roomPillText, { color: T.accent }]}>우리 방에서 {app.roomStudyingCount}명이 함께 집중 중</Text>
+            <Ionicons name={app.roomFocusActive ? 'flame' : 'people'} size={14} color={T.accent} />
+            <Text style={[S.roomPillText, { color: T.accent }]}>
+              {app.roomFocusActive
+                ? `우리 방 다같이 집중 진행 중${app.roomStudyingCount > 0 ? ` · ${app.roomStudyingCount}명 집중` : ''}`
+                : `우리 방에서 ${app.roomStudyingCount}명이 함께 집중 중`}
+            </Text>
             <Ionicons name="chevron-forward" size={13} color={T.accent} />
           </TouchableOpacity>
         )}

@@ -17,11 +17,12 @@ import {
   findGhostMembers, GHOST_MS, withNicknameTags,
   ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
   focusSessionView, fmtClock, FOCUS_SESSION_OPTIONS, FOCUS_SESSION_MAX_MIN, isLoungeCode,
+  cheerView, sortMembers,
 } from '../utils/studyRoomCore';
 import {
-  fetchProfile, saveProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
+  fetchProfile, saveProfile, updateProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
   deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers, getMyUid, setMySeat,
-  startFocusSession, clearFocusSession, reportMember,
+  startFocusSession, clearFocusSession, reportMember, sendCheer,
 } from '../utils/studyRoom';
 
 const BLOCKED_KEY = '@yeolgong/studyRoomBlocked'; // 숨긴 사용자 uid 목록 (로컬 전용)
@@ -45,7 +46,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [step, setStep] = useState('loading'); // loading | offline | intro | lobby | room
   const [profile, setProfile] = useState(null);
   const [roomId, setRoomId] = useState(null);
-  const [roomData, setRoomData] = useState({ room: null, status: null });
+  const [roomData, setRoomData] = useState({ room: null, status: null, cheers: null });
   const [busy, setBusy] = useState(false);
 
   const scrollRef = useRef(null);
@@ -57,6 +58,10 @@ export default function StudyRoomScreen({ visible, onClose }) {
   const [codeInput, setCodeInput] = useState('');
   const [customMin, setCustomMin] = useState(''); // 다같이 집중 직접 시간 입력
   const [blockedUids, setBlockedUids] = useState([]); // 숨긴 사용자 (로컬 차단 — H 최소 안전)
+  const [showRoster, setShowRoster] = useState(false); // '오늘 이 방' 리스트 펼침
+  const [editing, setEditing] = useState(false);       // 프로필 수정 시트
+  const [editNick, setEditNick] = useState('');
+  const [editChar, setEditChar] = useState('toru');
 
   // 1초 틱 — 공부 중 멤버의 경과 표시용 (로컬 계산, 네트워크 없음)
   const [, setTick] = useState(0);
@@ -123,7 +128,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
   // 멤버 ≤30이라 매 렌더 계산 (1초 틱 렌더에서 경과/스테일 판정이 같이 갱신됨).
   // 좌석 도면 배치는 resolveSeats — 본인이 고른 자리 우선, 미선택자는 앞번호 자동 착석
   const members = (() => {
-    const { room, status } = roomData;
+    const { room, status, cheers } = roomData;
     if (!room?.members) return [];
     const today = getToday();
     const now = Date.now();
@@ -138,6 +143,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
           // 숨긴 사용자는 명단에서 빼지 않고 익명 타일로 렌더 — 빼면 그 좌석이 내 화면에서만
           // '빈자리'가 되어 앉을 수 있고, 클라이언트 간 좌석 배치가 어긋난다 (버그헌트 4번)
           hidden: blockedUids.includes(uid),
+          cheer: cheerView(cheers?.[uid], now), // 최근 5분 받은 응원 (좌석 하트 뱃지)
           ...d, subjectLabel: status?.[uid]?.subjectLabel || '',
         };
       }));
@@ -235,7 +241,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
       { text: '나가기', style: 'destructive', onPress: async () => {
         await leaveRoom();
         setRoomId(null);
-        setRoomData({ room: null, status: null });
+        setRoomData({ room: null, status: null, cheers: null });
         setStep('lobby');
       } },
     ]);
@@ -359,11 +365,48 @@ export default function StudyRoomScreen({ visible, onClose }) {
       ok ? '신고해 주셔서 감사해요. 해당 사용자는 이제 내 화면에서 숨겨져요.'
          : '해당 사용자를 숨겼어요. (신고 전송은 실패했지만 숨김은 적용됐어요)');
   };
-  // 다른 사람 좌석 탭 → 숨기기/신고 메뉴 (내 자리는 제외)
+  // ── 응원 보내기 (D) ──
+  // 모르는 사람끼리인 공개 라운지에선 미노출 (B 세션과 같은 게이팅 — H 안전 기조)
+  const allowCheer = !isLoungeCode(roomId);
+  const handleCheer = async (m) => {
+    Vibration.vibrate([0, 15]);
+    const ok = await sendCheer(roomId, m.uid, profile?.nickname);
+    if (!ok) { Alert.alert('응원 실패', '잠시 후 다시 시도해 주세요.'); return; }
+    app.showToastCustom(`${m.displayName}님에게 응원을 보냈어요!`, profile?.character || 'toru');
+  };
+
+  // 다른 사람 좌석 탭 → 응원/숨기기/신고 메뉴 (내 자리는 제외)
   const seatMenu = (m) => {
-    Alert.alert(m.displayName, '이 사용자를 어떻게 할까요?', [
+    Alert.alert(m.displayName, '무엇을 할까요?', [
+      ...(allowCheer ? [{ text: '응원 보내기', onPress: () => handleCheer(m) }] : []),
       { text: '숨기기', onPress: () => hideMember(m.uid) },
       { text: '신고하고 숨기기', style: 'destructive', onPress: () => reportAndHide(m) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
+  // ── 프로필 수정 ──
+  const openEditProfile = () => {
+    setEditNick(profile?.nickname || '');
+    setEditChar(profile?.character || 'toru');
+    setEditing(true);
+  };
+  const handleSaveProfile = async () => {
+    const v = validateNickname(editNick);
+    if (!v.ok) { Alert.alert('닉네임 확인', v.reason); return; }
+    setBusy(true);
+    const ok = await updateProfile({ nickname: v.value, character: editChar });
+    setBusy(false);
+    if (!ok) { Alert.alert('저장 실패', '네트워크를 확인하고 다시 시도해 주세요.'); return; }
+    setProfile(p => ({ ...(p || {}), nickname: v.value, character: editChar }));
+    setEditing(false);
+    app.showToastCustom('프로필을 수정했어요', editChar);
+  };
+  // 헤더 설정 버튼 — 프로필 수정 / 스터디룸 끄기
+  const openSettingsMenu = () => {
+    Alert.alert('스터디룸 설정', '', [
+      { text: '프로필 수정', onPress: openEditProfile },
+      { text: '스터디룸 끄기', style: 'destructive', onPress: handleDisable },
       { text: '취소', style: 'cancel' },
     ]);
   };
@@ -472,6 +515,13 @@ export default function StudyRoomScreen({ visible, onClose }) {
           {m.screenOff && (
             <View style={[S.seatMoon, { backgroundColor: '#F3E9DA', borderColor: '#C79A6B' }]}>
               <Ionicons name="book" size={8} color="#8B5E34" />
+            </View>
+          )}
+          {/* 최근 5분 내 받은 응원 — 하트 뱃지(2명 이상이면 수). 내 자리는 mineDot과 겹치지 않게 왼쪽 아래 */}
+          {m.cheer?.count > 0 && (
+            <View style={[S.seatCheer, mine ? S.seatCheerMine : null, { backgroundColor: T.accent }]}>
+              <Ionicons name="heart" size={7} color="white" />
+              {m.cheer.count > 1 && <Text style={S.seatCheerCount}>{m.cheer.count}</Text>}
             </View>
           )}
           <View style={{ opacity: m.studying ? 1 : 0.5 }}>
@@ -584,6 +634,41 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </Text>
         </View>
 
+        {/* 오늘 이 방 — 좌석 타일의 작은 글씨로는 안 보이는 누적시간 비교 (추가 네트워크 없음) */}
+        <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, padding: 0, overflow: 'hidden' }]}>
+          <TouchableOpacity style={S.rosterHead} onPress={() => setShowRoster(v => !v)} activeOpacity={0.7}>
+            <Ionicons name="podium-outline" size={16} color={T.accent} />
+            <Text style={[S.cardTitle, { color: T.text, flex: 1, fontSize: 15 }]}>오늘 이 방</Text>
+            <Ionicons name={showRoster ? 'chevron-up' : 'chevron-down'} size={16} color={T.sub} />
+          </TouchableOpacity>
+          {showRoster && (
+            <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+              {sortMembers(members).map((m, i) => (
+                <View key={m.uid} style={[S.rosterRow, i > 0 && { borderTopWidth: 1, borderTopColor: T.border }]}>
+                  <Text style={[S.rosterRank, { color: T.sub }]}>{i + 1}</Text>
+                  {m.hidden ? (
+                    <Ionicons name="eye-off-outline" size={18} color={T.sub} style={{ marginHorizontal: 3 }} />
+                  ) : (
+                    <CharacterAvatar characterId={m.character} size={22} />
+                  )}
+                  <Text style={[S.rosterName, { color: m.hidden ? T.sub : T.text }]} numberOfLines={1}>
+                    {m.hidden ? '숨긴 사용자' : m.displayName}
+                  </Text>
+                  {m.studying && !m.hidden && (
+                    <View style={[S.rosterDot, { backgroundColor: MODE_COLOR[m.mode] || T.accent }]} />
+                  )}
+                  <Text style={[S.rosterTime, { color: m.todaySec > 0 ? T.text : T.sub }]}>
+                    {m.todaySec > 0 ? formatShort(m.todaySec) : '-'}
+                  </Text>
+                </View>
+              ))}
+              <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, marginTop: 8, textAlign: 'center' }}>
+                오늘 공부시간 순 · 공부 중인 사람이 위로 와요
+              </Text>
+            </View>
+          )}
+        </View>
+
         {blockedUids.length > 0 && (
           <TouchableOpacity onPress={unblockAll} style={{ alignSelf: 'center', marginTop: 4, padding: 6 }}>
             <Text style={{ fontSize: 12, color: T.sub, textDecorationLine: 'underline' }}>숨긴 사용자 {blockedUids.length}명 · 모두 다시 보기</Text>
@@ -608,7 +693,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
           </TouchableOpacity>
           <Text style={[S.headerTitle, { color: T.text }]}>스터디룸</Text>
           {profile ? (
-            <TouchableOpacity onPress={handleDisable} style={S.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={openSettingsMenu} style={S.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="settings-outline" size={20} color={T.sub} />
             </TouchableOpacity>
           ) : <View style={S.iconBtn} />}
@@ -619,6 +704,32 @@ export default function StudyRoomScreen({ visible, onClose }) {
           {step === 'lobby' && renderLobby()}
           {step === 'room' && renderRoom()}
         </ScrollView>
+
+        {/* 프로필 수정 — 닉네임/캐릭터. 방에 있으면 멤버 레코드까지 원자 갱신(updateProfile) */}
+        <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
+          <View style={S.editBackdrop}>
+            <View style={[S.editSheet, { backgroundColor: T.card, borderColor: T.border }]}>
+              <Text style={[S.cardTitle, { color: T.text }]}>프로필 수정</Text>
+              <Text style={[S.label, { color: T.sub }]}>캐릭터 (탭해서 변경)</Text>
+              <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                <CharacterAvatar characterId={editChar} size={64} tappable onCharChange={setEditChar} />
+              </View>
+              <Text style={[S.label, { color: T.sub }]}>닉네임 (2~12자)</Text>
+              <TextInput
+                style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.surface2 }]}
+                value={editNick} onChangeText={setEditNick} maxLength={12}
+                placeholder="닉네임" placeholderTextColor={T.sub} />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity style={[S.editBtn, { backgroundColor: T.surface2 }]} onPress={() => setEditing(false)} disabled={busy}>
+                  <Text style={[S.editBtnText, { color: T.sub }]}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[S.editBtn, { backgroundColor: T.accent }]} onPress={handleSaveProfile} disabled={busy}>
+                  {busy ? <ActivityIndicator color="white" /> : <Text style={[S.editBtnText, { color: 'white' }]}>저장</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -663,6 +774,22 @@ const S = StyleSheet.create({
   seatName: { fontSize: 8, fontWeight: '800', marginTop: 3, maxWidth: '96%' },
   seatInfo: { fontSize: 7.5, fontWeight: '700', marginTop: 1, maxWidth: '96%' },
   seatMineDot: { position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: 4 },
+  seatCheer: {
+    position: 'absolute', top: 3, right: 3, flexDirection: 'row', alignItems: 'center', gap: 1,
+    borderRadius: 7, paddingHorizontal: 3, paddingVertical: 1.5,
+  },
+  seatCheerMine: { top: undefined, right: 3, bottom: 3 }, // 내 자리는 우상단 mineDot과 겹치지 않게
+  seatCheerCount: { fontSize: 7, fontWeight: '900', color: 'white' },
+  rosterHead: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },
+  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  rosterRank: { fontSize: 11, fontWeight: '800', width: 16, textAlign: 'center' },
+  rosterName: { flex: 1, fontSize: 13, fontWeight: '700' },
+  rosterDot: { width: 6, height: 6, borderRadius: 3 },
+  rosterTime: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  editBackdrop: { flex: 1, backgroundColor: '#00000088', justifyContent: 'center', padding: 24 },
+  editSheet: { borderRadius: 18, borderWidth: 1, padding: 18 },
+  editBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  editBtnText: { fontSize: 14, fontWeight: '900' },
   seatMoon: { position: 'absolute', top: 3, left: 3, width: 13, height: 13, borderRadius: 7, borderWidth: 0.5, alignItems: 'center', justifyContent: 'center' },
   seatMineChip: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1.5 },
   themeChip: {

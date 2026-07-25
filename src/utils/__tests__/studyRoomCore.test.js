@@ -456,3 +456,35 @@ describe('extractRoomCode — 클립보드 텍스트에서 초대 코드 추출'
     }
   });
 });
+
+describe('cheerView (응원 표시 상태)', () => {
+  const { buildCheer, cheerView, CHEER_FRESH_MS } = require('../studyRoomCore');
+
+  test('buildCheer: 닉네임 12자 클램프 + 시각 기록', () => {
+    expect(buildCheer('열두자를넘기는아주긴닉네임', NOW)).toEqual({ nick: '열두자를넘기는아주긴닉네', at: NOW });
+    expect(buildCheer(null, NOW)).toEqual({ nick: '', at: NOW });
+  });
+
+  test('최근 5분 내 응원만 집계, 최신 보낸이를 노출', () => {
+    const node = {
+      u1: { nick: '가', at: NOW - 60_000 },
+      u2: { nick: '나', at: NOW - 10_000 },
+      u3: { nick: '다', at: NOW - CHEER_FRESH_MS - 1000 }, // 만료
+    };
+    const v = cheerView(node, NOW);
+    expect(v.count).toBe(2);
+    expect(v.latestNick).toBe('나');
+    expect(v.latestAt).toBe(NOW - 10_000);
+  });
+
+  test('빈 노드/전부 만료/잘못된 값 방어', () => {
+    expect(cheerView(null, NOW)).toEqual({ count: 0, latestNick: '', latestAt: 0 });
+    expect(cheerView({ u1: { nick: '가', at: NOW - CHEER_FRESH_MS } }, NOW).count).toBe(0);
+    expect(cheerView({ u1: null, u2: { nick: '나' } }, NOW).count).toBe(0);
+  });
+
+  test('같은 사람이 여러 번 보내도 uid 키라 1건으로 합쳐짐', () => {
+    const node = { u1: { nick: '가', at: NOW - 1000 } }; // 재응원은 덮어쓰기
+    expect(cheerView(node, NOW).count).toBe(1);
+  });
+});

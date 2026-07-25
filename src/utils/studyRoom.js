@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
   LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
-  buildFocusSession, buildReport,
+  buildFocusSession, buildReport, buildCheer,
 } from './studyRoomCore';
 import { getToday } from './format';
 import { durableAuthStorage } from './durableAuthStorage';
@@ -95,10 +95,33 @@ export const saveProfile = async ({ nickname, character }) => {
   const uid = await ensureSignedIn();
   if (!uid) return false;
   try {
+    // createdAt은 최초 1회만 — 매번 덮어쓰면 '가입 시점'이 사라진다 (유령 판정/추적의 기준값)
+    const has = await get(ref(db, `users/${uid}/createdAt`)).catch(() => null);
     await update(ref(db, `users/${uid}`), {
       nickname, character: character || 'toru',
-      createdAt: serverTimestamp(),
+      ...(has?.exists() ? {} : { createdAt: serverTimestamp() }),
     });
+    return true;
+  } catch { return false; }
+};
+
+// 프로필 수정 — 닉네임/캐릭터는 users와 rooms/{id}/members 두 곳에 중복 저장되므로
+// 멀티패스 update로 원자 갱신 (한쪽만 바뀌면 방 화면엔 옛 닉네임이 남는다).
+// seat/joinedAt은 건드리지 않음 — 재작성하면 자리와 입장 순번이 초기화된다 (재입장 버그 전례)
+export const updateProfile = async ({ nickname, character }) => {
+  const uid = await ensureSignedIn();
+  if (!uid) return false;
+  const roomId = cachedRoomId !== undefined ? cachedRoomId : await fetchMyRoomId();
+  const patch = {
+    [`users/${uid}/nickname`]: nickname,
+    [`users/${uid}/character`]: character || 'toru',
+  };
+  if (roomId) {
+    patch[`rooms/${roomId}/members/${uid}/nickname`] = nickname;
+    patch[`rooms/${roomId}/members/${uid}/character`] = character || 'toru';
+  }
+  try {
+    await update(ref(db), patch);
     return true;
   } catch { return false; }
 };
@@ -267,12 +290,16 @@ export const leaveRoom = async () => {
       [`status/${roomId}/${uid}`]: null,
       [`users/${uid}/roomId`]: null,
     });
+    // 내가 받은 응원 정리 — 멤버십과 별개 경로라 leave update에 섞지 않는다
+    // (멀티패스는 원자적이라 한 경로가 거부되면 퇴장 자체가 실패함)
+    try { await remove(ref(db, `cheers/${roomId}/${uid}`)); } catch {}
     if (lastMember) {
       // 규칙이 '멤버 0명'을 재검증 — 판정~삭제 사이에 누가 입장했으면 거부돼 방이 유지됨.
       // 라운지도 삭제 대상 (다음 입장자가 joinLounge에서 재생성)
       try { await remove(ref(db, `rooms/${roomId}`)); } catch {}
-      // status 잔재(스윕 잔여 등) 정리 — 규칙상 방이 사라진 뒤에만 허용되므로 방 삭제가 거부되면 같이 거부됨
+      // status/cheers 잔재 정리 — 규칙상 방이 사라진 뒤에만 허용되므로 방 삭제가 거부되면 같이 거부됨
       try { await remove(ref(db, `status/${roomId}`)); } catch {}
+      try { await remove(ref(db, `cheers/${roomId}`)); } catch {}
     }
   } catch {}
   persistRoomId(null);
@@ -321,10 +348,39 @@ export const subscribeRoom = (roomId, cb) => {
   if (!initApp() || !roomId) return () => {};
   let room = null;
   let status = null;
-  const emit = () => cb({ room, status });
+  let cheers = null;
+  const emit = () => cb({ room, status, cheers });
   const u1 = onValue(ref(db, `rooms/${roomId}`), s => { room = s.val(); emit(); }, () => {});
   const u2 = onValue(ref(db, `status/${roomId}`), s => { status = s.val(); emit(); }, () => {});
-  return () => { u1(); u2(); };
+  const u3 = onValue(ref(db, `cheers/${roomId}`), s => { cheers = s.val(); emit(); }, () => {});
+  return () => { u1(); u2(); u3(); };
+};
+
+// ── 응원 보내기 (D) ──
+// /cheers/{roomId}/{targetUid}/{senderUid} — 보낸이 uid가 키라 연타해도 자기 것만 덮어씀(스팸 억제).
+// 규칙: 같은 방 멤버만, 본인 sender 키에만, 자기 자신에겐 불가 (docs/firebase-database.rules.json — 콘솔 배포 필요)
+export const sendCheer = async (roomId, targetUid, myNick) => {
+  const uid = uidOrNull();
+  if (!uid || !roomId || !targetUid || targetUid === uid) return false;
+  try {
+    await set(ref(db, `cheers/${roomId}/${targetUid}/${uid}`), buildCheer(myNick));
+    return true;
+  } catch { return false; }
+};
+
+// 내가 받은 응원만 구독 (방 화면 밖 토스트용 — 경량, 남의 응원은 안 읽음)
+export const subscribeMyCheers = (roomId, cb) => {
+  if (!initApp() || !roomId) return () => {};
+  const uid = uidOrNull();
+  if (!uid) return () => {};
+  return onValue(ref(db, `cheers/${roomId}/${uid}`), s => cb(s.val()), () => cb(null));
+};
+
+// 다같이 집중 세션만 구독 (방 화면 밖 인지용 — rooms/{id}/focusSession 노드 하나).
+// rooms는 auth 유저 read 허용이라 규칙 변경 불필요
+export const subscribeFocusSession = (roomId, cb) => {
+  if (!initApp() || !roomId) return () => {};
+  return onValue(ref(db, `rooms/${roomId}/focusSession`), s => cb(s.val()), () => cb(null));
 };
 
 // ── 다같이 집중 세션 (B) ──

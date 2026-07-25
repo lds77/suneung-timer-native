@@ -318,6 +318,27 @@ export const focusSessionView = (fs, nowMs = Date.now()) => {
   return { ...base, active: true, finished: false, remainingSec: Math.ceil((endsAt - nowMs) / 1000) };
 };
 
+// ── 응원 보내기 (D) ──
+// /cheers/{roomId}/{targetUid}/{senderUid} = { nick, at }
+// 보낸이 uid가 키라 연타해도 자기 것만 덮어씀 = 스팸이 구조적으로 억제됨(별도 스로틀 불필요).
+// 표시는 5분간만 — 지나간 응원이 좌석에 계속 붙어 있으면 '지금 받았다'는 신호가 죽는다.
+export const CHEER_FRESH_MS = 5 * 60 * 1000;
+
+export const buildCheer = (nick, nowMs = Date.now()) => ({
+  nick: String(nick || '').slice(0, 12),
+  at: nowMs,
+});
+
+// 한 사람이 받은 응원 노드 → 표시 상태 { count, latestNick, latestAt }
+// count는 최근 5분 내 보낸 사람 수 (같은 사람의 재응원은 1로 합쳐짐 — uid 키라 자연스럽게)
+export const cheerView = (node, nowMs = Date.now()) => {
+  const fresh = Object.values(node || {})
+    .filter(c => c && typeof c.at === 'number' && (nowMs - c.at) < CHEER_FRESH_MS);
+  if (!fresh.length) return { count: 0, latestNick: '', latestAt: 0 };
+  const latest = fresh.reduce((a, b) => (b.at > a.at ? b : a));
+  return { count: fresh.length, latestNick: latest.nick || '', latestAt: latest.at };
+};
+
 // mm:ss (다같이 집중 남은시간 — 라이브 카운트다운 전용)
 export const fmtClock = (sec) => {
   const s = Math.max(0, Math.floor(sec));

@@ -63,6 +63,23 @@
       }
     },
 
+    "cheers": {
+      "$roomId": {
+        ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+        ".write": "auth != null && !newData.exists() && !root.child('rooms').child($roomId).exists()",
+        "$targetUid": {
+          ".write": "auth != null && auth.uid === $targetUid && !newData.exists()",
+          "$senderUid": {
+            ".write": "auth != null && auth.uid === $senderUid && root.child('rooms').child($roomId).child('members').child(auth.uid).exists() && root.child('rooms').child($roomId).child('members').child($targetUid).exists() && $targetUid !== auth.uid",
+            ".validate": "!newData.exists() || newData.hasChildren(['at'])",
+            "nick": { ".validate": "newData.isString() && newData.val().length <= 12" },
+            "at": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+
     "status": {
       "$roomId": {
         ".read": "auth != null && root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
