@@ -375,12 +375,23 @@ export default function StudyRoomScreen({ visible, onClose }) {
     app.showToastCustom(`${m.displayName}님에게 응원을 보냈어요!`, profile?.character || 'toru');
   };
 
-  // 다른 사람 좌석 탭 → 응원/숨기기/신고 메뉴 (내 자리는 제외)
-  const seatMenu = (m) => {
-    Alert.alert(m.displayName, '무엇을 할까요?', [
-      ...(allowCheer ? [{ text: '응원 보내기', onPress: () => handleCheer(m) }] : []),
+  // 숨기기/신고 (안전 조치) — 취소 포함 3개
+  const safetyMenu = (m) => {
+    Alert.alert(m.displayName, '이 사용자를 어떻게 할까요?', [
       { text: '숨기기', onPress: () => hideMember(m.uid) },
       { text: '신고하고 숨기기', style: 'destructive', onPress: () => reportAndHide(m) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
+  // 다른 사람 좌석 탭 → 응원/안전 조치 (내 자리는 제외).
+  // ※안드로이드 Alert는 버튼이 최대 3개 — 4개를 넘기면 RN이 뒤를 잘라 '취소'가 사라지고
+  //   기본 non-cancelable이라 숨기기/신고 말고는 빠져나갈 수 없게 된다. 그래서 2단계로 나눔
+  const seatMenu = (m) => {
+    if (!allowCheer) { safetyMenu(m); return; }
+    Alert.alert(m.displayName, '무엇을 할까요?', [
+      { text: '응원 보내기', onPress: () => handleCheer(m) },
+      { text: '숨기기·신고', onPress: () => safetyMenu(m) },
       { text: '취소', style: 'cancel' },
     ]);
   };
@@ -630,7 +641,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             </View>
           ))}
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
-            빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 숨기기/신고
+            빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 {allowCheer ? '응원·숨기기' : '숨기기/신고'}
           </Text>
         </View>
 
