@@ -366,8 +366,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
          : '해당 사용자를 숨겼어요. (신고 전송은 실패했지만 숨김은 적용됐어요)');
   };
   // ── 응원 보내기 (D) ──
-  // 모르는 사람끼리인 공개 라운지에선 미노출 (B 세션과 같은 게이팅 — H 안전 기조)
-  const allowCheer = !isLoungeCode(roomId);
+  // 공개 라운지 포함 모든 방에서 가능 (2026-07-25 사용자 결정) — 익명이라 아는 사이 밖으로
+  // 나가는 게 오히려 이 기능의 본령이고, 자유 입력이 없어 UGC 위험도 없다(닉네임은 이미 방에서
+  // 보이는 정보). 다같이 집중(B)의 라운지 미노출과는 별개 판단
   const handleCheer = async (m) => {
     Vibration.vibrate([0, 15]);
     const ok = await sendCheer(roomId, m.uid);
@@ -389,7 +390,6 @@ export default function StudyRoomScreen({ visible, onClose }) {
   // ※안드로이드 Alert는 버튼이 최대 3개 — 4개를 넘기면 RN이 뒤를 잘라 '취소'가 사라지고
   //   기본 non-cancelable이라 숨기기/신고 말고는 빠져나갈 수 없게 된다. 그래서 2단계로 나눔
   const seatMenu = (m) => {
-    if (!allowCheer) { safetyMenu(m); return; }
     Alert.alert(m.displayName, '무엇을 할까요?', [
       { text: '응원 보내기', onPress: () => handleCheer(m) },
       { text: '숨기기·신고', onPress: () => safetyMenu(m) },
@@ -642,7 +642,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             </View>
           ))}
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
-            빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 {allowCheer ? '응원·숨기기' : '숨기기/신고'}
+            빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 익명 응원
           </Text>
         </View>
 
