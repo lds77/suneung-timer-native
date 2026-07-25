@@ -77,6 +77,12 @@ if (Platform.OS === 'android') {
 // (JS 컨텍스트당 1회 — 액티비티 재생성 리마운트에서는 재실행하지 않음).
 let staleNotifCleanupDone = false;
 
+// 완료 결과(자기평가) 모달을 띄우는 최소 공부시간.
+// 세션 기록 기준(불변식 7)과 일부러 다르다 — 계획·할일 연결 세션은 30초부터 기록해서
+// 짧은 할일도 누적 시간에 반영되지만, 1분 공부에 밀도 점수·자기평가 모달까지 뜨면
+// 사용자가 의아해한다(2026-07-25 사용자 판단). 기록은 조용히 남기고 모달만 5분부터.
+const RESULT_MODAL_MIN_SEC = 300;
+
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
@@ -980,7 +986,7 @@ export function AppProvider({ children }) {
               setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
             }
           }
-        } else {
+        } else if (durationSec >= RESULT_MODAL_MIN_SEC) {
           setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
       }
@@ -1716,10 +1722,10 @@ export function AppProvider({ children }) {
                 .map(s => s.id);
               setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
             }
-          } else {
+          } else if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
             setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
           }
-        } else {
+        } else if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
           setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
