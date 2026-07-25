@@ -27,6 +27,7 @@ import Toast from './src/components/Toast';
 import { getSchoolDefaultFavs } from './src/screens/focus/helpers';
 
 import FocusScreen from './src/screens/FocusScreen';
+import ResultModal from './src/screens/focus/ResultModal';
 import SubjectsScreen from './src/screens/SubjectsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -800,21 +801,6 @@ function MainApp() {
     return () => sub.remove();
   }, []);
 
-  // 완료 결과 모달은 FocusScreen 안에 렌더된다 → 다른 탭에 있으면 화면에 뜨지 않는다
-  // (react-native-screens가 비활성 탭을 뷰 계층에서 떼어내므로 Modal도 함께 사라짐).
-  // 타이머가 끝나 결과가 생기면 집중 탭으로 옮겨 어느 탭에서 앱을 열든 바로 보이게 한다.
-  // 콜드스타트(알림/앱 아이콘으로 진입해 스냅샷 복원이 완료 처리)엔 네비게이터가 아직 준비 전일 수 있어
-  // 딥링크와 같은 지연 패턴 사용
-  useEffect(() => {
-    if (!app.completedResultData) return;
-    const go = () => {
-      if (!navigationRef.isReady()) return;
-      if (navigationRef.getCurrentRoute()?.name !== 'Focus') navigationRef.navigate('Focus');
-    };
-    const h = setTimeout(go, navigationRef.isReady() ? 0 : 300);
-    return () => clearTimeout(h);
-  }, [app.completedResultData]);
-
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
@@ -971,6 +957,9 @@ function Root() {
       <MainApp key={loadedFont} />
       {/* LockOverlay는 MainApp 밖에 배치 — 폰트 변경으로 MainApp이 리마운트되어도 잠금화면 유지 */}
       <LockOverlay />
+      {/* 완료 결과 모달도 루트에 배치 — FocusScreen 안에 있으면 다른 탭에서 앱을 열었을 때
+          비활성 탭이 뷰 계층에서 떨어져 있어 모달이 뜨지 않는다 (탭 무관하게 결과 표시) */}
+      <ResultModal />
       <WidgetIntroOverlay />
       {!fontsLoaded && (
         <View style={[StyleSheet.absoluteFill, styles.loading]}>

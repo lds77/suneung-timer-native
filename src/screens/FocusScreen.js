@@ -9,8 +9,6 @@ import { LIGHT, DARK, getTheme, HEADER_BG_PRESETS } from '../constants/colors';
 import { formatTime, formatDuration, formatDDay, calcDDay } from '../utils/format';
 import TodoSection from './focus/TodoSection';
 import { pomoPhaseTargetSec } from '../utils/pomo';
-import { maybeAskReview } from '../utils/reviewAsk';
-import { getDensityBreakdown } from '../utils/density';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
 import Stepper from '../components/Stepper';
@@ -20,7 +18,6 @@ import Svg, { Circle } from 'react-native-svg';
 import AnalogClock from '../components/AnalogClock';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 import { getPlannerMessage } from '../constants/characters';
-import { getTier } from '../constants/presets';
 import { Ionicons } from '@expo/vector-icons';
 import { createStyles, GAP } from './focus/styles';
 import { hexLuminance, getSchoolDefaultFavs, resolveIcon, CalendarIcon } from './focus/helpers';
@@ -152,31 +149,8 @@ export default function FocusScreen() {
   // 챌린지 모달은 focus/ChallengeModal.js로 분리 (입력 상태 포함)
 
   // 완료 결과 모달 — 자기평가 입력
-  const [resultSelfRating, setResultSelfRating] = useState(null);
-  const [resultMemo, setResultMemo] = useState('');
-  const [resultTodoDone, setResultTodoDone] = useState(false); // 결과 모달: 연결된 할 일 완료로 표시
-  const [resultShowBreakdown, setResultShowBreakdown] = useState(false); // 결과 모달: 점수 상세 펼침
-  const [editingDuration, setEditingDuration] = useState(false); // 결과 모달: 공부시간 수정 시트 열림
-  const [editHour, setEditHour] = useState(0);   // 수정할 시간(시)
-  const [editMin, setEditMin] = useState(0);     // 수정할 시간(분)
-
-  // 결과 모달 닫기 공통 처리 (확인/건너뛰기/뒤로가기) — 할일 완료 토글 반영 + 입력 상태 리셋
-  const closeResultModal = () => {
-    const data = app.completedResultData;
-    if (resultTodoDone && data?.todoId) {
-      const todo = app.todos.find(x => x.id === data.todoId && !x.done);
-      if (todo) app.toggleTodo(todo.id);
-    }
-    app.setCompletedResultData(null);
-    if (data?.timerId) app.removeTimer(data.timerId);
-    setResultSelfRating(null);
-    setResultMemo('');
-    setResultTodoDone(false);
-    setResultShowBreakdown(false);
-    setEditingDuration(false);
-    // 스토어 리뷰 요청 — 모달 닫힘 애니메이션 후 (정책·빈도 제한은 reviewAsk가 판정)
-    setTimeout(() => maybeAskReview(app.sessions.length, app.settings, app.updateSettings), 700);
-  };
+  // 완료 결과 모달은 focus/ResultModal.js로 분리돼 App.js 루트에서 렌더된다
+  // (여기 있으면 다른 탭에서는 react-native-screens가 화면을 떼어내 모달이 안 뜬다)
 
   const mainScrollRef = useRef(null);
   const [todoDragging, setTodoDragging] = useState(false); // 할일 드래그 정렬 중 메인 스크롤 잠금
@@ -1525,229 +1499,7 @@ export default function FocusScreen() {
 
       {/* 🔒 잠금 오버레이는 App.js의 LockOverlay 컴포넌트로 이동 (Root 레벨 렌더링 — 폰트 변경 리마운트에 영향받지 않음) */}
 
-      {/* ── 완료 결과 + 자기평가 ── */}
-      <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={closeResultModal}>
-        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-        <View style={[S.mo, { justifyContent: 'flex-end' }]}>
-          <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
-            <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
-            <Ionicons
-              name={app.completedResultData?.planSessionIds?.length ? 'calendar-outline' : 'checkmark-circle-outline'}
-              size={32} color={T.accent} style={{ textAlign: 'center', alignSelf: 'center', marginBottom: 2 }} />
-            <Text style={[S.selfRatingTitle, { color: T.text }]}>{app.completedResultData?.planSessionIds?.length ? '계획 달성!' : '공부 완료!'}</Text>
-            {/* 결과 정보 */}
-            {app.completedResultData?.result && (() => {
-              const selfBonus = (resultSelfRating === 'fire' || resultSelfRating === 'perfect') ? 3 : 0;
-              const displayDensity = Math.max(56, Math.min(103, (app.completedResultData.result.density || 0) + selfBonus));
-              const displayTier = getTier(displayDensity);
-              const inputs = app.completedResultData.result.densityInputs; // 구 스냅샷 결과엔 없을 수 있음
-              return (
-                <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <View style={[S.resTier, { backgroundColor: displayTier.color + '20', marginBottom: 4 }]}>
-                    <Text style={[S.resTierT, { color: displayTier.color }]}>{displayTier.label}</Text>
-                  </View>
-                  <Text style={{ fontSize: 22, fontWeight: '900', color: displayTier.color }}>
-                    밀도 {displayDensity}점{selfBonus > 0 ? <Text style={{ fontSize: 15, color: displayTier.color }}> (+{selfBonus})</Text> : null}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>
-                    {formatDuration(app.completedResultData.result.durationSec || 0)}
-                    {app.completedResultData.isSeq ? ` · ${app.completedResultData.seqTotal}개 항목 완주` : ''}
-                  </Text>
-                  {/* 점수 근거 — 타이머 사용 행동 기반이라는 걸 투명하게 보여줌 */}
-                  {inputs && (
-                    <TouchableOpacity onPress={() => setResultShowBreakdown(v => !v)} activeOpacity={0.7}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, paddingVertical: 3, paddingHorizontal: 8 }}>
-                      <Text style={{ fontSize: 12, color: T.sub, fontWeight: '700' }}>점수 상세</Text>
-                      <Ionicons name={resultShowBreakdown ? 'chevron-up' : 'chevron-down'} size={12} color={T.sub} />
-                    </TouchableOpacity>
-                  )}
-                  {inputs && resultShowBreakdown && (() => {
-                    const bd = getDensityBreakdown({ ...inputs, selfRating: resultSelfRating });
-                    const rows = [
-                      { label: '완료', val: `${bd.completionScore}/40` },
-                      { label: `습관 · 일시정지 ${inputs.pausedCount || 0}회`, val: `${bd.habitScore}/30` },
-                      { label: '지속력', val: `${bd.persistenceBonus}/15` },
-                      { label: inputs.focusMode === 'screen_on' ? `집중 도전 · 이탈 ${inputs.exitCount || 0}회` : '편하게 공부', val: `+${bd.declarationBonus}` },
-                      { label: '자가평가', val: `+${bd.selfBonus}` },
-                    ];
-                    return (
-                      <View style={{ alignSelf: 'stretch', backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 6 }}>
-                        {rows.map(r => (
-                          <View key={r.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 12, color: T.sub }}>{r.label}</Text>
-                            <Text style={{ fontSize: 12, fontWeight: '800', color: T.text }}>{r.val}</Text>
-                          </View>
-                        ))}
-                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 4 }}>
-                          타이머 사용 습관으로 계산하는 참고 점수예요 · 최저 56점(C) 보장
-                        </Text>
-                      </View>
-                    );
-                  })()}
-                </View>
-              );
-            })()}
-            {/* 연결된 할 일 완료 토글 — 할일 '집중 시작'으로 켠 타이머일 때만 */}
-            {(() => {
-              const data = app.completedResultData;
-              if (!data?.todoId) return null;
-              const todo = app.todos.find(x => x.id === data.todoId && !x.done);
-              if (!todo) return null;
-              return (
-                <TouchableOpacity onPress={() => setResultTodoDone(v => !v)} activeOpacity={0.7}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, marginBottom: 12,
-                    backgroundColor: resultTodoDone ? T.accent + '15' : T.card,
-                    borderWidth: resultTodoDone ? 2 : 1, borderColor: resultTodoDone ? T.accent : T.border }}>
-                  <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 2, alignItems: 'center', justifyContent: 'center',
-                    borderColor: resultTodoDone ? T.accent : T.border, backgroundColor: resultTodoDone ? T.accent : 'transparent' }}>
-                    {resultTodoDone && <Ionicons name="checkmark" size={13} color="white" />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }} numberOfLines={1}>{todo.text}</Text>
-                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>이 할 일을 완료로 표시</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })()}
-            <Text style={{ fontSize: 14, color: T.sub, textAlign: 'center', marginBottom: 12 }}>오늘 공부 어땠나요?</Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-              {[
-                { icon: 'flame', label: '완전 집중', value: 'fire', bonus: '+3점', color: '#FF6B9D' },
-                { icon: 'happy-outline', label: '보통이었어', value: 'normal', bonus: '±0점', color: T.sub },
-                { icon: 'moon-outline', label: '좀 딴 짓', value: 'sleepy', bonus: '±0점', color: '#B2BEC3' },
-              ].map(opt => (
-                <TouchableOpacity key={opt.value}
-                  style={[S.selfRatingBtn, { backgroundColor: T.card, borderColor: resultSelfRating === opt.value ? opt.color : T.border, borderWidth: resultSelfRating === opt.value ? 2 : 1 }]}
-                  onPress={() => setResultSelfRating(opt.value)}>
-                  <Ionicons name={opt.icon} size={28} color={opt.color} style={{ marginBottom: 6 }} />
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: T.text, textAlign: 'center' }}>{opt.label}</Text>
-                  <Text style={{ fontSize: 11, color: opt.color, fontWeight: '700', marginTop: 3 }}>{opt.bonus}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              value={resultMemo}
-              onChangeText={setResultMemo}
-              placeholder="한줄 메모 (선택)"
-              placeholderTextColor={T.sub}
-              style={[S.memoInput, { borderColor: T.border, color: T.text, backgroundColor: T.surface }]}
-              maxLength={50}
-            />
-            <TouchableOpacity
-              style={{ width: '100%', paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 8, backgroundColor: resultSelfRating ? T.accent : T.border }}
-              onPress={() => {
-                if (!resultSelfRating) { app.showToastCustom('자기평가를 선택해주세요!', 'paengi'); return; }
-                const data = app.completedResultData;
-                if (data?.planSessionIds?.length) {
-                  // 계획 완료: 모든 계획 세션에 자기평가 일괄 적용
-                  data.planSessionIds.forEach(id => {
-                    app.updateSessionSelfRating(id, resultSelfRating, resultMemo.trim() || null);
-                  });
-                } else if (data?.seqSessionIds?.length) {
-                  // 연속모드: 마지막 완료 세션에만 자기평가 적용 (중간 세션은 이미 밀도 계산됨)
-                  const lastSeqId = data.seqSessionIds[data.seqSessionIds.length - 1];
-                  app.updateSessionSelfRating(lastSeqId, resultSelfRating, resultMemo.trim() || null);
-                } else if (data?.sessionId) {
-                  app.updateSessionSelfRating(data.sessionId, resultSelfRating, resultMemo.trim() || null);
-                }
-                closeResultModal();
-              }}>
-              <Text style={{ color: 'white', fontSize: 15, fontWeight: '900', letterSpacing: 1 }}>완료</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={closeResultModal}
-              style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <Text style={{ fontSize: 14, color: T.sub }}>건너뛰기</Text>
-            </TouchableOpacity>
-            {/* 방금 끝난 기록 정정 — 잊은 타이머 등 잘못 기록된 세션의 시간 수정/삭제 (지나간 통계는 건드리지 않음) */}
-            {(() => {
-              const data = app.completedResultData;
-              if (!data) return null;
-              const ids = data.sessionId ? [data.sessionId] : (data.planSessionIds || data.seqSessionIds || []);
-              if (ids.length === 0) return null;
-              const canEditTime = !!data.sessionId; // 계획/연속(여러 세션 묶음)은 시간 정정 대상에서 제외 — 삭제만
-              return (
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingTop: 2, paddingBottom: 6 }}>
-                  {canEditTime && (
-                    <TouchableOpacity onPress={() => {
-                      const cur = data.result?.durationSec || 0;
-                      setEditHour(Math.floor(cur / 3600));
-                      setEditMin(Math.round((cur % 3600) / 60));
-                      setEditingDuration(true);
-                    }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Ionicons name="create-outline" size={14} color={T.sub} />
-                      <Text style={{ fontSize: 13, color: T.sub, fontWeight: '700' }}>시간 수정</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => {
-                    Alert.alert('기록 삭제', '방금 기록한 공부 시간을 삭제(폐기)할까요?\n통계에서도 빠집니다.', [
-                      { text: '취소', style: 'cancel' },
-                      { text: '삭제', style: 'destructive', onPress: () => {
-                        app.deleteSessions(ids);
-                        app.showToastCustom('기록을 삭제했어요', 'paengi');
-                        closeResultModal();
-                      } },
-                    ]);
-                  }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="trash-outline" size={14} color="#E8575A" />
-                    <Text style={{ fontSize: 13, color: '#E8575A', fontWeight: '700' }}>기록 삭제</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })()}
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* 공부 시간 수정 시트 — 결과 모달 위 오버레이. 잊은 타이머 등을 실제 시간으로 정정 (한 번 수정하면 재수정·삭제 불가) */}
-      <Modal visible={editingDuration} transparent animationType="fade" onRequestClose={() => setEditingDuration(false)}>
-        <View style={[S.mo, { justifyContent: 'center', paddingHorizontal: 24 }]}>
-          <View style={[{ backgroundColor: T.bg, borderRadius: 20, padding: 20 }, isTablet && { maxWidth: 420, width: '100%', alignSelf: 'center' }]}>
-            <Text style={{ fontSize: 17, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>공부 시간 수정</Text>
-            <Text style={{ fontSize: 14, fontWeight: '900', color: T.accent, textAlign: 'center', marginBottom: 16 }}>
-              {editHour > 0 ? `${editHour}시간 ` : ''}{editMin}분
-            </Text>
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>시간</Text>
-              <Stepper value={editHour} onChange={setEditHour} min={0} max={5} step={1} unit="시간" colors={T} />
-            </View>
-            <View style={{ marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>분</Text>
-              <Stepper value={editMin} onChange={setEditMin} min={0} max={59} step={10} unit="분" colors={T} />
-            </View>
-            <View style={{ backgroundColor: '#E8575A18', borderRadius: 10, padding: 12, marginBottom: 16 }}>
-              <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
-                입력한 시간이 통계에 그대로 반영됩니다. 실제 공부한 시간을 정확히 입력해 주세요.{'\n'}수정한 뒤에는 이 기록을 다시 바꾸거나 삭제할 수 없어요.
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity onPress={() => setEditingDuration(false)}
-                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => {
-                const data = app.completedResultData;
-                if (!data?.sessionId) { setEditingDuration(false); return; }
-                const newSec = editHour * 3600 + editMin * 60;
-                if (newSec < 60) { app.showToastCustom('1분 이상 입력해 주세요', 'paengi'); return; }
-                if (newSec > 5 * 3600) { app.showToastCustom('최대 5시간까지 입력할 수 있어요', 'paengi'); return; }
-                Alert.alert('시간 수정', `${editHour > 0 ? editHour + '시간 ' : ''}${editMin}분으로 수정할까요?\n\n입력한 시간이 통계에 그대로 반영되며, 수정 후에는 되돌릴 수 없어요.`, [
-                  { text: '취소', style: 'cancel' },
-                  { text: '수정', onPress: () => {
-                    app.updateSessionDuration(data.sessionId, newSec);
-                    app.setCompletedResultData(prev => prev ? { ...prev, result: { ...prev.result, durationSec: newSec } } : prev);
-                    setEditingDuration(false);
-                    app.showToastCustom('시간을 수정했어요', 'toru');
-                  } },
-                ]);
-              }}
-                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent }}>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: 'white' }}>수정하기</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* 완료 결과 + 자기평가 모달은 App.js 루트의 ResultModal로 이동 (focus/ResultModal.js) */}
 
       {/* 주간 플래너 편집 */}
       <ScheduleEditorScreen visible={showScheduleEditor} onClose={() => setShowScheduleEditor(false)} />
