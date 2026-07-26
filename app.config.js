@@ -67,7 +67,9 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 66, // 1.0.38: 상시 타이머 알림(timer-notif) + 오답노트 사진첨부 + 스터디룸 대개편 (vc64=1.0.37) — 짝수 관행 유지
+      versionCode: 68, // 1.0.38: 상시 타이머 알림(timer-notif) + 오답노트 사진첨부 + 스터디룸 대개편.
+      // vc66은 Play 검토에서 '기기 402대 지원 중단' 경고 — CAMERA 권한의 카메라 필수 암시 때문(미제출 폐기).
+      // vc68 = withCameraNotRequired 플러그인 적용본 (vc64=1.0.37) — 짝수 관행 유지
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
@@ -172,6 +174,8 @@ module.exports = {
       '@bacons/apple-targets',
       // androidx.work 중복 클래스 정렬 (SDK 56에서 발생 — 파일 주석 참고)
       './plugins/withAndroidWorkManagerFix',
+      // 카메라를 선택 하드웨어로 선언 (CAMERA 권한이 카메라 필수를 암시해 Play 대상 기기가 줄던 문제)
+      './plugins/withCameraNotRequired',
     ],
     extra: {
       eas: {
