@@ -10,7 +10,10 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.34 (iOS 빌드 49 / Android versionCode 56, 양대 스토어 심사 제출 — 2026-07-12). SDK 56 첫 릴리스, 위젯 5종 + 할일 개편 포함. 1.0.33은 양대 배포/승인 완료
+- **현재 버전**: 1.0.38 (Android versionCode 68 — 2026-07-26 Play 제출, 심사 중).
+  라이브: **iOS 1.0.36** / **Android 1.0.37(vc64)**. iOS는 1.0.37을 빌드하지 않았고(무료 빌드 할당량 소진)
+  buildNumber 53을 그대로 둔 채 2026-08-01 이후 1.0.38로 직행 예정.
+  → 릴리스 진행 상태의 단일 진입점은 **`docs/release-next-build-checklist.md`** (이 줄보다 그 문서가 최신)
 
 ---
 
@@ -19,8 +22,10 @@
 | 항목 | 내용 |
 |------|------|
 | 프레임워크 | React Native 0.85 + Expo SDK 56 (New Architecture/Fabric) + React 19.2 |
-| 상태 관리 | Context API (`src/hooks/useAppState.js`, ~2100줄) |
-| 로컬 저장소 | AsyncStorage (`src/utils/storage.js`, `@yeolgong/*` 키) |
+| 상태 관리 | Context API (`src/hooks/useAppState.js`, ~2800줄) |
+| 로컬 저장소 | AsyncStorage (`src/utils/storage.js`, `@yeolgong/*` 키) — 앱의 기본은 서버 없는 로컬 저장 |
+| 서버 (스터디룸 한정) | Firebase 익명 인증 + Realtime Database (`yeolgong-1e5cf`). 보안은 RTDB 규칙에 전적으로 의존 — `docs/firebase-database.rules.json`을 **콘솔에 직접 게시**해야 적용됨 |
+| 사진 | expo-image-picker + expo-image-manipulator (오답노트 첨부, 1.0.38~ / 기기 내부 저장만) |
 | 네비게이션 | React Navigation v6 하단 탭 5개: 집중/과목/플래너/통계/설정 |
 | 빌드 | EAS Build (eas.json — development/preview/testflight/production 프로필) |
 | 설정 파일 | `app.config.js` (app.json 아님 — `APP_VARIANT=preview` 분기) |
@@ -42,12 +47,16 @@ src/
   hooks/
     useAppState.js        전역 상태 (Context API) — sessions/timers/todos/settings/weeklySchedule 관리, 100ms 타이머 틱
   screens/
-    FocusScreen.js        타이머 메인 화면 (~2,600줄, 중복 가로/세로 섹션 통합 후)
-    StatsScreen.js        통계 화면 (~4,000줄, 일간/주간/월간/잔디 탭)
-    PlannerScreen.js      플래너 화면 (~2,400줄, onlyWeek 일회성/반복 계획 구분)
+    FocusScreen.js        타이머 메인 화면 (~1,500줄, 분해 후)
+    StatsScreen.js        통계 화면 (~3,000줄, 일간/주간/월간/잔디 탭)
+    PlannerScreen.js      플래너 화면 (~2,700줄, onlyWeek 일회성/반복 계획 구분)
     ScheduleEditorScreen.js 일정 편집
     SubjectsScreen.js     과목 관리 + 공부법 프리셋 (STUDY_METHODS, 학년별)
     SettingsScreen.js     설정
+    ReviewNotesScreen.js  오답노트 (복습 루프 + 사진 첨부)
+    StudyRoomScreen.js    스터디룸 (같이 공부 — 좌석 도면/라운지/다같이 집중)
+    focus/                FocusScreen에서 분해한 조각 — TodoSection, TodoFormSheet, FavoritesCard,
+                          ChallengeModal, NicknameModal, ResultModal(App.js 루트에서 렌더), helpers, styles
     stats/
       components/         GoalRing, SubjectDonut, ReportComponents
       helpers.js          통계 계산 유틸
@@ -74,14 +83,28 @@ src/
     density.js            집중밀도 계산 (calcAverageDensity, calculateDensity)
     format.js             formatDuration, formatShort, getToday, generateId 등
     liveActivity.js       iOS Live Activity 래퍼 (자체 ActivityKit 모듈 — 잠금화면/Dynamic Island 타이머)
+    ongoingNotif.js       안드 상시 타이머 알림 동기화 (liveActivity.js와 표시 규칙 공유)
+    studyRoom.js          스터디룸 Firebase I/O (익명 인증·RTDB 구독·하트비트)
+    studyRoomCore.js      스터디룸 순수 로직 (좌석 배치·정렬·유령 판정 등, 테스트 대상)
+    reviewNotes.js        오답노트 순수 로직 (복습 주기 계산 등, 테스트 대상)
+    attachments.js        오답노트 사진 저장/압축/정리 (파일명만 기록 — 경로 저장 금지)
+    screenPin.js          안드 OS 화면 고정 래퍼 (울트라집중 exam 강도)
+    durableAuthStorage.js 익명 uid 영속 (iOS 키체인 미러 — 재설치 후 계정 유지)
   constants/
     colors.js             getTheme(darkMode, accentColor, fontScale, stylePreset) → T 테마 객체
     presets.js            getTier(density) → 티어 라벨/색상
     characters.js         캐릭터 데이터 (toru, paengi 등 + 상황별 메시지)
     fonts.js              폰트 상수
-App.js                    앱 진입점 (~1,100줄), 온보딩, 네비게이션, 잠금화면 오버레이, 위젯 딥링크(subjectId/planId)
+App.js                    앱 진입점 (~1,000줄), 온보딩, 네비게이션, 잠금화면 오버레이, 결과 모달, 위젯 딥링크
 targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) — index.swift(번들), SharedData.swift(파서/공용),
                           StudyTime/DDay/Subject/TodayPlan/TodayTodo 5종. EAS 빌드로만 검증 가능
+modules/                  로컬 Expo 네이티브 모듈 4개 — live-activity(iOS ActivityKit),
+                          timer-notif(안드 상시 알림), screen-pin(안드 화면 고정), focus-shield(iOS 앱 차단)
+plugins/                  config 플러그인 — withAndroidWorkManagerFix(중복 클래스),
+                          withCameraNotRequired(CAMERA 권한이 카메라를 필수로 암시해 Play 대상 기기가 줄던 문제)
+docs/                     설계·릴리스 문서. release-next-build-checklist.md(릴리스 단일 진입점),
+                          realtime-study-design.md, review-notes-design.md, account-persistence-design.md,
+                          firebase-database.rules.json(★콘솔에 직접 게시해야 적용★), blog-guide.md
 ```
 
 ---
@@ -188,7 +211,7 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - **안드 상시 타이머 알림 (잠금화면/상단바)**: 실행 중 타이머를 chronometer 상시 알림으로 표시 —
   iOS Live Activity의 안드 대응물. `modules/timer-notif`(Kotlin) + `src/utils/ongoingNotif.js`(동기화,
   liveActivity.js와 표시 규칙 공유). OS가 벽시계 앵커(when) 기준으로 초를 직접 그려 백그라운드/앱 종료
-  후에도 정확, timeout 상한으로 좀비 방지. 설정 토글 `timerOngoingNotif`. 다음 안드 네이티브 빌드부터 활성
+  후에도 정확, timeout 상한으로 좀비 방지. 설정 토글 `timerOngoingNotif`. **1.0.38(vc68)부터 활성**
 - **안드 위젯 강제 갱신 알람 (B단계)**: 타이머 종료 시각에 AlarmManager →
   `AlarmReceiver`(WIDGET_REFRESH) → APPWIDGET_UPDATE 브로드캐스트 → 헤드리스 재렌더.
   앱이 죽어 있어도 위젯 '집중 중' 해제/오늘합계 반영 (`scheduleWidgetRefresh`/`cancelWidgetRefresh`)
@@ -205,6 +228,28 @@ targets/widgets/          iOS 홈/잠금화면 위젯 (SwiftUI · WidgetKit) —
 - **오늘할일 위젯 체크(안드 전용)**: 행 탭 → `TODO_TOGGLE` → 헤드리스가 storage에 직접 토글+완료로그
   → `@yeolgong/widgetTodoDirty` 플래그 → 앱 복귀 시 todos/todoLog 재로드 (자동저장 덮어쓰기 방지). iOS는 보기 전용
 - ※iOS 위젯 타겟명은 디렉터리와 같은 ASCII('widgets') 필수, apple-targets는 patch-package 패치 유지 필요
+
+### 오답노트 (1.0.36~)
+- `src/screens/ReviewNotesScreen.js` + `src/utils/reviewNotes.js`(순수 로직) +
+  `src/utils/attachments.js`(사진). 저장 키 `@yeolgong/reviewNotes`. 설계 `docs/review-notes-design.md`
+- 틀린 문제를 과목·챕터별로 기록 → 복습 루프(다시 볼 날짜) → 할일로 연결.
+  같은 할일에서 중복 생성 방지는 `sourceTodoId` 가드
+- **사진 첨부(1.0.38~ 네이티브)**: expo-image-picker(촬영/앨범 다중선택) + expo-image-manipulator(1600px 압축).
+  파일은 `documentDirectory`에 저장하고 **파일명만** 기록(경로 저장 금지 — 앱 재설치 시 경로가 바뀜),
+  한 문제당 5장 상한. 사진은 기기 밖으로 나가지 않음(개인정보처리방침에 명시)
+- 편집기는 **전체화면**(바텀시트 키보드 문제를 구조적으로 해결한 결과 — 바텀시트로 되돌리지 말 것)
+
+### 스터디룸 (같이 공부, 1.0.36~)
+- `src/screens/StudyRoomScreen.js` + `src/utils/studyRoom.js`(Firebase I/O) +
+  `src/utils/studyRoomCore.js`(순수 로직·테스트 대상). 설계 `docs/realtime-study-design.md`
+- Firebase(`yeolgong-1e5cf`) 익명 인증 + RTDB. **보안은 전적으로 RTDB 규칙** —
+  `docs/firebase-database.rules.json`이 원본이고 **콘솔에 직접 게시**해야 적용됨(배포 잊으면 무방비)
+- 초대 코드 방 / 공개 라운지, 좌석 도면 3테마(카페·독서실·교실), 하트비트로 '공부 중' 표시,
+  화면끔도 '화면끔 몰입'으로 인정, 다같이 집중(공유 카운트다운, 라운지 제외), **익명 응원**(엄지척)
+- **익명 응원은 익명이 설계 의도** — 보낸 사람을 남기면 아는 사이끼리만 주고받게 되어 취지가 죽는다.
+  되돌리지 말 것
+- 라운지 안전장치: 사용자 숨기기 + 신고 + 닉네임 필터 (**안드는 1.0.38부터, iOS는 미출시**)
+- 집중탭·잠금 오버레이의 '우리 방 N명' pill → 탭하면 방으로 바로 입장
 
 ### 기타
 - 아날로그 시계 모드 (수능 시험장 벽시계, 가로 전체화면 모달 지원)
@@ -238,14 +283,17 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-07-12 기준)
+## 출시 현황 (2026-07-26 기준)
+
+> ※이 표는 쉽게 낡는다. 진행 중인 릴리스의 최신 상태는 항상 `docs/release-next-build-checklist.md`를 볼 것.
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 출시 중 (1.0.33 배포됨), 1.0.34 빌드 49 심사 제출 (SDK 56, 위젯 5종+할일 개편). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 출시 중 (1.0.33 배포됨), 1.0.34(versionCode 56) 검토 중 — 오늘할일 위젯(위젯에서 바로 체크) 포함 |
+| iOS | App Store 라이브 **1.0.36** (2026-07-23 배포 — 스터디룸·오답노트 첫 출시. 1.0.36은 스크린샷 사유 2.3.3 리젝 후 실제화면으로 교체해 승인). **1.0.37은 iOS 미빌드**(무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) → 8/1 이후 1.0.38(buildNumber 53) 빌드 예정. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 라이브 **1.0.37(vc64)** (2026-07-26 승인 확인), **1.0.38(vc68) 전체출시 제출 — 심사 중**. vc68이 상시 타이머 알림·오답노트 사진첨부·라운지 신고를 처음 출시 |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
-| 사용자 수 | 초기 단계 (10~20명) |
+| 사용자 수 | 2026-07-14 기준 Play 활성기기 94 · MAU 약 100 · 총 설치 198 / iOS 90일 다운로드 185 (6월 대비 약 2배) |
+| 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지 — **1.0.35 이후 머지 보류 중**(vc68 승인이 조건) |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
 
 ---
@@ -260,9 +308,14 @@ eas build --profile preview --platform android
 6. **알림 테스트**: 실기기 + EAS 빌드로만 검증 가능
 7. **날짜 코드는 반드시 `format.js`의 `getToday()`/`toDateStr()` 사용** — `toISOString()`은 UTC라
    KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
-8. **로직 변경 후 `npm test`** (Jest 207개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기)
+8. **로직 변경 후 `npm test`** (Jest 441개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기)
 9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
 10. **월 이동은 `new Date(y, m ± n, 1)`로 1일 정규화** — `new Date()`에 그대로 `setMonth(±n)`
     하면 29~31일에 짧은 달로 넘칠 때 달이 건너뛰거나 제자리 (2026-07-19 감사에서 3곳 일소)
 11. **useMemo 안에서 `new Date()`/`getToday()`를 쓰면 `today`를 의존성에 포함** — 자정 넘겨
     열어둔 화면에서 어제/주간 경계가 옛 날짜로 굳는 스테일 버그의 원인
+12. **안드 권한을 새로 추가하면 Play 검토 화면의 '지원 기기 변경사항'을 반드시 확인** — 권한이
+    하드웨어를 필수로 암시해 배포 대상 기기가 줄어든다. CAMERA 추가 때 402대(태블릿 -4%)가 빠져
+    `plugins/withCameraNotRequired.js`로 막았음 (2026-07-26, vc66 폐기 후 vc68 재빌드)
+13. **RTDB 규칙 변경은 코드 커밋만으로 적용되지 않음** — `docs/firebase-database.rules.json`을
+    Firebase 콘솔에 직접 게시해야 한다. 게시를 잊으면 스터디룸이 무방비 상태로 배포됨
