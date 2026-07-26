@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.37',
+    version: '1.0.38',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '53', // 1.0.37: 할일 메모수정 버그픽스 + iOS 한국어 로케일 선언 (1.0.36 스크린샷 리젝 → 실제화면 재제출), build52=1.0.36
+      buildNumber: '53', // 1.0.38 예정(iOS는 무료 빌드 할당량 리셋 후 = 2026-08-01 이후 빌드). build52=1.0.36, 1.0.37은 iOS 미빌드
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -67,7 +67,7 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 64, // 1.0.37 (vc62=1.0.36) — 짝수 관행 유지
+      versionCode: 66, // 1.0.38: 상시 타이머 알림(timer-notif) + 오답노트 사진첨부 + 스터디룸 대개편 (vc64=1.0.37) — 짝수 관행 유지
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
