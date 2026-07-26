@@ -232,8 +232,13 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 ### 오답노트 (1.0.36~)
 - `src/screens/ReviewNotesScreen.js` + `src/utils/reviewNotes.js`(순수 로직) +
   `src/utils/attachments.js`(사진). 저장 키 `@yeolgong/reviewNotes`. 설계 `docs/review-notes-design.md`
-- 틀린 문제를 과목·챕터별로 기록 → 복습 루프(다시 볼 날짜) → 할일로 연결.
+- 틀린 문제를 과목·챕터별로 기록. 챕터는 별도 엔티티가 아니라 **노트당 문자열 태그**(자동완성만 제공)
+- **복습 루프 = 카운터 방식**: `markReviewed`로 `reviewCount`/`lastReviewedAt` 누적 + `mastered` 토글 +
+  '복습 필요만' 필터(`!mastered`). ※**다시 볼 날짜 예약이나 할일 자동 생성은 없다** — 오해 주의
+- 연결 방향은 **할일 → 노트**(`archiveTodoToNote`, 할일 메모가 일일 리셋으로 사라지는 문제 해결이 출발점).
   같은 할일에서 중복 생성 방지는 `sourceTodoId` 가드
+- **과목을 삭제해도 노트는 지우지 않고 `subjectId=null`(미분류)로 보존** — 오답 기록은 사용자 자산이라
+  고아 유령을 지우는 다른 곳들과 반대로 판단한 것
 - **사진 첨부(1.0.38~ 네이티브)**: expo-image-picker(촬영/앨범 다중선택) + expo-image-manipulator(1600px 압축).
   파일은 `documentDirectory`에 저장하고 **파일명만** 기록(경로 저장 금지 — 앱 재설치 시 경로가 바뀜),
   한 문제당 5장 상한. 사진은 기기 밖으로 나가지 않음(개인정보처리방침에 명시)
