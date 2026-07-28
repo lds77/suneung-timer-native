@@ -4,6 +4,7 @@
 // 해제: 사용자가 뒤로+최근앱 버튼을 동시에 길게 누르거나, 세션 종료 시 unpinScreen().
 
 import { Platform } from 'react-native';
+import { isScreenOffState, screenOffAwayMs, offHappenedAround } from './focusAway';
 
 let mod = null;
 if (Platform.OS === 'android') {
@@ -31,6 +32,39 @@ export const unpinScreen = async () => {
 export const isScreenPinned = () => {
   if (!mod) return false;
   try { return mod.isPinned(); } catch { return false; }
+};
+
+// ─── 화면 켜짐/꺼짐 (🔥모드 이탈 판정용) ─────────────────────────────────
+// 안드로이드는 화면만 꺼도 앱이 background로 내려간다. 화면 끄기는 다른 앱을 쓰는 게
+// 아니므로 이탈이 아니다 (화면 고정 중과 같은 취급). 구버전 네이티브에는 screenState가
+// 없으므로 null → 기존 동작(이탈 처리) 유지.
+const screenState = () => {
+  if (!mod || typeof mod.screenState !== 'function') return null;
+  try { return mod.screenState(); } catch { return null; }
+};
+
+// 지금 화면이 꺼져 있는가 (백그라운드 전환 원인이 '화면 끄기'인지 판별)
+export const isScreenOff = () => {
+  if (Platform.OS !== 'android') return false;
+  return isScreenOffState(screenState(), Date.now());
+};
+
+// 백그라운드 진입이 사실은 화면 끄기였는지 복귀 시점에 재확인
+// (SCREEN_OFF 브로드캐스트/isInteractive 갱신이 AppState 이벤트보다 늦는 기기 대비)
+export const screenWentOffAround = (bgAt) => {
+  if (Platform.OS !== 'android') return false;
+  const st = screenState();
+  if (!st) return false;
+  return offHappenedAround(bgAt, st.lastOffAt);
+};
+
+// 화면 끄기로 백그라운드에 갔다가 돌아왔을 때 이탈로 볼 시간(ms).
+// 화면을 다시 켠 시점부터 계산 — 잠금화면에서 곧장 다른 앱을 열고 놀다 돌아온 경우만 걸러낸다.
+export const awayMsSinceScreenOn = (bgAt) => {
+  if (Platform.OS !== 'android') return 0;
+  const st = screenState();
+  if (!st) return 0;
+  return screenOffAwayMs(bgAt, st.lastOnAt, Date.now());
 };
 
 // 고정 중에는 OS가 알림 소리/진동을 차단하므로, 완료/페이즈 시각에 네이티브 알람으로

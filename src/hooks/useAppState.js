@@ -28,8 +28,9 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
-import { setShield, shieldSupported } from '../utils/focusShield';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS } from '../utils/focusAway';
+import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
@@ -335,6 +336,11 @@ export function AppProvider({ children }) {
   const phaseNotifRunId = useRef(new Map()); // timerId → 마지막 scheduleAllPhaseNotifs runId (race condition 방지)
   const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
+  // 안드: 직전 백그라운드 전환이 '화면 끄기' 때문이었는가 (이탈로 치지 않고, 복귀 시 화면 켠 시점부터만 이탈 계산)
+  // iOS도 화면 잠금이 감지되면 같은 플래그를 세운다 (판별이 약 10초 늦게 나올 뿐 처리는 동일)
+  const screenOffBg = useRef(false);
+  // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
+  const iosDeferAway = useRef(false);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -546,10 +552,16 @@ export function AppProvider({ children }) {
         // 🔥모드에서만 이탈 감지 (keep-awake라서 background = 진짜 이탈)
         // 단, 안드 화면 고정 중의 배경 전환은 화면 끄기/전화 수신 등 OS 이벤트뿐이고
         // 다른 앱 사용이 불가능하므로 이탈로 치지 않는다 (고정 해제 후 나간 경우만 이탈)
-        const pinnedNow = Platform.OS === 'android' && isScreenPinned();
-        if (mode === 'screen_on' && hasRunning && !pinnedNow && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
+        const awayCandidate = mode === 'screen_on' && hasRunning
+          && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
+        const pinnedNow = awayCandidate && Platform.OS === 'android' && isScreenPinned();
+        // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
+        // 화면을 다시 켠 뒤에도 앱으로 안 돌아오면 그때부터 이탈로 계산한다 (active 복귀 처리 참조).
+        const screenOffNow = awayCandidate && !pinnedNow && isScreenOff();
+        screenOffBg.current = screenOffNow;
+        const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
+        const markAway = () => {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
-          const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
           fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
           scheduleAwayNudges(charName);
@@ -559,6 +571,19 @@ export function AppProvider({ children }) {
           setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
+        };
+        if (awayCandidate && !pinnedNow && !screenOffNow) {
+          if (Platform.OS === 'ios' && lockDetectSupported()) {
+            // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
+            // 백그라운드에서는 JS 타이머도 멈춰 '10초 뒤에 판단'을 JS로 할 수 없다. 그래서
+            //  · 이탈 알림을 즉시 띄우지 않고 20초 뒤로 예약 (네이티브가 잠금 감지 시 취소)
+            //  · isAway/Live Activity '이탈 중'은 세우지 않음 (잠금화면 오표시 방지)
+            //  · 이탈 여부는 복귀 시점에 확정 (아래 active 핸들러의 iosDeferAway)
+            iosDeferAway.current = true;
+            scheduleAwayNudges(charName, { delayedFirst: true });
+          } else {
+            markAway();
+          }
         }
         // 📖모드는 아무것도 안 함
 
@@ -577,9 +602,42 @@ export function AppProvider({ children }) {
       }
       else if (state === 'active') {
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
-        const awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
+        const bgAt = bgTime.current;
+        let awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
         bgTime.current = null;
-        const wasAway = ultraRef.current.isAway;
+        let wasAway = ultraRef.current.isAway;
+
+        // iOS: 네이티브가 백그라운드에서 기록해 둔 화면 잠금 감지 결과 소비 (0이면 앱 전환)
+        const iosLockedAt = Platform.OS === 'ios' ? consumeScreenLock() : 0;
+        if (iosDeferAway.current) {
+          // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 이탈 아님, 아니면 기존 10초 규칙대로
+          iosDeferAway.current = false;
+          if (!iosLockedAt && awayMs >= SCREEN_ON_GRACE_MS) wasAway = true;
+        }
+        if (iosLockedAt > 0) screenOffBg.current = true;
+
+        // 안드 '화면 끄기'로 내려갔던 경우: 화면 끄고 있던 시간은 이탈이 아니다.
+        // 다만 화면을 다시 켠 뒤(잠금화면에서 바로 다른 앱을 열었을 수 있다) 한참 만에
+        // 돌아왔다면 그 구간만 이탈로 친다.
+        // screenWentOffAround: 기기에 따라 SCREEN_OFF 신호가 AppState보다 늦게 와 이미
+        // 이탈로 표시된 경우를 복귀 시점에 되돌리는 안전망
+        const wasScreenOffBg = screenOffBg.current || (wasAway && screenWentOffAround(bgAt));
+        screenOffBg.current = false;
+        if (wasScreenOffBg) {
+          const sinceOn = awayMsSinceScreenOn(bgAt);
+          if (isRealAwayAfterScreenOn(sinceOn)) {
+            awayMs = sinceOn;
+            wasAway = true;
+          } else {
+            // 화면만 껐다 켠 것 → 이탈 아님 (레이스로 켜진 isAway를 되돌린다)
+            if (wasAway) {
+              setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+              // 레이스 경로에서는 배경 진입 때 밝기를 복원했으므로 잠금화면이면 다시 어둡게
+              if (screenLockedRef.current) applyFocusBrightness();
+            }
+            wasAway = false;
+          }
+        }
 
         // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
         cancelAwayNudges();
@@ -755,6 +813,14 @@ export function AppProvider({ children }) {
       deactivateFocusMode();
     }
   }, [timers]);
+
+  // iOS 화면 잠금 감지 감시 on/off — 🔥모드 + 실행 중일 때만 (백그라운드 태스크를 세션 밖에서 안 쓰도록).
+  // 불리언이라 100ms 틱으로는 다시 실행되지 않는다.
+  const lockWatchOn = focusMode === 'screen_on' && timers.some(t => t.status === 'running');
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    setLockWatch(lockWatchOn);
+  }, [lockWatchOn]);
 
   // 챌린지 성공
   const dismissChallenge = useCallback(() => {
@@ -1015,7 +1081,10 @@ export function AppProvider({ children }) {
   // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
   // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
   const awayNudgeCancelGen = useRef(0);
-  const scheduleAwayNudges = async (charName) => {
+  // delayedFirst: iOS 전용 — 즉시 띄우던 첫 이탈 알림을 20초 뒤 예약으로 돌린다
+  // (잠금 판별 대기용). 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야
+  // countdown 잔여시간 가드와 취소 세대 가드를 똑같이 받는다
+  const scheduleAwayNudges = async (charName, { delayedFirst = false } = {}) => {
     if (!settingsRef.current.notifEnabled) return;
     const gen = awayNudgeCancelGen.current;
     // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
@@ -1024,6 +1093,8 @@ export function AppProvider({ children }) {
       .map(t => getRealRemainingSec(t));
     const limitSec = cdRemains.length ? Math.min(...cdRemains) : Infinity;
     const NUDGES = [
+      ...(delayedFirst ? [{ sec: IOS_AWAY_NOTIF_DELAY_SEC, id: AWAY_NOW_ID,
+        title: `${charName}랑 같이 열공하자!`, body: '타이머가 돌아가고 있어~' }] : []),
       { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
       { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
       { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
@@ -1037,7 +1108,7 @@ export function AppProvider({ children }) {
           : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: n.sec };
         const id = await Notifications.scheduleNotificationAsync({
           // 고정 identifier: 리마운트로 id 목록이 유실돼도 재이탈 시 대체 + 복귀 시 항상 취소 가능
-          identifier: `away-nudge-${n.sec}`,
+          identifier: n.id || `away-nudge-${n.sec}`,
           content: {
             title: n.title, body: n.body, sound: 'default',
             // iOS: 방해금지/집중모드도 뚫는 Time Sensitive (entitlement 필요 — app.config.js)
@@ -1057,7 +1128,8 @@ export function AppProvider({ children }) {
   const cancelAwayNudges = () => {
     awayNudgeCancelGen.current++;
     // 고정 identifier 전체를 취소 — 리마운트로 세션이 바뀌어도 이전 세션의 넛지까지 정리됨
-    [30, 60, 180, 300].forEach(sec => { Notifications.cancelScheduledNotificationAsync(`away-nudge-${sec}`).catch(() => {}); });
+    // (iOS 지연 이탈 알림 away-now 포함 — 발송 전에 돌아왔으면 취소)
+    AWAY_NOTIF_IDS.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
   };
 
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.

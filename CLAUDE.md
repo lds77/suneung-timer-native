@@ -197,6 +197,28 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
 - 🔥모드 이탈 시: 즉시 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
   iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
+- **'화면 끄기/잠금'은 이탈이 아니다** (양 플랫폼, 다음 네이티브 빌드~): 화면을 끄면 앱이
+  background로 내려가지만 다른 앱을 쓰는 게 아니므로 이탈 처리하지 않는다 — 안드 화면 고정(pin)
+  중과 동일 취급. 공통 순수 로직은 `src/utils/focusAway.js`(테스트 有)
+  - **안드**: `modules/screen-pin`의 `screenState()`(PowerManager.isInteractive + SCREEN_ON/OFF
+    브로드캐스트 시각) → 즉시 판정. 우회 방지: 화면을 다시 켠 뒤 10초 넘게 앱으로 안 돌아오면
+    그 구간만 이탈로 계산
+  - **iOS**: 잠금과 앱 전환이 같은 이벤트라 즉시 구분 불가 + **백그라운드에선 JS 타이머가 멈춰**
+    나중에 JS로 판단할 수도 없다. 그래서 역할을 나눈다 —
+    ① JS는 이탈 알림을 즉시가 아니라 20초 뒤로 예약(`IOS_AWAY_NOTIF_DELAY_SEC`, id `away-now`),
+    ② `modules/focus-shield`가 background 진입 시 `beginBackgroundTask`로 25초 버티며
+    `isProtectedDataAvailable`을 감시(잠기면 약 10초 뒤 false) → 잠금이면 예약된 알림/넛지를
+    네이티브가 직접 취소(`AWAY_NOTIF_IDS` — **JS의 identifier와 반드시 일치**),
+    ③ 이탈 카운트는 복귀 시 `consumeLockedAt()`으로 확정.
+    부작용으로 **iOS는 이탈 중 Live Activity '이탈 중' 부제를 더 이상 세우지 않는다**
+    (판별 전에 세우면 잠금화면에 오표시되고, 나중에 되돌릴 방법이 없어서 내린 결정)
+  - iOS 한계(수용): **기기 암호를 안 건 사용자는 감지 불가 → 기존대로 이탈 처리**.
+    또 **잠금이 감지되면 그 백그라운드 구간 전체가 이탈 면제**된다 — 잠금 후 잠금화면에서
+    바로 다른 앱을 열어 오래 쓰고 돌아와도 이탈 0. 앱이 정지돼 잠금 해제 시각을 알 수 없어
+    공개 API로는 못 막는다(안드는 `lastOnAt`으로 막음). exam 무결성이 iOS에서 더 약함
+  - 알림 id(`away-now`, `away-nudge-*`)는 **`focusAway.js`의 `AWAY_NOTIF_IDS`가 단일 출처**이고
+    Swift `AWAY_NOTIF_IDS`와 일치해야 한다 — `focusAway.test.js`가 Swift 파일을 직접 읽어 대조
+  - 구빌드에는 네이티브 함수가 없어 두 경로 모두 조용히 기존 동작 유지(OTA 안전)
 - Android 12+ 정확한 알람 권한 최초 1회 안내
 - 배터리 최적화 설정 바로가기 (SettingsScreen + 온보딩 Step 5)
 - **iOS Live Activity**: 실행 중 타이머를 잠금화면/Dynamic Island에 표시 (`src/utils/liveActivity.js`)
