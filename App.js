@@ -634,7 +634,11 @@ function LockOverlay() {
   const CONTENT_MAX_WIDTH = isTabletLock ? 520 : undefined;
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View
+      // 마지막 터치 시각 기록 — iOS에서 '화면 꺼짐'과 '앱 나감'을 가르는 단서.
+      // capture 단계에서 훔쳐보기만 하고 false를 돌려줘 슬라이드 해제 PanResponder를 방해하지 않는다
+      onStartShouldSetResponderCapture={() => { try { app.noteUserTouch?.(); } catch {} return false; }}
+      style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* 컨텐츠 래퍼 — 태블릿에서 maxWidth로 중앙 정렬 */}
       <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignItems: 'center' }}>
         {/* 첫 사용 한 줄 가이드 */}
@@ -643,7 +647,7 @@ function LockOverlay() {
             style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="lock-closed" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.8)" />
-              <Text style={{ fontSize: isTabletLock ? 15 : 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
+              <Text style={{ flexShrink: 1, fontSize: isTabletLock ? 15 : 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요{'\n'}화면이 꺼져도 기록은 계속돼요</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -802,7 +806,12 @@ function MainApp() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: T.bg }}>
+    <View
+      // 앱 어디를 만져도 마지막 터치 시각 기록 — 🔥모드에서 '화면이 꺼진 것'과 '사람이 나간 것'을
+      // 가르는 단서(useAppState의 wasIdleBeforeBackground). capture에서 false를 돌려주므로
+      // 터치 처리 자체에는 관여하지 않는다
+      onStartShouldSetResponderCapture={() => { try { app.noteUserTouch?.(); } catch {} return false; }}
+      style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <NavigationContainer ref={navigationRef}>
@@ -875,7 +884,7 @@ function MainApp() {
               activeOpacity={0.8}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                 <Ionicons name="flash" size={15} color="#FF6B6B" />
-                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B' }}>화면 켜두고 집중 도전!</Text>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B' }}>폰 내려놓고 집중 도전!</Text>
               </View>
               <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 보너스에 도전해요</Text>
               <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>이탈 0회 시 +15점! · 다크모드 자동 전환</Text>

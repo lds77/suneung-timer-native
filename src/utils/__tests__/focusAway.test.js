@@ -3,8 +3,30 @@ import fs from 'fs';
 import path from 'path';
 import {
   isScreenOffState, screenOffAwayMs, isRealAwayAfterScreenOn, offHappenedAround,
-  SCREEN_OFF_RACE_MS, SCREEN_ON_GRACE_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS,
+  wasIdleBeforeBackground,
+  SCREEN_OFF_RACE_MS, SCREEN_ON_GRACE_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
 } from '../focusAway';
+
+// iOS 전용: 백그라운드 전환 직전 터치 유무로 '화면 자동 꺼짐'과 '사람이 나감'을 가른다
+describe('wasIdleBeforeBackground', () => {
+  const NOW = 2_000_000;
+
+  it('방금 화면을 만졌으면 사람이 나간 것 — 이탈 판정 대상', () => {
+    expect(wasIdleBeforeBackground(NOW - 500, NOW)).toBe(false);
+    expect(wasIdleBeforeBackground(NOW - (IDLE_TOUCH_GAP_MS - 1), NOW)).toBe(false);
+  });
+
+  it('한동안 터치가 없었으면 화면이 꺼진 것 — 이탈 아님', () => {
+    expect(wasIdleBeforeBackground(NOW - IDLE_TOUCH_GAP_MS, NOW)).toBe(true);
+    expect(wasIdleBeforeBackground(NOW - 10 * 60000, NOW)).toBe(true);
+  });
+
+  it('터치 기록이 없으면 무동작으로 본다 — 오판 시 관대한 쪽(이탈 미기록)이 안전', () => {
+    expect(wasIdleBeforeBackground(0, NOW)).toBe(true);
+    expect(wasIdleBeforeBackground(null, NOW)).toBe(true);
+    expect(wasIdleBeforeBackground(undefined, NOW)).toBe(true);
+  });
+});
 
 describe('isScreenOffState', () => {
   const NOW = 1_000_000;

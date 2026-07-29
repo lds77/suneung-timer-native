@@ -10,9 +10,9 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.38 (Android versionCode 68 — 2026-07-26 Play 제출, 심사 중).
-  라이브: **iOS 1.0.36** / **Android 1.0.37(vc64)**. iOS는 1.0.37을 빌드하지 않았고(무료 빌드 할당량 소진)
-  buildNumber 53을 그대로 둔 채 2026-08-01 이후 1.0.38로 직행 예정.
+- **현재 버전**: 1.0.39 (iOS buildNumber 53 / Android versionCode 70 — **2026-08 초 양대 스토어 동시 제출 예정**).
+  라이브: **iOS 1.0.36** / **Android 1.0.38(vc68, 2026-07-29 승인)**. iOS는 1.0.37·1.0.38을 빌드하지 않았고
+  (무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) buildNumber 53으로 1.0.39에 직행.
   → 릴리스 진행 상태의 단일 진입점은 **`docs/release-next-build-checklist.md`** (이 줄보다 그 문서가 최신)
 
 ---
@@ -166,9 +166,24 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 ### 타이머
 - 모드: 카운트다운 / 자유(카운트업) / 뽀모도로 / 랩 스탑워치 / 연속(sequence, 여러 항목 자동 이어달리기)
 - **단일 활성 타이머 제약**: 랩을 제외하고 한 번에 하나만 실행 가능
-- 집중모드: 🔥(screen_on, 화면 켜짐 + 잠금 오버레이) / 📖(screen_off, 화면 꺼짐)
+- 집중모드: 🔥(screen_on, 잠금 오버레이 + 이탈 감지) / 📖(screen_off, 조용히 타이머만)
+  ※내부 이름은 screen_on/off지만 **2026-07-29부터 🔥도 화면을 계속 켜 두지 않는다**(아래 참조)
 - 울트라집중 잠금강도: normal / focus / exam (exam은 일시정지 차단, 이탈 시 exitCount 기록,
   안드로이드는 OS 화면 고정 `startLockTask` — `modules/screen-pin` 로컬 Expo 모듈 + `src/utils/screenPin.js` 래퍼)
+- **🔥모드 화면 꺼짐은 시스템에 맡긴다** (양 플랫폼, 2026-07-29~ 다음 네이티브 빌드):
+  예전엔 keep-awake로 화면을 계속 켜 뒀지만 배터리 부담이 커서 **keep-awake를 잡지 않는다**.
+  무동작 감지·터치 리셋은 전부 OS가 하던 대로 하고, 기기 설정의 '화면 시간 초과'가 그대로 적용된다.
+  설정 항목 없음(항상). ※**앱이 화면을 직접 끄는 공개 API는 양 플랫폼 모두 없다** — 안 잡는 게 전부이고,
+  기기가 '화면 계속 켜기'면 안 꺼진다
+  - 이 동작은 위 '화면 끄기는 이탈이 아님' 규칙에 **전적으로 의존**한다. 그래서 **안드 구빌드
+    (`screenStateSupported()`가 false = 네이티브 screenState 없음)에서는 예전처럼 keep-awake를 유지**한다 —
+    안 그러면 화면이 꺼질 때마다 스스로 이탈을 만들어낸다(OTA 안전장치)
+  - **iOS 판정 근거는 '마지막 터치 시각'**(`wasIdleBeforeBackground`, 15초): 다른 앱으로 나가려면
+    반드시 화면을 만져야 하므로 **한동안 터치 없이 백그라운드 = 화면이 꺼진 것**이다. iOS엔 안드의
+    `screenState()` 같은 수단이 없고 네이티브 잠금 감지는 암호 미설정 기기에서 실패하므로 이 판정이
+    오탐(멀쩡한 사용자에게 이탈)을 막는 핵심이다. 터치 기록은 App.js **루트 View + 잠금 오버레이**의
+    `onStartShouldSetResponderCapture`(false 반환 — 터치 처리엔 관여 안 함)가 갱신
+  - 안드는 네이티브 `screenState()`가 정확하므로 터치 판정을 쓰지 않는다(우회 방지 10초 규칙 그대로)
 - 100ms 틱 + `resumedAt`/`elapsedSecAtResume` 벽시계 기준 계산 → 백그라운드에서도 정확
 - 공부법 프리셋: SubjectsScreen의 STUDY_METHODS (학년별 연속모드 템플릿, 출처 표기)
 
@@ -310,17 +325,17 @@ eas build --profile preview --platform android
 
 ---
 
-## 출시 현황 (2026-07-26 기준)
+## 출시 현황 (2026-07-29 기준)
 
 > ※이 표는 쉽게 낡는다. 진행 중인 릴리스의 최신 상태는 항상 `docs/release-next-build-checklist.md`를 볼 것.
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 라이브 **1.0.36** (2026-07-23 배포 — 스터디룸·오답노트 첫 출시. 1.0.36은 스크린샷 사유 2.3.3 리젝 후 실제화면으로 교체해 승인). **1.0.37은 iOS 미빌드**(무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) → 8/1 이후 1.0.38(buildNumber 53) 빌드 예정. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 라이브 **1.0.37(vc64)** (2026-07-26 승인 확인), **1.0.38(vc68) 전체출시 제출 — 심사 중**. vc68이 상시 타이머 알림·오답노트 사진첨부·라운지 신고를 처음 출시 |
+| iOS | App Store 라이브 **1.0.36** (2026-07-23 배포 — 스터디룸·오답노트 첫 출시. 1.0.36은 스크린샷 사유 2.3.3 리젝 후 실제화면으로 교체해 승인). **1.0.37·1.0.38은 iOS 미빌드**(무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) → **8월 초 1.0.39(buildNumber 53) 빌드·제출 예정**. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 라이브 **1.0.38(vc68)** (2026-07-29 승인 — 상시 타이머 알림·오답노트 사진첨부·라운지 신고 첫 출시). 다음은 **1.0.39(vc70)**, 8월 초 iOS와 동시 제출 예정 |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 2026-07-14 기준 Play 활성기기 94 · MAU 약 100 · 총 설치 198 / iOS 90일 다운로드 185 (6월 대비 약 2배) |
-| 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지 — **1.0.35 이후 머지 보류 중**(vc68 승인이 조건) |
+| 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지 — **1.0.35 이후 머지 보류 중**. vc68 승인(07-29)으로 조건은 풀렸고 머지만 남음 |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
 
 ---

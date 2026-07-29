@@ -28,8 +28,8 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS } from '../utils/focusAway';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -295,8 +295,9 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
-  // ═══ 집중 모드 (🔥 화면 켜두고 집중 도전 / 📖 화면 끄고 편하게 공부) ═══
-  // 'screen_on' = 🔥모드: keep-awake + 이탈감지 + 다크 + 최소밝기
+  // ═══ 집중 모드 (🔥 폰 내려놓고 집중 도전 / 📖 편하게 공부) ═══
+  // 'screen_on' = 🔥모드: 잠금 오버레이 + 이탈감지 + 다크 + 최소밝기
+  //   (이름은 남아 있지만 2026-07-29부터 화면을 계속 켜 두지 않는다 — 시스템 화면 꺼짐에 맡김)
   // 'screen_off' = 📖모드: 조용히 타이머만
   // null = 모드 미선택 (타이머 안 돌아가는 상태)
   const [focusMode, setFocusMode] = useState(null);
@@ -308,6 +309,30 @@ export function AppProvider({ children }) {
   // FocusScreen 잠금화면 상태 — Context에서 관리해 MainApp 리마운트 시에도 유지 (iOS Modal 투명 버그 방지)
   const [screenLocked, setScreenLockedState] = useState(false);
   const screenLockedRef = useRef(false);
+
+  // ── 🔥모드 화면 꺼짐은 시스템에 맡긴다 (2026-07-29) ──────────────────────
+  // 예전에는 🔥모드가 keep-awake로 화면을 계속 켜 뒀지만, 잠금화면을 덮어놓고 공부하는 동안
+  // 화면이 안 꺼져 배터리 부담이 컸다(사용자 요청). 이제 keep-awake를 잡지 않고 무동작 감지·
+  // 터치 리셋을 전부 OS에 맡긴다 — 시스템의 화면 시간 초과가 그대로 적용된다.
+  // 화면이 꺼져 백그라운드로 내려가도 이탈이 아니다 (2026-07-28 규칙, focusAway.js 참조).
+  // 단, 안드 구빌드(네이티브 screenState 없음)는 그 규칙이 없어 화면 끄기가 아직 이탈로 잡히므로
+  // 예전처럼 화면을 계속 켜 둔다 — 안 그러면 화면이 꺼질 때마다 스스로 이탈을 만들어낸다.
+  const keepScreenAwake = () => Platform.OS === 'android' && !screenStateSupported();
+  const keepAwakeOn = useRef(false);
+  const setKeepAwake = async (on) => {
+    if (keepAwakeOn.current === on) return;
+    keepAwakeOn.current = on;
+    try {
+      if (on) await activateKeepAwakeAsync('focus');
+      else deactivateKeepAwake('focus');
+    } catch {}
+  };
+
+  // 마지막으로 화면을 만진 시각 — iOS에서 '화면이 꺼진 것'과 '사람이 나간 것'을 가르는 유일한 단서
+  // (App.js 루트/잠금 오버레이의 터치 capture가 갱신)
+  const lastTouchAt = useRef(0);
+  const noteUserTouch = useCallback(() => { lastTouchAt.current = Date.now(); }, []);
+
   const setScreenLocked = useCallback((locked) => {
     screenLockedRef.current = locked;
     setScreenLockedState(locked);
@@ -358,7 +383,9 @@ export function AppProvider({ children }) {
         const b = await Brightness.getBrightnessAsync();
         originalBrightness.current = b > 0.06 ? b : 0.4;
       } catch { originalBrightness.current = 0.4; }
-      await activateKeepAwakeAsync('focus');
+      // 화면 꺼짐은 시스템에 맡긴다 (구빌드 안드만 예전처럼 켜 둠 — keepScreenAwake 주석 참조)
+      lastTouchAt.current = Date.now();
+      await setKeepAwake(keepScreenAwake());
       try { await Brightness.setBrightnessAsync(0.05); } catch {}
     } catch {}
     setFocusMode('screen_on');
@@ -405,7 +432,7 @@ export function AppProvider({ children }) {
     const wasScreenOn = focusModeRef.current === 'screen_on';
     const brightnessToRestore = wasScreenOn ? originalBrightness.current : null;
     if (wasScreenOn) {
-      try { deactivateKeepAwake('focus'); } catch {}
+      setKeepAwake(false);
       originalBrightness.current = null;
       unpinScreen(); // 시험 강도 화면 고정 해제 (미고정 상태면 no-op)
       setShield(false); // iOS 앱 차단 방패 해제 (미적용 상태면 no-op)
@@ -549,7 +576,7 @@ export function AppProvider({ children }) {
           saveTimerSnapshot({ savedAt: Date.now(), timers: timersRef.current });
         }
 
-        // 🔥모드에서만 이탈 감지 (keep-awake라서 background = 진짜 이탈)
+        // 🔥모드에서만 이탈 감지 (background = 다른 앱으로 나갔거나 화면이 꺼진 것 — 아래에서 가른다)
         // 단, 안드 화면 고정 중의 배경 전환은 화면 끄기/전화 수신 등 OS 이벤트뿐이고
         // 다른 앱 사용이 불가능하므로 이탈로 치지 않는다 (고정 해제 후 나간 경우만 이탈)
         const awayCandidate = mode === 'screen_on' && hasRunning
@@ -557,7 +584,13 @@ export function AppProvider({ children }) {
         const pinnedNow = awayCandidate && Platform.OS === 'android' && isScreenPinned();
         // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
         // 화면을 다시 켠 뒤에도 앱으로 안 돌아오면 그때부터 이탈로 계산한다 (active 복귀 처리 참조).
-        const screenOffNow = awayCandidate && !pinnedNow && isScreenOff();
+        // iOS: 한동안 화면을 만지지 않은 상태에서 백그라운드로 내려갔다면 사람이 나간 게 아니라
+        // 화면이 꺼진 것이다 — 다른 앱으로 나가려면 반드시 화면을 만져야 하기 때문(focusAway.js).
+        // iOS는 안드처럼 화면 상태를 물어볼 수단이 없고 네이티브 잠금 감지는 암호 미설정 기기에서
+        // 실패하므로, 이 판정이 없으면 화면이 꺼질 때마다 이탈로 잡힌다.
+        // 안드는 네이티브 screenState()가 정확하므로 쓰지 않는다(우회 방지 10초 규칙 유지).
+        const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
+        const screenOffNow = awayCandidate && !pinnedNow && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
         const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
         const markAway = () => {
@@ -643,6 +676,9 @@ export function AppProvider({ children }) {
         cancelAwayNudges();
         dismissAwaySticky();
         setLiveActivityAway(false);
+
+        // 복귀 자체가 사용자 조작 — 다음 백그라운드 전환을 '무동작 화면 꺼짐'으로 오인하지 않도록 갱신
+        lastTouchAt.current = Date.now();
 
         // 시험 강도(안드): 고정을 풀고 나갔다 돌아오면 자동 재고정 (세션이 살아있는 동안)
         if (Platform.OS === 'android'
@@ -2843,7 +2879,7 @@ export function AppProvider({ children }) {
       toast, showToast, showToastCustom,
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
-      screenLocked, setScreenLocked,
+      screenLocked, setScreenLocked, noteUserTouch,
       favs, setFavs, addFav, removeFav,
       countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,

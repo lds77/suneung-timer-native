@@ -31,6 +31,28 @@ export const AWAY_NOTIF_IDS = [AWAY_NOW_ID, ...AWAY_NUDGE_SECS.map(s => `away-nu
 // (modules/focus-shield). 감지 지연(약 10초)보다 넉넉히 잡아야 잠금화면 헛알림이 안 뜬다.
 export const IOS_AWAY_NOTIF_DELAY_SEC = 20;
 
+// ─── 🔥모드 화면 꺼짐은 시스템에 맡긴다 (2026-07-29) ──────────────────────
+// 예전에는 🔥모드가 keep-awake로 화면을 계속 켜 뒀는데, 잠금화면을 덮어놓고 공부하는 동안
+// 화면이 안 꺼져 배터리 부담이 컸다. 이제 keep-awake를 잡지 않고 기기 설정의 화면 시간 초과에
+// 그대로 맡긴다(무동작 감지·터치 리셋 모두 OS가 원래 하던 대로 한다).
+// ※앱이 화면을 직접 끄는 공개 API는 양 플랫폼 모두 없다 — '꺼짐 방지를 안 하는 것'이 전부다.
+
+// iOS: 백그라운드 전환 직전 이만큼 터치가 없었다면 '화면 자동 꺼짐(잠금)'으로 본다.
+// 다른 앱으로 나가려면 반드시 화면을 만져야 하므로(홈 제스처·앱 전환·알림 탭 모두 터치),
+// '한동안 아무 터치 없음 + 백그라운드'는 사람이 나간 게 아니라 화면이 꺼진 것이다.
+// iOS는 안드의 screenState() 같은 수단이 없고 네이티브 잠금 감지도 암호 미설정 기기에선
+// 실패하므로, 이 판정이 없으면 화면이 꺼질 때마다 이탈로 잡힌다.
+// 15초인 이유: iOS 자동 잠금의 최솟값이 30초라 자동 꺼짐은 항상 마지막 터치 +30초 이후에 일어나고,
+// 앱 전환은 터치 직후(1~2초)에 일어난다 — 두 경우 사이가 넉넉히 벌어지는 값.
+export const IDLE_TOUCH_GAP_MS = 15000;
+
+// lastTouchAt: 마지막으로 화면을 만진 시각(ms). 기록이 없으면 '무동작'으로 본다 —
+// 오판했을 때 이탈을 놓치는 쪽(관대)이 멀쩡한 사용자에게 이탈을 씌우는 쪽보다 낫다.
+export function wasIdleBeforeBackground(lastTouchAt, now = Date.now()) {
+  if (!lastTouchAt) return true;
+  return now - lastTouchAt >= IDLE_TOUCH_GAP_MS;
+}
+
 // 네이티브 screenState()가 준 값으로 '지금 화면이 꺼져 있는가' 판정
 // state: { interactive: boolean, lastOnAt: number, lastOffAt: number } | null
 export function isScreenOffState(state, now = Date.now()) {

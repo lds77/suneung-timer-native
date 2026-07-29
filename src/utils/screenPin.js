@@ -43,6 +43,11 @@ const screenState = () => {
   try { return mod.screenState(); } catch { return null; }
 };
 
+// 이 빌드의 네이티브가 화면 상태를 알려줄 수 있는가.
+// 없으면 화면 끄기가 여전히 '이탈'로 잡히므로, 잠금화면 무동작 자동 꺼짐을 켜면 안 된다
+// (1분마다 스스로 이탈을 만들어내게 된다 — vc70 미만 구빌드 OTA 안전장치).
+export const screenStateSupported = () => !!(mod && typeof mod.screenState === 'function');
+
 // 지금 화면이 꺼져 있는가 (백그라운드 전환 원인이 '화면 끄기'인지 판별)
 export const isScreenOff = () => {
   if (Platform.OS !== 'android') return false;

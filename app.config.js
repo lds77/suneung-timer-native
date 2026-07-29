@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.38',
+    version: '1.0.39',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '53', // 1.0.38 예정(iOS는 무료 빌드 할당량 리셋 후 = 2026-08-01 이후 빌드). build52=1.0.36, 1.0.37은 iOS 미빌드
+      buildNumber: '53', // 1.0.39 (2026-08-01 이후 빌드 — 무료 빌드 할당량 리셋 대기). build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -67,9 +67,10 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 68, // 1.0.38: 상시 타이머 알림(timer-notif) + 오답노트 사진첨부 + 스터디룸 대개편.
+      versionCode: 70, // 1.0.39: 화면 끄기/잠금은 이탈 아님(screen-pin screenState) + 🔥모드 화면 꺼짐을 시스템에 맡김.
+      // vc68=1.0.38(2026-07-29 승인·라이브), vc64=1.0.37.
       // vc66은 Play 검토에서 '기기 402대 지원 중단' 경고 — CAMERA 권한의 카메라 필수 암시 때문(미제출 폐기).
-      // vc68 = withCameraNotRequired 플러그인 적용본 (vc64=1.0.37) — 짝수 관행 유지
+      // vc68부터 withCameraNotRequired 플러그인 적용 — 짝수 관행 유지
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
