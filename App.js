@@ -776,12 +776,13 @@ function MainApp() {
     const a = appRef.current;
     if (!a.settings.guideMode) a.updateSettings({ guideMode: true }); // 첫 1회 안내 배너 소비
     if (id === 'exam' && !a.settings.guideUltraPick) {
-      a.updateSettings({ guideUltraPick: true });
       Alert.alert(
         '울트라집중으로 시작할까요?',
         '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 10초 넘게 다른 앱을 쓰면 타이머가 멈춰요'
           + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
-        [{ text: '다시 고르기', style: 'cancel' }, { text: '시작하기', onPress: () => a.resolveModeSelect('exam') }],
+        // 안내를 소비하는 건 '실제로 시작한' 경우만 — 물러섰는데 다음에 안 뜨면 안내가 아니다
+        [{ text: '다시 고르기', style: 'cancel' },
+         { text: '시작하기', onPress: () => { a.updateSettings({ guideUltraPick: true }); a.resolveModeSelect('exam'); } }],
       );
       return;
     }
@@ -926,7 +927,8 @@ function MainApp() {
                   activeOpacity={0.8}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Ionicons name={c.icon} size={16} color={c.color} />
-                    <Text style={{ fontSize: 15, fontWeight: '900', color: c.color }}>{c.label}</Text>
+                    {/* OS 글꼴 크기를 키운 기기에서 오른쪽 '+N점'이 밀려나지 않도록 라벨만 줄인다 */}
+                    <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 15, fontWeight: '900', color: c.color }}>{c.label}</Text>
                     {isLast && (
                       <View style={{ backgroundColor: c.color + '30', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
                         <Text style={{ fontSize: 10, fontWeight: '800', color: c.color }}>지난번 선택</Text>
