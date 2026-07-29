@@ -25,6 +25,9 @@ class ScreenPinModule : Module() {
     // 프로세스 스코프 — JS 리로드로 모듈이 재생성돼도 마지막 전환 시각은 유지
     @Volatile private var lastScreenOnAt: Long = 0L
     @Volatile private var lastScreenOffAt: Long = 0L
+    // 잠금해제(키가드 해제) 완료 시각. 다른 앱은 잠금을 풀어야 열 수 있으므로, 이탈 시간의
+    // 기준점은 '화면을 켠 순간'이 아니라 여기여야 한다 (잠금화면 체류·패턴 입력은 이탈이 아님).
+    @Volatile private var lastUnlockAt: Long = 0L
   }
 
   private var screenReceiver: BroadcastReceiver? = null
@@ -70,12 +73,16 @@ class ScreenPinModule : Module() {
           when (intent?.action) {
             Intent.ACTION_SCREEN_ON -> lastScreenOnAt = System.currentTimeMillis()
             Intent.ACTION_SCREEN_OFF -> lastScreenOffAt = System.currentTimeMillis()
+            Intent.ACTION_USER_PRESENT -> lastUnlockAt = System.currentTimeMillis()
           }
         }
       }
       val filter = IntentFilter().apply {
         addAction(Intent.ACTION_SCREEN_ON)
         addAction(Intent.ACTION_SCREEN_OFF)
+        // 잠금해제 완료. SCREEN_ON/OFF와 마찬가지로 매니페스트 등록이 불가해 동적 등록만 가능하다.
+        // 잠금을 안 건 기기에서는 아예 오지 않으므로, JS는 값이 없으면 화면 켬 시각으로 폴백한다.
+        addAction(Intent.ACTION_USER_PRESENT)
       }
       try {
         if (Build.VERSION.SDK_INT >= 33) {
@@ -101,7 +108,8 @@ class ScreenPinModule : Module() {
       return@Function mapOf(
         "interactive" to interactive,
         "lastOnAt" to lastScreenOnAt.toDouble(),
-        "lastOffAt" to lastScreenOffAt.toDouble()
+        "lastOffAt" to lastScreenOffAt.toDouble(),
+        "lastUnlockAt" to lastUnlockAt.toDouble()
       )
     }
 

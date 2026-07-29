@@ -80,6 +80,30 @@ describe('screenOffAwayMs', () => {
   it('경계: 화면 켠 시각이 백그라운드 진입과 정확히 같으면 0 (진입 전 정보로 간주)', () => {
     expect(screenOffAwayMs(BG, BG, BG + 60000)).toBe(0);
   });
+
+  // ─── 잠금해제 기준 (2026-07-30 실기기 재현 버그) ───────────────────────
+  // 화면 켬 기준으로 재면 잠금화면 체류·패턴 입력 시간이 이탈로 잡혔다.
+  it('잠금화면에 머문 시간은 이탈이 아니다 — 잠금 푼 시점부터 잰다', () => {
+    // 화면 켬(+15초) → 잠금화면 12초 체류 → 해제(+27초) → 0.3초 뒤 앱 복귀
+    const on = BG + 15000, unlock = BG + 27000, now = BG + 27300;
+    expect(screenOffAwayMs(BG, on, now, unlock)).toBe(300);
+    expect(isRealAwayAfterScreenOn(screenOffAwayMs(BG, on, now, unlock))).toBe(false);
+    // 수정 전 동작(화면 켬 기준)이면 12.3초 → 이탈로 오판했다
+    expect(isRealAwayAfterScreenOn(screenOffAwayMs(BG, on, now))).toBe(true);
+  });
+
+  it('잠금 푼 뒤 다른 앱을 쓰다 온 것은 그대로 이탈로 잡힌다', () => {
+    const on = BG + 15000, unlock = BG + 18000, now = BG + 138000; // 해제 후 2분
+    expect(screenOffAwayMs(BG, on, now, unlock)).toBe(120000);
+    expect(isRealAwayAfterScreenOn(screenOffAwayMs(BG, on, now, unlock))).toBe(true);
+  });
+
+  it('잠금 미설정/구빌드: 잠금해제 기록이 없거나 낡았으면 화면 켬 기준으로 폴백', () => {
+    const on = BG + 15000, now = BG + 45000;
+    expect(screenOffAwayMs(BG, on, now, 0)).toBe(30000);          // USER_PRESENT 자체가 안 옴
+    expect(screenOffAwayMs(BG, on, now, undefined)).toBe(30000);  // 구빌드 — 필드 없음
+    expect(screenOffAwayMs(BG, on, now, BG - 5000)).toBe(30000);  // 이전 사이클의 낡은 값
+  });
 });
 
 describe('offHappenedAround', () => {

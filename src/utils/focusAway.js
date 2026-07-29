@@ -72,12 +72,26 @@ export function offHappenedAround(bgAt, lastOffAt) {
 }
 
 // 화면 끄기로 백그라운드에 갔다가 돌아왔을 때, 이탈로 계산할 시간(ms).
-// bgAt: 백그라운드 진입 시각, lastOnAt: 화면을 마지막으로 켠 시각.
+// bgAt: 백그라운드 진입 시각, lastOnAt: 화면을 마지막으로 켠 시각,
+// lastUnlockAt: 잠금해제(키가드 해제)를 마친 시각.
 // 화면을 켠 기록이 백그라운드 진입보다 이전이면(정보 없음/이상값) 이탈 0으로 본다.
-export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now()) {
+//
+// ★기준점은 '화면을 켠 순간'이 아니라 '잠금을 푼 순간'이다★ (2026-07-30 수정)
+// 다른 앱은 잠금을 풀어야 열 수 있으므로, 잠금화면에 머문 시간(알림 확인)과 패턴·PIN을
+// 입력한 시간은 다른 앱을 쓴 게 아니다. 화면 켬 기준으로 재면 이 시간이 전부 이탈로 잡혀,
+// 잠금화면을 12초만 들여다봐도 이탈 1회가 조용히 찍혔다(알림 없이 — 화면 꺼짐 감지는
+// 정상 동작하므로 markAway를 안 거치고 여기서만 이탈이 확정되기 때문).
+// 기기 '화면이 꺼진 후 잠금 시간' 설정 때문에 짧게 끄면 잠금이 안 걸려 재현이 안 되고,
+// 오래 끄면 패턴을 요구받아 재현되는 탓에 '화면을 오래 꺼서 생긴 문제'로 오인하기 쉽다.
+//
+// 잠금해제 기록이 이번 화면 켬보다 앞서면(잠금 미설정 기기 → USER_PRESENT 자체가 안 옴,
+// 또는 이전 사이클의 낡은 값) 화면 켬 시각으로 폴백한다.
+export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now(), lastUnlockAt = 0) {
   const on = lastOnAt || 0;
   if (!on || on <= (bgAt || 0)) return 0;
-  return Math.max(0, now - on);
+  const unlock = lastUnlockAt || 0;
+  const anchor = unlock > on ? unlock : on;
+  return Math.max(0, now - anchor);
 }
 
 // 위 시간이 이탈로 인정될 만큼 긴가

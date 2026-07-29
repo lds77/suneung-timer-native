@@ -587,7 +587,8 @@ export function AppProvider({ children }) {
         const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
         const markAway = () => {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
-          fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
+          // identifier를 붙여야 복귀 시 트레이에서 지울 수 있다 (안 붙이면 유령 알림으로 남음)
+          fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
           scheduleAwayNudges(charName);
           // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거)
@@ -1157,7 +1158,11 @@ export function AppProvider({ children }) {
     awayNudgeCancelGen.current++;
     // 고정 identifier 전체를 취소 — 리마운트로 세션이 바뀌어도 이전 세션의 넛지까지 정리됨
     // (iOS 지연 이탈 알림 away-now 포함 — 발송 전에 돌아왔으면 취소)
-    AWAY_NOTIF_IDS.forEach(id => { Notifications.cancelScheduledNotificationAsync(id).catch(() => {}); });
+    // 이미 발송된 건 예약 취소로 안 사라지므로 트레이에서도 함께 내린다
+    AWAY_NOTIF_IDS.forEach(id => {
+      Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      Notifications.dismissNotificationAsync(id).catch(() => {});
+    });
   };
 
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
