@@ -170,6 +170,17 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
   ※내부 이름은 screen_on/off지만 **2026-07-29부터 🔥도 화면을 계속 켜 두지 않는다**(아래 참조)
 - 울트라집중 잠금강도: normal / focus / exam (exam은 일시정지 차단, 이탈 시 exitCount 기록,
   안드로이드는 OS 화면 고정 `startLockTask` — `modules/screen-pin` 로컬 Expo 모듈 + `src/utils/screenPin.js` 래퍼)
+- **모드 선택 팝업 = 3지선다** (2026-07-29~): 집중 세션을 새로 시작할 때(`focusMode`가 없을 때)
+  **일반(편하게)/집중/울트라집중**을 고르고, 그 선택이 `settings.ultraFocusLevel`에 저장된다
+  (세션 전용 상태를 만들지 않는다 — 잠금·화면고정·챌린지 판정이 전부 settings를 읽으므로 어긋난다).
+  선택지는 App.js `MODE_CHOICES`, 설정탭 표시는 `FOCUS_LEVELS` — **양쪽 문구를 함께 고칠 것**
+  - 카드에 **집중밀도 선언 보너스(+5/+10/+15, 이탈 0회 기준)를 숫자로 노출**한다 —
+    `density.js`의 공식을 바꾸면 `MODE_CHOICES.bonus`도 함께 고쳐야 한다(약속한 점수가 어긋남)
+  - 이전에는 강도별로 팝업을 건너뛰었다(normal→자동 편하게 / exam→자동 울트라). 온보딩에 강도
+    선택 단계가 없어 **대부분이 기본값 normal에 머물러 3가지 모드의 존재조차 몰랐다**는 게 바꾼 이유.
+    기본값을 `focus`로 바꾸고 기존 사용자도 1회만 normal→focus로 올린다(`modeAskIntro` 플래그)
+  - 울트라집중 첫 선택 시 1회 확인 Alert(`guideUltraPick`), 첫 팝업에 1회 안내 배너(`guideMode`)
+  - 팝업 진입점은 `addTimer`/`startSequence` 두 곳(랩 타이머는 제외) — `requestModeSelect`는 공개 헬퍼
 - **🔥모드 화면 꺼짐은 시스템에 맡긴다** (양 플랫폼, 2026-07-29~ 다음 네이티브 빌드):
   예전엔 keep-awake로 화면을 계속 켜 뒀지만 배터리 부담이 커서 **keep-awake를 잡지 않는다**.
   무동작 감지·터치 리셋은 전부 OS가 하던 대로 하고, 기기 설정의 '화면 시간 초과'가 그대로 적용된다.

@@ -35,10 +35,12 @@ import TimePickerGrid from '../components/TimePickerGrid';
 // 모듈 레벨 스타일 참조 — SettingsScreen 렌더 시 갱신
 let _styles = null;
 
+// 타이머 시작 시 뜨는 3지 선택 팝업(App.js MODE_CHOICES)과 같은 값. 여기 설정은 그 팝업의
+// 기본 선택값이고, 실제 강도는 시작할 때마다 고른다 — 문구를 고칠 땐 양쪽을 함께 볼 것.
 const FOCUS_LEVELS = [
-  { id: 'normal', label: '일반',       desc: '자동 편한모드 · 이탈 감지 없이 자유롭게 공부해요', color: '#4CAF50' },
-  { id: 'focus',  label: '집중',       desc: '모드 선택 가능 · 1분 이탈 시 챌린지 문구 입력 필요', color: '#FFB74D' },
-  { id: 'exam',   label: '울트라집중',  desc: '자동 집중모드 · 일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지'
+  { id: 'normal', label: '일반(편하게)', desc: '이탈 감지 없이 자유롭게 · 집중 점수 +5', color: '#4CAF50' },
+  { id: 'focus',  label: '집중',        desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력 · 집중 점수 +10', color: '#FFB74D' },
+  { id: 'exam',   label: '울트라집중',   desc: '일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지 · 집중 점수 +15'
       + (Platform.OS === 'android' ? ' · 화면 고정(홈 버튼 차단)' : ''), color: '#FF6B6B' },
 ];
 
@@ -996,12 +998,12 @@ export default function SettingsScreen() {
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowFocusPicker(false); }} />
         <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>기본 잠금 강도</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 24, marginBottom: 12 }}>
             <Ionicons name="information-circle-outline" size={13} color={T.sub} />
-            <Text style={{ fontSize: 12, color: T.sub }}>타이머 시작 시 적용돼요</Text>
+            <Text style={{ fontSize: 12, color: T.sub }}>타이머를 시작할 때마다 고를 수 있어요 · 여기서 정한 건 기본 선택값</Text>
           </View>
           {FOCUS_LEVELS.map(lv => {
             const sel = (app.settings.ultraFocusLevel || 'normal') === lv.id;

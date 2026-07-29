@@ -6,7 +6,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Modal,
   TextInput, ScrollView, Platform, Dimensions,
-  Animated, PanResponder, useWindowDimensions, Linking,
+  Animated, PanResponder, useWindowDimensions, Linking, Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -749,6 +749,19 @@ function parseDeepLink(url) {
 }
 
 // ── 메인 ──
+// 타이머 시작 시 뜨는 3지 선택 — 잠금 강도(settings.ultraFocusLevel)와 집중모드를 한 번에 정한다.
+// 보너스 숫자는 집중밀도 공식의 '선언 보너스'(src/utils/density.js, 이탈 0회 기준)와 같은 값이다.
+// 공식을 바꾸면 여기 숫자도 함께 고칠 것 — 안 맞으면 사용자가 약속받은 점수를 못 받는다.
+const MODE_CHOICES = [
+  { id: 'normal', label: '편하게 공부', icon: 'book-outline', color: '#4CAF50', bonus: 5,
+    desc: '이탈 감지 없음 · 일시정지 자유' },
+  { id: 'focus', label: '집중 도전', icon: 'flash', color: '#FFB74D', bonus: 10,
+    desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력' },
+  { id: 'exam', label: '울트라집중', icon: 'flame', color: '#FF6B6B', bonus: 15,
+    desc: '일시정지 불가 · 10초 이탈 시 타이머 정지'
+      + (Platform.OS === 'android' ? ' · 화면 고정' : '') },
+];
+
 function MainApp() {
   const app = useApp();
   const insets = useSafeAreaInsets();
@@ -757,6 +770,23 @@ function MainApp() {
   // 위젯 딥링크 처리 (콜드스타트 + 실행 중 수신)
   const appRef = useRef(app);
   appRef.current = app;
+
+  // 모드 선택 — 울트라집중은 처음 고를 때만 1회 확인 (일시정지가 막히는 걸 모르고 골랐다가 당황하는 것 방지)
+  const pickMode = useCallback((id) => {
+    const a = appRef.current;
+    if (!a.settings.guideMode) a.updateSettings({ guideMode: true }); // 첫 1회 안내 배너 소비
+    if (id === 'exam' && !a.settings.guideUltraPick) {
+      a.updateSettings({ guideUltraPick: true });
+      Alert.alert(
+        '울트라집중으로 시작할까요?',
+        '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 10초 넘게 다른 앱을 쓰면 타이머가 멈춰요'
+          + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
+        [{ text: '다시 고르기', style: 'cancel' }, { text: '시작하기', onPress: () => a.resolveModeSelect('exam') }],
+      );
+      return;
+    }
+    a.resolveModeSelect(id);
+  }, []);
   useEffect(() => {
     const handleUrl = (url) => {
       const link = parseDeepLink(url);
@@ -873,34 +903,50 @@ function MainApp() {
       {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지) */}
       {!!app.pendingModeAction && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999 }}>
-          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' }}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood="happy" />
-            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 12, marginBottom: 4 }}>어떤 공부할래?</Text>
-            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 20, textAlign: 'center' }}>집중 방식을 선택하면 타이머가 시작돼요</Text>
+          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 22, width: '100%', maxWidth: 380, alignItems: 'center' }}>
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={50} mood="happy" />
+            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 10, marginBottom: 3 }}>어떻게 공부할래?</Text>
+            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 16, textAlign: 'center' }}>고른 모드에 따라 집중 점수 보너스가 달라져요</Text>
 
-            <TouchableOpacity
-              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#FF6B6B15', borderWidth: 1.5, borderColor: '#FF6B6B60', marginBottom: 10 }}
-              onPress={() => app.resolveModeSelect('screen_on')}
-              activeOpacity={0.8}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Ionicons name="flash" size={15} color="#FF6B6B" />
-                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B' }}>폰 내려놓고 집중 도전!</Text>
+            {/* 첫 1회 안내 — guideMode는 원래 이 설명용으로 만들어 두고 쓰지 않던 플래그 */}
+            {!app.settings.guideMode && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.surface2, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12 }}>
+                <Ionicons name="sparkles-outline" size={13} color={T.accent} />
+                <Text style={{ flexShrink: 1, fontSize: 11.5, color: T.sub, fontWeight: '600' }}>이제 시작할 때마다 모드를 고를 수 있어요</Text>
               </View>
-              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 보너스에 도전해요</Text>
-              <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>이탈 0회 시 +15점! · 다크모드 자동 전환</Text>
-            </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#4CAF5015', borderWidth: 1.5, borderColor: '#4CAF5060', marginBottom: 16 }}
-              onPress={() => app.resolveModeSelect('screen_off')}
-              activeOpacity={0.8}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Ionicons name="book-outline" size={15} color="#4CAF50" />
-                <Text style={{ fontSize: 15, fontWeight: '900', color: '#4CAF50' }}>화면 끄고 편하게 공부</Text>
-              </View>
-              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 없이 편하게 공부해요</Text>
-              <Text style={{ fontSize: 10, color: '#4CAF5099', marginTop: 2 }}>화면 꺼도 OK · 알림 없음 · 기본 점수</Text>
-            </TouchableOpacity>
+            {MODE_CHOICES.map(c => {
+              const isLast = (app.settings.ultraFocusLevel || 'focus') === c.id;
+              const streak = c.id === 'exam' ? (app.settings.ultraStreak || 0) : 0;
+              return (
+                <TouchableOpacity key={c.id}
+                  style={{ width: '100%', padding: 14, borderRadius: 14, backgroundColor: c.color + (isLast ? '20' : '10'), borderWidth: isLast ? 2 : 1.5, borderColor: c.color + (isLast ? 'AA' : '40'), marginBottom: 10 }}
+                  onPress={() => pickMode(c.id)}
+                  activeOpacity={0.8}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name={c.icon} size={16} color={c.color} />
+                    <Text style={{ fontSize: 15, fontWeight: '900', color: c.color }}>{c.label}</Text>
+                    {isLast && (
+                      <View style={{ backgroundColor: c.color + '30', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: c.color }}>지난번 선택</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: c.color }}>+{c.bonus}점</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>{c.desc}</Text>
+                  {streak > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <Ionicons name="flame" size={12} color={c.color} />
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: c.color }}>{streak}일 연속 중 · 오늘도 이어가기</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            <Text style={{ fontSize: 10.5, color: T.sub, marginTop: 2, marginBottom: 12, textAlign: 'center' }}>보너스는 이탈 0회 기준이에요 · 설정 탭에서도 바꿀 수 있어요</Text>
 
             <TouchableOpacity onPress={app.cancelModeSelect}>
               <Text style={{ fontSize: 13, color: T.sub, fontWeight: '600' }}>취소</Text>

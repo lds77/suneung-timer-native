@@ -89,7 +89,12 @@ const DEFAULT_SETTINGS = {
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
   timerOngoingNotif: true, // 안드: 타이머 실행 중 상단바/잠금화면 상시 알림 (iOS Live Activity 대응물)
   appBlockEnabled: false, // iOS 울트라집중 앱 차단 (Screen Time) — 설정탭에서 켬
-  ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
+  // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도) — 타이머 시작 팝업의 기본 선택값이자 마지막 선택.
+  // 기본을 'focus'로 두는 이유: 온보딩에 선택 단계가 없어 기본값에 머무르는 사용자가 대부분인데,
+  // 'normal'이면 집중 도전을 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
+  ultraFocusLevel: 'focus',
+  modeAskIntro: true,   // 위 1회 이관을 이미 마쳤다는 표시 (신규 설치는 처음부터 true — 재이관 방지)
+  guideUltraPick: false, // 울트라집중을 처음 고를 때 1회 확인 안내
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
@@ -264,23 +269,11 @@ export function AppProvider({ children }) {
       scheduleAllPhaseNotifs(timer);
       showToast('start');
     };
-    // 모드 미선택 시 잠금강도별 자동 진입
-    if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'normal';
-      if (level === 'exam') {
-        activateScreenOnMode();
-        setTimeout(startAction, 50);
-      } else if (level === 'normal') {
-        activateScreenOffMode();
-        setTimeout(startAction, 50);
-      } else {
-        setPendingModeAction(() => startAction);
-      }
-    } else {
-      startAction();
-    }
+    // 모드 미선택이면 3지 선택 팝업 (requestModeSelect와 같은 규칙 — 세션당 1회)
+    if (!focusModeRef.current) setPendingModeAction(() => startAction);
+    else startAction();
     return true;
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
   const cancelSequence = useCallback(() => {
     setTimers(prev => prev.map(t => {
@@ -376,7 +369,10 @@ export function AppProvider({ children }) {
   sessionsRef.current = sessions;
 
   // 🔥모드 활성화
-  const activateScreenOnMode = useCallback(async () => {
+  // levelOverride: 모드 선택 팝업이 방금 고른 잠금강도. updateSettings는 다음 렌더에 반영되므로
+  // 여기서 settingsRef를 읽으면 아직 이전 값이다 → 고른 값을 인자로 직접 받는다
+  const activateScreenOnMode = useCallback(async (levelOverride) => {
+    const level = levelOverride || settingsRef.current.ultraFocusLevel || 'normal';
     try {
       // 이미 어두운 값(≤0.06)을 원본으로 캡처하면 복원해도 계속 어두움 → 0.4 폴백
       try {
@@ -392,7 +388,7 @@ export function AppProvider({ children }) {
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
     // 시험 강도(안드로이드): OS 화면 고정 — 홈/최근앱 버튼 차단으로 무의식적 이탈 방지
     // (첫 호출 시 OS가 자체 확인 다이얼로그를 띄움. iOS/Expo Go는 no-op)
-    if (Platform.OS === 'android' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+    if (Platform.OS === 'android' && level === 'exam') {
       pinScreen().then(ok => {
         if (ok && !settingsRef.current.guidePin) {
           updateSettings({ guidePin: true });
@@ -405,8 +401,7 @@ export function AppProvider({ children }) {
     // 시험 강도 + 전체 차단 옵션이 켜져 있으면 허용 앱 빼고 모두 차단(allowAll)
     if (Platform.OS === 'ios') {
       if (settingsRef.current.appBlockEnabled) {
-        const allowAll = !!settingsRef.current.appBlockExamAll
-          && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam';
+        const allowAll = !!settingsRef.current.appBlockExamAll && level === 'exam';
         setShield(true, allowAll ? 'allowAll' : 'block');
       } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
         // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중 도전 시작 때 1회 안내
@@ -455,28 +450,25 @@ export function AppProvider({ children }) {
   }, []);
 
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
+  // 2026-07-29~ 잠금강도별 자동 진입을 없애고 **항상 3지 선택 팝업**을 띄운다.
+  // 이유: 온보딩에 강도 선택 단계가 없어 기본값 normal에 머무른 사용자는 팝업을 볼 일이 없었고,
+  // 결과적으로 3가지 모드(와 밀도 보너스 +5/+10/+15)의 존재 자체를 모른 채 쓰고 있었다.
+  // 세션이 이미 시작된 뒤(focusMode 있음)에는 묻지 않으므로 '타이머마다'가 아니라 '세션마다'다.
   const requestModeSelect = useCallback((action) => {
     if (focusModeRef.current) { action(); return; }
-    const level = settingsRef.current.ultraFocusLevel || 'normal';
-    // 울트라집중: 자동 집중모드(screen_on)
-    if (level === 'exam') {
-      activateScreenOnMode();
-      setTimeout(action, 50);
-      return;
-    }
-    // 일반: 자동 편한모드(screen_off)
-    if (level === 'normal') {
-      activateScreenOffMode();
-      setTimeout(action, 50);
-      return;
-    }
-    // 집중: 모드 선택 팝업
     setPendingModeAction(() => action);
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
-  const resolveModeSelect = useCallback((mode) => {
-    if (mode === 'screen_on') activateScreenOnMode();
-    else activateScreenOffMode();
+  // 팝업 선택 결과 — 잠금강도(normal|focus|exam)와 집중모드를 한 번에 정한다.
+  //   일반(normal)=📖편하게 / 집중(focus)=🔥 / 울트라집중(exam)=🔥+엄격
+  // 고른 강도는 설정에도 저장한다 — 잠금·화면고정·챌린지 판정이 전부 settings를 읽으므로
+  // 세션 전용 상태를 따로 만들면 읽는 곳마다 분기가 생겨 어긋난다.
+  const resolveModeSelect = useCallback((level) => {
+    const lv = level === 'exam' || level === 'focus' ? level : 'normal';
+    updateSettings({ ultraFocusLevel: lv });
+    // setSettings는 다음 렌더에 반영되므로 즉시 쓰는 경로에는 값을 직접 넘긴다
+    if (lv === 'normal') activateScreenOffMode();
+    else activateScreenOnMode(lv);
     setPendingModeAction(prev => { if (prev) { setTimeout(prev, 50); } return null; });
   }, [activateScreenOnMode, activateScreenOffMode]);
 
@@ -1737,23 +1729,11 @@ export function AppProvider({ children }) {
       showToast('start');
     };
 
-    // 모드 미선택 시 잠금강도별 자동 진입
-    if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'normal';
-      if (level === 'exam') {
-        activateScreenOnMode();
-        setTimeout(doStart, 50);
-      } else if (level === 'normal') {
-        activateScreenOffMode();
-        setTimeout(doStart, 50);
-      } else {
-        setPendingModeAction(() => doStart);
-      }
-    } else {
-      doStart();
-    }
+    // 모드 미선택이면 3지 선택 팝업 (requestModeSelect와 같은 규칙 — 세션당 1회)
+    if (!focusModeRef.current) setPendingModeAction(() => doStart);
+    else doStart();
     return null;
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
   const startFromPlan = useCallback((plan) => {
     const today = getToday();
@@ -2005,6 +1985,13 @@ export function AppProvider({ children }) {
           delete s.ultraFocusStrict;
         }
         if (s.ultraFocusEnabled !== undefined) delete s.ultraFocusEnabled;
+        // 모드 선택 팝업 도입(2026-07-29): 기존 사용자는 온보딩에 선택 단계가 없어 저장값이
+        // 'normal'인 사람이 대부분인데, 이는 의도적 선택이 아니라 손대지 않은 기본값이다.
+        // 1회만 'focus'로 올려 팝업의 기본 선택이 '집중'이 되게 한다 (exam은 의도적 선택이라 유지).
+        if (!s.modeAskIntro) {
+          if (!s.ultraFocusLevel || s.ultraFocusLevel === 'normal') s.ultraFocusLevel = 'focus';
+          s.modeAskIntro = true;
+        }
         // schoolLevel 마이그레이션: 'elementary' → 'elementary_upper'
         if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
         // soundId → activeSounds 마이그레이션
