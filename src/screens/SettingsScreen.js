@@ -852,17 +852,19 @@ export default function SettingsScreen() {
             try {
               const { removed, bytes } = await cleanupOrphans(app.reviewNotes || []);
               await refreshPhotoUsage();
-              Alert.alert('사진 정리', removed > 0
-                ? `삭제된 오답이 남긴 사진 ${removed}장(${formatBytes(bytes)})을 정리했어요.`
-                : '정리할 사진이 없어요. 오답노트에 첨부된 사진은 그대로 유지돼요.\n(이 정리는 삭제된 오답이 남긴 사진 파일만 지워요.)');
+              // ※지우는 대상은 '삭제된 오답이 남긴 고아 파일'뿐이다 — 노트에 붙어 있는 사진은
+              // 절대 건드리지 않는다. 문구가 그렇게 안 읽히면 사용자가 누르기를 겁낸다
+              Alert.alert('저장공간 정리', removed > 0
+                ? `안 쓰는 사진 파일 ${removed}장(${formatBytes(bytes)})을 지웠어요.\n오답노트에 붙어 있는 사진은 그대로예요.`
+                : '지울 파일이 없어요.\n오답노트에 붙어 있는 사진은 그대로 유지돼요.');
             } catch {
-              Alert.alert('사진 정리', '사진을 정리하는 중 오류가 발생했어요.');
+              Alert.alert('저장공간 정리', '정리하는 중 오류가 발생했어요.');
             }
           }}>
-            <Row T={T} label="오답노트 사진 정리"
+            <Row T={T} label="오답노트 저장공간"
               sub={photoUsage && photoUsage.count > 0
-                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중 · 눌러서 정리`
-                : '오답노트에 첨부한 사진은 기기에만 저장돼요'}
+                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중 · 눌러서 안 쓰는 파일 정리`
+                : '사진은 기기에만 저장돼요 · 서버로 안 가요'}
               right={<Ionicons name="images-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
         </Section>
