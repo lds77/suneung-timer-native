@@ -174,7 +174,11 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
     ]);
   };
 
-  const chapterSug = editor ? chapterSuggestions(notes, editor.subjectId) : [];
+  // 편집기는 글자 한 자마다 리렌더되므로(setEditor) 노트 전체를 훑는 계산은 메모해 둔다
+  const chapterSug = useMemo(
+    () => (editor ? chapterSuggestions(notes, editor.subjectId) : []),
+    [editor?.subjectId, notes, !!editor],
+  );
   const editorNote = editor?.id ? notes.find(n => n.id === editor.id) : null; // 복습 데이터 참조용(라이브)
 
   return (
@@ -335,8 +339,13 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
               <TouchableOpacity onPress={saveEditor} style={S.hBtn}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
             </View>
             {editor && (
-              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator contentContainerStyle={{ padding: 18, paddingBottom: 48 }}>
+              /* 안드로이드는 창 자체가 pan으로 밀려 올라간다(app.config softwareKeyboardLayoutMode).
+                 거기에 behavior='height'까지 걸면 키보드 높이가 바뀔 때마다(한글 추천단어 줄이
+                 떴다 사라질 때) 컨테이너 높이도 같이 줄었다 늘어 화면 맨 아래 요소가 깜박인다.
+                 → 안드는 OS의 pan에만 맡긴다. iOS는 pan이 없으므로 padding 유지 */
+              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                {/* paddingBottom을 넉넉히 — pan 방식에서 맨 아래 버튼이 키보드에 가려도 스크롤로 닿게 */}
+                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator contentContainerStyle={{ padding: 18, paddingBottom: 140 }}>
                   <TextInput value={editor.title} onChangeText={t => setEditor(e => ({ ...e, title: t }))}
                     placeholder="제목 (예: 이차함수 판별식)" placeholderTextColor={T.sub}
                     style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, fontWeight: '700' }]} />
