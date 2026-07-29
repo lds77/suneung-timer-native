@@ -84,14 +84,30 @@ export function offHappenedAround(bgAt, lastOffAt) {
 // 기기 '화면이 꺼진 후 잠금 시간' 설정 때문에 짧게 끄면 잠금이 안 걸려 재현이 안 되고,
 // 오래 끄면 패턴을 요구받아 재현되는 탓에 '화면을 오래 꺼서 생긴 문제'로 오인하기 쉽다.
 //
-// 잠금해제 기록이 이번 화면 켬보다 앞서면(잠금 미설정 기기 → USER_PRESENT 자체가 안 옴,
-// 또는 이전 사이클의 낡은 값) 화면 켬 시각으로 폴백한다.
-export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now(), lastUnlockAt = 0) {
+// ★핵심 판별자는 복귀 순간의 keyguardLocked★ (2026-07-30 실기기 진단으로 확정)
+// 패턴을 그려 해제가 시작되면 **액티비티가 먼저 살아나고** USER_PRESENT 브로드캐스트와
+// isKeyguardLocked 해제는 그 뒤에 확정된다. 실측: 복귀 시점에 lastUnlockAt은 '없음',
+// keyguardLocked는 아직 true. 그래서 잠금해제 시각만으로는 절대 못 고친다.
+// 대신 "복귀 순간에 잠겨 있었다 = 그때까지 다른 앱을 쓸 수 없었다"가 성립한다 —
+// 다른 앱을 쓰고 돌아오는 경로는 이미 잠금이 풀려 있어 false다. 직접 조회라 지연도 없다.
+//
+// state 인자는 네이티브 screenState()의 부분집합: { lastUnlockAt, keyguardLocked, deviceSecure }.
+// 구빌드는 이 필드들이 없어 전부 기본값 → 화면 켬 기준의 기존 동작으로 폴백된다.
+export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now(), state = {}) {
   const on = lastOnAt || 0;
   if (!on || on <= (bgAt || 0)) return 0;
-  const unlock = lastUnlockAt || 0;
-  const anchor = unlock > on ? unlock : on;
-  return Math.max(0, now - anchor);
+  const { lastUnlockAt = 0, keyguardLocked = false, deviceSecure = false } = state || {};
+
+  // ① 아직 잠금 화면 = 다른 앱 사용 불가 → 이탈 아님
+  if (keyguardLocked) return 0;
+  // ② 잠금을 푼 시각을 아는 경우 그때부터 잰다 (해제 후 다른 앱을 쓴 시간만 이탈)
+  if (lastUnlockAt > on) return Math.max(0, now - lastUnlockAt);
+  // ③ 보안잠금 기기인데 해제 기록이 아직 없다 = 방금 막 푼 것(브로드캐스트가 복귀보다 늦음).
+  //    관대 원칙(위 wasIdleBeforeBackground 주석 참조)에 따라 이탈로 치지 않는다.
+  //    한계: USER_PRESENT가 오래 지연되면 실제 우회를 놓칠 수 있다 — 실기기 ② 항목으로 확인할 것
+  if (deviceSecure) return 0;
+  // ④ 잠금 미설정 기기: 화면을 켠 순간 곧바로 다른 앱을 열 수 있으므로 기존 규칙 유지
+  return Math.max(0, now - on);
 }
 
 // 위 시간이 이탈로 인정될 만큼 긴가

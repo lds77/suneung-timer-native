@@ -2,6 +2,7 @@ package expo.modules.screenpin
 
 import android.app.ActivityManager
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -105,11 +106,18 @@ class ScreenPinModule : Module() {
     Function("screenState") {
       val pm = appContext.reactContext?.getSystemService(Context.POWER_SERVICE) as? PowerManager
       val interactive = try { pm?.isInteractive ?: true } catch (_: Throwable) { true }
+      // 키가드는 브로드캐스트가 아니라 직접 조회라 캐시 프로세스에서도 지연 없이 정확하다.
+      // deviceSecure: 보안 잠금(패턴/PIN/지문)이 설정돼 있는가 — 없으면 USER_PRESENT가 안 온다.
+      val km = appContext.reactContext?.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+      val keyguardLocked = try { km?.isKeyguardLocked ?: false } catch (_: Throwable) { false }
+      val deviceSecure = try { km?.isDeviceSecure ?: false } catch (_: Throwable) { false }
       return@Function mapOf(
         "interactive" to interactive,
         "lastOnAt" to lastScreenOnAt.toDouble(),
         "lastOffAt" to lastScreenOffAt.toDouble(),
-        "lastUnlockAt" to lastUnlockAt.toDouble()
+        "lastUnlockAt" to lastUnlockAt.toDouble(),
+        "keyguardLocked" to keyguardLocked,
+        "deviceSecure" to deviceSecure
       )
     }
 

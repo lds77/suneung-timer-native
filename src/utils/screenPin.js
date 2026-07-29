@@ -64,13 +64,13 @@ export const screenWentOffAround = (bgAt) => {
 };
 
 // 화면 끄기로 백그라운드에 갔다가 돌아왔을 때 이탈로 볼 시간(ms).
-// 잠금을 푼 시점부터 계산 — 잠금화면에서 곧장 다른 앱을 열고 놀다 돌아온 경우만 걸러낸다.
-// (구빌드는 lastUnlockAt이 없어 undefined → 화면 켬 기준으로 폴백)
+// 잠금이 아직 안 풀렸으면 이탈 0 — 잠금화면에서 곧장 다른 앱을 열고 놀다 돌아온 경우만 걸러낸다.
+// (구빌드는 keyguardLocked/deviceSecure가 없어 화면 켬 기준으로 폴백)
 export const awayMsSinceScreenOn = (bgAt) => {
   if (Platform.OS !== 'android') return 0;
   const st = screenState();
   if (!st) return 0;
-  return screenOffAwayMs(bgAt, st.lastOnAt, Date.now(), st.lastUnlockAt);
+  return screenOffAwayMs(bgAt, st.lastOnAt, Date.now(), st);
 };
 
 // 고정 중에는 OS가 알림 소리/진동을 차단하므로, 완료/페이즈 시각에 네이티브 알람으로
