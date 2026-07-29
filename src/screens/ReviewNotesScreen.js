@@ -251,7 +251,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
               <Ionicons name="reader-outline" size={44} color={T.sub} />
               <Text style={{ color: T.text, fontSize: 15, fontWeight: '700', marginTop: 12 }}>오답노트가 비어 있어요</Text>
               <Text style={{ color: T.sub, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
-                할 일의 메모를 '오답노트로 보내기'로 옮기거나{'\n'}오른쪽 위 + 로 직접 기록해보세요.
+                완료한 할 일의 '오답노트 저장'으로 옮기거나{'\n'}오른쪽 위 + 로 직접 기록해보세요.
               </Text>
             </View>
           )}
