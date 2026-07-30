@@ -195,7 +195,7 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
     `screenState()` 같은 수단이 없고 네이티브 잠금 감지는 암호 미설정 기기에서 실패하므로 이 판정이
     오탐(멀쩡한 사용자에게 이탈)을 막는 핵심이다. 터치 기록은 App.js **루트 View + 잠금 오버레이**의
     `onStartShouldSetResponderCapture`(false 반환 — 터치 처리엔 관여 안 함)가 갱신
-  - 안드는 네이티브 `screenState()`가 정확하므로 터치 판정을 쓰지 않는다(우회 방지 10초 규칙 그대로)
+  - 안드는 네이티브 `screenState()`가 정확하므로 터치 판정을 쓰지 않는다(우회 방지 규칙 그대로 — 기준 시간은 AWAY_MIN_MS)
 - 100ms 틱 + `resumedAt`/`elapsedSecAtResume` 벽시계 기준 계산 → 백그라운드에서도 정확
 - 공부법 프리셋: SubjectsScreen의 STUDY_METHODS (학년별 연속모드 템플릿, 출처 표기)
 
@@ -224,26 +224,33 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
 - 🔥모드 이탈 시: 이탈 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
   iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
+  - **이탈로 인정하는 최소 시간은 `focusAway.AWAY_MIN_MS`(15초) 하나뿐이다** — 앱 전환 경로,
+    화면 끄기 후 잠금해제 경로, iOS 지연 판정이 모두 이 상수를 쓴다. 예전엔 useAppState에
+    같은 값이 **따로 하드코딩**돼 있어 한쪽만 고치면 경로마다 기준이 갈렸다(2026-07-30 일소).
+    **판정 시간을 숫자로 다시 박지 말 것**
   - **첫 이탈 알림은 즉시가 아니라 예약이다** (안드 5초 `ANDROID_AWAY_NOTIF_DELAY_SEC` / iOS 20초):
-    이탈로 셀지 말지는 10초(`SCREEN_ON_GRACE_MS`)가 지나야 정해지는데 알림만 먼저 쏘면
+    이탈로 셀지 말지는 `AWAY_MIN_MS`(15초)가 지나야 정해지는데 알림만 먼저 쏘면
     **알림창을 내렸다 올리거나 알림을 눌러 앱으로 돌아오는 몇 초짜리 배경 전환에도 '돌아와' 알림이
     울리고 정작 이탈은 안 잡히는** 어긋남이 생긴다(2026-07-30 제보). sticky 상태 알림도 같은 이유로
     같은 시점에 예약한다. 넛지 목록 맨 앞 항목(`firstDelaySec`)으로 넣어야 취소 세대 가드를 함께 받음.
-    안드 5초는 **순간 전환(1~2초)만 걸러내는 최소값**(사용자 결정) — 즉시성을 위해 5~10초 복귀 시
-    '알림은 왔는데 이탈은 안 세는' 경우가 남는 걸 감수한 값이다. 0~2초로 내리면 원래 증상이 재발
+    안드 5초는 **순간 전환(1~2초)만 걸러내는 최소값**(사용자 결정) — 0~2초로 내리면 원래 증상이 재발.
+  - **알림(5초)이 판정(`AWAY_MIN_MS` 15초)보다 먼저 오는 것은 의도된 설계다** — 그 간격 10초가
+    "알림 보고 바로 돌아오면 봐준다"는 유예이고, 알림은 벌점 통보가 아니라 **돌아올 기회**다.
+    간격이 좁으면 "알림 보고 바로 왔는데 어떨 땐 이탈 1회, 어떨 땐 0회"로 갈린다(2026-07-30 지적)
+    → **두 값은 반드시 같이 조정할 것**
 - **'화면 끄기/잠금'은 이탈이 아니다** (양 플랫폼, 다음 네이티브 빌드~): 화면을 끄면 앱이
   background로 내려가지만 다른 앱을 쓰는 게 아니므로 이탈 처리하지 않는다 — 안드 화면 고정(pin)
   중과 동일 취급. 공통 순수 로직은 `src/utils/focusAway.js`(테스트 有)
   - **안드**: `modules/screen-pin`의 `screenState()`(PowerManager.isInteractive + SCREEN_ON/OFF
     브로드캐스트 시각 + **KeyguardManager 직접 조회**) → 즉시 판정.
-    우회 방지: **잠금을 푼 뒤** 10초 넘게 앱으로 안 돌아오면 그 구간만 이탈로 계산
+    우회 방지: **잠금을 푼 뒤** `AWAY_MIN_MS`(15초) 넘게 앱으로 안 돌아오면 그 구간만 이탈로 계산
     - ★**배경에서 JS 타이머로 시간을 재는 방법은 없다**★ (2026-07-30 실기기로 확인). RN 안드는
       액티비티 onPause에서 JS 타이머를 통째로 멈춘다(`JavaTimerManager.onHostPause`) — 배경 폴링을
       구현했다가 한 번도 안 도는 걸 확인하고 걷어냈다(`focusAway.js` 하단 주석).
       **반면 동적 등록 BroadcastReceiver와 AlarmManager는 배경에서도 정상 동작한다**
     - **이탈 알림만 네이티브가 담당한다** (`modules/screen-pin`의 `AwayWatch`, 2026-07-30):
       화면 끄기로 배경에 내려가면 JS가 `armAwayWatch(grace, limitAt, steps)`로 무장 →
-      SCREEN_ON/USER_PRESENT마다 `isKeyguardLocked`를 **직접 조회**해 잠금이 풀려 있으면 10초 뒤
+      화면이 켜져 있는 동안 2초마다 `isKeyguardLocked`를 **직접 조회**해 잠금이 풀린 채 5초가 지나면
       확인 알람 예약(다시 꺼지면 취소) → 확인 시점에도 켜짐+해제면 그때부터가 이탈 →
       네이티브가 알림 게시 + 30초/1분/3분/5분 넛지 알람 예약. 복귀 시 JS가 `disarmAwayWatch()`.
       **알림 문구는 useAppState의 `awayFirstNotif`/`awayNudgeSteps`가 단일 출처**(양 경로 공용)

@@ -4,7 +4,7 @@ import path from 'path';
 import {
   isScreenOffState, screenOffAwayMs, isRealAwayAfterScreenOn, offHappenedAround,
   wasIdleBeforeBackground,
-  SCREEN_OFF_RACE_MS, SCREEN_ON_GRACE_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
+  SCREEN_OFF_RACE_MS, AWAY_MIN_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
   ANDROID_AWAY_NOTIF_DELAY_SEC,
 } from '../focusAway';
 
@@ -162,10 +162,10 @@ describe('AWAY_NOTIF_IDS ↔ Swift AWAY_NOTIF_IDS 교차 검증', () => {
 describe('isRealAwayAfterScreenOn', () => {
   it('잠금해제 정도의 짧은 시간은 이탈 아님', () => {
     expect(isRealAwayAfterScreenOn(0)).toBe(false);
-    expect(isRealAwayAfterScreenOn(SCREEN_ON_GRACE_MS - 1)).toBe(false);
+    expect(isRealAwayAfterScreenOn(AWAY_MIN_MS - 1)).toBe(false);
   });
   it('화면 켜고 한참 뒤 돌아오면 이탈 — 잠금화면에서 다른 앱을 쓴 경우', () => {
-    expect(isRealAwayAfterScreenOn(SCREEN_ON_GRACE_MS)).toBe(true);
+    expect(isRealAwayAfterScreenOn(AWAY_MIN_MS)).toBe(true);
     expect(isRealAwayAfterScreenOn(600000)).toBe(true);
   });
 });
@@ -176,10 +176,13 @@ describe('ANDROID_AWAY_NOTIF_DELAY_SEC', () => {
   it('순간 배경 전환(1~2초)을 걸러낼 만큼은 뒤에 있어야 한다', () => {
     expect(ANDROID_AWAY_NOTIF_DELAY_SEC).toBeGreaterThanOrEqual(3);
   });
-  // 판정 기준(10초)보다 앞이면 5~10초 복귀 시 '알림은 왔는데 이탈은 안 세는' 경우가 남는데,
-  // 그건 즉시성을 위해 받아들인 트레이드오프다(사용자 결정). 대신 넛지 1단계보다는 앞이어야 한다.
   it('첫 넛지(30초)보다는 앞이어야 순서가 뒤집히지 않는다', () => {
     expect(ANDROID_AWAY_NOTIF_DELAY_SEC).toBeLessThan(30);
-    expect(SCREEN_ON_GRACE_MS).toBe(10000); // 판정 기준은 그대로 유지
+  });
+  // ★알림을 보고 곧장 돌아온 사용자에게 이탈이 찍히면 안 된다★ — 알림(5초)과 판정(15초)
+  // 사이의 간격이 그 유예다. 간격이 좁으면 "알림 보고 바로 왔는데 어떨 땐 1회, 어떨 땐 0회"로
+  // 갈린다(사용자 지적 2026-07-30). 알림을 보고 복귀하는 데 걸리는 현실적인 시간(수 초)을 덮을 것
+  it('알림을 보고 복귀할 여유가 판정 기준까지 충분히 남아야 한다', () => {
+    expect(AWAY_MIN_MS - ANDROID_AWAY_NOTIF_DELAY_SEC * 1000).toBeGreaterThanOrEqual(8000);
   });
 });

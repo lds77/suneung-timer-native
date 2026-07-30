@@ -29,7 +29,7 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
+import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -664,7 +664,7 @@ export function AppProvider({ children }) {
         if (iosDeferAway.current) {
           // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 이탈 아님, 아니면 기존 10초 규칙대로
           iosDeferAway.current = false;
-          if (!iosLockedAt && awayMs >= SCREEN_ON_GRACE_MS) wasAway = true;
+          if (!iosLockedAt && awayMs >= AWAY_MIN_MS) wasAway = true;
         }
         if (iosLockedAt > 0) screenOffBg.current = true;
 
@@ -741,13 +741,15 @@ export function AppProvider({ children }) {
 
         // 🔥모드 복귀 처리
         if (mode === 'screen_on' && wasAway && !ultraRef.current.gaveUp) {
-          // 10초 이내 복귀 → 시스템 알림/전화 등으로 간주 → 이탈 아님
-          if (awayMs < 10000) {
+          // 기준 시간 이내 복귀 → 시스템 알림/전화, 또는 이탈 알림 보고 바로 온 것 → 이탈 아님
+          // ※예전엔 여기에 10000이 하드코딩돼 있어 화면 끄기 경로(AWAY_MIN_MS)와 따로 놀았다.
+          //   이탈 기준은 focusAway.AWAY_MIN_MS 하나뿐이다 — 다시 숫자를 박지 말 것
+          if (awayMs < AWAY_MIN_MS) {
             setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
             // 잠금화면이 표시 중일 때만 밝기/다크 재적용 (해제 상태에서는 집중탭 그대로 유지)
             if (screenLockedRef.current) applyFocusBrightness();
           } else {
-            // 10초 이상 → 진짜 이탈
+            // 기준 시간 이상 → 진짜 이탈
             const challenge = needsChallenge(level, awayMs);
             setUltraFocus(prev => ({
               ...prev, isAway: false, awayAt: null,
