@@ -28,8 +28,8 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, readScreenState } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, AWAY_WATCH_INTERVAL_MS, emptyAwayWatch, awayWatchStep, awayWatchAwayMs } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -359,6 +359,9 @@ export function AppProvider({ children }) {
   const screenOffBg = useRef(false);
   // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
   const iosDeferAway = useRef(false);
+  // 안드: 화면을 끄고 배경에 있는 동안 화면/잠금 상태를 직접 폴링한 결과 (focusAway.awayWatchStep)
+  const awayWatch = useRef(emptyAwayWatch());
+  const awayWatchTimer = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -542,6 +545,30 @@ export function AppProvider({ children }) {
     showToastCustom('60초간 자유시간! 빠르게 다녀와~', 'taco');
   }, []);
 
+  // 안드: 화면을 끄고 배경에 있는 동안 화면/잠금 상태를 직접 폴링해 '이탈 시작 시각'을 관측한다.
+  // 잠금화면에서 곧장 다른 앱으로 가면 앱은 'active'를 한 번도 못 받아 복귀 시 브로드캐스트
+  // 타임스탬프로 역산할 수밖에 없었는데, 그 역산이 틀리는 경우가 있었다(focusAway.js 참조).
+  // 폴링은 관측이라 지연·누락이 없고, 확정 시점에 이탈 알림도 제때 나간다.
+  const stopAwayWatch = useCallback(() => {
+    if (awayWatchTimer.current) { clearInterval(awayWatchTimer.current); awayWatchTimer.current = null; }
+  }, []);
+  const startAwayWatch = useCallback((onConfirmed) => {
+    stopAwayWatch();
+    awayWatch.current = emptyAwayWatch();
+    awayWatchTimer.current = setInterval(() => {
+      const prev = awayWatch.current;
+      const next = awayWatchStep(prev, readScreenState());
+      awayWatch.current = next;
+      if (next.confirmed && !prev.confirmed) {
+        // 잠금이 풀렸는데 10초가 지나도록 안 돌아왔다 = 진짜 이탈. 여기서부터는 확정이므로
+        // 폴링을 멈추고 즉시 알린다 (복귀 시점까지 기다리면 넛지가 통째로 늦어진다)
+        stopAwayWatch();
+        try { onConfirmed(); } catch {}
+      }
+    }, AWAY_WATCH_INTERVAL_MS);
+  }, [stopAwayWatch]);
+  useEffect(() => stopAwayWatch, [stopAwayWatch]);
+
   // AppState 핸들링
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -585,19 +612,38 @@ export function AppProvider({ children }) {
         const screenOffNow = awayCandidate && !pinnedNow && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
         const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
-        const markAway = () => {
+        // confirmed: 이미 이탈이 확정된 시점(배경 폴링)이라 알림을 지연시킬 필요가 없다
+        const markAway = ({ confirmed = false } = {}) => {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
+          // 안드는 background 진입 시점엔 아직 이탈인지 모른다(10초 규칙) — 첫 알림도 넛지 목록의
+          // 맨 앞 항목으로 12초 뒤에 예약해 두고 복귀 시 함께 취소한다. 즉시 쏘면 알림창을
+          // 내렸다 올리는 몇 초짜리 배경 전환에도 '돌아와' 알림만 울리고 이탈은 안 잡힌다.
+          const defer = Platform.OS === 'android' && !confirmed;
           // identifier를 붙여야 복귀 시 트레이에서 지울 수 있다 (안 붙이면 유령 알림으로 남음)
-          fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
+          if (!defer) fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
-          scheduleAwayNudges(charName);
-          // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거)
-          presentAwaySticky();
+          scheduleAwayNudges(charName, defer ? { firstDelaySec: ANDROID_AWAY_NOTIF_DELAY_SEC } : {});
+          // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거) — 첫 알림과 같은 이유로 지연 게시
+          presentAwaySticky(defer ? ANDROID_AWAY_NOTIF_DELAY_SEC : 0);
           // Live Activity 부제를 '이탈 중' 문구로 전환 (아래 laTimerBg 동기화에서 반영)
           setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
         };
+        // 안드: 화면 끄기로 내려갔다면 배경에서 화면/잠금 상태를 직접 관측한다.
+        // 잠금이 풀린 뒤에도 안 돌아오면 그 시점부터가 이탈 — 복귀 시 역산(브로드캐스트 타임스탬프)에
+        // 기대지 않고, 이탈 알림도 그 자리에서 제때 나간다
+        stopAwayWatch();
+        awayWatch.current = emptyAwayWatch();
+        if (screenOffNow && Platform.OS === 'android' && screenStateSupported()) {
+          startAwayWatch(() => {
+            // 폴링이 도는 사이 타이머가 끝났거나 모드가 풀렸으면 이탈로 알리지 않는다
+            const stillFocusing = focusModeRef.current === 'screen_on'
+              && timersRef.current.some(t => t.status === 'running')
+              && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
+            if (stillFocusing) markAway({ confirmed: true });
+          });
+        }
         if (awayCandidate && !pinnedNow && !screenOffNow) {
           if (Platform.OS === 'ios' && lockDetectSupported()) {
             // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
@@ -606,7 +652,7 @@ export function AppProvider({ children }) {
             //  · isAway/Live Activity '이탈 중'은 세우지 않음 (잠금화면 오표시 방지)
             //  · 이탈 여부는 복귀 시점에 확정 (아래 active 핸들러의 iosDeferAway)
             iosDeferAway.current = true;
-            scheduleAwayNudges(charName, { delayedFirst: true });
+            scheduleAwayNudges(charName, { firstDelaySec: IOS_AWAY_NOTIF_DELAY_SEC });
           } else {
             markAway();
           }
@@ -627,6 +673,10 @@ export function AppProvider({ children }) {
         if (laTimerBg) syncOngoingNotif(laTimerBg, { enabled: ongoingNotifEnabled() });
       }
       else if (state === 'active') {
+        // 돌아왔으니 배경 폴링 중지 — 관측한 이탈 시간(ms)을 꺼내 쓰고 상태는 비운다
+        stopAwayWatch();
+        const watchedAway = Platform.OS === 'android' ? awayWatchAwayMs(awayWatch.current) : null;
+        awayWatch.current = emptyAwayWatch();
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
         const bgAt = bgTime.current;
         let awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
@@ -650,7 +700,9 @@ export function AppProvider({ children }) {
         const wasScreenOffBg = screenOffBg.current || (wasAway && screenWentOffAround(bgAt));
         screenOffBg.current = false;
         if (wasScreenOffBg) {
-          const sinceOn = awayMsSinceScreenOn(bgAt);
+          // 배경 폴링으로 '잠금이 풀린 시각'을 직접 관측했으면 그 값을 쓴다 (역산보다 정확).
+          // 폴링이 한 번도 못 돌았으면(프로세스 정지/구빌드) null → 기존 역산으로 폴백
+          const sinceOn = watchedAway != null ? watchedAway : awayMsSinceScreenOn(bgAt);
           if (isRealAwayAfterScreenOn(sinceOn)) {
             awayMs = sinceOn;
             wasAway = true;
@@ -1110,10 +1162,11 @@ export function AppProvider({ children }) {
   // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
   // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
   const awayNudgeCancelGen = useRef(0);
-  // delayedFirst: iOS 전용 — 즉시 띄우던 첫 이탈 알림을 20초 뒤 예약으로 돌린다
-  // (잠금 판별 대기용). 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야
-  // countdown 잔여시간 가드와 취소 세대 가드를 똑같이 받는다
-  const scheduleAwayNudges = async (charName, { delayedFirst = false } = {}) => {
+  // firstDelaySec: 즉시 띄우던 첫 이탈 알림을 이만큼 뒤 예약으로 돌린다
+  // (iOS는 잠금 판별 대기 20초, 안드는 10초 이탈 판정과 어긋나지 않게 12초).
+  // 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야 countdown 잔여시간 가드와
+  // 취소 세대 가드를 똑같이 받는다
+  const scheduleAwayNudges = async (charName, { firstDelaySec = 0 } = {}) => {
     if (!settingsRef.current.notifEnabled) return;
     const gen = awayNudgeCancelGen.current;
     // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
@@ -1122,7 +1175,7 @@ export function AppProvider({ children }) {
       .map(t => getRealRemainingSec(t));
     const limitSec = cdRemains.length ? Math.min(...cdRemains) : Infinity;
     const NUDGES = [
-      ...(delayedFirst ? [{ sec: IOS_AWAY_NOTIF_DELAY_SEC, id: AWAY_NOW_ID,
+      ...(firstDelaySec > 0 ? [{ sec: firstDelaySec, id: AWAY_NOW_ID,
         title: `${charName}랑 같이 열공하자!`, body: '타이머가 돌아가고 있어~' }] : []),
       { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
       { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
@@ -1168,7 +1221,9 @@ export function AppProvider({ children }) {
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
   // 스와이프로 지울 수 없고, 복귀하면 코드로 제거한다. 탭하면 앱이 열린다.
   const awayStickyCancelGen = useRef(0);
-  const presentAwaySticky = async () => {
+  // delaySec > 0: 아직 이탈로 확정되지 않은 배경 전환 — 첫 이탈 알림과 같은 시점으로 미뤄 둔다
+  // (몇 초 만에 돌아오는 전환에 '집중 이탈 중'이 잠깐 떴다 사라지는 것 방지)
+  const presentAwaySticky = async (delaySec = 0) => {
     if (Platform.OS !== 'android' || !settingsRef.current.notifEnabled) return;
     const gen = awayStickyCancelGen.current;
     try {
@@ -1180,7 +1235,9 @@ export function AppProvider({ children }) {
           sticky: true,
           channelId: 'focus-status',
         },
-        trigger: null,
+        trigger: delaySec > 0
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + delaySec * 1000), channelId: 'focus-status' }
+          : null,
       });
       if (awayStickyCancelGen.current !== gen) {
         // 게시 도중 복귀함 → sticky가 영구히 남지 않도록 즉시 제거
@@ -1191,6 +1248,8 @@ export function AppProvider({ children }) {
   const dismissAwaySticky = () => {
     awayStickyCancelGen.current++;
     // 고정 identifier로 제거 — 리마운트로 세션이 바뀌어도 sticky가 영구히 남지 않음
+    // (지연 게시분은 아직 예약 상태일 수 있어 예약 취소도 함께)
+    Notifications.cancelScheduledNotificationAsync('away-sticky').catch(() => {});
     Notifications.dismissNotificationAsync('away-sticky').catch(() => {});
   };
 

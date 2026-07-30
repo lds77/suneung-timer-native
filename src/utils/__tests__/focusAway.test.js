@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import {
   isScreenOffState, screenOffAwayMs, isRealAwayAfterScreenOn, offHappenedAround,
-  wasIdleBeforeBackground,
+  wasIdleBeforeBackground, emptyAwayWatch, awayWatchStep, awayWatchAwayMs,
   SCREEN_OFF_RACE_MS, SCREEN_ON_GRACE_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
+  ANDROID_AWAY_NOTIF_DELAY_SEC,
 } from '../focusAway';
 
 // iOS 전용: 백그라운드 전환 직전 터치 유무로 '화면 자동 꺼짐'과 '사람이 나감'을 가른다
@@ -166,5 +167,86 @@ describe('isRealAwayAfterScreenOn', () => {
   it('화면 켜고 한참 뒤 돌아오면 이탈 — 잠금화면에서 다른 앱을 쓴 경우', () => {
     expect(isRealAwayAfterScreenOn(SCREEN_ON_GRACE_MS)).toBe(true);
     expect(isRealAwayAfterScreenOn(600000)).toBe(true);
+  });
+});
+
+// ─── 안드 배경 폴링 (2026-07-30 제보 대응) ───────────────────────────────
+// 화면을 끄고 배경에 있는 동안 화면/잠금 상태를 직접 관측해 '이탈 시작 시각'을 잡는다.
+// 복귀 시점의 브로드캐스트 타임스탬프 역산이 놓치던 경로(잠금이 안 걸린 채 다른 앱으로 이동)를
+// 여기서 잡는다 — 관측이므로 USER_PRESENT가 없어도 정확하다.
+describe('awayWatchStep / awayWatchAwayMs', () => {
+  const T = 5_000_000;
+  const off = { interactive: false, keyguardLocked: true };
+  const locked = { interactive: true, keyguardLocked: true };   // 화면은 켰지만 잠금화면
+  const open = { interactive: true, keyguardLocked: false };    // 잠금까지 풀린 상태
+
+  const run = (steps) => steps.reduce((s, [st, t]) => awayWatchStep(s, st, t), emptyAwayWatch());
+
+  it('폴링이 한 번도 못 돌았으면 null — 호출부가 기존 역산으로 폴백', () => {
+    expect(awayWatchAwayMs(emptyAwayWatch(), T)).toBeNull();
+    expect(awayWatchAwayMs(null, T)).toBeNull();
+  });
+
+  it('화면 꺼진 채로만 있었으면 이탈 0', () => {
+    const s = run([[off, T], [off, T + 2000], [off, T + 4000]]);
+    expect(s.confirmed).toBe(false);
+    expect(awayWatchAwayMs(s, T + 6000)).toBe(0);
+  });
+
+  it('잠금화면에 오래 머물러도 이탈 0 — 다른 앱을 쓸 수 없는 구간', () => {
+    const s = run([[off, T], [locked, T + 2000], [locked, T + 20000], [locked, T + 33700]]);
+    expect(s.confirmed).toBe(false);
+    expect(awayWatchAwayMs(s, T + 34000)).toBe(0);
+  });
+
+  it('잠금이 풀린 시각부터 이탈 — 10초 넘게 안 돌아오면 확정', () => {
+    const s = run([[off, T], [locked, T + 2000], [open, T + 10000], [open, T + 12000]]);
+    expect(s.unlockedAt).toBe(T + 10000);
+    expect(s.confirmed).toBe(false);                       // 아직 2초
+    const s2 = awayWatchStep(s, open, T + 20000);
+    expect(s2.confirmed).toBe(true);                       // 10초 경과 → 확정
+    expect(awayWatchAwayMs(s2, T + 20000)).toBe(10000);
+  });
+
+  it('잠금해제 직후 곧바로 앱으로 복귀하면 이탈 아님', () => {
+    const s = run([[off, T], [open, T + 8000]]);
+    expect(awayWatchAwayMs(s, T + 9000)).toBe(1000);
+    expect(isRealAwayAfterScreenOn(awayWatchAwayMs(s, T + 9000))).toBe(false);
+  });
+
+  it('★잠금이 아예 안 걸린 채 다른 앱으로 가도 잡힌다 (제보 사례)', () => {
+    // 화면을 짧게 꺼서 키가드가 안 걸림 → USER_PRESENT가 없어 역산은 이탈을 통째로 놓쳤다
+    const s = run([[off, T], [open, T + 4000], [open, T + 60000]]);
+    expect(s.confirmed).toBe(true);
+    expect(awayWatchAwayMs(s, T + 180000)).toBe(176000);
+  });
+
+  it('확정 전에 화면을 다시 끄면 기준점을 버린다 — 알림만 확인하고 껐다 켠 경우', () => {
+    const s = run([[off, T], [open, T + 2000], [off, T + 6000], [off, T + 8000]]);
+    expect(s.unlockedAt).toBe(0);
+    expect(awayWatchAwayMs(s, T + 9000)).toBe(0);
+  });
+
+  it('확정된 뒤에는 화면을 꺼도 이탈이 유지된다', () => {
+    const s = run([[off, T], [open, T + 2000], [open, T + 14000], [off, T + 16000]]);
+    expect(s.confirmed).toBe(true);
+    expect(s.unlockedAt).toBe(T + 2000);
+  });
+
+  it('조회 실패(null)는 상태를 건드리지 않고 관측 횟수에도 안 들어간다', () => {
+    const s = run([[off, T], [open, T + 2000], [null, T + 4000]]);
+    expect(s.unlockedAt).toBe(T + 2000);
+    expect(s.ticks).toBe(2);
+  });
+
+  it('구빌드처럼 매번 조회 실패면 null — 역산 경로로 폴백해야 오판이 없다', () => {
+    const s = run([[null, T], [null, T + 2000], [null, T + 4000]]);
+    expect(awayWatchAwayMs(s, T + 6000)).toBeNull();
+  });
+});
+
+describe('ANDROID_AWAY_NOTIF_DELAY_SEC', () => {
+  it('이탈 판정 기준(10초)보다 뒤에 있어야 알림과 판정이 어긋나지 않는다', () => {
+    expect(ANDROID_AWAY_NOTIF_DELAY_SEC * 1000).toBeGreaterThan(SCREEN_ON_GRACE_MS);
   });
 });

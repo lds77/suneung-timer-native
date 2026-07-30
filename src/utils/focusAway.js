@@ -25,6 +25,14 @@ export const AWAY_NOW_ID = 'away-now';
 export const AWAY_NUDGE_SECS = [30, 60, 180, 300];
 export const AWAY_NOTIF_IDS = [AWAY_NOW_ID, ...AWAY_NUDGE_SECS.map(s => `away-nudge-${s}`)];
 
+// 안드: 이탈 알림을 즉시 띄우지 않고 이만큼 뒤로 예약한다 (2026-07-30).
+// 예전엔 background 진입 즉시 알림을 쐈는데, 이탈로 셀지 말지는 SCREEN_ON_GRACE_MS(10초)가
+// 지나야 정해진다. 그래서 알림창을 내렸다 올리거나 알림을 눌러 앱으로 돌아오는 것처럼 몇 초짜리
+// 배경 전환에도 '돌아와' 알림만 먼저 울리고 이탈은 안 잡히는 어긋남이 있었다
+// (사용자 제보 2026-07-30: "앱이 열리는 순간 이탈 알림이 오는데 이탈 체크는 안 됨").
+// 판정 기준보다 살짝 뒤로 예약해 두고 복귀 시 취소하면, 진짜 이탈에만 알림이 간다.
+export const ANDROID_AWAY_NOTIF_DELAY_SEC = 12;
+
 // iOS: 이탈 알림을 즉시 띄우지 않고 이만큼 뒤로 예약한다.
 // iOS는 백그라운드에서 JS 타이머가 멈추므로 '10초 뒤에 판단해서 알림'이 불가능하다. 대신
 // 알림을 OS에 예약해 두고, 네이티브가 화면 잠금을 감지하면(약 10초) 예약을 취소하는 방식을 쓴다
@@ -113,4 +121,49 @@ export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now(), state = {}) {
 // 위 시간이 이탈로 인정될 만큼 긴가
 export function isRealAwayAfterScreenOn(awayMs) {
   return awayMs >= SCREEN_ON_GRACE_MS;
+}
+
+// ─── 안드: 배경에 있는 동안 화면 상태를 직접 관측 (2026-07-30) ──────────────
+// 화면을 끄면 앱이 background로 내려가는데, 그 뒤 잠금화면에서 곧장 다른 앱으로 가버리면
+// 앱은 'active'를 한 번도 못 받는다. 그래서 위 screenOffAwayMs()는 복귀 시점에 브로드캐스트
+// 타임스탬프(화면 켬/잠금해제)로 이탈 구간을 역산해야 했는데, 그 값들은 복귀 순간에 신뢰할 수
+// 없다(34a6c28). 특히 **화면을 짧게 꺼서 잠금이 아예 안 걸린 경우** USER_PRESENT가 발생하지
+// 않아 lastUnlockAt이 영영 비고, 규칙 ③(방금 푼 것으로 간주)에 걸려 몇 분짜리 이탈이 통째로
+// 면제됐다 — 사용자 제보 "화면 끄고 조금 있다가 알림창에서 다른 앱으로 가면 첫 번째는 이탈이
+// 안 잡힌다"의 정체.
+//
+// 안드로이드는 백그라운드에서도 JS가 돈다(100ms 틱이 도는 것과 같은 조건). 그래서 배경에 있는
+// 동안 screenState()를 주기적으로 **직접 조회**해서 '화면이 켜지고 잠금까지 풀린 시각'을
+// 관측한다. 추론이 아니라 관측이므로 브로드캐스트 지연·누락에 영향받지 않는다.
+//   · 잠금화면에 머무는 동안(keyguardLocked) → 다른 앱을 쓸 수 없으므로 이탈 시작 아님
+//   · 잠금이 풀렸는데 앱으로 안 돌아옴 → 그 시점이 이탈 시작
+//   · 확정(10초) 전에 화면이 다시 꺼지면 기준점을 버린다 (알림 확인만 하고 다시 끈 경우)
+// 프로세스가 얼어 폴링이 아예 못 돌았으면(ticks 0) 기존 역산 경로로 폴백한다.
+export const AWAY_WATCH_INTERVAL_MS = 2000;
+
+export const emptyAwayWatch = () => ({ ticks: 0, unlockedAt: 0, confirmed: false });
+
+// st: screenState() 결과 { interactive, keyguardLocked, ... } | null
+export function awayWatchStep(state, st, now = Date.now()) {
+  const s = { ...emptyAwayWatch(), ...(state || {}) };
+  // ticks는 '실제로 관측에 성공한 횟수' — 한 번도 못 봤으면(구빌드/조회 실패/프로세스 정지)
+  // awayWatchAwayMs가 null을 돌려주고 호출부가 기존 역산으로 폴백한다
+  if (!st) return s;
+  s.ticks += 1;
+  const usable = !!st.interactive && !st.keyguardLocked; // 지금 다른 앱을 쓸 수 있는 상태인가
+  if (!usable) {
+    // 확정 전이라면 기준점 리셋 (화면만 켰다 껐거나 잠금화면에 머무는 중)
+    if (!s.confirmed) s.unlockedAt = 0;
+    return s;
+  }
+  if (!s.unlockedAt) s.unlockedAt = now;
+  if (!s.confirmed && now - s.unlockedAt >= SCREEN_ON_GRACE_MS) s.confirmed = true;
+  return s;
+}
+
+// 관측 결과로 본 이탈 시간(ms). 관측이 한 번도 못 돌았으면 null → 호출부가 역산으로 폴백
+export function awayWatchAwayMs(state, now = Date.now()) {
+  if (!state || !state.ticks) return null;
+  if (!state.unlockedAt) return 0;
+  return Math.max(0, now - state.unlockedAt);
 }

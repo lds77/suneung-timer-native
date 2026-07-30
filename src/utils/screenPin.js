@@ -48,6 +48,18 @@ const screenState = () => {
 // (1분마다 스스로 이탈을 만들어내게 된다 — vc70 미만 구빌드 OTA 안전장치).
 export const screenStateSupported = () => !!(mod && typeof mod.screenState === 'function');
 
+// 배경 폴링용 원시 조회 (focusAway.awayWatchStep에 그대로 넘긴다).
+// 브로드캐스트 타임스탬프가 아니라 지금 이 순간의 화면/잠금 상태라 지연이 없다.
+// ★keyguardLocked를 못 주는 빌드(34a6c28 이전 네이티브)에서는 null을 돌려준다★ —
+// 잠금 여부를 모르면 '잠금화면 체류'를 이탈로 오판하므로(51e807f에서 고쳤던 그 버그),
+// 관측을 포기하고 복귀 시점 역산 경로에 맡기는 게 안전하다.
+export const readScreenState = () => {
+  if (Platform.OS !== 'android') return null;
+  const st = screenState();
+  if (!st || typeof st.keyguardLocked !== 'boolean') return null;
+  return st;
+};
+
 // 지금 화면이 꺼져 있는가 (백그라운드 전환 원인이 '화면 끄기'인지 판별)
 export const isScreenOff = () => {
   if (Platform.OS !== 'android') return false;
