@@ -76,6 +76,9 @@ class ScreenPinModule : Module() {
             Intent.ACTION_SCREEN_OFF -> lastScreenOffAt = System.currentTimeMillis()
             Intent.ACTION_USER_PRESENT -> lastUnlockAt = System.currentTimeMillis()
           }
+          // 이탈 알림 감시 — 배경에선 JS 타이머가 멈추므로 이 리시버가 유일한 트리거다.
+          // 무장 상태가 아니면 즉시 return하므로 평소엔 비용이 없다 (AwayWatch 주석 참조)
+          if (c != null && AwayWatch.isArmed()) AwayWatch.onScreenEvent(c)
         }
       }
       val filter = IntentFilter().apply {
@@ -119,6 +122,41 @@ class ScreenPinModule : Module() {
         "keyguardLocked" to keyguardLocked,
         "deviceSecure" to deviceSecure
       )
+    }
+
+    // ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ────────────────
+    // JS는 배경에서 시간을 잴 수 없으므로(RN 안드는 onPause에서 JS 타이머를 멈춘다),
+    // '화면 켜짐 + 잠금 해제가 graceMs 이어지면 이탈'이라는 판단을 네이티브가 대신한다.
+    // steps: [{ sec, title, body }] — 첫 항목은 확정 즉시, 나머지는 확정 시각 기준 sec 뒤.
+    // limitAtMs: 카운트다운 종료 시각(epoch ms). 그 뒤로는 알리지 않는다(0이면 무제한).
+    AsyncFunction("armAwayWatch") { graceMs: Double, limitAtMs: Double, steps: List<Map<String, Any?>>, promise: Promise ->
+      val ctx = appContext.reactContext
+      if (ctx == null) { promise.resolve(false); return@AsyncFunction }
+      try {
+        val parsed = steps.mapNotNull { m ->
+          val sec = (m["sec"] as? Number)?.toLong() ?: return@mapNotNull null
+          val title = m["title"] as? String ?: return@mapNotNull null
+          val body = m["body"] as? String ?: return@mapNotNull null
+          AwayWatch.Step(sec, title, body)
+        }
+        if (parsed.isEmpty()) { promise.resolve(false); return@AsyncFunction }
+        AwayWatch.arm(ctx, graceMs.toLong(), limitAtMs.toLong(), parsed)
+        promise.resolve(true)
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
+    }
+
+    // 앱 복귀/세션 종료 시 호출 — 예약된 확인·넛지 알람과 이미 게시된 알림을 전부 정리한다
+    AsyncFunction("disarmAwayWatch") { promise: Promise ->
+      val ctx = appContext.reactContext
+      if (ctx == null) { promise.resolve(false); return@AsyncFunction }
+      try {
+        AwayWatch.disarm(ctx)
+        promise.resolve(true)
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
     }
 
     AsyncFunction("pin") { promise: Promise ->

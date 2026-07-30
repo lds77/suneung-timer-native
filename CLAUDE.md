@@ -88,7 +88,8 @@ src/
     studyRoomCore.js      스터디룸 순수 로직 (좌석 배치·정렬·유령 판정 등, 테스트 대상)
     reviewNotes.js        오답노트 순수 로직 (복습 주기 계산 등, 테스트 대상)
     attachments.js        오답노트 사진 저장/압축/정리 (파일명만 기록 — 경로 저장 금지)
-    screenPin.js          안드 OS 화면 고정 래퍼 (울트라집중 exam 강도)
+    screenPin.js          안드 OS 화면 고정 래퍼 (울트라집중 exam 강도) + 화면/잠금 상태 조회,
+                          배경 이탈 알림 감시 무장·해제(armAwayWatch/disarmAwayWatch)
     durableAuthStorage.js 익명 uid 영속 (iOS 키체인 미러 — 재설치 후 계정 유지)
   constants/
     colors.js             getTheme(darkMode, accentColor, fontScale, stylePreset) → T 테마 객체
@@ -223,11 +224,13 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
 - 🔥모드 이탈 시: 이탈 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
   iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
-  - **첫 이탈 알림은 즉시가 아니라 예약이다** (안드 12초 `ANDROID_AWAY_NOTIF_DELAY_SEC` / iOS 20초):
+  - **첫 이탈 알림은 즉시가 아니라 예약이다** (안드 5초 `ANDROID_AWAY_NOTIF_DELAY_SEC` / iOS 20초):
     이탈로 셀지 말지는 10초(`SCREEN_ON_GRACE_MS`)가 지나야 정해지는데 알림만 먼저 쏘면
     **알림창을 내렸다 올리거나 알림을 눌러 앱으로 돌아오는 몇 초짜리 배경 전환에도 '돌아와' 알림이
     울리고 정작 이탈은 안 잡히는** 어긋남이 생긴다(2026-07-30 제보). sticky 상태 알림도 같은 이유로
-    같은 시점에 예약한다. 넛지 목록 맨 앞 항목(`firstDelaySec`)으로 넣어야 취소 세대 가드를 함께 받음
+    같은 시점에 예약한다. 넛지 목록 맨 앞 항목(`firstDelaySec`)으로 넣어야 취소 세대 가드를 함께 받음.
+    안드 5초는 **순간 전환(1~2초)만 걸러내는 최소값**(사용자 결정) — 즉시성을 위해 5~10초 복귀 시
+    '알림은 왔는데 이탈은 안 세는' 경우가 남는 걸 감수한 값이다. 0~2초로 내리면 원래 증상이 재발
 - **'화면 끄기/잠금'은 이탈이 아니다** (양 플랫폼, 다음 네이티브 빌드~): 화면을 끄면 앱이
   background로 내려가지만 다른 앱을 쓰는 게 아니므로 이탈 처리하지 않는다 — 안드 화면 고정(pin)
   중과 동일 취급. 공통 순수 로직은 `src/utils/focusAway.js`(테스트 有)
@@ -236,11 +239,16 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
     우회 방지: **잠금을 푼 뒤** 10초 넘게 앱으로 안 돌아오면 그 구간만 이탈로 계산
     - ★**배경에서 JS 타이머로 시간을 재는 방법은 없다**★ (2026-07-30 실기기로 확인). RN 안드는
       액티비티 onPause에서 JS 타이머를 통째로 멈춘다(`JavaTimerManager.onHostPause`) — 배경 폴링을
-      구현했다가 한 번도 안 도는 걸 확인하고 걷어냈다(`focusAway.js` 하단 주석). 배경에서 몇 초 뒤
-      판단이 필요하면 **네이티브(AlarmManager/브로드캐스트)로만 가능**하다
-    - ※**이 경로(화면 끄기 → 잠금화면 알림창 → 다른 앱)에는 아직 이탈 알림이 없다** — 앱이
-      `active`를 한 번도 못 받아 배경에서 알릴 수단이 없기 때문. **카운트는 복귀 시 역산으로 정확히
-      확정된다**(실기기 확인 2026-07-30: 1분 이탈 후 복귀 시 챌린지 정상). 알림까지 주려면 네이티브 필요
+      구현했다가 한 번도 안 도는 걸 확인하고 걷어냈다(`focusAway.js` 하단 주석).
+      **반면 동적 등록 BroadcastReceiver와 AlarmManager는 배경에서도 정상 동작한다**
+    - **이탈 알림만 네이티브가 담당한다** (`modules/screen-pin`의 `AwayWatch`, 2026-07-30):
+      화면 끄기로 배경에 내려가면 JS가 `armAwayWatch(grace, limitAt, steps)`로 무장 →
+      SCREEN_ON/USER_PRESENT마다 `isKeyguardLocked`를 **직접 조회**해 잠금이 풀려 있으면 10초 뒤
+      확인 알람 예약(다시 꺼지면 취소) → 확인 시점에도 켜짐+해제면 그때부터가 이탈 →
+      네이티브가 알림 게시 + 30초/1분/3분/5분 넛지 알람 예약. 복귀 시 JS가 `disarmAwayWatch()`.
+      **알림 문구는 useAppState의 `awayFirstNotif`/`awayNudgeSteps`가 단일 출처**(양 경로 공용)
+    - ※**이탈 카운트는 네이티브로 옮기지 않았다** — 기존대로 복귀 시점에 JS가 역산으로 확정한다
+      (실기기 확인 2026-07-30: 알림창→다른 앱 1분 이탈 후 복귀 시 챌린지 정상)
     - ★핵심 판별자는 **복귀 순간의 `keyguardLocked`**★ (2026-07-30 실기기 진단으로 확정).
       "복귀 시점에 잠겨 있었다 = 그때까지 다른 앱을 쓸 수 없었다" — 다른 앱을 쓰고 돌아오는
       경로는 이미 잠금이 풀려 있어 false다. **직접 조회라 브로드캐스트 지연을 안 탄다**

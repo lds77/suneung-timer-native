@@ -171,7 +171,15 @@ describe('isRealAwayAfterScreenOn', () => {
 });
 
 describe('ANDROID_AWAY_NOTIF_DELAY_SEC', () => {
-  it('이탈 판정 기준(10초)보다 뒤에 있어야 알림과 판정이 어긋나지 않는다', () => {
-    expect(ANDROID_AWAY_NOTIF_DELAY_SEC * 1000).toBeGreaterThan(SCREEN_ON_GRACE_MS);
+  // 즉시(0초)로 되돌리면 알림창을 내렸다 올리거나 알림을 눌러 앱에 들어오는 몇 초짜리 배경
+  // 전환에도 이탈 알림이 울린다(2026-07-30 제보 증상). 순간 전환은 1~2초라 그보다 커야 한다.
+  it('순간 배경 전환(1~2초)을 걸러낼 만큼은 뒤에 있어야 한다', () => {
+    expect(ANDROID_AWAY_NOTIF_DELAY_SEC).toBeGreaterThanOrEqual(3);
+  });
+  // 판정 기준(10초)보다 앞이면 5~10초 복귀 시 '알림은 왔는데 이탈은 안 세는' 경우가 남는데,
+  // 그건 즉시성을 위해 받아들인 트레이드오프다(사용자 결정). 대신 넛지 1단계보다는 앞이어야 한다.
+  it('첫 넛지(30초)보다는 앞이어야 순서가 뒤집히지 않는다', () => {
+    expect(ANDROID_AWAY_NOTIF_DELAY_SEC).toBeLessThan(30);
+    expect(SCREEN_ON_GRACE_MS).toBe(10000); // 판정 기준은 그대로 유지
   });
 });

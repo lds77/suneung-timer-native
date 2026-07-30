@@ -28,7 +28,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch } from '../utils/screenPin';
 import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
@@ -547,6 +547,9 @@ export function AppProvider({ children }) {
 
   // AppState 핸들링
   useEffect(() => {
+    // 콜드스타트: 프로세스가 죽었다 살아난 경우 'active' 이벤트가 안 오므로 여기서 한 번 정리
+    // (네이티브 armed 플래그는 프로세스와 함께 사라지지만, 이미 뜬 알림은 트레이에 남는다)
+    if (Platform.OS === 'android') disarmAwayWatch();
     const sub = AppState.addEventListener('change', (state) => {
       const hasRunning = timersRef.current.some(t => t.status === 'running');
       const mode = focusModeRef.current;
@@ -606,6 +609,18 @@ export function AppProvider({ children }) {
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
         };
+        // 안드 '화면 끄기'로 내려간 경우: 여기서부터는 앱이 'active'를 한 번도 못 받을 수 있고
+        // (잠금화면 알림창 → 다른 앱), 배경에선 JS 타이머도 멈춰 시간을 잴 수 없다.
+        // 그래서 '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단만 네이티브에 맡긴다.
+        // 이탈 카운트는 기존대로 복귀 시점에 JS가 확정한다 — 여기서 넘기는 건 알림뿐이다
+        if (screenOffNow && Platform.OS === 'android' && settingsRef.current.notifEnabled) {
+          const limitSec = awayNotifLimitSec();
+          armAwayWatch(
+            SCREEN_ON_GRACE_MS,
+            Number.isFinite(limitSec) ? Date.now() + limitSec * 1000 : 0,
+            [{ sec: 0, ...awayFirstNotif(charName) }, ...awayNudgeSteps(charName)],
+          );
+        }
         if (awayCandidate && !pinnedNow && !screenOffNow) {
           if (Platform.OS === 'ios' && lockDetectSupported()) {
             // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
@@ -635,6 +650,8 @@ export function AppProvider({ children }) {
         if (laTimerBg) syncOngoingNotif(laTimerBg, { enabled: ongoingNotifEnabled() });
       }
       else if (state === 'active') {
+        // 네이티브 이탈 감시 해제 — 예약된 확인·넛지 알람과 이미 뜬 알림을 함께 정리
+        if (Platform.OS === 'android') disarmAwayWatch();
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
         const bgAt = bgTime.current;
         let awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
@@ -1118,25 +1135,33 @@ export function AppProvider({ children }) {
   // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
   // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
   const awayNudgeCancelGen = useRef(0);
+  // 이탈 알림 문구 — JS 예약(scheduleAwayNudges)과 네이티브 감시(armAwayWatch)가 같은 문구를
+  // 쓰도록 단일 출처로 둔다. 한쪽만 고치면 경로에 따라 다른 말이 나온다
+  const awayFirstNotif = (charName) => ({ title: `${charName}랑 같이 열공하자!`, body: '타이머가 돌아가고 있어~' });
+  const awayNudgeSteps = (charName) => ([
+    { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
+    { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
+    { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
+    { sec: 300, title: '이탈 5분째', body: '오늘 목표를 잊지 않았죠? 지금 돌아오면 충분해요!' },
+  ]);
+  // countdown이 곧 끝나면 그 이후 알림은 보내지 않는다 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
+  const awayNotifLimitSec = () => {
+    const cdRemains = timersRef.current
+      .filter(t => t.status === 'running' && t.type === 'countdown')
+      .map(t => getRealRemainingSec(t));
+    return cdRemains.length ? Math.min(...cdRemains) : Infinity;
+  };
   // firstDelaySec: 즉시 띄우던 첫 이탈 알림을 이만큼 뒤 예약으로 돌린다
-  // (iOS는 잠금 판별 대기 20초, 안드는 10초 이탈 판정과 어긋나지 않게 12초).
+  // (iOS는 잠금 판별 대기 20초, 안드는 순간 전환을 걸러낼 최소값 5초).
   // 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야 countdown 잔여시간 가드와
   // 취소 세대 가드를 똑같이 받는다
   const scheduleAwayNudges = async (charName, { firstDelaySec = 0 } = {}) => {
     if (!settingsRef.current.notifEnabled) return;
     const gen = awayNudgeCancelGen.current;
-    // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
-    const cdRemains = timersRef.current
-      .filter(t => t.status === 'running' && t.type === 'countdown')
-      .map(t => getRealRemainingSec(t));
-    const limitSec = cdRemains.length ? Math.min(...cdRemains) : Infinity;
+    const limitSec = awayNotifLimitSec();
     const NUDGES = [
-      ...(firstDelaySec > 0 ? [{ sec: firstDelaySec, id: AWAY_NOW_ID,
-        title: `${charName}랑 같이 열공하자!`, body: '타이머가 돌아가고 있어~' }] : []),
-      { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
-      { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
-      { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
-      { sec: 300, title: '이탈 5분째', body: '오늘 목표를 잊지 않았죠? 지금 돌아오면 충분해요!' },
+      ...(firstDelaySec > 0 ? [{ sec: firstDelaySec, id: AWAY_NOW_ID, ...awayFirstNotif(charName) }] : []),
+      ...awayNudgeSteps(charName),
     ];
     for (const n of NUDGES) {
       if (n.sec >= limitSec) break;

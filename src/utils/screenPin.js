@@ -73,6 +73,23 @@ export const awayMsSinceScreenOn = (bgAt) => {
   return screenOffAwayMs(bgAt, st.lastOnAt, Date.now(), st);
 };
 
+// ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
+// 이 구간에서는 앱이 'active'를 한 번도 못 받고 JS 타이머도 멈추므로(focusAway.js 하단 주석),
+// '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단을 네이티브가 대신한다.
+// 판단만 네이티브로 옮긴 것이고, 이탈 카운트는 기존대로 복귀 시점에 JS가 확정한다.
+export const awayWatchSupported = () => !!(mod && typeof mod.armAwayWatch === 'function');
+
+// steps: [{ sec, title, body }] — 첫 항목은 이탈 확정 즉시, 나머지는 확정 시각 기준 sec 뒤
+export const armAwayWatch = async (graceMs, limitAtMs, steps) => {
+  if (!awayWatchSupported()) return false;
+  try { return await mod.armAwayWatch(graceMs, limitAtMs || 0, steps); } catch { return false; }
+};
+
+export const disarmAwayWatch = async () => {
+  if (!awayWatchSupported()) return false;
+  try { return await mod.disarmAwayWatch(); } catch { return false; }
+};
+
 // 고정 중에는 OS가 알림 소리/진동을 차단하므로, 완료/페이즈 시각에 네이티브 알람으로
 // 직접 진동+알림음을 울린다. 리시버가 고정 중일 때만 울리므로(자체 게이트) 중복 걱정 없음.
 export const scheduleLockAlarm = async (id, atMs) => {
