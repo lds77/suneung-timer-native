@@ -23,10 +23,12 @@ import androidx.core.app.NotificationCompat
 //
 // 흐름 (arm은 '화면 끄기로 배경에 내려간' 경우에만 JS가 건다):
 //   SCREEN_ON → 화면이 켜져 있는 동안 확인 알람을 짧게 반복 예약(폴링 시작)
-//   SCREEN_OFF → 예약 취소 (알림만 확인하고 다시 끈 것)
-//   확인 알람 → KeyguardManager/PowerManager 직접 조회
+//   SCREEN_OFF → 예약 취소 (알림만 확인하고 다시 끈 것). **단 통화 중이면 계속 폴링**
+//   확인 알람 → AudioManager/KeyguardManager/PowerManager 직접 조회
+//     · 통화 중이면 기준점을 비우고 계속 관측 — 전화를 받는 건 이탈이 아니다
 //     · 잠겨 있으면 기준점을 비우고 다시 예약 — 잠금화면에선 다른 앱을 쓸 수 없으므로 이탈이 아니다
-//     · 풀려 있으면 그 시각부터 재고, graceMs 동안 이어지면 이탈 확정 → 알림 + 후속 넛지 예약
+//     · 쓸 수 있는 상태면 그 시각부터 재고(통화 직후면 유예를 얹어 미래 시각부터),
+//       graceMs 동안 이어지면 이탈 확정 → 알림 + 후속 넛지 예약
 //   앱 복귀(JS의 disarm) → 알람·알림 전부 정리
 //
 // ★잠금해제를 `ACTION_USER_PRESENT`로 알아내지 않는다★ (2026-07-30 실기기 확인).
@@ -49,6 +51,10 @@ object AwayWatch {
   private const val POLL_MS = 2_000L
   // 통화 중 폴링 간격 — '통화가 끝난 시각'만 알면 되므로 더 느려도 된다
   private const val CALL_POLL_MS = 5_000L
+  // 통화가 끝난 뒤 이만큼은 이탈 시계를 돌리지 않는다 — 통화 종료 화면을 닫고 앱으로
+  // 돌아오는 시간이다. ★JS의 focusAway.POST_CALL_GRACE_MS와 같은 값을 유지할 것★
+  // (알림은 네이티브가, 카운트는 JS가 판단하므로 둘이 어긋나면 "알림은 왔는데 이탈은 없음"이 된다)
+  private const val POST_CALL_GRACE_MS = 60_000L
   // 폴링 상한 — 잠금화면에 아주 오래 머무는 등 확정이 안 나는 경우의 안전장치.
   // 여기서 멈춰도 다음 SCREEN_ON이 오면 다시 시작된다
   private const val MAX_CHECKS = 200
@@ -61,9 +67,11 @@ object AwayWatch {
   @Volatile private var graceMs = 10_000L
   @Volatile private var limitAtMs = 0L // 이 시각 이후로는 알림 금지(카운트다운 종료 시각). 0이면 무제한
   @Volatile private var steps: List<Step> = emptyList()
-  // 잠금이 풀린 채 이어진 시작 시각(0이면 아직 아님) + 폴링 횟수
+  // 이탈 시계의 시작 시각(0이면 아직 안 시작). 통화 직후에는 유예만큼 **미래 시각**이 들어간다
   @Volatile private var usableSince = 0L
   @Volatile private var checks = 0
+  // 직전에 통화를 관측했는가 (다음에 '쓸 수 있는 상태'가 될 때 유예를 얹는다)
+  @Volatile private var postCall = false
 
   // 마지막으로 통화를 '관측한' 시각. inCall()이 true를 돌려줄 때마다 갱신된다(JS 질의·폴링 공용).
   // ★배경에 있는 동안은 JS가 아무것도 볼 수 없으므로, 이 기록이 통화 여부를 아는 유일한 수단이다★
@@ -82,6 +90,7 @@ object AwayWatch {
     steps = stepsIn.take(MAX_STEPS)
     usableSince = 0L
     checks = 0
+    postCall = false
     // 무장 시점에 이미 화면이 켜져 있을 수도 있다(화면 끄기 판정이 레이스로 어긋난 경우) → 즉시 평가
     onScreenEvent(ctx)
   }
@@ -90,6 +99,7 @@ object AwayWatch {
     armed = false
     usableSince = 0L
     checks = 0
+    postCall = false
     cancelCheck(ctx)
     for (i in 0 until MAX_STEPS) cancelAlarm(ctx, nudgeIntent(ctx, i))
     val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -101,6 +111,16 @@ object AwayWatch {
   // 화면이 켜져 있으면 폴링을 (재)시작하고, 꺼져 있으면 멈춘다 — 잠금 해제 여부는 폴링이 직접 본다
   fun onScreenEvent(ctx: Context) {
     if (!armed) return
+    // ★통화 중이면 화면이 꺼져도 폴링을 끊지 않는다★ (2026-07-30 실기기 수정)
+    // 전화를 받아 귀에 대면 근접센서로 화면이 꺼지고, 그때 SCREEN_OFF가 와서 여기서
+    // cancelCheck()를 하면 **통화 내내 관측이 멈춘다**. 그러면 '마지막 통화 관측 시각'이
+    // 통화 시작에 머물러 통화 직후 유예가 '60초 − 통화 시간'으로 쪼그라든다.
+    // (onCheck 안에서만 고쳐서는 안 된다 — onCheck 자체가 다시 불리지 않기 때문)
+    if (inCall(ctx)) {
+      usableSince = 0L
+      scheduleAt(ctx, System.currentTimeMillis() + CALL_POLL_MS, checkIntent(ctx))
+      return
+    }
     if (interactive(ctx)) {
       checks = 0 // 새로 켜졌으니 상한 초기화
       scheduleAt(ctx, System.currentTimeMillis() + POLL_MS, checkIntent(ctx))
@@ -124,6 +144,7 @@ object AwayWatch {
     // 상한(checks)도 세지 않는다 — 통화 길이는 사용자가 정하는 것이고, 복귀 시 disarm된다.
     if (inCall(ctx)) { // 이 호출이 lastCallAt을 갱신한다
       usableSince = 0L
+      postCall = true // 통화가 끝나면 유예를 얹어서 시계를 시작한다
       scheduleAt(ctx, now + CALL_POLL_MS, checkIntent(ctx))
       return
     }
@@ -138,7 +159,14 @@ object AwayWatch {
       return
     }
 
-    if (usableSince == 0L) usableSince = now
+    if (usableSince == 0L) {
+      // 통화 직후라면 시계 시작점을 유예만큼 미래로 잡는다 — 전화를 끊고 통화 종료 화면을
+      // 닫고 앱으로 돌아오는 시간에 '돌아와' 알림이 울리면 안 된다.
+      // JS의 이탈 카운트도 같은 유예를 쓴다(awayMsAfterCall) — 둘이 어긋나면
+      // "알림은 왔는데 이탈은 안 잡힘"이 된다
+      usableSince = now + (if (postCall) POST_CALL_GRACE_MS else 0L)
+      postCall = false
+    }
     val heldMs = now - usableSince
     if (heldMs < graceMs) {
       // 잠금은 풀렸지만 아직 유예 중 — 남은 시간과 폴링 간격 중 짧은 쪽으로 다시 확인
