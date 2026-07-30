@@ -88,6 +88,12 @@ export const audioMode = () => {
   try { return mod.audioMode(); } catch { return -1; }
 };
 
+// ★임시 진단★ 배경에 있는 동안 네이티브가 관측한 값 — JS는 그 구간을 볼 수 없다
+export const awayWatchDiag = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.awayDiag !== 'function') return null;
+  try { return mod.awayDiag(); } catch { return null; }
+};
+
 // ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
 // 이 구간에서는 앱이 'active'를 한 번도 못 받고 JS 타이머도 멈추므로(focusAway.js 하단 주석),
 // '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단을 네이티브가 대신한다.

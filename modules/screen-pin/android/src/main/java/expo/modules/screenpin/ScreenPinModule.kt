@@ -175,6 +175,17 @@ class ScreenPinModule : Module() {
       return@Function try { am.mode } catch (_: Throwable) { -98 }
     }
 
+    // 진단용 — 배경에 있는 동안 네이티브가 실제로 관측한 값 (JS는 그 구간을 못 본다).
+    // polls: 폴링 횟수 / maxMode: 관측한 오디오 모드 최댓값 / callAgoMs: 마지막 통화 관측 이후 경과
+    Function("awayDiag") {
+      val last = AwayWatch.diagLastCallAt()
+      return@Function mapOf(
+        "polls" to AwayWatch.diagPolls(),
+        "maxMode" to AwayWatch.diagMaxMode(),
+        "callAgoMs" to (if (last > 0) (System.currentTimeMillis() - last).toDouble() else -1.0)
+      )
+    }
+
     AsyncFunction("pin") { promise: Promise ->
       val activity = appContext.currentActivity
       if (activity == null) {

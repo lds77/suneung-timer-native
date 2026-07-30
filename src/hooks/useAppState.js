@@ -28,7 +28,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, audioMode } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, audioMode, awayWatchDiag } from '../utils/screenPin';
 import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, AWAY_DIAG } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
@@ -714,7 +714,9 @@ export function AppProvider({ children }) {
 
         // ★임시 진단★ 복귀 시점 원시값 + 직전 전환 기록을 한 번에 보여준다 (원인 확정 후 제거)
         if (AWAY_DIAG && Platform.OS === 'android' && mode === 'screen_on' && bgAt) {
-          diagPush(`ACT away=${(awayMs / 1000).toFixed(1)}s call=${isInCall() ? 1 : 0} mode=${audioMode()} 이탈=${wasAway && awayMs >= AWAY_MIN_MS ? 'O' : 'X'}`);
+          const nd = awayWatchDiag();
+          diagPush(`ACT away=${(awayMs / 1000).toFixed(1)}s mode=${audioMode()} 이탈=${wasAway && awayMs >= AWAY_MIN_MS ? 'O' : 'X'}`);
+          if (nd) diagPush(`  └native polls=${nd.polls} maxMode=${nd.maxMode} callAgo=${nd.callAgoMs >= 0 ? (nd.callAgoMs / 1000).toFixed(0) + 's' : '없음'}`);
           const lines = awayDiag.current.join('\n');
           setTimeout(() => Alert.alert('이탈 진단 (임시)', lines), 400);
         }
