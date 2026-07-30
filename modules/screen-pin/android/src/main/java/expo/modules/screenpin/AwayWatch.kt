@@ -47,6 +47,8 @@ object AwayWatch {
   private const val MAX_STEPS = 8
   // 화면이 켜져 있는 동안의 폴링 간격. 화면이 켜진 상태에서만 돌고 확정되면 멈춘다
   private const val POLL_MS = 2_000L
+  // 통화 중 폴링 간격 — '통화가 끝난 시각'만 알면 되므로 더 느려도 된다
+  private const val CALL_POLL_MS = 5_000L
   // 폴링 상한 — 잠금화면에 아주 오래 머무는 등 확정이 안 나는 경우의 안전장치.
   // 여기서 멈춰도 다음 SCREEN_ON이 오면 다시 시작된다
   private const val MAX_CHECKS = 200
@@ -113,18 +115,24 @@ object AwayWatch {
     val now = System.currentTimeMillis()
     if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
 
-    // ★통화 상태는 화면 상태보다 먼저 본다★ — 통화 중엔 근접센서로 화면이 꺼지므로
-    // 아래 interactive 검사에 걸려 조기 return하면 통화를 한 번도 관측하지 못한다.
-    // 여기서 남긴 lastCallAt이 '통화 직후 유예'(JS의 awayMsAfterCall)의 기준이 된다
-    val calling = inCall(ctx)
+    // ★통화 중에는 화면이 꺼져 있어도 계속 관측한다★ (2026-07-30 실기기 수정)
+    // 통화 직후 유예(JS의 awayMsAfterCall)는 '마지막으로 통화를 관측한 시각'을 기준으로 잡는다.
+    // 그런데 통화 중엔 근접센서로 화면이 꺼져, 아래 interactive 검사에 걸려 폴링이 멈춰버리면
+    // 기준점이 **통화 시작 시각에 멈춘 채로 굳는다** → 실제 유예가 '60초 − 통화 시간'으로
+    // 줄어들어, 30초 통화면 30초만 남고 2분 통화면 유예가 아예 0이 된다(사용자 제보).
+    // 그래서 통화 중에는 화면 상태와 무관하게 계속 폴링해 '통화가 끝난 시각'을 잡는다.
+    // 상한(checks)도 세지 않는다 — 통화 길이는 사용자가 정하는 것이고, 복귀 시 disarm된다.
+    if (inCall(ctx)) { // 이 호출이 lastCallAt을 갱신한다
+      usableSince = 0L
+      scheduleAt(ctx, now + CALL_POLL_MS, checkIntent(ctx))
+      return
+    }
 
     // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
     if (!interactive(ctx)) { usableSince = 0L; return }
 
-    if (!unlocked(ctx) || calling) {
-      // 잠금화면 체류 = 다른 앱을 쓸 수 없음 / 통화 중 = 이탈이 아님.
-      // (잠금화면 위로 걸려온 전화를 받는 경우가 여기 걸린다 — 통화가 끝날 때까지 알리지 않는다)
-      // 기준점을 비우고 계속 지켜본다
+    if (!unlocked(ctx)) {
+      // 잠금화면 체류 — 다른 앱을 쓸 수 없으므로 이탈 아님. 기준점을 비우고 계속 지켜본다
       usableSince = 0L
       if (++checks < MAX_CHECKS) scheduleAt(ctx, now + POLL_MS, checkIntent(ctx))
       return

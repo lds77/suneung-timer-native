@@ -701,6 +701,7 @@ export function AppProvider({ children }) {
         // 여기서 거르는 건 **전화를 끊고 통화 종료 화면을 닫고 돌아오는 시간**이다
         // (실기기 확인 2026-07-30: 통화 87초는 면제됐는데 끊은 뒤 20초가 이탈로 찍혔다).
         if (Platform.OS === 'android' && wasAway) {
+          isInCall(); // 복귀 순간에도 한 번 관측 — 통화 중에 돌아온 경우 기준점을 최신으로
           const adjusted = awayMsAfterCall(awayMs, msSinceCall());
           if (adjusted < AWAY_MIN_MS) {
             setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
