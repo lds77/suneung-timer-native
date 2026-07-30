@@ -167,23 +167,10 @@ class ScreenPinModule : Module() {
       return@Function AwayWatch.inCall(ctx)
     }
 
-    // 진단용 원시값 — AudioManager.mode (0 NORMAL / 1 RINGTONE / 2 IN_CALL / 3 IN_COMMUNICATION).
-    // inCall()이 왜 그렇게 판정했는지 실기기에서 확인할 때 쓴다
-    Function("audioMode") {
-      val am = appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        ?: return@Function -99
-      return@Function try { am.mode } catch (_: Throwable) { -98 }
-    }
-
-    // 진단용 — 배경에 있는 동안 네이티브가 실제로 관측한 값 (JS는 그 구간을 못 본다).
-    // polls: 폴링 횟수 / maxMode: 관측한 오디오 모드 최댓값 / callAgoMs: 마지막 통화 관측 이후 경과
-    Function("awayDiag") {
-      val last = AwayWatch.diagLastCallAt()
-      return@Function mapOf(
-        "polls" to AwayWatch.diagPolls(),
-        "maxMode" to AwayWatch.diagMaxMode(),
-        "callAgoMs" to (if (last > 0) (System.currentTimeMillis() - last).toDouble() else -1.0)
-      )
+    // 마지막으로 통화를 관측한 이후 경과(ms), 기록이 없으면 -1.
+    // 배경에 있는 동안은 JS가 통화를 볼 수 없으므로(AwayWatch 폴링만 봄) 복귀 시 이걸로 되짚는다
+    Function("msSinceCall") {
+      return@Function AwayWatch.msSinceCall().toDouble()
     }
 
     AsyncFunction("pin") { promise: Promise ->

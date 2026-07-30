@@ -5,7 +5,7 @@ import {
   isScreenOffState, screenOffAwayMs, isRealAwayAfterScreenOn, offHappenedAround,
   wasIdleBeforeBackground,
   SCREEN_OFF_RACE_MS, AWAY_MIN_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
-  ANDROID_AWAY_NOTIF_DELAY_SEC,
+  ANDROID_AWAY_NOTIF_DELAY_SEC, awayMsAfterCall, POST_CALL_GRACE_MS,
 } from '../focusAway';
 
 // iOS 전용: 백그라운드 전환 직전 터치 유무로 '화면 자동 꺼짐'과 '사람이 나감'을 가른다
@@ -184,5 +184,43 @@ describe('ANDROID_AWAY_NOTIF_DELAY_SEC', () => {
   // 갈린다(사용자 지적 2026-07-30). 알림을 보고 복귀하는 데 걸리는 현실적인 시간(수 초)을 덮을 것
   it('알림을 보고 복귀할 여유가 판정 기준까지 충분히 남아야 한다', () => {
     expect(AWAY_MIN_MS - ANDROID_AWAY_NOTIF_DELAY_SEC * 1000).toBeGreaterThanOrEqual(8000);
+  });
+});
+
+// ─── 통화 직후 유예 (2026-07-30 실기기 진단으로 확정) ────────────────────────
+// 실기기 로그: 통화 구간(87초)은 이미 면제되고 있었는데 **끊은 뒤 20초**가 별개의 배경
+// 전환으로 잡혀 이탈 1회 + 알림이 나갔다. 통화 관측 시각(네이티브)을 기준으로 되짚어 막는다.
+describe('awayMsAfterCall', () => {
+  const G = POST_CALL_GRACE_MS;
+
+  it('통화 관측 기록이 없으면 그대로 통과 (평소 이탈은 영향 없음)', () => {
+    expect(awayMsAfterCall(30000, -1)).toBe(30000);
+    expect(awayMsAfterCall(30000, undefined)).toBe(30000);
+    expect(awayMsAfterCall(30000, null)).toBe(30000); // null이 0으로 강제 변환돼 '방금 통화'가 되면 안 된다
+  });
+
+  it('실기기 재현: 통화 직후 20초 복귀 → 이탈 아님', () => {
+    // 끊은 지 20초, 그 20초가 통째로 배경이었다
+    expect(awayMsAfterCall(20000, 20000)).toBe(0);
+    expect(isRealAwayAfterScreenOn(awayMsAfterCall(20000, 20000))).toBe(false);
+  });
+
+  it('유예 경계: 유예까지는 0, 넘어선 만큼만 이탈로 센다', () => {
+    expect(awayMsAfterCall(600000, G)).toBe(0);
+    expect(awayMsAfterCall(600000, G + 5000)).toBe(5000);
+  });
+
+  it('통화 후 다른 앱을 오래 쓰면 유예를 뺀 나머지는 이탈로 잡힌다 (우회 방지)', () => {
+    const away = 10 * 60000, callAgo = 10 * 60000; // 끊고 10분 내내 다른 앱
+    expect(awayMsAfterCall(away, callAgo)).toBe(away - G);
+    expect(isRealAwayAfterScreenOn(awayMsAfterCall(away, callAgo))).toBe(true);
+  });
+
+  it('배경 시간보다 길게 잡히지 않는다 (통화가 앱 밖에서 이미 끝나 있던 경우)', () => {
+    expect(awayMsAfterCall(5000, 10 * 60000)).toBe(5000);
+  });
+
+  it('오래전 통화는 유예를 주지 않는다', () => {
+    expect(awayMsAfterCall(30000, 60 * 60000)).toBe(30000);
   });
 });

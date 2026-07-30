@@ -28,8 +28,8 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, audioMode, awayWatchDiag } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, AWAY_DIAG } from '../utils/focusAway';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -362,14 +362,6 @@ export function AppProvider({ children }) {
   const screenOffBg = useRef(false);
   // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
   const iosDeferAway = useRef(false);
-  // ★임시 진단(AWAY_DIAG)★ 배경/복귀 전환의 원시값 기록 — 원인 확정 후 제거
-  const awayDiag = useRef([]);
-  const diagPush = (line) => {
-    if (!AWAY_DIAG || Platform.OS !== 'android') return;
-    const d = new Date();
-    const hh = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-    awayDiag.current = [...awayDiag.current, `${hh} ${line}`].slice(-8);
-  };
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -602,7 +594,6 @@ export function AppProvider({ children }) {
         const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
         const screenOffNow = awayCandidate && !awayExempt && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
-        diagPush(`BG cand=${awayCandidate ? 1 : 0} call=${inCallNow ? 1 : 0} mode=${audioMode()} exempt=${awayExempt ? 1 : 0} scrOff=${screenOffNow ? 1 : 0}`);
         const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
         // confirmed: 이미 이탈이 확정된 시점(배경 폴링)이라 알림을 지연시킬 필요가 없다
         const markAway = ({ confirmed = false } = {}) => {
@@ -704,21 +695,20 @@ export function AppProvider({ children }) {
           }
         }
 
-        // 통화 중에 앱으로 돌아온 경우(스피커폰으로 바꾸고 오는 등)도 이탈이 아니다.
-        // 배경으로 내려가는 순간엔 아직 벨이 안 울려 통화로 못 잡은 경우를 여기서 한 번 더 건진다
-        if (Platform.OS === 'android' && wasAway && isInCall()) {
-          setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
-          if (screenLockedRef.current) applyFocusBrightness();
-          wasAway = false;
-        }
-
-        // ★임시 진단★ 복귀 시점 원시값 + 직전 전환 기록을 한 번에 보여준다 (원인 확정 후 제거)
-        if (AWAY_DIAG && Platform.OS === 'android' && mode === 'screen_on' && bgAt) {
-          const nd = awayWatchDiag();
-          diagPush(`ACT away=${(awayMs / 1000).toFixed(1)}s mode=${audioMode()} 이탈=${wasAway && awayMs >= AWAY_MIN_MS ? 'O' : 'X'}`);
-          if (nd) diagPush(`  └native polls=${nd.polls} maxMode=${nd.maxMode} callAgo=${nd.callAgoMs >= 0 ? (nd.callAgoMs / 1000).toFixed(0) + 's' : '없음'}`);
-          const lines = awayDiag.current.join('\n');
-          setTimeout(() => Alert.alert('이탈 진단 (임시)', lines), 400);
+        // 통화 중이거나 방금 통화가 끝난 구간은 이탈이 아니다 (안드).
+        // 배경에 있는 동안 JS는 통화를 볼 수 없으므로(타이머가 멈춘다) 네이티브가 관측해 둔
+        // '마지막 통화 시각'으로 되짚는다. 통화 자체는 배경 진입 시 awayExempt로 이미 걸러지고,
+        // 여기서 거르는 건 **전화를 끊고 통화 종료 화면을 닫고 돌아오는 시간**이다
+        // (실기기 확인 2026-07-30: 통화 87초는 면제됐는데 끊은 뒤 20초가 이탈로 찍혔다).
+        if (Platform.OS === 'android' && wasAway) {
+          const adjusted = awayMsAfterCall(awayMs, msSinceCall());
+          if (adjusted < AWAY_MIN_MS) {
+            setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+            if (screenLockedRef.current) applyFocusBrightness();
+            wasAway = false;
+          } else {
+            awayMs = adjusted;
+          }
         }
 
         // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)

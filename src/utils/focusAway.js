@@ -7,12 +7,6 @@
 // 화면을 끈 것은 다른 앱을 쓰는 게 아니므로 이탈이 아니다 — 대신 '화면을 다시 켠 시점'부터를
 // 이탈 시간으로 본다 (잠금화면에서 바로 다른 앱을 열고 놀다 돌아온 경우를 걸러내기 위함).
 
-// ★★임시 진단 스위치 — 원인 확정 후 반드시 false로 되돌리고 관련 코드를 제거할 것★★
-// 켜면 🔥모드에서 앱으로 돌아올 때 직전 배경 전환들의 원시값(오디오 모드·화면·잠금·이탈 판정)을
-// Alert으로 보여준다. 타이밍/OS 상태가 얽힌 증상은 추측을 반복하는 것보다 기기에 진단을 심는 게
-// 훨씬 싸다는 걸 이 파일 계열에서 두 번 배웠다 (2026-07-30).
-export const AWAY_DIAG = true;
-
 // 화면 꺼짐 판정 유예: SCREEN_OFF 브로드캐스트와 액티비티 onPause 순서가 기기마다 달라
 // isInteractive()가 잠깐 true로 남을 수 있다. 방금 꺼졌으면 꺼진 것으로 본다.
 export const SCREEN_OFF_RACE_MS = 1500;
@@ -143,6 +137,24 @@ export function screenOffAwayMs(bgAt, lastOnAt, now = Date.now(), state = {}) {
 // 위 시간이 이탈로 인정될 만큼 긴가
 export function isRealAwayAfterScreenOn(awayMs) {
   return awayMs >= AWAY_MIN_MS;
+}
+
+// ─── 통화 직후 유예 (안드, 2026-07-30 실기기 진단으로 확정) ──────────────────
+// 전화를 끊고 통화 종료 화면을 닫고 앱으로 돌아오기까지의 시간은 이탈이 아니다.
+// 실기기 로그: 통화 구간(87초)은 이미 면제되고 있었는데, **끊은 뒤의 20초**가 별개의 배경
+// 전환으로 잡혀 이탈 1회 + '돌아와' 알림이 나갔다. 사용자가 겪은 "전화 끊고 몇 초 있다가
+// 이탈 알림"의 정체다.
+export const POST_CALL_GRACE_MS = 60000;
+
+// 통화 관측 시각을 반영해 이탈 시간을 다시 잰다.
+// callAgoMs: 마지막으로 통화를 관측한 이후 경과(ms). 기록이 없으면 음수 → 그대로 통과.
+// ★'통화 이후 유예가 끝난 시점'부터만 이탈로 센다★ — 통째로 면제하지 않는 이유는,
+// 통화가 끝난 뒤 다른 앱을 오래 쓰는 경우까지 봐주면 우회 수단이 되기 때문이다.
+export function awayMsAfterCall(awayMs, callAgoMs, grace = POST_CALL_GRACE_MS) {
+  // ※`callAgoMs >= 0`만으로 거르면 안 된다 — null이 0으로 강제 변환돼 '방금 통화'로 둔갑하고,
+  //   그러면 통화가 없었는데도 이탈이 통째로 면제된다. 타입까지 확인할 것
+  if (typeof callAgoMs !== 'number' || !Number.isFinite(callAgoMs) || callAgoMs < 0) return awayMs;
+  return Math.max(0, Math.min(awayMs, callAgoMs - grace));
 }
 
 // ─── ★배경에서 JS 타이머로 폴링하는 방법은 없다 (2026-07-30 실기기로 확인)★ ────

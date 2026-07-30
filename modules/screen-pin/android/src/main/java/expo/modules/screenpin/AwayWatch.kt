@@ -63,15 +63,13 @@ object AwayWatch {
   @Volatile private var usableSince = 0L
   @Volatile private var checks = 0
 
-  // ★임시 진단★ 배경에 있는 동안(=JS가 못 보는 구간) 실제로 관측한 통화 상태.
-  // AudioManager.getMode()가 이 기기에서 통화를 정말 잡는지 확인하려고 넣었다 — 확정 후 제거
-  @Volatile private var pollCount = 0
-  @Volatile private var maxMode = 0
+  // 마지막으로 통화를 '관측한' 시각. inCall()이 true를 돌려줄 때마다 갱신된다(JS 질의·폴링 공용).
+  // ★배경에 있는 동안은 JS가 아무것도 볼 수 없으므로, 이 기록이 통화 여부를 아는 유일한 수단이다★
+  // arm/disarm으로 지우지 않는다 — 세션 경계와 무관한 '기기에 마지막으로 전화가 있었던 시각'이다.
   @Volatile private var lastCallAt = 0L
 
-  fun diagPolls() = pollCount
-  fun diagMaxMode() = maxMode
-  fun diagLastCallAt() = lastCallAt
+  // 마지막 통화 관측 이후 경과(ms). 관측 기록이 없으면 -1
+  fun msSinceCall(): Long = if (lastCallAt > 0L) System.currentTimeMillis() - lastCallAt else -1L
 
   fun isArmed() = armed
 
@@ -82,7 +80,6 @@ object AwayWatch {
     steps = stepsIn.take(MAX_STEPS)
     usableSince = 0L
     checks = 0
-    pollCount = 0; maxMode = 0; lastCallAt = 0L // 진단(임시)
     // 무장 시점에 이미 화면이 켜져 있을 수도 있다(화면 끄기 판정이 레이스로 어긋난 경우) → 즉시 평가
     onScreenEvent(ctx)
   }
@@ -116,17 +113,15 @@ object AwayWatch {
     val now = System.currentTimeMillis()
     if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
 
-    // ★임시 진단★ 통화 상태는 화면 상태보다 먼저 본다 — 통화 중엔 근접센서로 화면이 꺼지므로
-    // 아래 interactive 검사에 걸려 조기 return하면 통화를 한 번도 관측 못 한다
-    pollCount++
-    val m = currentAudioMode(ctx)
-    if (m > maxMode) maxMode = m
-    if (inCall(ctx)) lastCallAt = now
+    // ★통화 상태는 화면 상태보다 먼저 본다★ — 통화 중엔 근접센서로 화면이 꺼지므로
+    // 아래 interactive 검사에 걸려 조기 return하면 통화를 한 번도 관측하지 못한다.
+    // 여기서 남긴 lastCallAt이 '통화 직후 유예'(JS의 awayMsAfterCall)의 기준이 된다
+    val calling = inCall(ctx)
 
     // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
     if (!interactive(ctx)) { usableSince = 0L; return }
 
-    if (!unlocked(ctx) || inCall(ctx)) {
+    if (!unlocked(ctx) || calling) {
       // 잠금화면 체류 = 다른 앱을 쓸 수 없음 / 통화 중 = 이탈이 아님.
       // (잠금화면 위로 걸려온 전화를 받는 경우가 여기 걸린다 — 통화가 끝날 때까지 알리지 않는다)
       // 기준점을 비우고 계속 지켜본다
@@ -167,17 +162,18 @@ object AwayWatch {
   //  Play 정책상 정당화가 까다롭고 지원 기기까지 줄일 수 있다 — CAMERA 때 겪은 그 문제.)
   // 벨 울림(RINGTONE) / 통화 중(IN_CALL) / 인터넷 통화(IN_COMMUNICATION, 보이스톡 등) /
   // 통화 선별(CALL_SCREENING)을 모두 통화로 본다. 전화를 받는 건 이탈이 아니다.
-  fun currentAudioMode(ctx: Context): Int {
-    val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return -99
-    return try { am.mode } catch (_: Throwable) { -98 }
-  }
-
+  // ※실기기 확인(2026-07-30): 통화 중 네이티브 폴링에서 mode=2(IN_CALL)가 관측됐다 —
+  //   이 방식이 실제로 통화를 잡는다는 근거. 권한 없이 되는 유일한 수단이라 대안도 없다.
   fun inCall(ctx: Context): Boolean {
-    val mode = currentAudioMode(ctx)
-    if (mode == AudioManager.MODE_RINGTONE ||
+    val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+    val mode = try { am.mode } catch (_: Throwable) { AudioManager.MODE_NORMAL }
+    val calling = mode == AudioManager.MODE_RINGTONE ||
         mode == AudioManager.MODE_IN_CALL ||
-        mode == AudioManager.MODE_IN_COMMUNICATION) return true
-    return Build.VERSION.SDK_INT >= 30 && mode == AudioManager.MODE_CALL_SCREENING
+        mode == AudioManager.MODE_IN_COMMUNICATION ||
+        (Build.VERSION.SDK_INT >= 30 && mode == AudioManager.MODE_CALL_SCREENING)
+    // 관측 시각을 남긴다 — 누가 물어보든(JS 질의/폴링) 이 한 곳에서 갱신되게 한다
+    if (calling) lastCallAt = System.currentTimeMillis()
+    return calling
   }
 
   // 아래 둘 다 브로드캐스트 시각이 아니라 지금 이 순간의 직접 조회라 지연·누락이 없다

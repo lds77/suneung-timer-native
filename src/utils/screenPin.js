@@ -81,17 +81,12 @@ export const isInCall = () => {
   try { return !!mod.inCall(); } catch { return false; }
 };
 
-// ★임시 진단★ AudioManager.mode 원시값 (0 정상 / 1 벨울림 / 2 통화 / 3 인터넷통화).
-// 전화 이탈 오판의 원인을 실기기에서 특정하려고 넣었다 — 확정되면 AWAY_DIAG와 함께 제거할 것
-export const audioMode = () => {
-  if (Platform.OS !== 'android' || !mod || typeof mod.audioMode !== 'function') return -1;
-  try { return mod.audioMode(); } catch { return -1; }
-};
-
-// ★임시 진단★ 배경에 있는 동안 네이티브가 관측한 값 — JS는 그 구간을 볼 수 없다
-export const awayWatchDiag = () => {
-  if (Platform.OS !== 'android' || !mod || typeof mod.awayDiag !== 'function') return null;
-  try { return mod.awayDiag(); } catch { return null; }
+// 마지막으로 통화를 관측한 이후 경과(ms), 기록이 없으면 -1.
+// 배경에 있는 동안 JS는 통화를 볼 수 없다(타이머가 멈춘다) — 그 구간은 네이티브 AwayWatch
+// 폴링이 관측해 두므로, 복귀 시 이 값으로 '통화 직후였는지'를 되짚는다
+export const msSinceCall = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.msSinceCall !== 'function') return -1;
+  try { return mod.msSinceCall(); } catch { return -1; }
 };
 
 // ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
