@@ -98,7 +98,7 @@ function AppBlockSettings({ T, app }) {
           <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>앱 차단</Text>
           <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중모드로 공부하는 동안은 선택한 앱이 잠겨요</Text>
         </View>
-        <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} />
+        <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} trackColor={{ true: T.accent }} thumbColor="white" />
       </View>
       {!!app.settings.appBlockEnabled && (
         <TouchableOpacity onPress={pickApps}
@@ -114,7 +114,7 @@ function AppBlockSettings({ T, app }) {
               <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>울트라모드 전체 차단</Text>
               <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라모드에서는 허용한 앱 빼고 모두 잠겨요</Text>
             </View>
-            <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} />
+            <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} trackColor={{ true: T.accent }} thumbColor="white" />
           </View>
           {!!app.settings.appBlockExamAll && (
             <TouchableOpacity onPress={pickAllowedApps}
@@ -524,6 +524,8 @@ export default function SettingsScreen() {
               <Switch
                 value={!app.settings.modeAutoStart}
                 onValueChange={(v) => app.updateSettings({ modeAutoStart: !v })}
+                trackColor={{ true: T.accent }}
+                thumbColor="white"
               />
             )}
           />
