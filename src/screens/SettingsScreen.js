@@ -36,15 +36,17 @@ import TimePickerGrid from '../components/TimePickerGrid';
 let _styles = null;
 
 // 타이머 시작 시 뜨는 3지 선택 팝업(App.js MODE_CHOICES)과 같은 값. 여기 설정은 그 팝업의
-// 기본 선택값이고, 실제 강도는 시작할 때마다 고른다 — 문구를 고칠 땐 양쪽을 함께 볼 것.
+// 기본 선택값이고, 실제 모드는 시작할 때마다 고른다 — 문구를 고칠 땐 양쪽을 함께 볼 것.
+// ※사용자에게 보이는 이름은 '일반모드 / 집중모드 / 울트라모드'로 통일돼 있다(2026-07-30).
+//   내부 id(normal/focus/exam)와 코드 주석의 '강도'는 그대로다 — 저장값이라 못 바꾼다.
 const FOCUS_LEVELS = [
-  { id: 'normal', label: '일반(편하게)', desc: '이탈 감지 없이 자유롭게 · 집중 점수 +5', color: '#4CAF50' },
-  { id: 'focus',  label: '집중',        desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력 · 집중 점수 +10', color: '#FFB74D' },
-  { id: 'exam',   label: '울트라집중',   desc: '일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지 · 집중 점수 +15'
+  { id: 'normal', label: '일반모드', desc: '이탈 감지 없이 자유롭게 · 집중 점수 +5', color: '#4CAF50' },
+  { id: 'focus',  label: '집중모드',    desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력 · 집중 점수 +10', color: '#FFB74D' },
+  { id: 'exam',   label: '울트라모드',   desc: '일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지 · 집중 점수 +15'
       + (Platform.OS === 'android' ? ' · 화면 고정(홈 버튼 차단)' : ''), color: '#FF6B6B' },
 ];
 
-// iOS 앱 차단(Screen Time) 설정 블록 — 울트라집중 세션 중 선택한 앱을 실제 차단.
+// iOS 앱 차단(Screen Time) 설정 블록 — 울트라모드 세션 중 선택한 앱을 실제 차단.
 // 미지원(안드/Expo Go/iOS 15 이하/entitlement 미포함 빌드)이면 아무것도 렌더하지 않음.
 function AppBlockSettings({ T, app }) {
   const [blockedCount, setBlockedCount] = useState(() => getShieldBlockedCount());
@@ -69,12 +71,12 @@ function AppBlockSettings({ T, app }) {
     app.updateSettings({ appBlockEnabled: true });
     await pickApps();
   };
-  // 울트라집중 전체 차단: 켜기 전에 필수 앱(전화·메시지 등) 허용을 반드시 안내
+  // 울트라모드 전체 차단: 켜기 전에 필수 앱(전화·메시지 등) 허용을 반드시 안내
   const onToggleExamAll = (v) => {
     if (!v) { app.updateSettings({ appBlockExamAll: false }); return; }
     Alert.alert(
-      '울트라집중 전체 차단',
-      '울트라집중으로 집중 도전을 시작하면 허용 목록에 없는 앱이 모두 잠겨요.\n\n전화, 메시지처럼 꼭 필요한 앱을 먼저 허용 목록에 추가해주세요.',
+      '울트라모드 전체 차단',
+      '울트라모드로 시작하면 허용 목록에 없는 앱이 모두 잠겨요.\n\n전화, 메시지처럼 꼭 필요한 앱을 먼저 허용 목록에 추가해주세요.',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -94,7 +96,7 @@ function AppBlockSettings({ T, app }) {
         <Ionicons name="shield-checkmark-outline" size={18} color={T.accent} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>앱 차단</Text>
-          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중 도전 중에는 선택한 앱이 잠겨요</Text>
+          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중모드로 공부하는 동안은 선택한 앱이 잠겨요</Text>
         </View>
         <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} />
       </View>
@@ -109,8 +111,8 @@ function AppBlockSettings({ T, app }) {
         <>
           <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.border }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>울트라집중 전체 차단</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라집중에서는 허용한 앱 빼고 모두 잠겨요</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>울트라모드 전체 차단</Text>
+              <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라모드에서는 허용한 앱 빼고 모두 잠겨요</Text>
             </View>
             <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} />
           </View>
@@ -470,8 +472,8 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        {/* 🔥 집중 도전 모드 */}
-        <Section T={T} title="집중 도전 모드" icon="flame-outline">
+        {/* 🔥 공부 모드 */}
+        <Section T={T} title="공부 모드" icon="flame-outline">
           {(() => {
             const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'normal')) || FOCUS_LEVELS[0];
             const isExam = lv.id === 'exam';
@@ -480,7 +482,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 onPress={() => {
                   const hasActive = app.timers?.some(t => t.status === 'running' || t.status === 'paused');
-                  if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 잠금 강도를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
+                  if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 공부 모드를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
                   openPicker(setShowFocusPicker);
                 }}
                 style={{ marginHorizontal: 16, marginVertical: 8, padding: 14, borderRadius: 14, backgroundColor: lv.color + '12', borderWidth: 1.5, borderColor: lv.color + '40' }}
@@ -493,13 +495,15 @@ export default function SettingsScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 15, fontWeight: '800', color: lv.color }}>{lv.label}</Text>
                       <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                      {/* 이 카드가 '지금 모드'가 아니라 '시작할 때 기본으로 뜰 모드'라는 걸 밝힌다 */}
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 4, opacity: 0.8 }}>타이머를 시작할 때 기본으로 선택돼요</Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={lv.color} />
                 </View>
                 {isNormal && (
                   <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: lv.color + '20' }}>
-                    <Text style={{ fontSize: 12, color: '#FF6B6B', fontWeight: '600', textAlign: 'center' }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+                    <Text style={{ fontSize: 12, color: '#FF6B6B', fontWeight: '600', textAlign: 'center' }}>울트라모드에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -510,7 +514,7 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B10', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FF6B6B30' }}>
                 <Ionicons name="flame" size={18} color="#FF6B6B" />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B6B' }}>울트라집중 {app.settings.ultraStreak || 0}일 연속</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B6B' }}>울트라모드 {app.settings.ultraStreak || 0}일 연속</Text>
                   <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>최장 기록 {app.settings.ultraStreakBest || 0}일</Text>
                 </View>
               </View>
@@ -896,7 +900,7 @@ export default function SettingsScreen() {
 
               {/* 기본 사용법 */}
               <GuideSection id="basic" title="기본 사용법" color={T.accent} T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 어떻게 공부할지 3가지 중에서 골라요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n공부 모드 3가지 (시작할 때마다 고를 수 있어요):\n• 편하게 공부 — 이탈 감지 없이 자유롭게 (점수 +5)\n• 집중 도전 — 폰 내려놓고 집중 (점수 +10)\n• 울트라집중 — 일시정지도 막는 가장 강한 모드 (점수 +15)\n\n설정 > 집중 도전 모드에서 기본으로 뜰 모드를 정할 수 있어요.\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
+                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 어떻게 공부할지 3가지 중에서 골라요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n공부 모드 3가지 (시작할 때마다 고를 수 있어요):\n• 일반모드 — 이탈 감지 없이 자유롭게 (점수 +5)\n• 집중모드 — 폰 내려놓고 집중 (점수 +10)\n• 울트라모드 — 일시정지도 막는 가장 강한 모드 (점수 +15)\n\n설정 > 공부 모드에서 기본으로 뜰 모드를 정할 수 있어요.\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
               </GuideSection>
 
               {/* 타이머 종류 */}
@@ -910,27 +914,27 @@ export default function SettingsScreen() {
               </GuideSection>
 
               {/* 집중 모드 */}
-              <GuideSection id="focus" title="집중 도전 vs 편하게 공부" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'타이머를 시작할 때 3가지 중에서 골라요.\n\n집중 도전 — 폰 내려놓고 공부\n→ 화면이 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈하면 30초부터 단계별 복귀 알림이 와요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n편하게 공부 — 부담 없이\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 일시정지도 자유로워요\n→ 음악 들으며, 또는 가볍게 공부하고 싶을 때 추천!\n\n울트라집중 — 가장 강한 모드\n→ 집중 도전에 더해 일시정지·잠깐 쉬기가 막혀요\n→ 10초 이상 앱을 나가면 타이머가 멈춰요\n→ 울트라 연속 기록(스트릭)이 따로 쌓여요\n\n화면은 어느 모드에서든 안 만지면 기기 설정대로 꺼져요.\n화면이 꺼져도 타이머는 계속 돌아가고, 이탈로 치지 않아요.'}
+              <GuideSection id="focus" title="집중모드 vs 일반모드" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'타이머를 시작할 때 3가지 중에서 골라요.\n\n집중모드 — 폰 내려놓고 공부\n→ 화면이 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈하면 30초부터 단계별 복귀 알림이 와요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n일반모드 — 부담 없이\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 일시정지도 자유로워요\n→ 음악 들으며, 또는 가볍게 공부하고 싶을 때 추천!\n\n울트라모드 — 가장 강한 모드\n→ 집중모드에 더해 일시정지·잠깐 쉬기가 막혀요\n→ 10초 이상 앱을 나가면 타이머가 멈춰요\n→ 울트라 연속 기록(스트릭)이 따로 쌓여요\n\n화면은 어느 모드에서든 안 만지면 기기 설정대로 꺼져요.\n화면이 꺼져도 타이머는 계속 돌아가고, 이탈로 치지 않아요.'}
               </GuideSection>
 
               {/* 잠금화면 */}
-              <GuideSection id="lock" title="잠금화면 & 집중 강도" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'집중 도전·울트라집중에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 손잡이를 옆으로 밀면 앱으로 돌아올 수 있어요\n• 잠금을 풀어도 이탈이 아니에요 — 앱을 나가야 이탈로 기록돼요\n• 한동안 안 만지면 기기 설정대로 화면이 꺼져요 (기록은 계속돼요)\n• 잠금화면에 Verified 진행 상태가 표시돼요 — 이탈 없이 완료하면 인증!\n\n이탈하면 이렇게 돼요:\n• 즉시 알림에 이어 30초/1분/3분/5분 단계별로 복귀 알림이 와요 (돌아오면 멈춰요)\n'
+              <GuideSection id="lock" title="잠금화면 & 공부 모드" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'집중모드·울트라모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 손잡이를 옆으로 밀면 앱으로 돌아올 수 있어요\n• 잠금을 풀어도 이탈이 아니에요 — 앱을 나가야 이탈로 기록돼요\n• 한동안 안 만지면 기기 설정대로 화면이 꺼져요 (기록은 계속돼요)\n• 잠금화면에 Verified 진행 상태가 표시돼요 — 이탈 없이 완료하면 인증!\n\n이탈하면 이렇게 돼요:\n• 즉시 알림에 이어 30초/1분/3분/5분 단계별로 복귀 알림이 와요 (돌아오면 멈춰요)\n'
                 + (Platform.OS === 'android'
                   ? '• 이탈 중에는 지울 수 없는 상태 알림이 떠 있고, 복귀하면 사라져요\n'
                   : '• 잠금화면의 실시간 타이머(Live Activity)에 "이탈 중"이 표시돼요\n')
-                + '\n공부 모드 3가지 (타이머를 시작할 때마다 선택):\n\n편하게 공부: 이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중 도전: 폰을 내려놓고 집중해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 가장 강한 모드예요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
+                + '\n공부 모드 3가지 (타이머를 시작할 때마다 선택):\n\n일반모드: 이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중모드: 폰을 내려놓고 집중해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라모드: 가장 강한 모드예요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
                 + (Platform.OS === 'android'
                   ? '화면이 고정돼 홈·최근앱 버튼도 잠겨요.\n(해제: 뒤로+최근앱 버튼을 동시에 길게 누르기)\n고정을 풀어도 앱에 돌아오면 다시 고정돼요.\n'
-                  : '앱 차단을 켜두면 집중 도전 중에는 강도와 무관하게 선택한 앱이 잠겨요.\n울트라집중 전체 차단까지 켜면 허용한 앱 빼고 모든 앱이 잠겨요.\n(설정 > 집중 도전 모드 > 앱 차단)\n')
-                + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 도전 모드에서 직접 바꿀 수 있어요\n설정의 "기본 잠금 강도"는 시작 팝업에서 미리 골라둘 값이에요\n타이머 실행 중에는 강도를 변경할 수 없어요'}
+                  : '앱 차단을 켜두면 집중모드·울트라모드로 공부하는 동안 선택한 앱이 잠겨요.\n울트라모드 전체 차단까지 켜면 허용한 앱 빼고 모든 앱이 잠겨요.\n(설정 > 공부 모드 > 앱 차단)\n')
+                + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 공부 모드에서 직접 바꿀 수 있어요\n설정의 "기본 공부 모드"는 시작 팝업에서 미리 골라둘 값이에요\n타이머 실행 중에는 공부 모드를 변경할 수 없어요'}
               </GuideSection>
 
               {/* 앱 차단 (iOS 전용) */}
               {Platform.OS === 'ios' && (
                 <GuideSection id="appblock" title="앱 차단" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                  {'집중 도전 중에 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 집중 도전 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중 도전으로 타이머가 도는 동안 선택한 앱이 잠겨요 (잠금 강도와 무관)\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n울트라집중 전체 차단:\n더 강하게 막고 싶다면 "울트라집중 전체 차단"을 켜보세요.\n잠금 강도가 울트라집중일 때는 허용 목록에 넣은 앱만 남기고 모든 앱이 잠겨요. 폰이 공부폰이 되는 거죠!\n• 전화, 메시지처럼 꼭 필요한 앱은 미리 허용 목록에 추가하세요\n• 허용 목록에는 개별 앱만 적용돼요 (카테고리 선택은 반영되지 않아요)\n• 일반·집중 강도에서는 기존처럼 선택한 앱만 차단돼요\n\n차단 목록은 설정 > 집중 도전 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n편하게 공부(화면 꺼짐) 모드에서는 차단이 적용되지 않아요.'}
+                  {'집중모드로 공부하는 동안 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 공부 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중모드·울트라모드로 타이머가 도는 동안 선택한 앱이 잠겨요\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n울트라모드 전체 차단:\n더 강하게 막고 싶다면 "울트라모드 전체 차단"을 켜보세요.\n공부 모드가 울트라모드일 때는 허용 목록에 넣은 앱만 남기고 모든 앱이 잠겨요. 폰이 공부폰이 되는 거죠!\n• 전화, 메시지처럼 꼭 필요한 앱은 미리 허용 목록에 추가하세요\n• 허용 목록에는 개별 앱만 적용돼요 (카테고리 선택은 반영되지 않아요)\n• 일반모드·집중모드에서는 기존처럼 선택한 앱만 차단돼요\n\n차단 목록은 설정 > 공부 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n일반모드(화면 꺼짐)에서는 차단이 적용되지 않아요.'}
                 </GuideSection>
               )}
 
@@ -941,22 +945,22 @@ export default function SettingsScreen() {
 
               {/* 집중밀도 */}
               <GuideSection id="density" title="집중밀도란?" color="#6C5CE7" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 일시정지·이탈·완주율·자가평가 같은 타이머 사용 습관으로 계산하는 56~103점 참고 점수예요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 고른 모드만큼 선언 보너스 (이탈 0회 기준)\n  편하게 공부 +5 · 집중 도전 +10 · 울트라집중 +15\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
+                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 일시정지·이탈·완주율·자가평가 같은 타이머 사용 습관으로 계산하는 56~103점 참고 점수예요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 고른 모드만큼 선언 보너스 (이탈 0회 기준)\n  일반모드 +5 · 집중모드 +10 · 울트라모드 +15\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}
               <GuideSection id="stats" title="통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n주간 리포트에서 울트라집중 세션 수도 확인할 수 있어요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 4개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.\n\n세션 뱃지:\n• Verified — 이탈 0회 달성\n• Ultra — 울트라집중 모드로 완료'}
+                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n주간 리포트에서 울트라모드 세션 수도 확인할 수 있어요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 4개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.\n\n세션 뱃지:\n• Verified — 이탈 0회 달성\n• Ultra — 울트라모드로 완료'}
               </GuideSection>
 
               {/* 잔디 */}
               <GuideSection id="heatmap" title="공부 잔디" color="#4CAF50" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'통계 > 잔디 탭에서 최근 4개월 기록을 한눈에 볼 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 편하게 공부한 날\n• 초록 = 집중 도전한 날\n• 금색 = Verified 달성한 날!\n• 빨강 = 울트라집중 모드로 공부한 날\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
+                {'통계 > 잔디 탭에서 최근 4개월 기록을 한눈에 볼 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 일반모드로 공부한 날\n• 초록 = 집중모드로 공부한 날\n• 금색 = Verified 달성한 날!\n• 빨강 = 울트라모드로 공부한 날\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
               </GuideSection>
 
               {/* 스터디룸 */}
               <GuideSection id="studyroom" title="스터디룸 — 같이 공부" color="#0984E3" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'통계탭 상단의 스터디룸 배너로 들어가요.\n친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 보는 기능이에요.\n\n시작하기:\n• 공개 라운지 — 전국의 열공메이트 유저들과 바로 같이 공부해요\n• 새 방 만들기 — 방 이름과 분위기(스터디카페/독서실/교실)를 골라요\n• 코드로 참여 — 친구가 공유한 6자리 코드를 입력해요 (한 방 최대 30명)\n\n방 안에서:\n• 타이머를 시작하면 내 자리에 공부 중 표시와 과목·경과 시간이 실시간으로 보여요\n• 공부 모드에 따라 자리 색이 달라요 — 편하게(초록)/집중 도전(주황)/울트라집중(빨강)\n• 화면을 끄고 공부해도 "몰입 중"으로 표시돼요\n• 빈 책상을 누르면 그 자리로 옮길 수 있어요\n• 열심히 하는 사람에게 응원을 보낼 수 있어요 (누가 보냈는지는 표시되지 않아요)\n• 다같이 집중 — 방장이 시작하면 모두 같은 카운트다운으로 함께 달려요 (라운지 제외)\n• 상단 공유 버튼으로 친구에게 방 코드를 보내요\n• 방 나가기를 해도 코드가 있으면 다시 들어올 수 있어요\n\n불편한 사용자가 있다면:\n• 상대를 길게 누르면 숨기기·신고를 할 수 있어요\n• 숨긴 사용자는 내 화면에서 익명으로 바뀌어요\n\n알아두세요:\n• 닉네임·캐릭터·공부 상태만 공유돼요. 공부 기록과 통계는 공유되지 않아요\n• 별도 가입 없이 익명으로 이용해요. 방 화면 오른쪽 위 설정에서 스터디룸 데이터를 삭제할 수 있어요'}
+                {'통계탭 상단의 스터디룸 배너로 들어가요.\n친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 보는 기능이에요.\n\n시작하기:\n• 공개 라운지 — 전국의 열공메이트 유저들과 바로 같이 공부해요\n• 새 방 만들기 — 방 이름과 분위기(스터디카페/독서실/교실)를 골라요\n• 코드로 참여 — 친구가 공유한 6자리 코드를 입력해요 (한 방 최대 30명)\n\n방 안에서:\n• 타이머를 시작하면 내 자리에 공부 중 표시와 과목·경과 시간이 실시간으로 보여요\n• 공부 모드에 따라 자리 색이 달라요 — 일반(초록)/집중(주황)/울트라(빨강)\n• 화면을 끄고 공부해도 "몰입 중"으로 표시돼요\n• 빈 책상을 누르면 그 자리로 옮길 수 있어요\n• 열심히 하는 사람에게 응원을 보낼 수 있어요 (누가 보냈는지는 표시되지 않아요)\n• 다같이 집중 — 방장이 시작하면 모두 같은 카운트다운으로 함께 달려요 (라운지 제외)\n• 상단 공유 버튼으로 친구에게 방 코드를 보내요\n• 방 나가기를 해도 코드가 있으면 다시 들어올 수 있어요\n\n불편한 사용자가 있다면:\n• 상대를 길게 누르면 숨기기·신고를 할 수 있어요\n• 숨긴 사용자는 내 화면에서 익명으로 바뀌어요\n\n알아두세요:\n• 닉네임·캐릭터·공부 상태만 공유돼요. 공부 기록과 통계는 공유되지 않아요\n• 별도 가입 없이 익명으로 이용해요. 방 화면 오른쪽 위 설정에서 스터디룸 데이터를 삭제할 수 있어요'}
               </GuideSection>
 
               {/* 과목 & 할 일 */}
@@ -1000,12 +1004,12 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* 잠금 강도 피커 */}
+      {/* 공부 모드 피커 */}
       <Modal visible={showFocusPicker} transparent animationType="slide" onShow={onPickerShow}>
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowFocusPicker(false); }} />
         <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>기본 잠금 강도</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>기본 공부 모드</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 24, marginBottom: 12 }}>
@@ -1038,7 +1042,7 @@ export default function SettingsScreen() {
           })}
           {(app.settings.ultraFocusLevel || 'normal') !== 'exam' && (
             <View style={{ marginHorizontal: 24, marginTop: 6, marginBottom: 4 }}>
-              <Text style={{ fontSize: 11.5, color: '#FF6B6B', textAlign: 'center', fontWeight: '500', lineHeight: 17 }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+              <Text style={{ fontSize: 11.5, color: '#FF6B6B', textAlign: 'center', fontWeight: '500', lineHeight: 17 }}>울트라모드에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
             </View>
           )}
         </View>

@@ -799,14 +799,13 @@ export default function FocusScreen() {
         {/* 집중모드 상태 배너 */}
         {app.focusMode === 'screen_on' && hasRunning && !screenLocked && (() => {
           const lvColor = app.settings.ultraFocusLevel === 'exam' ? '#FF6B6B' : app.settings.ultraFocusLevel === 'focus' ? '#FFB74D' : '#4CAF50';
-          const lvLabel = app.settings.ultraFocusLevel === 'exam' ? '울트라집중' : app.settings.ultraFocusLevel === 'focus' ? '집중' : '일반';
+          // 고정 문구 + 강도 라벨을 따로 보여주면 '집중모드 중 · 집중모드'로 겹친다 → 하나로 합쳤다
+          const lvLabel = app.settings.ultraFocusLevel === 'exam' ? '울트라모드' : app.settings.ultraFocusLevel === 'focus' ? '집중모드' : '일반모드';
           return (
             <View style={[S.ultraStatus, { backgroundColor: '#FF6B6B0E', borderColor: '#FF6B6B35' }]}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                 <Ionicons name="flash" size={14} color="#FF6B6B" />
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#FF6B6B' }}>집중 도전 중</Text>
-                <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: lvColor }} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: lvColor }}>{lvLabel}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: lvColor }}>{lvLabel} 진행 중</Text>
                 {(app.ultraFocus?.exitCount || 0) > 0 && (
                   <View style={{ backgroundColor: '#FF6B6B25', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: '#FF6B6B60' }}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: '#FF6B6B' }}>이탈 {app.ultraFocus.exitCount}회</Text>
@@ -830,7 +829,7 @@ export default function FocusScreen() {
           <View style={[S.ultraStatus, { backgroundColor: '#4CAF5012', borderColor: '#4CAF5040' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="book-outline" size={13} color="#4CAF50" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#4CAF50' }}>편하게 공부 중 · 화면 꺼도 OK</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#4CAF50' }}>일반모드 · 화면 꺼도 OK</Text>
             </View>
           </View>
         )}

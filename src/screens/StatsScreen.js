@@ -2681,7 +2681,7 @@ export default function StatsScreen() {
               ];
               const timerTypeLabel = { countdown: '카운트다운', free: '자유 모드', pomodoro: '뽀모도로' }[sess.timerType] || '자유 모드';
               const focusModeIcon = sess.focusMode === 'screen_on' ? 'flame-outline' : 'book-outline';
-              const focusModeLabel = sess.focusMode === 'screen_on' ? '집중 도전' : '편하게 공부';
+              const focusModeLabel = sess.focusMode === 'screen_on' ? '집중모드' : '일반모드';
               const selfRating = { fire: { icon: 'flame-outline', label: '집중됨' }, perfect: { icon: 'star-outline', label: '완벽' }, neutral: { icon: 'remove-outline', label: '보통' }, tired: { icon: 'moon-outline', label: '피곤' } }[sess.selfRating] || null;
               return (
                 <>

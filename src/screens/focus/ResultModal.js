@@ -102,7 +102,7 @@ export default function ResultModal() {
                       { label: '완료', val: `${bd.completionScore}/40` },
                       { label: `습관 · 일시정지 ${inputs.pausedCount || 0}회`, val: `${bd.habitScore}/30` },
                       { label: '지속력', val: `${bd.persistenceBonus}/15` },
-                      { label: inputs.focusMode === 'screen_on' ? `집중 도전 · 이탈 ${inputs.exitCount || 0}회` : '편하게 공부', val: `+${bd.declarationBonus}` },
+                      { label: inputs.focusMode === 'screen_on' ? `집중모드 · 이탈 ${inputs.exitCount || 0}회` : '일반모드', val: `+${bd.declarationBonus}` },
                       { label: '자가평가', val: `+${bd.selfBonus}` },
                     ];
                     return (

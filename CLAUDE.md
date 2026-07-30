@@ -172,7 +172,9 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - 울트라집중 잠금강도: normal / focus / exam (exam은 일시정지 차단, 이탈 시 exitCount 기록,
   안드로이드는 OS 화면 고정 `startLockTask` — `modules/screen-pin` 로컬 Expo 모듈 + `src/utils/screenPin.js` 래퍼)
 - **모드 선택 팝업 = 3지선다** (2026-07-29~): 집중 세션을 새로 시작할 때(`focusMode`가 없을 때)
-  **일반(편하게)/집중/울트라집중**을 고르고, 그 선택이 `settings.ultraFocusLevel`에 저장된다
+  **일반모드/집중모드/울트라모드**를 고르고, 그 선택이 `settings.ultraFocusLevel`에 저장된다
+  (※사용자에게 보이는 이름은 2026-07-30에 통일한 것 — 내부 id는 `normal`/`focus`/`exam` 그대로.
+   설정탭 섹션 제목은 **'공부 모드'**, 그 안의 카드는 '시작 팝업의 기본 선택값'이다)
   (세션 전용 상태를 만들지 않는다 — 잠금·화면고정·챌린지 판정이 전부 settings를 읽으므로 어긋난다).
   선택지는 App.js `MODE_CHOICES`, 설정탭 표시는 `FOCUS_LEVELS` — **양쪽 문구를 함께 고칠 것**
   - 카드에 **집중밀도 선언 보너스(+5/+10/+15, 이탈 0회 기준)를 숫자로 노출**한다 —

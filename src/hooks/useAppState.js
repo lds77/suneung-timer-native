@@ -88,14 +88,14 @@ const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
   timerOngoingNotif: true, // 안드: 타이머 실행 중 상단바/잠금화면 상시 알림 (iOS Live Activity 대응물)
-  appBlockEnabled: false, // iOS 울트라집중 앱 차단 (Screen Time) — 설정탭에서 켬
-  // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도) — 타이머 시작 팝업의 기본 선택값이자 마지막 선택.
+  appBlockEnabled: false, // iOS 울트라모드 앱 차단 (Screen Time) — 설정탭에서 켬
+  // 'normal' | 'focus' | 'exam' (🔥모드 공부 모드) — 타이머 시작 팝업의 기본 선택값이자 마지막 선택.
   // 기본을 'focus'로 두는 이유: 온보딩에 선택 단계가 없어 기본값에 머무르는 사용자가 대부분인데,
-  // 'normal'이면 집중 도전을 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
+  // 'normal'이면 집중모드를 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
   ultraFocusLevel: 'focus',
   modeAskIntro: true,   // 위 1회 이관을 이미 마쳤다는 표시 (신규 설치는 처음부터 true — 재이관 방지)
-  guideUltraPick: false, // 울트라집중을 처음 고를 때 1회 확인 안내
-  ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
+  guideUltraPick: false, // 울트라모드를 처음 고를 때 1회 확인 안내
+  ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라모드 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
   schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'minimal',
@@ -291,7 +291,7 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
-  // ═══ 집중 모드 (🔥 폰 내려놓고 집중 도전 / 📖 편하게 공부) ═══
+  // ═══ 집중 모드 (🔥 폰 내려놓고 집중모드 / 📖 일반모드) ═══
   // 'screen_on' = 🔥모드: 잠금 오버레이 + 이탈감지 + 다크 + 최소밝기
   //   (이름은 남아 있지만 2026-07-29부터 화면을 계속 켜 두지 않는다 — 시스템 화면 꺼짐에 맡김)
   // 'screen_off' = 📖모드: 조용히 타이머만
@@ -399,7 +399,7 @@ export function AppProvider({ children }) {
         }
       });
     }
-    // iOS: 집중 도전(🔥) 세션 동안 Screen Time 앱 차단 — 잠금 강도와 무관하게
+    // iOS: 집중모드(🔥) 세션 동안 Screen Time 앱 차단 — 공부 모드와 무관하게
     // 설정에서 켠 경우 항상 적용 (미지원/entitlement 미포함 빌드에서는 no-op)
     // 시험 강도 + 전체 차단 옵션이 켜져 있으면 허용 앱 빼고 모두 차단(allowAll)
     if (Platform.OS === 'ios') {
@@ -407,12 +407,12 @@ export function AppProvider({ children }) {
         const allowAll = !!settingsRef.current.appBlockExamAll && level === 'exam';
         setShield(true, allowAll ? 'allowAll' : 'block');
       } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
-        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중 도전 시작 때 1회 안내
+        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중모드 시작 때 1회 안내
         updateSettings({ guideAppBlock: true });
         setTimeout(() => {
           Alert.alert(
             '앱 차단',
-            '집중 도전 중에 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 집중 도전 모드 > 앱 차단에서 켜보세요.',
+            '집중모드로 공부하는 동안 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 공부 모드 > 앱 차단에서 켜보세요.',
           );
         }, 800);
       }
@@ -463,7 +463,7 @@ export function AppProvider({ children }) {
   }, []);
 
   // 팝업 선택 결과 — 잠금강도(normal|focus|exam)와 집중모드를 한 번에 정한다.
-  //   일반(normal)=📖편하게 / 집중(focus)=🔥 / 울트라집중(exam)=🔥+엄격
+  //   일반(normal)=📖편하게 / 집중(focus)=🔥 / 울트라모드(exam)=🔥+엄격
   // 고른 강도는 설정에도 저장한다 — 잠금·화면고정·챌린지 판정이 전부 settings를 읽으므로
   // 세션 전용 상태를 따로 만들면 읽는 곳마다 분기가 생겨 어긋난다.
   const resolveModeSelect = useCallback((level) => {
@@ -581,7 +581,7 @@ export function AppProvider({ children }) {
           && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
         // 전화(벨 울림·통화·보이스톡)도 이탈이 아니다 — 화면 고정과 같이 판정을 통째로 건너뛴다.
         // 예전엔 여기에 아무 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊고 나면 이탈 1회**가
-        // 찍혔다(2026-07-30). 울트라집중이 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다
+        // 찍혔다(2026-07-30). 울트라모드가 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다
         const inCallNow = awayCandidate && Platform.OS === 'android' && isInCall();
         const awayExempt = (awayCandidate && Platform.OS === 'android' && isScreenPinned()) || inCallNow;
         // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
@@ -1817,9 +1817,9 @@ export function AppProvider({ children }) {
   }, [addTimer]);
 
   const pauseTimer = useCallback((id) => {
-    // 울트라집중: 일시정지 차단
+    // 울트라모드: 일시정지 차단
     if (settingsRef.current.ultraFocusLevel === 'exam' && focusModeRef.current === 'screen_on') {
-      showToastCustom('울트라집중 모드에서는 일시정지할 수 없어요!', 'toru');
+      showToastCustom('울트라모드에서는 일시정지할 수 없어요!', 'toru');
       return;
     }
     cancelTimerNotif(id); // 예약 알림 취소
@@ -2512,7 +2512,7 @@ export function AppProvider({ children }) {
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
     updateStreak();
     // 위젯 갱신은 아래 데이터 변경 감지 effect(디바운스)가 일괄 처리 — 여기선 호출 불필요
-    // 울트라집중 스트릭 갱신
+    // 울트라모드 스트릭 갱신
     if (ultraLevel === 'exam' && fm === 'screen_on') updateUltraStreak();
     if (dedupeKey) {
       const m = sessionDedupeRef.current;
@@ -2587,7 +2587,7 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  // 울트라집중 스트릭 갱신
+  // 울트라모드 스트릭 갱신
   const updateUltraStreak = useCallback(() => {
     setSettings(prev => {
       const today = getToday();

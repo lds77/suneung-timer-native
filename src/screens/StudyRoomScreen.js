@@ -467,7 +467,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const iAmStudying = app.timers.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
     // 공부 모드 3단계 — 자리 테두리 색 + 자리 상단 텍스트 (일반 녹색/집중 주황/울트라 빨강)
     const MODE_COLOR = { book: '#2ECC71', fire: '#FF8A3D', ultra: '#E74C3C' };
-    const MODE_LABEL = { book: '일반', fire: '집중', ultra: '울트라집중' };
+    const MODE_LABEL = { book: '일반', fire: '집중', ultra: '울트라' };
     const bySeat = resolveSeats(members);
     const seated = members.length;
     const theme = themeOf(roomData.room?.theme);

@@ -749,15 +749,15 @@ function parseDeepLink(url) {
 }
 
 // ── 메인 ──
-// 타이머 시작 시 뜨는 3지 선택 — 잠금 강도(settings.ultraFocusLevel)와 집중모드를 한 번에 정한다.
+// 타이머 시작 시 뜨는 3지 선택 — 공부 모드(settings.ultraFocusLevel)와 집중모드를 한 번에 정한다.
 // 보너스 숫자는 집중밀도 공식의 '선언 보너스'(src/utils/density.js, 이탈 0회 기준)와 같은 값이다.
 // 공식을 바꾸면 여기 숫자도 함께 고칠 것 — 안 맞으면 사용자가 약속받은 점수를 못 받는다.
 const MODE_CHOICES = [
-  { id: 'normal', label: '편하게 공부', icon: 'book-outline', color: '#4CAF50', bonus: 5,
+  { id: 'normal', label: '일반모드', icon: 'book-outline', color: '#4CAF50', bonus: 5,
     desc: '이탈 감지 없음 · 일시정지 자유' },
-  { id: 'focus', label: '집중 도전', icon: 'flash', color: '#FFB74D', bonus: 10,
+  { id: 'focus', label: '집중모드', icon: 'flash', color: '#FFB74D', bonus: 10,
     desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력' },
-  { id: 'exam', label: '울트라집중', icon: 'flame', color: '#FF6B6B', bonus: 15,
+  { id: 'exam', label: '울트라모드', icon: 'flame', color: '#FF6B6B', bonus: 15,
     desc: '일시정지 불가 · 10초 이탈 시 타이머 정지'
       + (Platform.OS === 'android' ? ' · 화면 고정' : '') },
 ];
@@ -771,13 +771,13 @@ function MainApp() {
   const appRef = useRef(app);
   appRef.current = app;
 
-  // 모드 선택 — 울트라집중은 처음 고를 때만 1회 확인 (일시정지가 막히는 걸 모르고 골랐다가 당황하는 것 방지)
+  // 모드 선택 — 울트라모드는 처음 고를 때만 1회 확인 (일시정지가 막히는 걸 모르고 골랐다가 당황하는 것 방지)
   const pickMode = useCallback((id) => {
     const a = appRef.current;
     if (!a.settings.guideMode) a.updateSettings({ guideMode: true }); // 첫 1회 안내 배너 소비
     if (id === 'exam' && !a.settings.guideUltraPick) {
       Alert.alert(
-        '울트라집중으로 시작할까요?',
+        '울트라모드로 시작할까요?',
         '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 10초 넘게 다른 앱을 쓰면 타이머가 멈춰요'
           + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
         // 안내를 소비하는 건 '실제로 시작한' 경우만 — 물러섰는데 다음에 안 뜨면 안내가 아니다
