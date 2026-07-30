@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
 import android.os.Build
 import android.os.PowerManager
 import expo.modules.kotlin.Promise
@@ -164,6 +165,14 @@ class ScreenPinModule : Module() {
     Function("inCall") {
       val ctx = appContext.reactContext ?: return@Function false
       return@Function AwayWatch.inCall(ctx)
+    }
+
+    // 진단용 원시값 — AudioManager.mode (0 NORMAL / 1 RINGTONE / 2 IN_CALL / 3 IN_COMMUNICATION).
+    // inCall()이 왜 그렇게 판정했는지 실기기에서 확인할 때 쓴다
+    Function("audioMode") {
+      val am = appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        ?: return@Function -99
+      return@Function try { am.mode } catch (_: Throwable) { -98 }
     }
 
     AsyncFunction("pin") { promise: Promise ->

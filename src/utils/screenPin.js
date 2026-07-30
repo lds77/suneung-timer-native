@@ -81,6 +81,13 @@ export const isInCall = () => {
   try { return !!mod.inCall(); } catch { return false; }
 };
 
+// ★임시 진단★ AudioManager.mode 원시값 (0 정상 / 1 벨울림 / 2 통화 / 3 인터넷통화).
+// 전화 이탈 오판의 원인을 실기기에서 특정하려고 넣었다 — 확정되면 AWAY_DIAG와 함께 제거할 것
+export const audioMode = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.audioMode !== 'function') return -1;
+  try { return mod.audioMode(); } catch { return -1; }
+};
+
 // ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
 // 이 구간에서는 앱이 'active'를 한 번도 못 받고 JS 타이머도 멈추므로(focusAway.js 하단 주석),
 // '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단을 네이티브가 대신한다.
