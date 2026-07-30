@@ -616,7 +616,8 @@ export function AppProvider({ children }) {
         if (screenOffNow && Platform.OS === 'android' && settingsRef.current.notifEnabled) {
           const limitSec = awayNotifLimitSec();
           armAwayWatch(
-            SCREEN_ON_GRACE_MS,
+            // 유예는 JS 예약 경로와 같은 값 — 어느 경로로 나가든 이탈 알림이 같은 체감으로 온다
+            ANDROID_AWAY_NOTIF_DELAY_SEC * 1000,
             Number.isFinite(limitSec) ? Date.now() + limitSec * 1000 : 0,
             [{ sec: 0, ...awayFirstNotif(charName) }, ...awayNudgeSteps(charName)],
           );

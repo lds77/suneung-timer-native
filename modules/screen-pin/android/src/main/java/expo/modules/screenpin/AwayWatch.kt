@@ -21,12 +21,20 @@ import androidx.core.app.NotificationCompat
 // 그 둘로 같은 판단을 네이티브에서 한다.
 //
 // 흐름 (arm은 '화면 끄기로 배경에 내려간' 경우에만 JS가 건다):
-//   SCREEN_ON / USER_PRESENT → 지금 잠금이 풀려 있나? (KeyguardManager 직접 조회)
-//     · 잠겨 있으면 아무것도 안 함 — 잠금화면에선 다른 앱을 쓸 수 없으므로 이탈이 아니다
-//     · 풀려 있으면 graceMs(10초) 뒤 확인 알람 예약
+//   SCREEN_ON → 화면이 켜져 있는 동안 확인 알람을 짧게 반복 예약(폴링 시작)
 //   SCREEN_OFF → 예약 취소 (알림만 확인하고 다시 끈 것)
-//   확인 알람 → 여전히 켜짐+해제 상태면 그때부터가 진짜 이탈 → 알림 게시 + 후속 넛지 예약
+//   확인 알람 → KeyguardManager/PowerManager 직접 조회
+//     · 잠겨 있으면 기준점을 비우고 다시 예약 — 잠금화면에선 다른 앱을 쓸 수 없으므로 이탈이 아니다
+//     · 풀려 있으면 그 시각부터 재고, graceMs 동안 이어지면 이탈 확정 → 알림 + 후속 넛지 예약
 //   앱 복귀(JS의 disarm) → 알람·알림 전부 정리
+//
+// ★잠금해제를 `ACTION_USER_PRESENT`로 알아내지 않는다★ (2026-07-30 실기기 확인).
+// **잠금화면 알림을 눌러 다른 앱을 여는 경로에서는 USER_PRESENT가 오지 않는 경우가 있어**,
+// 그 이벤트로만 확인 알람을 걸면 **첫 시도에서 알림이 통째로 안 나갔다**(재현: 3번 중 1번꼴).
+// 그래서 화면이 켜져 있는 동안은 짧게 폴링하며 **키가드를 직접 조회**한다 —
+// 이 판단이 브로드캐스트에 의존하면 안 된다는 건 이 파일 계열에서 세 번째로 확인된 교훈이다.
+// (JS 타이머와 달리 AlarmManager는 배경에서도 정상 동작하므로 폴링이 가능하다.
+//  화면이 꺼져 있는 동안에는 폴링하지 않으므로 대기 배터리 부담도 없다.)
 //
 // ※JS가 이탈 카운트를 확정하는 방식(복귀 시 keyguard/화면 켬 역산)은 건드리지 않는다.
 //   여기는 '알림'만 담당하고, 카운트는 기존대로 복귀 시점에 계산된다.
@@ -36,6 +44,11 @@ object AwayWatch {
   private const val CHANNEL_ID = "timer-complete" // expo-notifications가 만든 채널을 그대로 쓴다
   private const val BASE_NOTIF_ID = 7301
   private const val MAX_STEPS = 8
+  // 화면이 켜져 있는 동안의 폴링 간격. 화면이 켜진 상태에서만 돌고 확정되면 멈춘다
+  private const val POLL_MS = 2_000L
+  // 폴링 상한 — 잠금화면에 아주 오래 머무는 등 확정이 안 나는 경우의 안전장치.
+  // 여기서 멈춰도 다음 SCREEN_ON이 오면 다시 시작된다
+  private const val MAX_CHECKS = 200
 
   data class Step(val sec: Long, val title: String, val body: String)
 
@@ -45,6 +58,9 @@ object AwayWatch {
   @Volatile private var graceMs = 10_000L
   @Volatile private var limitAtMs = 0L // 이 시각 이후로는 알림 금지(카운트다운 종료 시각). 0이면 무제한
   @Volatile private var steps: List<Step> = emptyList()
+  // 잠금이 풀린 채 이어진 시작 시각(0이면 아직 아님) + 폴링 횟수
+  @Volatile private var usableSince = 0L
+  @Volatile private var checks = 0
 
   fun isArmed() = armed
 
@@ -53,34 +69,62 @@ object AwayWatch {
     graceMs = if (graceMsIn > 0) graceMsIn else 10_000L
     limitAtMs = limitAtMsIn
     steps = stepsIn.take(MAX_STEPS)
-    // 무장 시점에 이미 켜짐+해제 상태일 수도 있다(화면 끄기 판정이 레이스로 어긋난 경우) → 즉시 평가
+    usableSince = 0L
+    checks = 0
+    // 무장 시점에 이미 화면이 켜져 있을 수도 있다(화면 끄기 판정이 레이스로 어긋난 경우) → 즉시 평가
     onScreenEvent(ctx)
   }
 
   fun disarm(ctx: Context) {
     armed = false
+    usableSince = 0L
+    checks = 0
     cancelCheck(ctx)
-    for (i in steps.indices) cancelAlarm(ctx, nudgeIntent(ctx, i))
+    for (i in 0 until MAX_STEPS) cancelAlarm(ctx, nudgeIntent(ctx, i))
     val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
     for (i in 0 until MAX_STEPS) nm?.cancel(BASE_NOTIF_ID + i)
     steps = emptyList()
   }
 
-  // SCREEN_ON / SCREEN_OFF / USER_PRESENT가 올 때마다 호출된다 (ScreenPinModule의 리시버)
+  // SCREEN_ON / SCREEN_OFF / USER_PRESENT가 올 때마다 호출된다 (ScreenPinModule의 리시버).
+  // 화면이 켜져 있으면 폴링을 (재)시작하고, 꺼져 있으면 멈춘다 — 잠금 해제 여부는 폴링이 직접 본다
   fun onScreenEvent(ctx: Context) {
     if (!armed) return
-    if (usable(ctx)) scheduleAt(ctx, System.currentTimeMillis() + graceMs, checkIntent(ctx))
-    else cancelCheck(ctx)
+    if (interactive(ctx)) {
+      checks = 0 // 새로 켜졌으니 상한 초기화
+      scheduleAt(ctx, System.currentTimeMillis() + POLL_MS, checkIntent(ctx))
+    } else {
+      usableSince = 0L
+      cancelCheck(ctx)
+    }
   }
 
   fun onCheck(ctx: Context) {
     if (!armed) return
-    // 확인 시점에 다시 직접 조회한다 — 예약 이후 화면을 껐거나 다시 잠갔을 수 있다.
-    // 아직 잠겨 있으면 아무것도 안 하고, 다음 USER_PRESENT가 오면 그때 다시 예약된다
-    if (!usable(ctx)) return
-    val first = steps.firstOrNull() ?: return
     val now = System.currentTimeMillis()
-    if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return }
+    if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
+
+    // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
+    if (!interactive(ctx)) { usableSince = 0L; return }
+
+    if (!unlocked(ctx)) {
+      // 잠금화면 체류 — 다른 앱을 쓸 수 없으므로 이탈 아님. 기준점을 비우고 계속 지켜본다
+      usableSince = 0L
+      if (++checks < MAX_CHECKS) scheduleAt(ctx, now + POLL_MS, checkIntent(ctx))
+      return
+    }
+
+    if (usableSince == 0L) usableSince = now
+    val heldMs = now - usableSince
+    if (heldMs < graceMs) {
+      // 잠금은 풀렸지만 아직 유예 중 — 남은 시간과 폴링 간격 중 짧은 쪽으로 다시 확인
+      val next = minOf(POLL_MS, graceMs - heldMs)
+      if (++checks < MAX_CHECKS) scheduleAt(ctx, now + next, checkIntent(ctx))
+      return
+    }
+
+    // 잠금이 풀린 채 graceMs가 지나도록 앱으로 안 돌아왔다 = 진짜 이탈
+    val first = steps.firstOrNull() ?: return
     notify(ctx, 0, first.title, first.body)
     // 후속 넛지 — 확정 시점 기준 상대 시각. 카운트다운이 먼저 끝나면 그 뒤는 예약하지 않는다
     for (i in 1 until steps.size) {
@@ -97,14 +141,15 @@ object AwayWatch {
     notify(ctx, index, s.title, s.body)
   }
 
-  // 지금 다른 앱을 쓸 수 있는 상태인가 — 브로드캐스트 시각이 아니라 직접 조회라 지연이 없다
-  private fun usable(ctx: Context): Boolean {
+  // 아래 둘 다 브로드캐스트 시각이 아니라 지금 이 순간의 직접 조회라 지연·누락이 없다
+  private fun interactive(ctx: Context): Boolean {
     val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager
-    val interactive = try { pm?.isInteractive ?: false } catch (_: Throwable) { false }
-    if (!interactive) return false
+    return try { pm?.isInteractive ?: false } catch (_: Throwable) { false }
+  }
+
+  private fun unlocked(ctx: Context): Boolean {
     val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-    val locked = try { km?.isKeyguardLocked ?: false } catch (_: Throwable) { false }
-    return !locked
+    return try { !(km?.isKeyguardLocked ?: false) } catch (_: Throwable) { true }
   }
 
   private fun checkIntent(ctx: Context): PendingIntent =
