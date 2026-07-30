@@ -94,6 +94,11 @@ const DEFAULT_SETTINGS = {
   // 'normal'이면 집중모드를 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
   ultraFocusLevel: 'focus',
   modeAskIntro: true,   // 위 1회 이관을 이미 마쳤다는 표시 (신규 설치는 처음부터 true — 재이관 방지)
+  // 시작 팝업을 건너뛰고 위 ultraFocusLevel로 바로 시작한다 (팝업의 '다음부터 묻지 않기').
+  // ★기본은 false — 매번 고르는 게 기본 동작이다★ 켜면 팝업이 아예 안 뜨므로,
+  // 끄는 길은 설정탭 '공부 모드' 섹션의 토글 하나뿐이다(첫 자동 시작 때 토스트로 안내)
+  modeAutoStart: false,
+  guideAutoStart: false, // 자동 시작이 처음 걸릴 때 1회 안내 토스트
   guideUltraPick: false, // 울트라모드를 처음 고를 때 1회 확인 안내
   ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라모드 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)

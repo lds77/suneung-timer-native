@@ -495,8 +495,11 @@ export default function SettingsScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 15, fontWeight: '800', color: lv.color }}>{lv.label}</Text>
                       <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
-                      {/* 이 카드가 '지금 모드'가 아니라 '시작할 때 기본으로 뜰 모드'라는 걸 밝힌다 */}
-                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 4, opacity: 0.8 }}>타이머를 시작할 때 기본으로 선택돼요</Text>
+                      {/* 이 카드가 '지금 모드'가 아니라 '시작할 때 뜰 모드'라는 걸 밝힌다.
+                          자동 시작이면 문구가 달라야 한다 — 아래 토글과 앞뒤가 맞아야 하므로 */}
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 4, opacity: 0.8 }}>
+                        {app.settings.modeAutoStart ? '묻지 않고 이 모드로 바로 시작해요' : '타이머를 시작할 때 기본으로 선택돼요'}
+                      </Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={lv.color} />
@@ -509,6 +512,21 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             );
           })()}
+          {/* ★자동 시작을 끄는 유일한 길★ — 켜면 시작 팝업이 아예 안 뜨므로 여기 말고는 되돌릴 곳이 없다.
+              (팝업의 '다음부터 묻지 않고 이 모드로 시작'이 이 값을 켠다) */}
+          <Row
+            T={T}
+            label="시작할 때마다 모드 고르기"
+            sub={app.settings.modeAutoStart
+              ? '지금은 묻지 않고 위 모드로 바로 시작해요'
+              : '타이머를 시작할 때 3가지 중에서 골라요'}
+            right={(
+              <Switch
+                value={!app.settings.modeAutoStart}
+                onValueChange={(v) => app.updateSettings({ modeAutoStart: !v })}
+              />
+            )}
+          />
           {(app.settings.ultraStreak > 0 || app.settings.ultraStreakBest > 0) && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B10', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FF6B6B30' }}>

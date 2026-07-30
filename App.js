@@ -771,6 +771,26 @@ function MainApp() {
   const appRef = useRef(app);
   appRef.current = app;
 
+  // 팝업의 '다음부터 묻지 않기' 체크 — 팝업이 열릴 때마다 꺼진 상태로 시작한다
+  const [rememberMode, setRememberMode] = useState(false);
+  const rememberModeRef = useRef(false);
+  rememberModeRef.current = rememberMode;
+  useEffect(() => { if (app.pendingModeAction) setRememberMode(false); }, [app.pendingModeAction]);
+
+  // 자동 시작: 팝업을 띄우지 않고 저장된 모드로 바로 진행한다.
+  // ★렌더 쪽에서도 modeAutoStart면 오버레이를 그리지 않는다★ — 여기서만 막으면 한 프레임 깜빡인다
+  useEffect(() => {
+    const a = appRef.current;
+    if (!app.pendingModeAction || !a.settings.modeAutoStart) return;
+    a.resolveModeSelect(a.settings.ultraFocusLevel || 'focus');
+    // 팝업이 안 뜨면 끄는 길을 찾기 어렵다 → 처음 한 번은 어디서 바꾸는지 알려준다
+    if (!a.settings.guideAutoStart) {
+      a.updateSettings({ guideAutoStart: true });
+      const label = (MODE_CHOICES.find(c => c.id === (a.settings.ultraFocusLevel || 'focus')) || {}).label || '';
+      setTimeout(() => a.showToastCustom?.(`${label}로 바로 시작했어요 · 설정 > 공부 모드에서 바꿀 수 있어요`, 'toru'), 600);
+    }
+  }, [app.pendingModeAction]);
+
   // 모드 선택 — 울트라모드는 처음 고를 때만 1회 확인 (일시정지가 막히는 걸 모르고 골랐다가 당황하는 것 방지)
   const pickMode = useCallback((id) => {
     const a = appRef.current;
@@ -782,10 +802,15 @@ function MainApp() {
           + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
         // 안내를 소비하는 건 '실제로 시작한' 경우만 — 물러섰는데 다음에 안 뜨면 안내가 아니다
         [{ text: '다시 고르기', style: 'cancel' },
-         { text: '시작하기', onPress: () => { a.updateSettings({ guideUltraPick: true }); a.resolveModeSelect('exam'); } }],
+         { text: '시작하기', onPress: () => {
+           a.updateSettings({ guideUltraPick: true, ...(rememberModeRef.current ? { modeAutoStart: true } : {}) });
+           a.resolveModeSelect('exam');
+         } }],
       );
       return;
     }
+    // '다음부터 묻지 않기'는 실제로 시작한 경우에만 저장한다 (물러섰는데 굳어버리면 안 됨)
+    if (rememberModeRef.current) a.updateSettings({ modeAutoStart: true });
     a.resolveModeSelect(id);
   }, []);
   useEffect(() => {
@@ -901,8 +926,9 @@ function MainApp() {
         </View>
       </Modal>
 
-      {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지) */}
-      {!!app.pendingModeAction && (
+      {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지)
+          modeAutoStart면 아예 그리지 않는다 — 위 effect가 바로 해소하므로 그리면 한 프레임 깜빡인다 */}
+      {!!app.pendingModeAction && !app.settings.modeAutoStart && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999 }}>
           <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 22, width: '100%', maxWidth: 380, alignItems: 'center' }}>
             <CharacterAvatar characterId={app.settings.mainCharacter} size={50} mood="happy" />
@@ -948,7 +974,20 @@ function MainApp() {
               );
             })}
 
-            <Text style={{ fontSize: 10.5, color: T.sub, marginTop: 2, marginBottom: 12, textAlign: 'center' }}>보너스는 이탈 0회 기준이에요 · 설정 탭에서도 바꿀 수 있어요</Text>
+            <Text style={{ fontSize: 10.5, color: T.sub, marginTop: 2, marginBottom: 10, textAlign: 'center' }}>보너스는 이탈 0회 기준이에요 · 설정 탭에서도 바꿀 수 있어요</Text>
+
+            {/* 매번 고르는 게 기본이고, 이건 그걸 끄는 선택지다 → 기본 해제 상태로 시작한다 */}
+            <TouchableOpacity
+              onPress={() => setRememberMode(v => !v)}
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'stretch', justifyContent: 'center',
+                paddingVertical: 9, paddingHorizontal: 12, marginBottom: 12, borderRadius: 10,
+                backgroundColor: rememberMode ? T.accent + '18' : T.surface2 }}>
+              <Ionicons name={rememberMode ? 'checkbox' : 'square-outline'} size={17} color={rememberMode ? T.accent : T.sub} />
+              <Text style={{ flexShrink: 1, fontSize: 12, fontWeight: '700', color: rememberMode ? T.accent : T.sub }}>
+                다음부터 묻지 않고 이 모드로 시작
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity onPress={app.cancelModeSelect}>
               <Text style={{ fontSize: 13, color: T.sub, fontWeight: '600' }}>취소</Text>
