@@ -123,47 +123,16 @@ export function isRealAwayAfterScreenOn(awayMs) {
   return awayMs >= SCREEN_ON_GRACE_MS;
 }
 
-// ─── 안드: 배경에 있는 동안 화면 상태를 직접 관측 (2026-07-30) ──────────────
-// 화면을 끄면 앱이 background로 내려가는데, 그 뒤 잠금화면에서 곧장 다른 앱으로 가버리면
-// 앱은 'active'를 한 번도 못 받는다. 그래서 위 screenOffAwayMs()는 복귀 시점에 브로드캐스트
-// 타임스탬프(화면 켬/잠금해제)로 이탈 구간을 역산해야 했는데, 그 값들은 복귀 순간에 신뢰할 수
-// 없다(34a6c28). 특히 **화면을 짧게 꺼서 잠금이 아예 안 걸린 경우** USER_PRESENT가 발생하지
-// 않아 lastUnlockAt이 영영 비고, 규칙 ③(방금 푼 것으로 간주)에 걸려 몇 분짜리 이탈이 통째로
-// 면제됐다 — 사용자 제보 "화면 끄고 조금 있다가 알림창에서 다른 앱으로 가면 첫 번째는 이탈이
-// 안 잡힌다"의 정체.
-//
-// 안드로이드는 백그라운드에서도 JS가 돈다(100ms 틱이 도는 것과 같은 조건). 그래서 배경에 있는
-// 동안 screenState()를 주기적으로 **직접 조회**해서 '화면이 켜지고 잠금까지 풀린 시각'을
-// 관측한다. 추론이 아니라 관측이므로 브로드캐스트 지연·누락에 영향받지 않는다.
-//   · 잠금화면에 머무는 동안(keyguardLocked) → 다른 앱을 쓸 수 없으므로 이탈 시작 아님
-//   · 잠금이 풀렸는데 앱으로 안 돌아옴 → 그 시점이 이탈 시작
-//   · 확정(10초) 전에 화면이 다시 꺼지면 기준점을 버린다 (알림 확인만 하고 다시 끈 경우)
-// 프로세스가 얼어 폴링이 아예 못 돌았으면(ticks 0) 기존 역산 경로로 폴백한다.
-export const AWAY_WATCH_INTERVAL_MS = 2000;
-
-export const emptyAwayWatch = () => ({ ticks: 0, unlockedAt: 0, confirmed: false });
-
-// st: screenState() 결과 { interactive, keyguardLocked, ... } | null
-export function awayWatchStep(state, st, now = Date.now()) {
-  const s = { ...emptyAwayWatch(), ...(state || {}) };
-  // ticks는 '실제로 관측에 성공한 횟수' — 한 번도 못 봤으면(구빌드/조회 실패/프로세스 정지)
-  // awayWatchAwayMs가 null을 돌려주고 호출부가 기존 역산으로 폴백한다
-  if (!st) return s;
-  s.ticks += 1;
-  const usable = !!st.interactive && !st.keyguardLocked; // 지금 다른 앱을 쓸 수 있는 상태인가
-  if (!usable) {
-    // 확정 전이라면 기준점 리셋 (화면만 켰다 껐거나 잠금화면에 머무는 중)
-    if (!s.confirmed) s.unlockedAt = 0;
-    return s;
-  }
-  if (!s.unlockedAt) s.unlockedAt = now;
-  if (!s.confirmed && now - s.unlockedAt >= SCREEN_ON_GRACE_MS) s.confirmed = true;
-  return s;
-}
-
-// 관측 결과로 본 이탈 시간(ms). 관측이 한 번도 못 돌았으면 null → 호출부가 역산으로 폴백
-export function awayWatchAwayMs(state, now = Date.now()) {
-  if (!state || !state.ticks) return null;
-  if (!state.unlockedAt) return 0;
-  return Math.max(0, now - state.unlockedAt);
-}
+// ─── ★배경에서 JS 타이머로 폴링하는 방법은 없다 (2026-07-30 실기기로 확인)★ ────
+// 화면을 끄고 내려간 뒤 잠금화면에서 곧장 다른 앱으로 가면 앱은 'active'를 한 번도 못 받아,
+// 위 screenOffAwayMs()의 역산 말고는 이탈 시작 시각을 알 방법이 없다. 그래서 "배경에 있는 동안
+// 2초마다 screenState()를 직접 조회한다"를 구현했는데 **한 번도 돌지 않았다**.
+//   원인: RN 안드로이드는 액티비티 onPause에서 JS 타이머를 통째로 멈춘다 —
+//   JavaTimerManager.onHostPause()가 isPaused=true + clearFrameCallback을 하고
+//   TimerFrameCallback.doFrame()은 isPaused면 즉시 return한다(headless 태스크 중 제외).
+//   즉 **setInterval/setTimeout은 백그라운드에서 발화하지 않는다**.
+//   ※"안드는 백그라운드에서도 JS가 돈다"는 취지의 주석이 useAppState 틱 근처에 있었는데
+//     그게 오해의 출처다 — 배경에서 도는 건 네이티브가 밀어 넣는 이벤트(AppState 등)뿐이다.
+// → 배경에서 '몇 초 뒤에 판단'이 필요하면 **네이티브(AlarmManager/브로드캐스트)로만 가능**하다.
+//   이 경로에 아직 이탈 알림이 없는 이유이기도 하다(카운트는 복귀 시 역산으로 확정된다).
+//   같은 걸 JS 타이머로 다시 시도하지 말 것.

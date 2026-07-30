@@ -28,8 +28,8 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, readScreenState } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, AWAY_WATCH_INTERVAL_MS, emptyAwayWatch, awayWatchStep, awayWatchAwayMs } from '../utils/focusAway';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, SCREEN_ON_GRACE_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -179,8 +179,11 @@ export function AppProvider({ children }) {
   const cheerReadyRef = useRef(false); // 기준값 확보 여부 (첫 스냅샷 침묵용 — 응원 0건 방과 구분)
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
-  // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
-  // (안드는 백그라운드에서도 JS가 돌므로) 대기 상태 배터리를 하루 종일 소모한다
+  // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면 대기 배터리를 소모한다
+  // ※**백그라운드에서는 이 인터벌이 아예 안 돈다** (RN 안드로이드는 액티비티 onPause에서 JS
+  //   타이머를 멈춘다 — `JavaTimerManager.onHostPause`). 그래서 경과 시간은 틱 누적이 아니라
+  //   벽시계로 재고(불변식 1), 배경에서 시간이 걸린 판단이 필요하면 네이티브로만 가능하다
+  //   (focusAway.js 하단 주석 참조 — JS 폴링으로 시도했다가 실패한 기록)
   const hasRunningTimer = timers.some(t => t.status === 'running');
   useEffect(() => {
     if (!hasRunningTimer) return undefined;
@@ -359,9 +362,6 @@ export function AppProvider({ children }) {
   const screenOffBg = useRef(false);
   // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
   const iosDeferAway = useRef(false);
-  // 안드: 화면을 끄고 배경에 있는 동안 화면/잠금 상태를 직접 폴링한 결과 (focusAway.awayWatchStep)
-  const awayWatch = useRef(emptyAwayWatch());
-  const awayWatchTimer = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -545,30 +545,6 @@ export function AppProvider({ children }) {
     showToastCustom('60초간 자유시간! 빠르게 다녀와~', 'taco');
   }, []);
 
-  // 안드: 화면을 끄고 배경에 있는 동안 화면/잠금 상태를 직접 폴링해 '이탈 시작 시각'을 관측한다.
-  // 잠금화면에서 곧장 다른 앱으로 가면 앱은 'active'를 한 번도 못 받아 복귀 시 브로드캐스트
-  // 타임스탬프로 역산할 수밖에 없었는데, 그 역산이 틀리는 경우가 있었다(focusAway.js 참조).
-  // 폴링은 관측이라 지연·누락이 없고, 확정 시점에 이탈 알림도 제때 나간다.
-  const stopAwayWatch = useCallback(() => {
-    if (awayWatchTimer.current) { clearInterval(awayWatchTimer.current); awayWatchTimer.current = null; }
-  }, []);
-  const startAwayWatch = useCallback((onConfirmed) => {
-    stopAwayWatch();
-    awayWatch.current = emptyAwayWatch();
-    awayWatchTimer.current = setInterval(() => {
-      const prev = awayWatch.current;
-      const next = awayWatchStep(prev, readScreenState());
-      awayWatch.current = next;
-      if (next.confirmed && !prev.confirmed) {
-        // 잠금이 풀렸는데 10초가 지나도록 안 돌아왔다 = 진짜 이탈. 여기서부터는 확정이므로
-        // 폴링을 멈추고 즉시 알린다 (복귀 시점까지 기다리면 넛지가 통째로 늦어진다)
-        stopAwayWatch();
-        try { onConfirmed(); } catch {}
-      }
-    }, AWAY_WATCH_INTERVAL_MS);
-  }, [stopAwayWatch]);
-  useEffect(() => stopAwayWatch, [stopAwayWatch]);
-
   // AppState 핸들링
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -630,20 +606,6 @@ export function AppProvider({ children }) {
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
         };
-        // 안드: 화면 끄기로 내려갔다면 배경에서 화면/잠금 상태를 직접 관측한다.
-        // 잠금이 풀린 뒤에도 안 돌아오면 그 시점부터가 이탈 — 복귀 시 역산(브로드캐스트 타임스탬프)에
-        // 기대지 않고, 이탈 알림도 그 자리에서 제때 나간다
-        stopAwayWatch();
-        awayWatch.current = emptyAwayWatch();
-        if (screenOffNow && Platform.OS === 'android' && screenStateSupported()) {
-          startAwayWatch(() => {
-            // 폴링이 도는 사이 타이머가 끝났거나 모드가 풀렸으면 이탈로 알리지 않는다
-            const stillFocusing = focusModeRef.current === 'screen_on'
-              && timersRef.current.some(t => t.status === 'running')
-              && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
-            if (stillFocusing) markAway({ confirmed: true });
-          });
-        }
         if (awayCandidate && !pinnedNow && !screenOffNow) {
           if (Platform.OS === 'ios' && lockDetectSupported()) {
             // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
@@ -673,10 +635,6 @@ export function AppProvider({ children }) {
         if (laTimerBg) syncOngoingNotif(laTimerBg, { enabled: ongoingNotifEnabled() });
       }
       else if (state === 'active') {
-        // 돌아왔으니 배경 폴링 중지 — 관측한 이탈 시간(ms)을 꺼내 쓰고 상태는 비운다
-        stopAwayWatch();
-        const watchedAway = Platform.OS === 'android' ? awayWatchAwayMs(awayWatch.current) : null;
-        awayWatch.current = emptyAwayWatch();
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
         const bgAt = bgTime.current;
         let awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
@@ -700,9 +658,7 @@ export function AppProvider({ children }) {
         const wasScreenOffBg = screenOffBg.current || (wasAway && screenWentOffAround(bgAt));
         screenOffBg.current = false;
         if (wasScreenOffBg) {
-          // 배경 폴링으로 '잠금이 풀린 시각'을 직접 관측했으면 그 값을 쓴다 (역산보다 정확).
-          // 폴링이 한 번도 못 돌았으면(프로세스 정지/구빌드) null → 기존 역산으로 폴백
-          const sinceOn = watchedAway != null ? watchedAway : awayMsSinceScreenOn(bgAt);
+          const sinceOn = awayMsSinceScreenOn(bgAt);
           if (isRealAwayAfterScreenOn(sinceOn)) {
             awayMs = sinceOn;
             wasAway = true;
