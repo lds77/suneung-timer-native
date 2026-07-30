@@ -159,6 +159,13 @@ class ScreenPinModule : Module() {
       }
     }
 
+    // 통화 중인가 (벨 울림·통화·인터넷 통화 포함) — 전화를 받는 건 이탈이 아니다.
+    // 권한 없이 오디오 모드로 판별한다 (AwayWatch.inCall 주석 참조)
+    Function("inCall") {
+      val ctx = appContext.reactContext ?: return@Function false
+      return@Function AwayWatch.inCall(ctx)
+    }
+
     AsyncFunction("pin") { promise: Promise ->
       val activity = appContext.currentActivity
       if (activity == null) {

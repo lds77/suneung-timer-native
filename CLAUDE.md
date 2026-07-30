@@ -224,6 +224,12 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
 - 🔥모드 이탈 시: 이탈 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
   iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
+  - **전화가 오면 이탈로 치지 않는다** (안드, 2026-07-30): 벨 울림·통화·인터넷 통화(보이스톡 등)
+    중의 배경 전환은 화면 고정 중과 같이 판정을 통째로 건너뛴다. 판별은 `AudioManager.getMode()` —
+    **`READ_PHONE_STATE` 없이** 되므로 Play 정책·지원 기기 문제가 없다(`screenPin.isInCall`).
+    배경 진입 시점 + 복귀 시점 + 네이티브 `AwayWatch.onCheck` 세 곳에서 확인한다.
+    ※예전엔 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊으면 이탈 1회**가 찍혔다.
+    울트라집중만 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다(고정을 거부하면 똑같이 발생)
   - **이탈로 인정하는 최소 시간은 `focusAway.AWAY_MIN_MS`(15초) 하나뿐이다** — 앱 전환 경로,
     화면 끄기 후 잠금해제 경로, iOS 지연 판정이 모두 이 상수를 쓴다. 예전엔 useAppState에
     같은 값이 **따로 하드코딩**돼 있어 한쪽만 고치면 경로마다 기준이 갈렸다(2026-07-30 일소).

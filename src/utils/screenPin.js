@@ -73,6 +73,14 @@ export const awayMsSinceScreenOn = (bgAt) => {
   return screenOffAwayMs(bgAt, st.lastOnAt, Date.now(), st);
 };
 
+// 지금 통화 중인가 (벨 울림·통화·보이스톡 등 인터넷 통화 포함).
+// 전화를 받는 건 이탈이 아니므로 화면 고정 중과 같이 이탈 판정을 통째로 건너뛴다.
+// 권한 없이 오디오 모드로 판별한다 — 구빌드/iOS는 false (기존 동작 유지)
+export const isInCall = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.inCall !== 'function') return false;
+  try { return !!mod.inCall(); } catch { return false; }
+};
+
 // ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
 // 이 구간에서는 앱이 'active'를 한 번도 못 받고 JS 타이머도 멈추므로(focusAway.js 하단 주석),
 // '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단을 네이티브가 대신한다.

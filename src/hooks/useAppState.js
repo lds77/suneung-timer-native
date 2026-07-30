@@ -28,7 +28,7 @@ import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch } from '../utils/screenPin';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall } from '../utils/screenPin';
 import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
@@ -579,7 +579,11 @@ export function AppProvider({ children }) {
         // 다른 앱 사용이 불가능하므로 이탈로 치지 않는다 (고정 해제 후 나간 경우만 이탈)
         const awayCandidate = mode === 'screen_on' && hasRunning
           && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
-        const pinnedNow = awayCandidate && Platform.OS === 'android' && isScreenPinned();
+        // 전화(벨 울림·통화·보이스톡)도 이탈이 아니다 — 화면 고정과 같이 판정을 통째로 건너뛴다.
+        // 예전엔 여기에 아무 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊고 나면 이탈 1회**가
+        // 찍혔다(2026-07-30). 울트라집중이 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다
+        const inCallNow = awayCandidate && Platform.OS === 'android' && isInCall();
+        const awayExempt = (awayCandidate && Platform.OS === 'android' && isScreenPinned()) || inCallNow;
         // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
         // 화면을 다시 켠 뒤에도 앱으로 안 돌아오면 그때부터 이탈로 계산한다 (active 복귀 처리 참조).
         // iOS: 한동안 화면을 만지지 않은 상태에서 백그라운드로 내려갔다면 사람이 나간 게 아니라
@@ -588,7 +592,7 @@ export function AppProvider({ children }) {
         // 실패하므로, 이 판정이 없으면 화면이 꺼질 때마다 이탈로 잡힌다.
         // 안드는 네이티브 screenState()가 정확하므로 쓰지 않는다(우회 방지 10초 규칙 유지).
         const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
-        const screenOffNow = awayCandidate && !pinnedNow && (iosIdleOffNow || isScreenOff());
+        const screenOffNow = awayCandidate && !awayExempt && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
         const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
         // confirmed: 이미 이탈이 확정된 시점(배경 폴링)이라 알림을 지연시킬 필요가 없다
@@ -622,7 +626,7 @@ export function AppProvider({ children }) {
             [{ sec: 0, ...awayFirstNotif(charName) }, ...awayNudgeSteps(charName)],
           );
         }
-        if (awayCandidate && !pinnedNow && !screenOffNow) {
+        if (awayCandidate && !awayExempt && !screenOffNow) {
           if (Platform.OS === 'ios' && lockDetectSupported()) {
             // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
             // 백그라운드에서는 JS 타이머도 멈춰 '10초 뒤에 판단'을 JS로 할 수 없다. 그래서
@@ -689,6 +693,14 @@ export function AppProvider({ children }) {
             }
             wasAway = false;
           }
+        }
+
+        // 통화 중에 앱으로 돌아온 경우(스피커폰으로 바꾸고 오는 등)도 이탈이 아니다.
+        // 배경으로 내려가는 순간엔 아직 벨이 안 울려 통화로 못 잡은 경우를 여기서 한 번 더 건진다
+        if (Platform.OS === 'android' && wasAway && isInCall()) {
+          setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+          if (screenLockedRef.current) applyFocusBrightness();
+          wasAway = false;
         }
 
         // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)

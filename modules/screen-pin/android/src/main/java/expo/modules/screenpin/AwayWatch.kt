@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
@@ -107,8 +108,10 @@ object AwayWatch {
     // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
     if (!interactive(ctx)) { usableSince = 0L; return }
 
-    if (!unlocked(ctx)) {
-      // 잠금화면 체류 — 다른 앱을 쓸 수 없으므로 이탈 아님. 기준점을 비우고 계속 지켜본다
+    if (!unlocked(ctx) || inCall(ctx)) {
+      // 잠금화면 체류 = 다른 앱을 쓸 수 없음 / 통화 중 = 이탈이 아님.
+      // (잠금화면 위로 걸려온 전화를 받는 경우가 여기 걸린다 — 통화가 끝날 때까지 알리지 않는다)
+      // 기준점을 비우고 계속 지켜본다
       usableSince = 0L
       if (++checks < MAX_CHECKS) scheduleAt(ctx, now + POLL_MS, checkIntent(ctx))
       return
@@ -139,6 +142,20 @@ object AwayWatch {
     val s = steps.getOrNull(index) ?: return
     if (limitAtMs > 0 && System.currentTimeMillis() >= limitAtMs) return
     notify(ctx, index, s.title, s.body)
+  }
+
+  // 통화 중인가 — **권한 없이** 알 수 있는 방법으로 오디오 모드를 본다.
+  // (TelephonyManager.getCallState는 API 31+에서 READ_PHONE_STATE가 필요하고, 그 권한은
+  //  Play 정책상 정당화가 까다롭고 지원 기기까지 줄일 수 있다 — CAMERA 때 겪은 그 문제.)
+  // 벨 울림(RINGTONE) / 통화 중(IN_CALL) / 인터넷 통화(IN_COMMUNICATION, 보이스톡 등) /
+  // 통화 선별(CALL_SCREENING)을 모두 통화로 본다. 전화를 받는 건 이탈이 아니다.
+  fun inCall(ctx: Context): Boolean {
+    val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+    val mode = try { am.mode } catch (_: Throwable) { AudioManager.MODE_NORMAL }
+    if (mode == AudioManager.MODE_RINGTONE ||
+        mode == AudioManager.MODE_IN_CALL ||
+        mode == AudioManager.MODE_IN_COMMUNICATION) return true
+    return Build.VERSION.SDK_INT >= 30 && mode == AudioManager.MODE_CALL_SCREENING
   }
 
   // 아래 둘 다 브로드캐스트 시각이 아니라 지금 이 순간의 직접 조회라 지연·누락이 없다
