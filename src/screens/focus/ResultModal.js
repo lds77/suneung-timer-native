@@ -11,7 +11,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal, Alert,
-  KeyboardAvoidingView, useWindowDimensions,
+  KeyboardAvoidingView, useWindowDimensions, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../hooks/useAppState';
@@ -61,7 +61,17 @@ export default function ResultModal() {
   return (
     <>
       {/* ── 완료 결과 + 자기평가 ── */}
-      <Modal visible={!!app.completedResultData} transparent animationType="slide" onRequestClose={closeResultModal}>
+      {/* ★시간 수정 시트를 이 Modal '안'에 렌더한다 — 형제 Modal로 두면 iOS에서 안 뜬다★
+          iOS의 Modal은 네이티브 화면 전환(UIViewController present)이라, 이미 하나가 떠 있는
+          상태에서 형제 Modal을 또 띄우면 조용히 무시된다. 안드는 Modal이 그냥 뷰라 잘 떠서
+          **안드에서만 정상 동작**했다(실기기 제보 2026-08-01).
+          → 두 번째 Modal을 없애고 절대 위치 오버레이로 바꿔 양 플랫폼 동일하게 만들었다.
+          ※같은 이유로 이 파일에 Modal을 하나 더 추가하지 말 것 */}
+      {/* 안드 뒤로가기: 수정 시트가 열려 있으면 그것만 닫는다.
+          예전엔 수정 시트가 별도 Modal이라 자기 onRequestClose로 처리됐는데, 오버레이로
+          바꾸면서 이 분기가 없으면 뒤로가기 한 번에 결과 모달까지 통째로 닫힌다 */}
+      <Modal visible={!!app.completedResultData} transparent animationType="slide"
+        onRequestClose={() => { if (editingDuration) setEditingDuration(false); else closeResultModal(); }}>
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
@@ -231,12 +241,11 @@ export default function ResultModal() {
             })()}
           </View>
         </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
-      {/* 공부 시간 수정 시트 — 결과 모달 위 오버레이. 잊은 타이머 등을 실제 시간으로 정정 (한 번 수정하면 재수정·삭제 불가) */}
-      <Modal visible={editingDuration} transparent animationType="fade" onRequestClose={() => setEditingDuration(false)}>
-        <View style={[S.mo, { justifyContent: 'center', paddingHorizontal: 24 }]}>
+        {/* 공부 시간 수정 시트 — 결과 모달 위 오버레이 (★Modal이 아니다★ — 위 주석 참조).
+            잊은 타이머 등을 실제 시간으로 정정 (한 번 수정하면 재수정·삭제 불가) */}
+        {editingDuration && (
+        <View style={[StyleSheet.absoluteFill, S.mo, { justifyContent: 'center', paddingHorizontal: 24 }]}>
           <View style={[{ backgroundColor: T.bg, borderRadius: 20, padding: 20 }, isTablet && { maxWidth: 420, width: '100%', alignSelf: 'center' }]}>
             <Text style={{ fontSize: 17, fontWeight: '900', color: T.text, textAlign: 'center', marginBottom: 4 }}>공부 시간 수정</Text>
             <Text style={{ fontSize: 14, fontWeight: '900', color: T.accent, textAlign: 'center', marginBottom: 16 }}>
@@ -282,6 +291,8 @@ export default function ResultModal() {
             </View>
           </View>
         </View>
+        )}
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
