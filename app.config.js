@@ -31,7 +31,10 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '53', // 1.0.39 (2026-08-01 이후 빌드 — 무료 빌드 할당량 리셋 대기). build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
+      // build54 = 1.0.39 재빌드 (2026-08-01): 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정.
+      // build53은 TestFlight에 올라갔으나 위 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
+      // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
+      buildNumber: '54',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {

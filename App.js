@@ -758,7 +758,9 @@ const MODE_CHOICES = [
   { id: 'focus', label: '집중모드', icon: 'flash', color: '#FFB74D', bonus: 10,
     desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력' },
   { id: 'exam', label: '울트라모드', icon: 'flame', color: '#FF6B6B', bonus: 15,
-    desc: '일시정지 불가 · 10초 이탈 시 타이머 정지'
+    // ※숫자를 쓰지 않는다 — 실제 하한이 플랫폼별로 다르다(focusAway.awayMinMs: 안드 15초 / iOS 30초).
+    //   예전엔 '10초'라고 적혀 있었는데 어느 플랫폼과도 맞지 않았다(2026-08-01 일소)
+    desc: '일시정지 불가 · 잠깐만 다른 앱을 써도 타이머 정지'
       + (Platform.OS === 'android' ? ' · 화면 고정' : '') },
 ];
 
@@ -798,7 +800,7 @@ function MainApp() {
     if (id === 'exam' && !a.settings.guideUltraPick) {
       Alert.alert(
         '울트라모드로 시작할까요?',
-        '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 10초 넘게 다른 앱을 쓰면 타이머가 멈춰요'
+        '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 잠깐만 다른 앱을 써도 타이머가 멈춰요'
           + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
         // 안내를 소비하는 건 '실제로 시작한' 경우만 — 물러섰는데 다음에 안 뜨면 안내가 아니다
         [{ text: '다시 고르기', style: 'cancel' },
