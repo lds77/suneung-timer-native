@@ -975,6 +975,37 @@ export function AppProvider({ children }) {
     });
   };
 
+  // 계획 타이머의 결과 모달에 얹을 것 — 라벨(계획 이름)과 '계획 달성' 여부.
+  //
+  // ★2026-08-01 변경: 계획 타이머도 다른 타이머와 똑같이 5분 이상이면 항상 모달을 띄운다★
+  // 예전에는 **계획 목표의 80%에 도달했을 때만** 띄우고 그 계획의 오늘 세션 전부를
+  // `planSessionIds`로 묶어 자기평가를 일괄 적용했다. '계획 단위 평가'라는 나름의 설계였지만
+  // 실제로는 손해가 있었다(사용자 지적):
+  //  · 목표 60분 계획에서 40분(66%)을 공부하면 **모달이 아예 안 뜬다** → 자기평가를 못 해
+  //    밀도 보너스(최대 +3)를 못 받고 점수가 낮게 굳는다. 같은 40분을 계획 없이 돌리면 뜬다
+  //  · 계획을 절반만 하고 끝낸 날은 그 계획의 어떤 세션도 영영 평가받지 못한다
+  //  · 묶음이라 시간 수정도 막혀 있었다(ResultModal의 canEditTime은 sessionId가 있을 때만)
+  // 이제 세션 단위(sessionId 단일)로 넘기므로 시간 수정·개별 삭제도 된다.
+  // 80%는 '계획 달성' **축하 문구**에만 쓴다 — 집중탭 계획 카드·위젯의 완료 기준과 같은 값이다.
+  // ※묶음 일괄 평가를 버린 이유: 쪼개 돌리면 이미 평가한 세션을 매번 덮어쓰고,
+  //   '기록 삭제'가 이전 세션까지 지운다. 각 세션이 자기 평가를 갖는 게 밀도 계산과도 맞다
+  const PLAN_ACHIEVED_RATIO = 0.8;
+  const planResultExtras = (t, durationSec) => {
+    if (!t.planId || t.todoId) return { label: t.label };
+    const ws = weeklyScheduleRef.current;
+    const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+    const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
+    if (!plan) return { label: t.label };
+    const today = getToday();
+    const prevDoneSec = sessionsRef.current
+      .filter(s => s.date === today && s.planId === t.planId)
+      .reduce((sum, s) => sum + s.durationSec, 0);
+    return {
+      label: plan.label || t.label,
+      planAchieved: prevDoneSec + durationSec >= plan.targetMin * 60 * PLAN_ACHIEVED_RATIO,
+    };
+  };
+
   // 뽀모도로 페이즈 전환 — 순수 계산은 timerCore.pomoFlipCore, 여기서는 부수효과(세션 기록/진동)만
   const pomoFlip = (t, skipNotif = false) => {
     const { endedPhase, workSession, next } = pomoFlipCore(t);
@@ -1139,24 +1170,11 @@ export function AppProvider({ children }) {
         const durationSec = realDurationSec;
         // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 80% 게이트를 건너뛰고 할일 결과 모달을 띄운다
         // — 세션은 이미 planId로 계획 진행에 반영되지만, 자기평가·완료토글·시간수정 UX는 할일 것을 유지.
-        if (t.planId && !t.todoId) {
-          const ws = weeklyScheduleRef.current;
-          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
-          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
-          if (plan) {
-            const today = getToday();
-            const prevDoneSec = sessionsRef.current
-              .filter(s => s.date === today && s.planId === t.planId)
-              .reduce((sum, s) => sum + s.durationSec, 0);
-            if (prevDoneSec + durationSec >= plan.targetMin * 60 * 0.8) {
-              const prevSessIds = sessionsRef.current
-                .filter(s => s.date === today && s.planId === t.planId)
-                .map(s => s.id);
-              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
-            }
-          }
-        } else if (durationSec >= RESULT_MODAL_MIN_SEC) {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
+        if (durationSec >= RESULT_MODAL_MIN_SEC) {
+          setCompletedResultData({
+            timerId: t.id, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null,
+            ...planResultExtras(t, durationSec),
+          });
         }
       }
       return sessId;
@@ -1889,26 +1907,11 @@ export function AppProvider({ children }) {
         const result = calcResult(t, t.elapsedSec);
         // 완료 결과 모달 트리거 (랩 제외)
         // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 게이트를 건너뛰고 할일 결과 모달을 띄운다 (위 stop 경로와 동일 규칙)
-        if (t.planId && !t.todoId) {
-          const ws = weeklyScheduleRef.current;
-          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
-          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
-          if (plan) {
-            const today = getToday();
-            const prevDoneSec = sessionsRef.current
-              .filter(s => s.date === today && s.planId === t.planId)
-              .reduce((sum, s) => sum + s.durationSec, 0);
-            if (prevDoneSec + t.elapsedSec >= plan.targetMin * 60 * 0.8) {
-              const prevSessIds = sessionsRef.current
-                .filter(s => s.date === today && s.planId === t.planId)
-                .map(s => s.id);
-              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
-            }
-          } else if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
-            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
-          }
-        } else if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
+        if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
+          setCompletedResultData({
+            timerId: t.id, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null,
+            ...planResultExtras(t, t.elapsedSec),
+          });
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }

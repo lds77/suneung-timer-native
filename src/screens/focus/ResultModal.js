@@ -76,10 +76,14 @@ export default function ResultModal() {
         <View style={[S.mo, { justifyContent: 'flex-end' }]}>
           <View style={[S.selfRatingSheet, { backgroundColor: T.bg }, isTablet && { maxWidth: contentMaxW, width: '100%', alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: T.border }]}>
             <View style={[S.selfRatingHandle, { backgroundColor: T.border }]} />
+            {/* 계획 타이머라도 모달은 항상 뜨고(5분 기준), 목표의 80%를 넘긴 세션에서만
+                '계획 달성!'으로 축하한다 — planAchieved는 useAppState.planResultExtras가 판정.
+                ※예전엔 80%를 넘겨야 모달 자체가 떴고 계획 세션을 묶어 넘겼다(planSessionIds).
+                  그래서 목표에 못 미치면 자기평가 기회조차 없었다 (2026-08-01 변경) */}
             <Ionicons
-              name={app.completedResultData?.planSessionIds?.length ? 'calendar-outline' : 'checkmark-circle-outline'}
+              name={app.completedResultData?.planAchieved ? 'calendar-outline' : 'checkmark-circle-outline'}
               size={32} color={T.accent} style={{ textAlign: 'center', alignSelf: 'center', marginBottom: 2 }} />
-            <Text style={[S.selfRatingTitle, { color: T.text }]}>{app.completedResultData?.planSessionIds?.length ? '계획 달성!' : '공부 완료!'}</Text>
+            <Text style={[S.selfRatingTitle, { color: T.text }]}>{app.completedResultData?.planAchieved ? '계획 달성!' : '공부 완료!'}</Text>
             {/* 결과 정보 */}
             {app.completedResultData?.result && (() => {
               const selfBonus = (resultSelfRating === 'fire' || resultSelfRating === 'perfect') ? 3 : 0;
@@ -183,12 +187,7 @@ export default function ResultModal() {
               onPress={() => {
                 if (!resultSelfRating) { app.showToastCustom('자기평가를 선택해주세요!', 'paengi'); return; }
                 const data = app.completedResultData;
-                if (data?.planSessionIds?.length) {
-                  // 계획 완료: 모든 계획 세션에 자기평가 일괄 적용
-                  data.planSessionIds.forEach(id => {
-                    app.updateSessionSelfRating(id, resultSelfRating, resultMemo.trim() || null);
-                  });
-                } else if (data?.seqSessionIds?.length) {
+                if (data?.seqSessionIds?.length) {
                   // 연속모드: 마지막 완료 세션에만 자기평가 적용 (중간 세션은 이미 밀도 계산됨)
                   const lastSeqId = data.seqSessionIds[data.seqSessionIds.length - 1];
                   app.updateSessionSelfRating(lastSeqId, resultSelfRating, resultMemo.trim() || null);
@@ -207,9 +206,11 @@ export default function ResultModal() {
             {(() => {
               const data = app.completedResultData;
               if (!data) return null;
-              const ids = data.sessionId ? [data.sessionId] : (data.planSessionIds || data.seqSessionIds || []);
+              const ids = data.sessionId ? [data.sessionId] : (data.seqSessionIds || []);
               if (ids.length === 0) return null;
-              const canEditTime = !!data.sessionId; // 계획/연속(여러 세션 묶음)은 시간 정정 대상에서 제외 — 삭제만
+              // 연속모드(여러 세션 묶음)만 시간 정정 대상에서 제외 — 삭제만.
+              // ※계획 타이머는 2026-08-01부터 세션 단위(sessionId)로 오므로 시간 수정도 된다
+              const canEditTime = !!data.sessionId;
               return (
                 <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingTop: 2, paddingBottom: 6 }}>
                   {canEditTime && (
