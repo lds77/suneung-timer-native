@@ -233,10 +233,20 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - `focus-status` 채널: AndroidImportance.LOW 무음 — 🔥모드 이탈 중 sticky 상태 알림 (복귀 시 코드로 제거)
 - 🔥모드 이탈 시: 이탈 알림 + 30초/1분/3분/5분 에스컬레이팅 넛지(복귀 시 취소, countdown 잔여시간 초과분 미예약),
   iOS는 Live Activity 부제 '이탈 중' 전환 (`setLiveActivityAway`)
-  - **전화가 오면 이탈로 치지 않는다** (안드, 2026-07-30): 벨 울림·통화·인터넷 통화(보이스톡 등)
-    중의 배경 전환은 화면 고정 중과 같이 판정을 통째로 건너뛴다. 판별은 `AudioManager.getMode()` —
-    **`READ_PHONE_STATE` 없이** 되므로 Play 정책·지원 기기 문제가 없다(`screenPin.isInCall`).
-    배경 진입 시점 + 복귀 시점 + 네이티브 `AwayWatch.onCheck` 세 곳에서 확인한다.
+  - **전화가 오면 이탈로 치지 않는다** (안드 2026-07-30 / **iOS 2026-08-01**): 벨 울림·통화·
+    인터넷 통화(보이스톡 등) 중의 배경 전환은 화면 고정 중과 같이 판정을 통째로 건너뛴다.
+    - **안드**: 판별은 `AudioManager.getMode()` — **`READ_PHONE_STATE` 없이** 되므로 Play 정책·
+      지원 기기 문제가 없다(`screenPin.isInCall`).
+      배경 진입 시점 + 복귀 시점 + 네이티브 `AwayWatch.onCheck` 세 곳에서 확인한다.
+    - **iOS**: 판별은 CallKit `CXCallObserver`(`modules/focus-shield` + `focusShield.isInCallIOS`) —
+      **권한도 usage description도 필요 없다**(안드가 `READ_PHONE_STATE`를 피한 것과 같은 이점).
+      배경 진입 + 복귀 + 잠금 감시 폴링(0.5초) 세 곳에서 확인하고, 통화가 관측되면 예약해 둔
+      이탈 알림을 네이티브가 지운다. ★관측자(`CXCallObserver`)는 프로퍼티로 붙들 것★ —
+      매번 새로 만들면 목록 동기화 전이라 빈 배열이 온다
+      - ★**iOS 고유 한계**: 백그라운드에서 앱이 정지되면 관측이 끊겨 통화 **종료 시각**을 못 본다★
+        → 끊길 때 통화 중이었으면(`consumeCallHeld`) 그 배경 구간을 **통째로 면제**한다.
+        잠금 감지가 이미 같은 양보를 하고 있어 일관되지만(아래 'iOS 한계' 참조),
+        **통화 후 다른 앱을 오래 쓰는 우회를 안드만큼 막지 못한다**(수용)
     ※예전엔 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊으면 이탈 1회**가 찍혔다.
     울트라모드만 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다(고정을 거부하면 똑같이 발생)
   - **통화가 끝난 뒤 1분도 이탈이 아니다** (`POST_CALL_GRACE_MS`, `awayMsAfterCall`):
@@ -252,6 +262,9 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
       - 통화 예외는 **`onCheck`와 `onScreenEvent` 두 곳 모두**에 있어야 한다. `onCheck`만 고치면
         SCREEN_OFF를 받은 `onScreenEvent`가 예약을 취소해 `onCheck`가 다시 불리지 않는다
       - `POST_CALL_GRACE_MS`는 **Kotlin(알림)과 JS(카운트) 양쪽에 있다 — 함께 고칠 것**
+      - **iOS도 같은 이유로 통화 중에는 폴링을 멈추지 않는다** — 잠금 감시 타이머가 통화를
+        관측하면 알림만 지우고 `endWatch()`를 부르지 않는다(부르면 기준점이 통화 시작에 굳는다).
+        다만 iOS는 백그라운드 태스크가 회수되면 거기서 관측이 끝난다(위 'iOS 고유 한계')
   - **이탈로 인정하는 최소 시간은 `focusAway.AWAY_MIN_MS`(15초) 하나뿐이다** — 앱 전환 경로,
     화면 끄기 후 잠금해제 경로, iOS 지연 판정이 모두 이 상수를 쓴다. 예전엔 useAppState에
     같은 값이 **따로 하드코딩**돼 있어 한쪽만 고치면 경로마다 기준이 갈렸다(2026-07-30 일소).

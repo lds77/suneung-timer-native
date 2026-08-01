@@ -30,7 +30,7 @@ import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../util
 import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
 import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall } from '../utils/focusAway';
-import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported } from '../utils/focusShield';
+import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
@@ -587,7 +587,10 @@ export function AppProvider({ children }) {
         // 전화(벨 울림·통화·보이스톡)도 이탈이 아니다 — 화면 고정과 같이 판정을 통째로 건너뛴다.
         // 예전엔 여기에 아무 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊고 나면 이탈 1회**가
         // 찍혔다(2026-07-30). 울트라모드가 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다
-        const inCallNow = awayCandidate && Platform.OS === 'android' && isInCall();
+        // iOS도 같은 규칙 (2026-08-01): CallKit 관측자로 셀룰러·인터넷 통화를 모두 본다.
+        // iOS엔 화면 고정이 없어 이 경로를 막아주는 것이 아무것도 없었다 — 안드보다 오히려 잘 드러났다
+        const inCallNow = awayCandidate
+          && (Platform.OS === 'android' ? isInCall() : isInCallIOS());
         const awayExempt = (awayCandidate && Platform.OS === 'android' && isScreenPinned()) || inCallNow;
         // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
         // 화면을 다시 켠 뒤에도 앱으로 안 돌아오면 그때부터 이탈로 계산한다 (active 복귀 처리 참조).
@@ -670,6 +673,9 @@ export function AppProvider({ children }) {
 
         // iOS: 네이티브가 백그라운드에서 기록해 둔 화면 잠금 감지 결과 소비 (0이면 앱 전환)
         const iosLockedAt = Platform.OS === 'ios' ? consumeScreenLock() : 0;
+        // iOS: 관측이 끊길 때 통화 중이었는가 — 아래 통화 보정에서 쓴다.
+        // ★wasAway와 무관하게 항상 소비한다★ (안 그러면 다음 배경 전환까지 남아 엉뚱한 구간을 면제한다)
+        const iosCallHeld = Platform.OS === 'ios' ? consumeCallHeldIOS() : false;
         if (iosDeferAway.current) {
           // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 이탈 아님, 아니면 기존 10초 규칙대로
           iosDeferAway.current = false;
@@ -700,14 +706,22 @@ export function AppProvider({ children }) {
           }
         }
 
-        // 통화 중이거나 방금 통화가 끝난 구간은 이탈이 아니다 (안드).
+        // 통화 중이거나 방금 통화가 끝난 구간은 이탈이 아니다 (양 플랫폼).
         // 배경에 있는 동안 JS는 통화를 볼 수 없으므로(타이머가 멈춘다) 네이티브가 관측해 둔
         // '마지막 통화 시각'으로 되짚는다. 통화 자체는 배경 진입 시 awayExempt로 이미 걸러지고,
         // 여기서 거르는 건 **전화를 끊고 통화 종료 화면을 닫고 돌아오는 시간**이다
         // (실기기 확인 2026-07-30: 통화 87초는 면제됐는데 끊은 뒤 20초가 이탈로 찍혔다).
-        if (Platform.OS === 'android' && wasAway) {
-          isInCall(); // 복귀 순간에도 한 번 관측 — 통화 중에 돌아온 경우 기준점을 최신으로
-          const adjusted = awayMsAfterCall(awayMs, msSinceCall());
+        //
+        // iOS도 같은 규칙 (2026-08-01). 다만 iOS는 백그라운드에서 앱이 정지되면 관측이 끊겨
+        // '통화가 언제 끝났는지'를 못 볼 수 있다. 끊길 때 통화 중이었으면(iosCallHeld) 그
+        // 배경 구간을 통째로 면제한다 — 잠금 감지가 이미 하고 있는 것과 같은 양보다.
+        // ※그래서 iOS는 '통화 후 다른 앱을 오래 쓰는 우회'를 안드만큼 막지 못한다(수용).
+        const callAware = Platform.OS === 'android' || (Platform.OS === 'ios' && callDetectSupported());
+        if (callAware && wasAway) {
+          // 복귀 순간에도 한 번 관측 — 통화 중에 돌아온 경우 기준점을 최신으로
+          if (Platform.OS === 'android') isInCall(); else isInCallIOS();
+          const sinceCall = Platform.OS === 'android' ? msSinceCall() : msSinceCallIOS();
+          const adjusted = iosCallHeld ? 0 : awayMsAfterCall(awayMs, sinceCall);
           if (adjusted < AWAY_MIN_MS) {
             setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
             if (screenLockedRef.current) applyFocusBrightness();

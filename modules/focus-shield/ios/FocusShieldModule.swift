@@ -1,3 +1,4 @@
+import CallKit
 import ExpoModulesCore
 import FamilyControls
 import ManagedSettings
@@ -87,6 +88,22 @@ private let LOCK_POLL_SEC: TimeInterval = 0.5
 // useAppState의 이탈 알림 identifier와 반드시 일치해야 한다 (fireNotif 'away-now' / scheduleAwayNudges)
 private let AWAY_NOTIF_IDS = ["away-now", "away-nudge-30", "away-nudge-60", "away-nudge-180", "away-nudge-300"]
 
+// ─── 전화 수신·통화 감지 (🔥모드 이탈 판정용, 2026-08-01) ──────────────────
+// 전화를 받으면 앱이 백그라운드로 내려가 이탈로 잡히고, 통화 중에 '돌아와' 넛지가 울린 뒤
+// 끊으면 이탈 1회가 찍힌다. 안드로이드는 2026-07-30에 AudioManager.getMode()로 해결했는데
+// iOS엔 대응물이 전혀 없었다 — 그 구멍을 CallKit CXCallObserver로 메운다.
+//
+// CXCallObserver는 **권한도 usage description도 필요 없다**(안드의 READ_PHONE_STATE 회피와 같은 이유로 중요).
+// 셀룰러 통화와 CallKit을 쓰는 인터넷 통화(보이스톡 등)가 모두 잡힌다.
+// ★관측자는 반드시 프로퍼티로 붙들고 있어야 한다★ — 매번 새로 만들면 통화 목록이
+//   동기화되기 전이라 빈 배열이 돌아온다.
+//
+// ★한계(iOS 고유): 백그라운드에서 앱이 정지되면 관측이 끊긴다★
+// 안드는 네이티브가 배경에서 계속 폴링하지만 iOS는 beginBackgroundTask가 회수되면 끝이다.
+// 그래서 '통화가 언제 끝났는지'를 못 볼 수 있다 → 관측이 끊길 때 통화 중이었으면
+// callHeldAtWatchEnd를 세워 그 배경 구간을 통째로 면제한다(consumeCallHeld).
+// 잠금 감지가 이미 같은 양보를 하고 있으므로(잠기면 그 구간 전체 면제) 일관된 선택이다.
+
 public class FocusShieldModule: Module {
   // lockWatch/lockedAtMs는 JS 스레드(Function)와 메인 스레드(타이머·앱 생명주기)가 함께 만지므로
   // 반드시 lock으로 감싼다. 타이머·백그라운드 태스크 관련 상태는 메인 스레드 전용.
@@ -96,10 +113,33 @@ public class FocusShieldModule: Module {
   private var bgTaskId: UIBackgroundTaskIdentifier = .invalid
   private var lockPollTimer: Timer?
   private var watchDeadline: Date?
+  // 통화 관측 (위 주석 참고) — 관측자는 계속 붙들고 있어야 목록이 정확하다
+  private let callObserver = CXCallObserver()
+  private var lastCallAtMs: Double = 0        // 마지막으로 통화를 관측한 시각(epoch ms), 0 = 없음
+  private var callHeldAtWatchEnd = false      // 관측이 끊길 때 통화가 진행 중이었는가
 
   private func isWatchEnabled() -> Bool {
     stateLock.lock(); defer { stateLock.unlock() }
     return lockWatch
+  }
+
+  // 지금 통화 중(벨 울림 포함)인가. 관측되면 기준 시각을 갱신한다.
+  // ★기준점을 계속 갱신하는 것이 핵심★ — 통화 시작 시각에 굳으면 '통화 직후 유예'가
+  //   `유예 − 통화 시간`으로 줄어든다(안드에서 실제로 밟은 함정, focusAway.js POST_CALL_GRACE_MS 주석).
+  @discardableResult
+  private func observeCall() -> Bool {
+    let active = callObserver.calls.contains { !$0.hasEnded }
+    if active {
+      stateLock.lock()
+      lastCallAtMs = Date().timeIntervalSince1970 * 1000
+      stateLock.unlock()
+    }
+    return active
+  }
+
+  private func setCallHeld(_ v: Bool) {
+    stateLock.lock(); defer { stateLock.unlock() }
+    callHeldAtWatchEnd = v
   }
 
   private func setLockedAt(_ ms: Double) {
@@ -123,6 +163,14 @@ public class FocusShieldModule: Module {
     }
   }
 
+  // 예약해 둔 이탈 알림/넛지를 발송 전에 지운다.
+  // 감지가 예약 시각(20초)보다 늦은 기기에서 이미 발송됐을 수 있어 발송분도 함께 정리.
+  private func cancelAwayNotifs() {
+    let center = UNUserNotificationCenter.current()
+    center.removePendingNotificationRequests(withIdentifiers: AWAY_NOTIF_IDS)
+    center.removeDeliveredNotifications(withIdentifiers: AWAY_NOTIF_IDS)
+  }
+
   // ※메인 스레드에서 동기 호출해야 한다. OnAppEntersBackground는 didEnterBackground 알림에서
   //   메인 스레드로 동기 전달되므로, 여기서 DispatchQueue.main.async로 한 번 미루면
   //   블록이 실행되기 전에 앱이 정지될 수 있다(= 감시가 아예 시작 안 되거나, 다음 포그라운드
@@ -131,8 +179,13 @@ public class FocusShieldModule: Module {
   private func startWatch() {
     endWatch()
     setLockedAt(0)
+    setCallHeld(false)
     bgTaskId = UIApplication.shared.beginBackgroundTask(withName: "yeolgongLockWatch") { [weak self] in
-      self?.endWatch()
+      guard let self = self else { return }
+      // OS가 백그라운드 태스크를 회수하는 시점 = 관측이 끊기는 시점.
+      // 이때 통화가 진행 중이었다면 통화 종료 시각을 영영 알 수 없으므로 표시해 둔다.
+      if self.observeCall() { self.setCallHeld(true) }
+      self.endWatch()
     }
     guard bgTaskId != .invalid else { return }
     watchDeadline = Date().addingTimeInterval(LOCK_WATCH_SEC)
@@ -142,13 +195,17 @@ public class FocusShieldModule: Module {
         timer.invalidate()
         return
       }
+      // 통화 중이면 이탈 판정을 통째로 건너뛴다 — 알림을 지우고 관측만 계속한다.
+      // ★여기서 endWatch()를 부르면 안 된다★: 감시를 끊는 순간 lastCallAtMs가 통화 시작
+      //   시각에 굳어, 통화가 길수록 '통화 직후 유예'가 사라진다(안드에서 밟은 함정).
+      if self.observeCall() {
+        self.cancelAwayNotifs()
+        self.watchDeadline = Date().addingTimeInterval(LOCK_WATCH_SEC)
+        return
+      }
       if !UIApplication.shared.isProtectedDataAvailable {
         self.setLockedAt(Date().timeIntervalSince1970 * 1000)
-        // 화면 잠금이었다 → 예약해 둔 이탈 알림/넛지를 발송 전에 지운다.
-        // 감지가 예약 시각(20초)보다 늦은 기기에서 이미 발송됐을 수 있어 발송분도 함께 정리.
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: AWAY_NOTIF_IDS)
-        center.removeDeliveredNotifications(withIdentifiers: AWAY_NOTIF_IDS)
+        self.cancelAwayNotifs()   // 화면 잠금이었다
         self.endWatch()
       } else if let dl = self.watchDeadline, Date() >= dl {
         self.endWatch()
@@ -163,7 +220,11 @@ public class FocusShieldModule: Module {
     Function("setLockWatch") { (on: Bool) in
       self.stateLock.lock()
       self.lockWatch = on
-      if !on { self.lockedAtMs = 0 }
+      if !on {
+        self.lockedAtMs = 0
+        self.lastCallAtMs = 0
+        self.callHeldAtWatchEnd = false
+      }
       self.stateLock.unlock()
       if !on { self.endWatchSafely() }
     }
@@ -174,6 +235,28 @@ public class FocusShieldModule: Module {
       self.stateLock.lock(); defer { self.stateLock.unlock() }
       let v = self.lockedAtMs
       self.lockedAtMs = 0
+      return v
+    }
+
+    // 지금 통화 중(벨 울림 포함)인가 — 호출만 해도 통화 기준 시각이 갱신된다.
+    // 안드 screenPin.isInCall()의 iOS 대응물 (useAppState가 배경 진입·복귀 시점에 호출).
+    Function("isInCall") { () -> Bool in
+      return self.observeCall()
+    }
+
+    // 마지막 통화 관측 이후 경과(ms). 관측 기록이 없으면 -1 (JS의 awayMsAfterCall이 그대로 통과시킴).
+    Function("msSinceCall") { () -> Double in
+      self.stateLock.lock(); defer { self.stateLock.unlock() }
+      if self.lastCallAtMs <= 0 { return -1 }
+      return Date().timeIntervalSince1970 * 1000 - self.lastCallAtMs
+    }
+
+    // 백그라운드 관측이 끊길 때 통화가 진행 중이었는가 (읽으면 초기화).
+    // true면 통화 종료 시각을 알 수 없으므로 그 배경 구간을 통째로 이탈 면제한다.
+    Function("consumeCallHeld") { () -> Bool in
+      self.stateLock.lock(); defer { self.stateLock.unlock() }
+      let v = self.callHeldAtWatchEnd
+      self.callHeldAtWatchEnd = false
       return v
     }
 
