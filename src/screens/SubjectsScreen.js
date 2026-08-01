@@ -132,7 +132,10 @@ const SUNEUNG_SUBJECTS = [
   { name: '제2외국어', min: 40, color: '#00B894', order: 7 },
 ];
 
-// 실제 수능 시간표 (2025학년도 기준)
+// 실제 수능 시간표. 교시별 시간·쉬는시간은 해마다 사실상 동일하다.
+// ★화면 문구에 학년도를 박지 말 것★ — '2025학년도'라고 적어 뒀다가 두 해가 지나도록
+// 그대로 남아 있었다(2026-08-01 스토어 스크린샷 점검에서 발견). 매년 손대야 하는 문구는
+// 결국 낡는다 — CLAUDE.md 작업 규칙 14와 같은 계열.
 const SUNEUNG_TIMETABLE = [
   { order: 1, period: '1교시', name: '국어',      min: 80,  start: '08:40', end: '10:00', breakMin: 30, color: '#E8575A' },
   { order: 2, period: '2교시', name: '수학',      min: 100, start: '10:30', end: '12:10', breakMin: 60, color: '#4A90D9' },
@@ -552,7 +555,7 @@ export default function SubjectsScreen({ navigation }) {
 
       {suneungMode === 'timetable' ? (
         <>
-          <Text style={[S.secLabel, { color: T.sub }]}>2025학년도 수능 시간표 · 실제 쉬는시간 반영</Text>
+          <Text style={[S.secLabel, { color: T.sub }]}>실제 수능 시간표 · 쉬는시간 그대로 반영</Text>
           {SUNEUNG_TIMETABLE.map((tt, i) => {
             const sel = suneungSelected.includes(tt.name);
             const prevTt = i > 0 ? SUNEUNG_TIMETABLE[i - 1] : null;
