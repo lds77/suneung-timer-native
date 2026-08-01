@@ -80,6 +80,27 @@ export function awayMinMs(platform) {
   return (firstNotifSec + AWAY_NOTIF_GRACE_SEC) * 1000;
 }
 
+// ─── iOS: '다른 앱을 쓰다가 화면을 끈' 경우 (2026-08-01) ────────────────────
+// 실기기 제보: 집중모드에서 다른 앱으로 나간 뒤 **이탈 알림이 오기 전에 화면을 끄면**
+// 알림이 아예 안 오고 이탈도 안 잡힌다. 잠금이 감지되면 그 배경 구간을 통째로 면제했기 때문.
+//
+// 하지만 **배경 진입 ~ 잠금 사이는 명백히 다른 앱을 쓴 시간**이다. 두 시각을 다 알고 있으므로
+// (`bgAt`는 JS, 잠금 감지 시각은 네이티브 `consumeLockedAt`) 그 구간만 잘라 이탈로 센다.
+// ※'화면 끔 → 잠금 해제 → 다른 앱' 순서는 여전히 못 잡는다 — 앱이 정지돼 **잠금 해제 시각을
+//   알 방법이 없다**(안드는 screenState의 lastUnlockAt으로 잡는다). 1.6절 'iOS ②' 한계 그대로.
+//
+// 잠금 감지는 실제 잠금보다 늦다(isProtectedDataAvailable이 꺼지기까지 약 10초).
+// 그대로 빼지 않으면 그만큼 과다 계상되므로 지연분을 빼고 센다 — 오판 시 이탈을 놓치는 쪽이
+// 멀쩡한 사용자에게 이탈을 씌우는 쪽보다 낫다는 기존 관대 원칙(wasIdleBeforeBackground 주석)과 같다.
+export const IOS_LOCK_DETECT_LAG_MS = 10000;
+
+// bgAt: 백그라운드 진입 시각, lockedAt: 네이티브가 잠금을 감지한 시각(epoch ms, 0이면 잠금 아님).
+// 반환: 잠금 전까지 '다른 앱을 쓴' 것으로 볼 시간(ms).
+export function iosAwayBeforeLockMs(bgAt, lockedAt, lag = IOS_LOCK_DETECT_LAG_MS) {
+  if (!bgAt || !lockedAt || lockedAt <= bgAt) return 0;
+  return Math.max(0, lockedAt - bgAt - lag);
+}
+
 // ─── 🔥모드 화면 꺼짐은 시스템에 맡긴다 (2026-07-29) ──────────────────────
 // 예전에는 🔥모드가 keep-awake로 화면을 계속 켜 뒀는데, 잠금화면을 덮어놓고 공부하는 동안
 // 화면이 안 꺼져 배터리 부담이 컸다. 이제 keep-awake를 잡지 않고 기기 설정의 화면 시간 초과에

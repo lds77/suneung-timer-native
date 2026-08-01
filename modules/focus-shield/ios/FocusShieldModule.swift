@@ -85,6 +85,19 @@ private struct PickerSheet: View {
 //   즉 감지 실패는 구조적으로 있을 수 있고, 그때는 기존대로 '이탈'로 처리된다(fail-safe).
 private let LOCK_WATCH_SEC: TimeInterval = 60
 private let LOCK_POLL_SEC: TimeInterval = 0.5
+
+// ★잠금을 감지해도 '첫 이탈 알림이 나갈 시각'을 넘겼으면 알림을 취소하지 않는다★ (2026-08-01)
+// 이 취소는 원래 **JS의 오판을 되돌리려고** 있는 것이다: 앱을 만지고 곧바로 화면을 끄면
+// JS가 '앱 전환'으로 보고 알림을 예약해 버려 잠금화면에 헛알림이 뜬다.
+// 그런데 **다른 앱을 쓰다가 화면을 끈 경우**까지 같이 취소돼, 이탈 알림이 그 배경 구간 내내
+// 한 번도 안 오는 문제가 있었다(실기기 제보).
+// 두 경우는 **배경 진입 ~ 잠금 감지 사이의 간격**으로 갈린다:
+//   · 화면 끄기로 배경 진입  → 간격 ≈ 감지 지연분(약 10초)뿐
+//   · 다른 앱을 쓰다가 끔    → 간격 = 그 앱을 쓴 시간 + 10초
+// 그래서 기준을 **첫 알림 시각**으로 둔다 — "첫 알림이 나가기도 전에 잠금이 감지됐다면
+// 이탈이라 할 만한 시간이 아예 없었다"가 성립하고, 반대로 알림이 이미 나갈 만큼 지났다면
+// 되돌리지 않는다. ★JS의 IOS_AWAY_NOTIF_DELAY_SEC와 같아야 한다 — focusAway.test.js가 대조★
+private let LOCK_CANCEL_WINDOW_SEC: TimeInterval = 20
 // useAppState의 이탈 알림 identifier와 반드시 일치해야 한다 (fireNotif 'away-now' / scheduleAwayNudges)
 private let AWAY_NOTIF_IDS = ["away-now", "away-nudge-30", "away-nudge-60", "away-nudge-180", "away-nudge-300"]
 
@@ -113,6 +126,7 @@ public class FocusShieldModule: Module {
   private var bgTaskId: UIBackgroundTaskIdentifier = .invalid
   private var lockPollTimer: Timer?
   private var watchDeadline: Date?
+  private var watchStartedAt: Date?   // 배경 진입 시각 — 잠금 감지까지의 간격으로 알림 취소 여부를 가른다
   // 통화 관측 (위 주석 참고) — 관측자는 계속 붙들고 있어야 목록이 정확하다
   private let callObserver = CXCallObserver()
   private var lastCallAtMs: Double = 0        // 마지막으로 통화를 관측한 시각(epoch ms), 0 = 없음
@@ -157,6 +171,7 @@ public class FocusShieldModule: Module {
     lockPollTimer?.invalidate()
     lockPollTimer = nil
     watchDeadline = nil
+    watchStartedAt = nil
     if bgTaskId != .invalid {
       UIApplication.shared.endBackgroundTask(bgTaskId)
       bgTaskId = .invalid
@@ -188,6 +203,7 @@ public class FocusShieldModule: Module {
       self.endWatch()
     }
     guard bgTaskId != .invalid else { return }
+    watchStartedAt = Date()
     watchDeadline = Date().addingTimeInterval(LOCK_WATCH_SEC)
     lockPollTimer = Timer.scheduledTimer(withTimeInterval: LOCK_POLL_SEC, repeats: true) { [weak self] timer in
       guard let self = self else {
@@ -205,7 +221,10 @@ public class FocusShieldModule: Module {
       }
       if !UIApplication.shared.isProtectedDataAvailable {
         self.setLockedAt(Date().timeIntervalSince1970 * 1000)
-        self.cancelAwayNotifs()   // 화면 잠금이었다
+        // 잠금 시각은 항상 기록한다(JS가 '잠금 전까지 다른 앱을 쓴 시간'을 계산한다).
+        // 알림 취소는 첫 알림이 나가기 전에 감지된 경우만 — 위 LOCK_CANCEL_WINDOW_SEC 주석 참고
+        let elapsed = Date().timeIntervalSince(self.watchStartedAt ?? Date())
+        if elapsed <= LOCK_CANCEL_WINDOW_SEC { self.cancelAwayNotifs() }
         self.endWatch()
       } else if let dl = self.watchDeadline, Date() >= dl {
         self.endWatch()

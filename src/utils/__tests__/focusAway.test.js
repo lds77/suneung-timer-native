@@ -7,7 +7,53 @@ import {
   SCREEN_OFF_RACE_MS, AWAY_MIN_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
   ANDROID_AWAY_NOTIF_DELAY_SEC, awayMsAfterCall, POST_CALL_GRACE_MS,
   awayMinMs, AWAY_NOTIF_GRACE_SEC, IOS_AWAY_NOTIF_DELAY_SEC,
+  iosAwayBeforeLockMs, IOS_LOCK_DETECT_LAG_MS,
 } from '../focusAway';
+
+// iOS: 다른 앱을 쓰다가 화면을 끄면 잠금이 감지돼 배경 구간이 통째로 면제됐다(실기기 제보).
+// 배경 진입 ~ 잠금 사이는 명백히 다른 앱을 쓴 시간이므로 그 구간만 잘라 센다.
+describe('iosAwayBeforeLockMs — 잠금 전까지는 다른 앱을 쓴 시간', () => {
+  const BG = 1_000_000;
+
+  it('잠금이 없으면(0) 계산하지 않는다', () => {
+    expect(iosAwayBeforeLockMs(BG, 0)).toBe(0);
+  });
+
+  it('감지 지연분을 빼고 센다 — 화면 끄기로 바로 내려간 경우는 0', () => {
+    // 배경 진입 직후 화면을 껐다면 잠금 감지는 지연분(약 10초) 뒤에 온다 → 이탈 0
+    expect(iosAwayBeforeLockMs(BG, BG + IOS_LOCK_DETECT_LAG_MS)).toBe(0);
+    expect(iosAwayBeforeLockMs(BG, BG + IOS_LOCK_DETECT_LAG_MS - 3000)).toBe(0);
+  });
+
+  it('다른 앱을 오래 쓰다가 끈 경우는 그 시간이 남는다', () => {
+    // 60초 동안 다른 앱 → 화면 끔 → 10초 뒤 감지
+    expect(iosAwayBeforeLockMs(BG, BG + 60000 + IOS_LOCK_DETECT_LAG_MS)).toBe(60000);
+  });
+
+  it('★60초 사용 후 화면을 꺼도 이탈로 인정된다★ (제보된 증상의 회귀 가드)', () => {
+    const lockedAt = BG + 60000 + IOS_LOCK_DETECT_LAG_MS;
+    expect(iosAwayBeforeLockMs(BG, lockedAt)).toBeGreaterThanOrEqual(awayMinMs('ios'));
+  });
+
+  it('이상값(잠금이 배경 진입보다 이전 / 기록 없음)은 0', () => {
+    expect(iosAwayBeforeLockMs(BG, BG - 5000)).toBe(0);
+    expect(iosAwayBeforeLockMs(0, BG)).toBe(0);
+    expect(iosAwayBeforeLockMs(null, null)).toBe(0);
+  });
+});
+
+// 네이티브는 '첫 알림이 나가기 전에 잠금이 감지된 경우'에만 예약 알림을 취소한다.
+// 이 값이 JS의 첫 알림 시각과 어긋나면, 알림이 이미 나간 뒤에 취소되거나(헛알림)
+// 반대로 잠금인데 취소가 안 돼 잠금화면에 알림이 뜬다.
+describe('LOCK_CANCEL_WINDOW_SEC ↔ IOS_AWAY_NOTIF_DELAY_SEC 교차 검증', () => {
+  it('Swift의 취소 창이 JS의 첫 알림 시각과 같다', () => {
+    const swiftPath = path.join(__dirname, '../../../modules/focus-shield/ios/FocusShieldModule.swift');
+    const src = fs.readFileSync(swiftPath, 'utf8');
+    const m = src.match(/LOCK_CANCEL_WINDOW_SEC:\s*TimeInterval\s*=\s*(\d+)/);
+    expect(m).not.toBeNull();
+    expect(Number(m[1])).toBe(IOS_AWAY_NOTIF_DELAY_SEC);
+  });
+});
 
 // ★알림은 벌점 통보가 아니라 '돌아올 기회'다★ — 그래서 첫 알림이 판정보다 반드시 먼저 와야 한다.
 // iOS는 이 관계가 뒤집혀 있었다(알림 20초 > 판정 15초 → 알림 본 순간 이미 이탈 확정).

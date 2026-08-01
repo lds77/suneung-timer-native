@@ -29,7 +29,7 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall } from '../utils/focusAway';
+import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, iosAwayBeforeLockMs } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
@@ -681,12 +681,21 @@ export function AppProvider({ children }) {
         // iOS: 관측이 끊길 때 통화 중이었는가 — 아래 통화 보정에서 쓴다.
         // ★wasAway와 무관하게 항상 소비한다★ (안 그러면 다음 배경 전환까지 남아 엉뚱한 구간을 면제한다)
         const iosCallHeld = Platform.OS === 'ios' ? consumeCallHeldIOS() : false;
+        // iOS: 잠금이 감지됐어도 **배경 진입 ~ 잠금 사이는 다른 앱을 쓴 시간**이다.
+        // 예전엔 잠금이면 그 구간을 통째로 면제해서, 다른 앱으로 나갔다가 알림이 오기 전에
+        // 화면을 꺼 버리면 이탈이 아예 안 잡혔다(실기기 제보 2026-08-01).
+        const iosAwayBeforeLock = Platform.OS === 'ios'
+          ? iosAwayBeforeLockMs(bgAt, iosLockedAt) : 0;
         if (iosDeferAway.current) {
-          // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 이탈 아님, 아니면 기존 10초 규칙대로
+          // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 잠금 전까지만, 아니면 배경 체류 전체
           iosDeferAway.current = false;
-          if (!iosLockedAt && awayMs >= AWAY_MIN_MS) wasAway = true;
+          const effective = iosLockedAt > 0 ? iosAwayBeforeLock : awayMs;
+          if (effective >= AWAY_MIN_MS) { wasAway = true; awayMs = effective; }
         }
-        if (iosLockedAt > 0) screenOffBg.current = true;
+        // 잠금 전 구간이 이탈로 셀 만큼 길면 '화면 끄기 배경'으로 취급하지 않는다
+        // (취급하면 아래 wasScreenOffBg 블록이 iOS에서 wasAway를 되돌린다 —
+        //  awayMsSinceScreenOn은 안드 전용이라 iOS에선 항상 0을 준다)
+        if (iosLockedAt > 0 && iosAwayBeforeLock < AWAY_MIN_MS) screenOffBg.current = true;
 
         // 안드 '화면 끄기'로 내려갔던 경우: 화면 끄고 있던 시간은 이탈이 아니다.
         // 다만 화면을 다시 켠 뒤(잠금화면에서 바로 다른 앱을 열었을 수 있다) 한참 만에
