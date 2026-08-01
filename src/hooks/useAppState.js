@@ -29,12 +29,17 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, AWAY_MIN_MS, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall } from '../utils/focusAway';
+import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
 import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
+
+// 이탈 인정 최소 시간 — 플랫폼의 첫 알림 시각에서 파생된다(focusAway.awayMinMs 주석 참조).
+// 안드 15초 / iOS 30초. ★숫자를 여기에 다시 박지 말 것★ — 예전에 그렇게 해서
+// 경로마다 기준이 갈렸고(2026-07-30), iOS는 알림과 판정의 순서가 뒤집혀 있었다(2026-08-01)
+const AWAY_MIN_MS = awayMinMs(Platform.OS);
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -782,8 +787,9 @@ export function AppProvider({ children }) {
         // 🔥모드 복귀 처리
         if (mode === 'screen_on' && wasAway && !ultraRef.current.gaveUp) {
           // 기준 시간 이내 복귀 → 시스템 알림/전화, 또는 이탈 알림 보고 바로 온 것 → 이탈 아님
-          // ※예전엔 여기에 10000이 하드코딩돼 있어 화면 끄기 경로(AWAY_MIN_MS)와 따로 놀았다.
-          //   이탈 기준은 focusAway.AWAY_MIN_MS 하나뿐이다 — 다시 숫자를 박지 말 것
+          // ※예전엔 여기에 10000이 하드코딩돼 있어 화면 끄기 경로와 따로 놀았다.
+          //   이탈 기준은 위 모듈 상수 AWAY_MIN_MS 하나뿐이고, 그건 **첫 알림에서 파생**된다
+          //   (focusAway.awayMinMs — 안드 5+10=15초 / iOS 20+10=30초). 다시 숫자를 박지 말 것
           if (awayMs < AWAY_MIN_MS) {
             setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
             // 잠금화면이 표시 중일 때만 밝기/다크 재적용 (해제 상태에서는 집중탭 그대로 유지)

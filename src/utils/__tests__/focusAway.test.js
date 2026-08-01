@@ -6,7 +6,37 @@ import {
   wasIdleBeforeBackground,
   SCREEN_OFF_RACE_MS, AWAY_MIN_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
   ANDROID_AWAY_NOTIF_DELAY_SEC, awayMsAfterCall, POST_CALL_GRACE_MS,
+  awayMinMs, AWAY_NOTIF_GRACE_SEC, IOS_AWAY_NOTIF_DELAY_SEC,
 } from '../focusAway';
+
+// ★알림은 벌점 통보가 아니라 '돌아올 기회'다★ — 그래서 첫 알림이 판정보다 반드시 먼저 와야 한다.
+// iOS는 이 관계가 뒤집혀 있었다(알림 20초 > 판정 15초 → 알림 본 순간 이미 이탈 확정).
+// 판정을 첫 알림에서 파생시켜 한쪽만 고쳐서 어긋날 수 없게 만든 것을 여기서 고정한다.
+describe('awayMinMs — 판정은 첫 알림 + 유예', () => {
+  it('안드로이드는 기존 AWAY_MIN_MS(15초)와 정확히 같다 — 기존 동작 불변', () => {
+    expect(awayMinMs('android')).toBe(AWAY_MIN_MS);
+    expect(awayMinMs('android')).toBe((ANDROID_AWAY_NOTIF_DELAY_SEC + AWAY_NOTIF_GRACE_SEC) * 1000);
+  });
+
+  it('iOS는 30초 — 첫 알림 20초 + 유예 10초', () => {
+    expect(awayMinMs('ios')).toBe((IOS_AWAY_NOTIF_DELAY_SEC + AWAY_NOTIF_GRACE_SEC) * 1000);
+    expect(awayMinMs('ios')).toBe(30000);
+  });
+
+  it('양 플랫폼 모두 첫 알림이 판정보다 먼저 온다 (이 순서가 뒤집히면 유예가 사라진다)', () => {
+    for (const [platform, firstNotifSec] of [
+      ['android', ANDROID_AWAY_NOTIF_DELAY_SEC],
+      ['ios', IOS_AWAY_NOTIF_DELAY_SEC],
+    ]) {
+      expect(firstNotifSec * 1000).toBeLessThan(awayMinMs(platform));
+    }
+  });
+
+  it('알 수 없는 플랫폼은 안드 기준으로 폴백', () => {
+    expect(awayMinMs(undefined)).toBe(AWAY_MIN_MS);
+    expect(awayMinMs('web')).toBe(AWAY_MIN_MS);
+  });
+});
 
 // iOS 전용: 백그라운드 전환 직전 터치 유무로 '화면 자동 꺼짐'과 '사람이 나감'을 가른다
 describe('wasIdleBeforeBackground', () => {
