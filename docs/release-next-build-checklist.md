@@ -46,8 +46,13 @@
       뺐다. ★Play 리스팅에 다른 플랫폼 기능을 적으면 안드 사용자에겐 쓸 수 없는 안내가 된다★
       (App Store 설명에는 'iPhone' 단어 없이 '잠금화면에도 올릴 수 있어요'로 남긴다)
 - [x] AI 애셋 신고: `Label assets as created or edited using AI` (근거·애셋별 기준은 6.5-C절)
-- [ ] **iOS**: 빌드 완료 → 실기기 검증(1.6·1.7절 표, **전항목 미검증**) → App Store 제출
-      (설명 갱신은 **빌드와 함께** — 6.5-B절)
+- [x] **iOS TestFlight 업로드 완료 (2026-08-01)** — submission `a1da9193-e8d4-40c5-890d-a682f6ed3462`,
+      ASC 처리 대기. ※`eas build`는 IPA만 만든다 — **TestFlight에 올리려면 `eas submit`이 따로 필요**
+      (`eas submit --platform ios --id <build> --profile production`, ASC API Key는 EAS에 설정돼 있어 무프롬프트)
+- [ ] **iOS 실기기 검증 — 전항목 미실시**: 1.6절(화면 끄기·잠금 / **전화 7차**) + 1.7절.
+      ★우선순위 1: **2분 통화 → 끊고 복귀 → 이탈 0회**★ — `consumeCallHeld` 분기는 iOS에서만
+      도는 경로라 이 시나리오에서만 드러난다(백그라운드 태스크 만료 이후)
+- [ ] **iOS App Store 심사 제출** — 설명 갱신을 **함께**(6.5-B절). 1.2 UGC 대비 확인(0-AA절)
 
 ## 0-A. 직전 릴리스: 1.0.38 (Android vc68) — 2026-07-26 제출 → **07-29 승인·라이브**
 
