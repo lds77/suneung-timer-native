@@ -456,3 +456,8 @@ eas build --profile preview --platform android
     `plugins/withCameraNotRequired.js`로 막았음 (2026-07-26, vc66 폐기 후 vc68 재빌드)
 13. **RTDB 규칙 변경은 코드 커밋만으로 적용되지 않음** — `docs/firebase-database.rules.json`을
     Firebase 콘솔에 직접 게시해야 한다. 게시를 잊으면 스터디룸이 무방비 상태로 배포됨
+14. **사용자에게 보이는 이름을 바꾸면 저장소 밖 문구가 조용히 낡는다** — 스토어 설명·릴리스
+    노트·웹사이트(`main` 브랜치)는 코드와 함께 안 고쳐진다. 07-31에 모드 이름을
+    일반/집중/울트라로 통일했는데 08-01까지 스토어 설명은 옛 이름(집중 도전·울트라집중·
+    편하게 공부) 그대로였다 — **앱에 없는 단어로 기능을 설명하고 있던 것**.
+    UI 문구를 바꿀 땐 `docs/release-next-build-checklist.md` 6.5·6.5-A·6.5-B·6.6절을 함께 볼 것
