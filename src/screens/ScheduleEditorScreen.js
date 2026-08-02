@@ -794,11 +794,15 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 })}
               </View>
 
-              {/* 특정 시간 배치 토글 */}
+              {/* 특정 시간 배치 토글 — 켜면 시간 입력줄이 아래에 새로 생기는데,
+                  모달 맨 아래라 그냥 두면 잘린 채 나온다. 켤 때 그 줄까지 스크롤 (2026-08-02 제보) */}
               <TouchableOpacity onPress={() => {
                 const next = !planUseSchedule;
                 setPlanUseSchedule(next);
-                if (next) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                if (next) {
+                  setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                  scrollToPlanTime();
+                }
               }} style={{
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                 paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
@@ -814,7 +818,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   value={planUseSchedule}
                   onValueChange={(v) => {
                     setPlanUseSchedule(v);
-                    if (v) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                    if (v) {
+                      setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                      scrollToPlanTime();
+                    }
                   }}
                   trackColor={{ false: T.border, true: T.accent + '80' }}
                   thumbColor={planUseSchedule ? T.accent : '#ccc'}

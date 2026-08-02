@@ -313,10 +313,14 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
               })}
             </View>
 
+            {/* 켜면 시간 입력줄이 아래에 새로 생긴다 — 그냥 두면 잘린 채 나오므로 그 줄까지 스크롤 */}
             <TouchableOpacity onPress={() => {
               const next = !useSchedule;
               setUseSchedule(next);
-              if (next) setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+              if (next) {
+                setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                scrollToTimeRow();
+              }
             }} style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
               paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
@@ -332,7 +336,10 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
                 value={useSchedule}
                 onValueChange={(v) => {
                   setUseSchedule(v);
-                  if (v) setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                  if (v) {
+                    setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                    scrollToTimeRow();
+                  }
                 }}
                 trackColor={{ false: T.border, true: T.accent + '80' }}
                 thumbColor={useSchedule ? T.accent : '#ccc'}
