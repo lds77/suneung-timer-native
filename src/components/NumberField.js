@@ -11,10 +11,11 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { clampInt } from '../utils/timeInput';
 
+// unitW = 단위 글자 자리폭(고정). '시간'(2자)과 '분'(1자)이 섞여도 입력칸이 세로로 정렬된다
 const SIZES = {
-  md: { h: 48, w: 92, font: 24, unit: 13, radius: 12 },
-  sm: { h: 40, w: 52, font: 17, unit: 11, radius: 10 },
-  xs: { h: 26, w: 40, font: 13, unit: 11, radius: 7 },
+  md: { h: 48, w: 92, font: 24, unit: 13, radius: 12, unitW: 32 },
+  sm: { h: 40, w: 52, font: 17, unit: 11, radius: 10, unitW: 26 },
+  xs: { h: 26, w: 40, font: 13, unit: 11, radius: 7, unitW: 20 },
 };
 
 export default function NumberField({
@@ -77,7 +78,11 @@ export default function NumberField({
           backgroundColor: T.surface2 || T.surface,
         }]}
       />
-      {!!unit && <Text style={[styles.unit, { fontSize: S.unit, color: T.sub }]}>{unit}</Text>}
+      {/* 단위 폭을 고정한다 — '시간'과 '분'의 글자 폭이 달라 가운데 정렬하면
+          위아래로 놓인 입력칸의 좌우가 어긋난다 (결과모달 시간 수정, 2026-08-02 제보) */}
+      {!!unit && (
+        <Text style={[styles.unit, { fontSize: S.unit, color: T.sub, minWidth: S.unitW }]}>{unit}</Text>
+      )}
     </View>
   );
 }

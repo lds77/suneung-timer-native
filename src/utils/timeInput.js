@@ -38,18 +38,13 @@ export function minToHm(total) {
 
 // 타이핑한 시/분 텍스트를 'HH:MM'으로 확정한다.
 // - 시는 0~24, 분은 0~59 (24시는 분을 0으로 강제 — 앱의 하루 끝 표현이 '24:00'이라서)
-// - minValue가 있으면 그보다 이른 시각은 minValue로 올린다 (종료<시작 방지).
-//   ※휠은 손대지 않는다 — minValue는 원래 호출부 onChange가 보정하던 것이고,
-//     타이핑은 그 보정을 우회할 수 있어 여기서만 하한을 건다.
-export function commitTimeText(hText, mText, { prev = '00:00', minValue } = {}) {
+// - 빈 칸/해석 불가는 직전 값 유지
+// ※'종료 < 시작' 같은 관계 검증은 여기서 하지 않는다 — 고정 일정은 자정 넘김
+//   (23:00~07:00)이 허용된 기능이라 하한을 걸면 정상 입력을 막는다.
+//   판단은 저장 시점에 화면이 한다(경고 또는 자정 넘김 확인창).
+export function commitTimeText(hText, mText, { prev = '00:00' } = {}) {
   const before = splitHm(prev);
   const h = clampInt(hText, { min: 0, max: 24, fallback: before.h });
   const m = h === 24 ? 0 : clampInt(mText, { min: 0, max: 59, fallback: before.m });
-
-  let total = h * 60 + m;
-  if (minValue) {
-    const floor = hmToMin(minValue);
-    if (total < floor) total = floor;
-  }
-  return minToHm(total);
+  return minToHm(h * 60 + m);
 }

@@ -79,16 +79,8 @@ describe('commitTimeText', () => {
     expect(commitTimeText('', '', { prev: '08:15' })).toBe('08:15');
   });
 
-  test('minValue보다 이른 시각은 minValue로 올린다', () => {
-    // 종료 시간에 시작보다 이른 값을 타이핑한 경우
-    expect(commitTimeText('07', '00', { prev: '10:00', minValue: '09:00' })).toBe('09:00');
-  });
-
-  test('minValue 이후는 그대로 둔다', () => {
-    expect(commitTimeText('11', '20', { prev: '10:00', minValue: '09:00' })).toBe('11:20');
-  });
-
-  test('minValue가 없으면 하한을 걸지 않는다', () => {
-    expect(commitTimeText('01', '00', { prev: '10:00' })).toBe('01:00');
+  test('시작보다 이른 종료 시각도 그대로 둔다 (자정 넘김 일정은 허용된 기능)', () => {
+    // 23:00~07:00 같은 고정 일정을 막지 않는다 — 관계 검증은 저장 시점 화면의 몫
+    expect(commitTimeText('07', '00', { prev: '10:00' })).toBe('07:00');
   });
 });

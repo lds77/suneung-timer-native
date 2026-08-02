@@ -4,11 +4,13 @@
 // 휠 위에 타이핑을 얹어봤더니 부가 기능처럼 보여 어색하다는 판단으로 타이핑만 남겼다
 // (2026-08-02 사용자 결정). 분은 더 이상 5분 단위에 묶이지 않는다.
 //
-// 커밋 규칙은 NumberField와 같다 — 글자마다 부모에 올리고(라이브), 보정은 blur에서.
-//   · 라이브인 이유: 확인 버튼이나 blur를 기다리면 "타이핑 후 곧바로 저장"에서 값이 유실된다
-//     (버튼 press와 blur의 순서가 플랫폼마다 다름)
-//   · minValue(종료<시작 방지)를 blur에서만 적용하는 이유: 치는 도중에 올려버리면
-//     09시를 치려고 '0'을 누른 순간 시작 시각으로 튀어 다음 글자를 받을 수 없다
+// 커밋 규칙: 글자마다 부모에 올린다(라이브). 확인 버튼이나 blur를 기다리면
+// "타이핑 후 곧바로 저장"에서 값이 유실된다(버튼 press와 blur의 순서가 플랫폼마다 다름).
+//
+// ★친 값을 이 컴포넌트가 말없이 바꾸지 않는다★ — 한때 minValue(종료<시작 방지)로 하한을
+// 걸었는데 두 가지가 어긋났다: ①고정 일정은 자정 넘김(23:00~07:00)이 **허용된 기능**이라
+// 클램프가 정상 입력을 막았고, ②07을 쳤는데 23이 되는 건 사용자에겐 버그로 읽힌다.
+// 시작/종료 관계 검증은 저장 시점에 각 화면이 한다(경고 또는 자정 넘김 확인창).
 //
 // draft는 시/분 각각 따로 둔다 — 하나로 합치면 시 칸에서 분 칸으로 넘어갈 때
 // (분 onFocus → 시 onBlur 순서) 남의 draft를 자기 값으로 확정해버린다.
@@ -20,7 +22,7 @@ import { splitHm, commitTimeText } from '../utils/timeInput';
 // onFocus: 부모가 '이 칸이 키보드에 가리지 않게' 스크롤을 맞추기 위한 신호.
 // 안드 Modal은 별도 창이라 app.config의 softwareKeyboardLayoutMode:'pan'이 적용되지 않는다
 // (키보드가 입력창을 덮는다) — 모달마다 KeyboardAvoidingView + 이 신호로 스크롤을 맞춘다.
-export default function TimeField({ label, value, onChange, T, minValue, onFocus }) {
+export default function TimeField({ label, value, onChange, T, onFocus }) {
   const cur = value || '08:00';
   const { h, m } = splitHm(cur);
 
@@ -45,10 +47,10 @@ export default function TimeField({ label, value, onChange, T, minValue, onFocus
     setFocusKey((f) => (f === key ? null : f));
     // 빈 칸으로 떠나면 직전 값이 살아난다 (commitTimeText의 fallback)
     const next = key === 'h'
-      ? commitTimeText(draft, String(m), { prev: cur, minValue })
-      : commitTimeText(String(h), draft, { prev: cur, minValue });
+      ? commitTimeText(draft, String(m), { prev: cur })
+      : commitTimeText(String(h), draft, { prev: cur });
     if (next !== cur) onChange(next);
-  }, [hDraft, mDraft, h, m, cur, minValue, onChange]);
+  }, [hDraft, mDraft, h, m, cur, onChange]);
 
   const box = (key, val, draft, unit) => (
     <View style={styles.pair}>

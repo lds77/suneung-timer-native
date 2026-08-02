@@ -243,16 +243,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     setShowAddFixed(true);
   }, []);
 
-  const handleAddFixed = useCallback(() => {
-    if (!fixedLabel.trim()) {
-      Alert.alert('이름을 입력해주세요.'); return;
-    }
-    const [sh, sm] = fixedStart.split(':').map(Number);
-    const [eh, em] = fixedEnd.split(':').map(Number);
-    if (eh * 60 + em === sh * 60 + sm) {
-      Alert.alert('시간 오류', '시작과 종료 시간이 같아요.'); return;
-    }
-    // end < start 는 자정을 넘어가는 일정으로 허용 (ex: 23:00~07:00)
+  const saveFixed = useCallback(() => {
     if (editingFixedId) {
       updateDay(day => ({
         ...day,
@@ -274,6 +265,32 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     setShowAddFixed(false);
     resetFixedForm();
   }, [fixedLabel, fixedStart, fixedEnd, fixedType, editingFixedId, updateDay, resetFixedForm]);
+
+  const handleAddFixed = useCallback(() => {
+    if (!fixedLabel.trim()) {
+      Alert.alert('이름을 입력해주세요.'); return;
+    }
+    const startMin = parseTimeToMin(fixedStart);
+    const endMin = parseTimeToMin(fixedEnd);
+    if (endMin === startMin) {
+      Alert.alert('시간 오류', '시작과 종료 시간이 같아요.'); return;
+    }
+    // end < start 는 자정을 넘어가는 일정으로 허용 (ex: 23:00~07:00).
+    // 다만 휠에서 타이핑으로 바뀐 뒤로는 오타(11:11 → 10:22)로도 쉽게 만들어지므로
+    // 정말 다음 날까지 가는 일정인지 한 번 확인한다 (2026-08-02 사용자 요청)
+    if (endMin < startMin) {
+      Alert.alert(
+        '자정을 넘는 일정인가요?',
+        `${fixedStart}에 시작해서 다음 날 ${fixedEnd}에 끝나는 일정으로 저장돼요.`,
+        [
+          { text: '시간 고치기', style: 'cancel' },
+          { text: '네, 맞아요', onPress: saveFixed },
+        ],
+      );
+      return;
+    }
+    saveFixed();
+  }, [fixedLabel, fixedStart, fixedEnd, saveFixed]);
 
   const handleDeleteFixed = useCallback((id) => {
     Alert.alert('고정 일정 삭제', '이 일정을 삭제할까요?', [
@@ -657,7 +674,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   <TimeField
                     label="종료 시간" value={fixedEnd}
                     onChange={setFixedEnd}
-                    T={T} minValue={fixedStart} onFocus={scrollToFixedTime}
+                    T={T} onFocus={scrollToFixedTime}
                   />
                 </View>
               </ScrollView>
@@ -818,7 +835,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);
-                  }} T={T} minValue={planStart} onFocus={scrollToPlanTime} />
+                  }} T={T} onFocus={scrollToPlanTime} />
                 </View>
               )}
 
