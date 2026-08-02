@@ -62,6 +62,8 @@ module.exports = {
         // 오답노트 사진 첨부 (expo-image-picker) — 촬영/앨범. 사진은 기기 내 앱 폴더에만 저장, 외부 전송 없음.
         NSCameraUsageDescription: '오답 문제를 사진으로 찍어 오답노트에 첨부할 때 사용해요. 사진은 기기에만 저장돼요.',
         NSPhotoLibraryUsageDescription: '오답노트에 첨부할 사진을 앨범에서 고를 때 사용해요. 사진은 기기에만 저장돼요.',
+        // 오답노트 음성 메모 (expo-audio 녹음) — 기기 내 앱 폴더에만 저장, 외부 전송 없음
+        NSMicrophoneUsageDescription: '오답 문제를 왜 틀렸는지 음성으로 남길 때 사용해요. 녹음은 기기에만 저장돼요.',
       },
     },
     android: {
@@ -85,6 +87,8 @@ module.exports = {
         'android.permission.USE_EXACT_ALARM',
         'android.permission.MODIFY_AUDIO_SETTINGS',
         'android.permission.CAMERA', // 오답노트 사진 촬영 (expo-image-picker). 앨범 선택은 시스템 피커라 권한 불필요
+        'android.permission.RECORD_AUDIO', // 오답노트 음성 메모 (expo-audio 녹음)
+                                           // ※마이크를 필수 하드웨어로 암시하므로 withMicrophoneNotRequired 필수 (규칙 12)
       ],
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },
@@ -184,6 +188,8 @@ module.exports = {
       './plugins/withAndroidWorkManagerFix',
       // 카메라를 선택 하드웨어로 선언 (CAMERA 권한이 카메라 필수를 암시해 Play 대상 기기가 줄던 문제)
       './plugins/withCameraNotRequired',
+      // 마이크도 선택 하드웨어로 (RECORD_AUDIO가 마이크 필수를 암시 — 카메라와 같은 함정)
+      './plugins/withMicrophoneNotRequired',
       // 오답노트 첨부 폴더를 안드 클라우드 백업에서 제외 (25MB 상한 초과 시 백업 자체가
       // 실패해 재설치 후 uid·공부 데이터 복원이 조용히 깨지던 문제 — 파일 주석 참고)
       './plugins/withAttachmentsNotBackedUp',
