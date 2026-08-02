@@ -153,8 +153,15 @@ export const STALE_MS = 60 * 60 * 1000;
 export const PLANNED_END_GRACE_MS = 5 * 60 * 1000;
 export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   const s = status || {};
-  const fresh = (nowMs - (s.updatedAt || 0)) < STALE_MS
-    || (!!s.plannedEndAt && nowMs < s.plannedEndAt + PLANNED_END_GRACE_MS);
+  // plannedEndAt은 신뢰창을 늘리기만 하는 게 아니라 **상한**이기도 하다.
+  // 예전엔 연장 조건으로만 써서, 50분 카운트다운이 끝나도 updatedAt이 60분 신뢰창 안이면
+  // 친구 화면에 '공부 중'이 최대 60분까지 남았다 (iOS는 백그라운드에서 종료를 못 알리므로
+  // 상대가 앱을 열 때까지 계속 공부 중으로 보였다 — 2026-08-02 실기기 제보).
+  // 끝이 정해진 타이머(카운트다운/연속)만 plannedEndAt이 있으므로(plannedEndAtOf)
+  // 자유·뽀모처럼 끝이 없는 타이머의 60분 신뢰창은 그대로다.
+  const fresh = s.plannedEndAt
+    ? nowMs < s.plannedEndAt + PLANNED_END_GRACE_MS
+    : (nowMs - (s.updatedAt || 0)) < STALE_MS;
   const studying = (s.state === 'studying' || s.state === 'bg') && fresh && !!s.startedAt;
   const bg = studying && s.state === 'bg';
   // 화면끔(📖 book/일반 모드)은 모드 자체가 screen_off이므로 bg 여부와 무관하게 항상 '화면끔' 표식.

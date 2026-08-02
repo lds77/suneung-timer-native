@@ -214,6 +214,24 @@ describe('displayStatus', () => {
     expect(displayStatus(s, { nowMs: s.plannedEndAt + PLANNED_END_GRACE_MS + 1, today }).studying).toBe(false);
   });
 
+  test('★예정 종료가 지나면 신뢰창(60분)이 남아도 공부 중 아님 — iOS 종료 미통보 대비', () => {
+    // 50분 카운트다운을 켠 뒤 iOS가 백그라운드로: updatedAt은 시작 시각에 멈춰 있다.
+    // 종료 후 5분(유예)이 지나면, updatedAt이 아직 60분 신뢰창 안이어도 내려가야 한다.
+    const s = {
+      state: 'studying', startedAt: NOW - 50 * 60_000, updatedAt: NOW - 50 * 60_000,
+      plannedEndAt: NOW, todaySec: 0, date: today,
+    };
+    expect(displayStatus(s, { nowMs: NOW, today }).studying).toBe(true);            // 종료 직후 = 유예 안
+    expect(displayStatus(s, { nowMs: NOW + PLANNED_END_GRACE_MS - 1, today }).studying).toBe(true);
+    expect(displayStatus(s, { nowMs: NOW + PLANNED_END_GRACE_MS + 1, today }).studying).toBe(false);
+    // 예전 동작(신뢰창만 봄)이었다면 이 시점에도 true였다 — updatedAt 기준 55분 < 60분
+  });
+
+  test('예정 종료가 없는 타이머(자유·뽀모)는 60분 신뢰창 그대로', () => {
+    const s = { state: 'studying', startedAt: NOW - 40 * 60_000, updatedAt: NOW - 40 * 60_000, todaySec: 0, date: today };
+    expect(displayStatus(s, { nowMs: NOW, today }).studying).toBe(true);
+  });
+
   test('어제 date의 todaySec은 0으로 표시 (자정 리셋은 클라이언트 몫)', () => {
     const s = { state: 'idle', updatedAt: NOW, todaySec: 7200, date: '2027-01-14' };
     expect(displayStatus(s, { nowMs: NOW, today }).todaySec).toBe(0);

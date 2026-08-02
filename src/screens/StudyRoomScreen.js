@@ -98,6 +98,14 @@ export default function StudyRoomScreen({ visible, onClose }) {
       if (!alive) return;
       setRoomId(rid);
       setStep(rid ? 'room' : 'lobby');
+      // ★서버에 방 멤버십이 있으면 로컬 플래그도 켠다 (자가 치유)★
+      // studyRoomEnabled는 여태 create/join/joinLounge에서만 켜졌다. 그런데 익명 uid는
+      // iOS 키체인으로 재설치에도 살아남으므로(durableAuthStorage) **앱을 다시 깔면
+      // 방 멤버십은 서버에 남고 로컬 설정만 초기화**되어 '방에 있는데 플래그는 false'가 된다.
+      // 이 상태에선 방 화면은 자기 구독으로 멀쩡히 돌지만 useAppState의 스터디룸 작업이
+      // 전부 꺼진다 — presence 동기화(타이머 종료가 남에게 안 보임)·하트비트·
+      // 받은 응원 토스트·'우리 방 N명' pill. (2026-08-02 iOS 제보 2건의 공통 뿌리)
+      if (rid && !app.settings.studyRoomEnabled) app.updateSettings({ studyRoomEnabled: true });
     })();
     return () => { alive = false; };
   }, [visible]);
