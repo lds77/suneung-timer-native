@@ -12,6 +12,7 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
 import Stepper from '../components/Stepper';
+import EditableNumber from '../components/EditableNumber';
 import CharacterAvatar from '../components/CharacterAvatar';
 import GradientView from '../components/GradientView';
 import Svg, { Circle } from 'react-native-svg';
@@ -1471,7 +1472,18 @@ export default function FocusScreen() {
                     style={{ flex: 1, fontSize: 12, fontWeight: '700', color: T.text, paddingVertical: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: T.border, borderRadius: 5, backgroundColor: T.surface, minWidth: 50 }} />
                 )}
                 <TouchableOpacity style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: Math.max(1, x.min - 5) } : x))}><Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>-</Text></TouchableOpacity>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: it.isBreak ? T.green : T.accent, minWidth: 30, textAlign: 'center' }}>{it.min}분</Text>
+                {/* 숫자를 탭하면 타이핑 — 25분→90분을 -5/+5로 13번 누르던 걸 대체 */}
+                <View style={{ minWidth: 44, alignItems: 'center' }}>
+                  <EditableNumber
+                    value={it.min}
+                    onChange={(v) => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: v } : x))}
+                    min={1} max={180} unit="분" colors={T}
+                    valueStyle={{ fontSize: 13, fontWeight: '900', color: it.isBreak ? T.green : T.accent }}
+                    inputStyle={{ fontSize: 13, fontWeight: '900', height: 24 }}
+                    unitStyle={{ fontSize: 11, marginTop: 2 }}
+                    inputWidth={30}
+                  />
+                </View>
                 <TouchableOpacity style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: Math.min(180, x.min + 5) } : x))}><Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>+</Text></TouchableOpacity>
                 <TouchableOpacity onPress={() => setSeqItems(p => p.filter((_, idx) => idx !== i))}><Text style={{ fontSize: 14, fontWeight: '700', color: T.red, paddingHorizontal: 2 }}>✕</Text></TouchableOpacity>
               </View>

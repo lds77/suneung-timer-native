@@ -1,8 +1,9 @@
 // src/components/Stepper.js
-// +/- 시간 조절 컴포넌트
+// +/- 시간 조절 컴포넌트 (가운데 숫자는 탭하면 타이핑 — EditableNumber)
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import EditableNumber from './EditableNumber';
 
 export default function Stepper({
   value,
@@ -39,8 +40,17 @@ export default function Stepper({
       </TouchableOpacity>
 
       <View style={styles.valueContainer}>
-        <Text style={[styles.value, { color: T.accent }]}>{value}</Text>
-        <Text style={[styles.unit, { color: T.sub }]}>{unit}</Text>
+        <EditableNumber
+          value={value}
+          onChange={onChange}
+          min={min}
+          max={max}
+          unit={unit}
+          colors={T}
+          valueStyle={styles.value}
+          unitStyle={styles.unit}
+          inputWidth={56}
+        />
       </View>
 
       <TouchableOpacity
