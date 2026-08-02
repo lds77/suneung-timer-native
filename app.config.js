@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.39',
+    version: '1.0.40',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,6 +31,9 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
+      // build57 = 1.0.40 (2026-08-03): 시간 입력 개편(네모 입력창) + 스터디룸 2건 +
+      //           첨부 백업 제외 + 사진 포함 백업(zip) + 오답노트 음성 메모.
+      //           ★iOS는 이 전부가 미검증 — 먼저 TestFlight로 확인하고, 심사 제출은 1.0.39 승인 후★
       // build56 = 1.0.39 재빌드 (2026-08-01): '다른 앱 → 화면 끔'에서 이탈 알림·카운트가
       //           통째로 누락되던 문제 (네이티브 취소 창 + 잠금 전 구간 계산). ★Swift 변경 있음★
       // build55 = 결과 모달 시간 수정 iOS 미표시(형제 Modal) 수정
@@ -38,7 +41,7 @@ module.exports = {
       // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
       // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
       // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
-      buildNumber: '56',
+      buildNumber: '57',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -76,7 +79,10 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 70, // 1.0.39: 화면 끄기/잠금은 이탈 아님(screen-pin screenState) + 🔥모드 화면 꺼짐을 시스템에 맡김.
+      versionCode: 72, // 1.0.40: 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
+      //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
+      //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★
+      // vc70=1.0.39(2026-08-01 제출, 심사 중): 화면 끄기/잠금은 이탈 아님 + 🔥모드 화면 꺼짐을 시스템에 맡김.
       // vc68=1.0.38(2026-07-29 승인·라이브), vc64=1.0.37.
       // vc66은 Play 검토에서 '기기 402대 지원 중단' 경고 — CAMERA 권한의 카메라 필수 암시 때문(미제출 폐기).
       // vc68부터 withCameraNotRequired 플러그인 적용 — 짝수 관행 유지
