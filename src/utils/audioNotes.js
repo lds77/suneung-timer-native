@@ -39,6 +39,17 @@ export const audioAttachments = (list) => (Array.isArray(list) ? list : []).filt
 
 export const canAddAudio = (list) => audioAttachments(list).length < MAX_AUDIO;
 
+// 첨부 항목을 저장 형태로 정규화한다.
+// ★편집기는 노트를 열고 저장할 때 첨부를 다시 만든다 — 여기서 필드를 흘리면
+//   음성이 사진으로 변해버린다(type·durationMs 유실 → 썸네일 자리에 빈 칸).
+//   그래서 '아는 필드만 남기되, 음성의 필드는 반드시 지킨다'를 한 곳에서 정한다★
+export const normalizeAttachment = (a) => (isAudioAttachment(a)
+  ? { file: a.file, type: 'audio', durationMs: Math.max(0, Math.round(a.durationMs || 0)) }
+  : { file: a.file });
+
+export const normalizeAttachments = (list) =>
+  (Array.isArray(list) ? list : []).filter(a => a && a.file).map(normalizeAttachment);
+
 // 남은 녹음 시간(ms). 상한을 넘으면 0
 export const remainingMs = (elapsedMs) => Math.max(0, MAX_AUDIO_MS - Math.max(0, elapsedMs || 0));
 

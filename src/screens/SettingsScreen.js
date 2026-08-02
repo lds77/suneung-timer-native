@@ -852,10 +852,11 @@ export default function SettingsScreen() {
             // 사진이 있으면 담을지 묻는다 — 사진을 담으면 백업 파일이 그만큼 커져서
             // (100MB 사진이면 백업도 100MB) 공유·전송이 부담스러울 수 있다
             if (photoUsage && photoUsage.count > 0) {
-              Alert.alert('데이터 백업', `오답노트 사진 ${photoUsage.count}장(${formatBytes(photoUsage.bytes)})을 함께 담을까요?\n\n사진을 담으면 새 폰에서 사진까지 복원돼요. 대신 백업 파일이 그만큼 커져요.`, [
+              // 안드 Alert는 버튼 3개일 때 라벨이 길면 잘린다 — 설명은 본문에, 버튼은 짧게
+              Alert.alert('데이터 백업', `오답노트 첨부 ${photoUsage.count}개(${formatBytes(photoUsage.bytes)})를 함께 담을까요?\n\n담으면 새 폰에서 사진·녹음까지 복원돼요. 대신 백업 파일이 그만큼 커져요.`, [
                 { text: '취소', style: 'cancel' },
                 { text: '기록만', onPress: () => runBackup(false) },
-                { text: '사진도 함께', onPress: () => runBackup(true) },
+                { text: '사진·녹음', onPress: () => runBackup(true) },
               ]);
             } else {
               runBackup(false);
@@ -936,8 +937,8 @@ export default function SettingsScreen() {
           }}>
             <Row T={T} label="오답노트 저장공간"
               sub={photoUsage && photoUsage.count > 0
-                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중${photoHeavy ? ' · 저장공간을 많이 쓰고 있어요' : ''}\n기기에만 저장돼요 · 백업/복원에는 포함되지 않아요`
-                : '사진은 기기에만 저장돼요 · 서버로 안 가요\n백업/복원에는 포함되지 않아요'}
+                ? `사진·녹음 ${photoUsage.count}개 · ${formatBytes(photoUsage.bytes)} 사용 중${photoHeavy ? ' · 저장공간을 많이 쓰고 있어요' : ''}\n기기에만 저장돼요 · 백업할 때 '사진·녹음'을 고르면 함께 담겨요`
+                : '사진·녹음은 기기에만 저장돼요 · 서버로 안 가요'}
               right={<Ionicons name="images-outline" size={18} color={photoHeavy ? T.red : T.accent} />} />
           </TouchableOpacity>
         </Section>
@@ -1054,7 +1055,7 @@ export default function SettingsScreen() {
 
               {/* 오답노트 */}
               <GuideSection id="review" title="오답노트" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'과목 탭 > 오답노트에서 틀린 문제를 모아둘 수 있어요.\n할 일은 매일 리셋되지만, 오답노트는 계속 남아요.\n\n적는 방법:\n• + 버튼으로 새 오답을 추가해요\n• 과목과 챕터(예: 3단원, 문법)를 적어두면 나중에 묶어서 볼 수 있어요\n• 사진 첨부 — 문제를 찍거나 앨범에서 골라 최대 5장까지 붙일 수 있어요\n• 완료한 할 일을 펼치면 "오답노트 저장" 버튼이 있어요. 메모가 그대로 옮겨와요\n\n복습하기:\n• 다시 풀어봤으면 "복습 완료"를 눌러요. 복습 횟수가 쌓여요\n• 이제 확실하면 "마스터"로 표시해요\n• "복습 필요만" 필터를 켜면 아직 마스터하지 않은 것만 보여요\n\n알아두세요:\n• 사진은 이 기기에만 저장돼요. 서버로 올라가지 않아요\n• 그래서 백업 파일이나 기기를 바꿀 때는 사진이 함께 옮겨지지 않아요\n• 과목을 지워도 오답은 "미분류"로 남아요 — 기록이 사라지지 않게요\n• 사용 중인 용량은 설정 > 오답노트 저장공간에서 확인할 수 있어요'}
+                {'과목 탭 > 오답노트에서 틀린 문제를 모아둘 수 있어요.\n할 일은 매일 리셋되지만, 오답노트는 계속 남아요.\n\n적는 방법:\n• + 버튼으로 새 오답을 추가해요\n• 과목과 챕터(예: 3단원, 문법)를 적어두면 나중에 묶어서 볼 수 있어요\n• 사진 첨부 — 문제를 찍거나 앨범에서 골라 최대 5장까지 붙일 수 있어요\n• 음성 메모 — 왜 틀렸는지 말로 남길 수 있어요 (하나당 3분, 최대 2개)\n• 완료한 할 일을 펼치면 "오답노트 저장" 버튼이 있어요. 메모가 그대로 옮겨와요\n\n복습하기:\n• 다시 풀어봤으면 "복습 완료"를 눌러요. 복습 횟수가 쌓여요\n• 이제 확실하면 "마스터"로 표시해요\n• "복습 필요만" 필터를 켜면 아직 마스터하지 않은 것만 보여요\n\n알아두세요:\n• 사진·녹음은 이 기기에만 저장돼요. 서버로 올라가지 않아요\n• 새 폰으로 옮기려면 설정 > 데이터 백업에서 "사진·녹음"을 골라요\n• 과목을 지워도 오답은 "미분류"로 남아요 — 기록이 사라지지 않게요\n• 사용 중인 용량은 설정 > 오답노트 저장공간에서 확인할 수 있어요'}
               </GuideSection>
 
               {/* 알림 팁 */}

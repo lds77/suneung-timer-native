@@ -2000,6 +2000,17 @@ export function AppProvider({ children }) {
     }
   };
 
+  // 녹음 중 집중 사운드 잠시 멈추기 (오답노트 음성 메모).
+  // iOS는 녹음을 시작하면 오디오 세션 카테고리가 바뀌어 재생이 죽거나 녹음에 백색소음이
+  // 섞여 들어간다. settings.activeSounds는 건드리지 않는다 — 사용자의 선택을 지워버리면
+  // 녹음이 끝난 뒤 되돌릴 수가 없다(저장까지 되어 영구 손실)
+  const suspendSounds = useCallback(() => {
+    Object.values(soundRefsMap.current).forEach(s => { try { s.pause(); } catch {} });
+  }, []);
+  const resumeSounds = useCallback(() => {
+    Object.values(soundRefsMap.current).forEach(s => { try { s.play(); } catch {} });
+  }, []);
+
   // activeSounds 변경 시 — 추가/제거 diff 처리
   useEffect(() => {
     if (loading) return;
@@ -2964,6 +2975,7 @@ export function AppProvider({ children }) {
       openStudyRoomAt, requestOpenStudyRoom: () => setOpenStudyRoomAt(Date.now()),
       clearOpenStudyRoom: () => setOpenStudyRoomAt(0),
       toast, showToast, showToastCustom,
+      suspendSounds, resumeSounds,   // 오답노트 녹음 중 집중 사운드 일시정지
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
       screenLocked, setScreenLocked, noteUserTouch,

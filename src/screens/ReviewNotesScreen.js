@@ -1,14 +1,23 @@
 // src/screens/ReviewNotesScreen.js
 // 오답노트 — 영구 학습 노트(과목·챕터별). 과목 탭/할일 양쪽에서 { visible, onClose }로 재사용.
 // 설계: docs/review-notes-design.md. 순수 로직: utils/reviewNotes.js
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  useAudioRecorder, useAudioRecorderState, createAudioPlayer,
+  requestRecordingPermissionsAsync, setAudioModeAsync,
+} from 'expo-audio';
 import { useApp } from '../hooks/useAppState';
 import { getTheme } from '../constants/colors';
 import { groupBySubjectChapter, chapterSuggestions, UNCATEGORIZED } from '../utils/reviewNotes';
 import { saveImage, deleteFiles, resolveUri, canAddMore, MAX_ATTACH } from '../utils/attachments';
+import {
+  VOICE_RECORDING_OPTIONS, MAX_AUDIO, MAX_AUDIO_MS,
+  photoAttachments, audioAttachments, canAddAudio, normalizeAttachments,
+  reachedLimit, fmtClock, isTooShort, saveRecording,
+} from '../utils/audioNotes';
 
 // 강조 색 라벨 팔레트 (요청#3 흡수 — 항목 전체 색 강조)
 const NOTE_COLORS = ['#E8575A', '#F5A623', '#4A90D9', '#5CB85C', '#9B6FC3'];
@@ -82,7 +91,8 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
     attachments: [], origFiles: [],
   });
   const openEdit = (note) => {
-    const atts = Array.isArray(note.attachments) ? note.attachments.map(a => ({ file: a.file })) : [];
+    // ★{ file }만 뽑으면 음성의 type·durationMs가 날아간다 — normalizeAttachments가 지킨다★
+    const atts = normalizeAttachments(note.attachments);
     setEditor({
       id: note.id, subjectId: note.subjectId ?? null, chapter: note.chapter ?? '',
       title: note.title ?? '', body: note.body ?? '', color: note.color ?? null,
@@ -105,7 +115,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       subjectId: e.subjectId ?? null,
       subjectLabel: subj?.name ?? null, subjectColor: subj?.color ?? null, subjectIcon: subj?.character ?? null,
       chapter: e.chapter.trim(), title: e.title.trim(), body: e.body.trim(), color: e.color ?? null,
-      attachments: (e.attachments || []).map(a => ({ file: a.file })),
+      attachments: normalizeAttachments(e.attachments),
     };
     if (e.id) app.updateReviewNote(e.id, patch);
     else app.addReviewNote(patch);
@@ -171,6 +181,109 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
     Alert.alert('사진 삭제', '이 사진을 뺄까요?', [
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: () => removePhoto(file) },
+    ]);
+  };
+
+  // ═══ 음성 메모 ═══
+  // 프리셋을 쓰지 않는 이유는 utils/audioNotes.js 주석 참고 (안드 .3gp/AMR → iOS 재생 불가)
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const recState = useAudioRecorderState(recorder, 250);
+  const [recording, setRecording] = useState(false);
+  const [playingFile, setPlayingFile] = useState(null);
+  const playerRef = useRef(null);
+  const stoppingRef = useRef(false);   // 자동 정지와 사용자 정지가 겹쳐 두 번 저장되는 것 방지
+
+  const stopPlayback = () => {
+    setPlayingFile(null);
+    const p = playerRef.current;
+    playerRef.current = null;
+    if (p) { try { p.pause(); } catch {} try { p.remove(); } catch {} }
+  };
+
+  const togglePlay = (file) => {
+    if (playingFile === file) { stopPlayback(); return; }
+    stopPlayback();
+    try {
+      const p = createAudioPlayer({ uri: resolveUri(file) });
+      playerRef.current = p;
+      setPlayingFile(file);
+      p.play();
+    } catch {
+      app.showToastCustom('녹음을 재생하지 못했어요', 'paengi');
+      stopPlayback();
+    }
+  };
+
+  const finishRecording = async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    try {
+      const ms = recState.durationMillis || 0;
+      await recorder.stop();
+      const uri = recorder.uri;
+      // 오디오 세션을 재생용으로 되돌린 뒤 집중 사운드 재개 (순서가 바뀌면 소리가 안 난다)
+      try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: true }); } catch {}
+      app.resumeSounds?.();
+
+      if (!uri || isTooShort(ms)) { app.showToastCustom('너무 짧아서 저장하지 않았어요', 'paengi'); return; }
+      const item = await saveRecording(uri, ms);
+      if (!item) { app.showToastCustom('녹음 저장에 실패했어요', 'paengi'); return; }
+      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), item] }));
+    } catch {
+      app.showToastCustom('녹음을 마치지 못했어요', 'paengi');
+    } finally {
+      setRecording(false);
+      stoppingRef.current = false;
+    }
+  };
+
+  const startRecording = async () => {
+    if (!canAddAudio(editor?.attachments)) {
+      app.showToastCustom(`음성 메모는 ${MAX_AUDIO}개까지예요`, 'paengi'); return;
+    }
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('마이크 권한 필요', '마이크 권한을 허용하면 오답 이유를 음성으로 남길 수 있어요.');
+        return;
+      }
+      stopPlayback();
+      app.suspendSounds?.();   // 백색소음이 녹음에 섞이거나 세션이 충돌하는 것 방지
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
+      recorder.record();
+      stoppingRef.current = false;
+      setRecording(true);
+    } catch {
+      app.resumeSounds?.();
+      app.showToastCustom('녹음을 시작하지 못했어요', 'paengi');
+    }
+  };
+
+  // 상한(3분) 도달 시 자동 정지 — 잊고 켜둔 녹음이 파일을 키우는 것을 막는다
+  useEffect(() => {
+    if (recording && reachedLimit(recState.durationMillis)) finishRecording();
+  }, [recording, recState.durationMillis]);
+
+  // 편집기를 닫거나 화면을 벗어나면 재생·녹음을 정리한다 (백그라운드 재생 잔존 방지)
+  useEffect(() => {
+    if (!visible || !editor) {
+      stopPlayback();
+      if (recording) finishRecording();
+    }
+  }, [visible, !!editor]);
+  useEffect(() => () => { stopPlayback(); }, []);
+
+  const removeAudio = (file) => {
+    Alert.alert('음성 메모 삭제', '이 녹음을 지울까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => {
+        if (playingFile === file) stopPlayback();
+        setEditor(e => {
+          if (!e.origFiles.includes(file)) deleteFiles([file]);
+          return { ...e, attachments: (e.attachments || []).filter(a => a.file !== file) };
+        });
+      } },
     ]);
   };
 
@@ -355,7 +468,8 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
 
                   <Text style={[S.lbl, { color: T.sub }]}>사진 (선택 · 최대 {MAX_ATTACH}장)</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-                    {(editor.attachments || []).map(a => (
+                    {/* 음성 항목은 여기서 제외 — 안 그러면 Image가 m4a를 그리려다 빈 칸이 된다 */}
+                    {photoAttachments(editor.attachments).map(a => (
                       <View key={a.file} style={{ position: 'relative' }}>
                         <TouchableOpacity activeOpacity={0.8} onPress={() => setViewer(resolveUri(a.file))}>
                           <Image source={{ uri: resolveUri(a.file) }} style={S.thumb} />
@@ -366,15 +480,60 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                         </TouchableOpacity>
                       </View>
                     ))}
-                    {(editor.attachments || []).length < MAX_ATTACH && (
+                    {photoAttachments(editor.attachments).length < MAX_ATTACH && (
                       <TouchableOpacity onPress={addPhoto} style={[S.thumb, S.thumbAdd, { borderColor: T.border, backgroundColor: T.card }]}>
                         <Ionicons name="camera-outline" size={22} color={T.sub} />
                         <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>추가</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <Text style={{ fontSize: 11, color: T.sub, marginBottom: 10, lineHeight: 15 }}>
-                    사진은 이 기기에만 저장돼요. 백업 파일이나 기기를 바꿀 때는 함께 옮겨지지 않아요.
+
+                  {/* ── 음성 메모 ── */}
+                  <Text style={[S.lbl, { color: T.sub, marginTop: 10 }]}>
+                    음성 메모 (선택 · 최대 {MAX_AUDIO}개 · 하나당 {Math.round(MAX_AUDIO_MS / 60000)}분)
+                  </Text>
+                  {audioAttachments(editor.attachments).map(a => {
+                    const on = playingFile === a.file;
+                    return (
+                      <View key={a.file} style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card }]}>
+                        <TouchableOpacity onPress={() => togglePlay(a.file)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name={on ? 'pause-circle' : 'play-circle'} size={30} color={T.accent} />
+                        </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>
+                            {on ? '재생 중' : '음성 메모'}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>{fmtClock(a.durationMs)}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => removeAudio(a.file)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="trash-outline" size={17} color={DANGER} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                  {recording ? (
+                    <TouchableOpacity onPress={finishRecording}
+                      style={[S.audioRow, { borderColor: DANGER, backgroundColor: DANGER + '12' }]}>
+                      <Ionicons name="stop-circle" size={30} color={DANGER} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: DANGER }}>녹음 중 · 눌러서 완료</Text>
+                        <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>
+                          {fmtClock(recState.durationMillis)} / {fmtClock(MAX_AUDIO_MS)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : canAddAudio(editor.attachments) && (
+                    <TouchableOpacity onPress={startRecording}
+                      style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card, borderStyle: 'dashed' }]}>
+                      <Ionicons name="mic-outline" size={26} color={T.accent} />
+                      <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: T.accent }}>
+                        음성으로 남기기
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 8, marginBottom: 10, lineHeight: 15 }}>
+                    사진과 녹음은 이 기기에만 저장돼요. 새 폰으로 옮기려면 설정 &gt; 데이터 백업에서 '사진·녹음'을 고르세요.
                   </Text>
 
                   <Text style={[S.lbl, { color: T.sub }]}>과목</Text>
@@ -490,4 +649,9 @@ const S = StyleSheet.create({
   thumbAdd: { borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   thumbX: { position: 'absolute', top: -6, right: -6, backgroundColor: DANGER, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   thumbBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#333', borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
+  audioRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6,
+  },
 });

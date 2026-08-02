@@ -2,7 +2,7 @@
 import {
   MAX_AUDIO, MAX_AUDIO_MS, VOICE_RECORDING_OPTIONS,
   isAudioAttachment, photoAttachments, audioAttachments, canAddAudio,
-  remainingMs, reachedLimit, fmtClock, isTooShort,
+  remainingMs, reachedLimit, fmtClock, isTooShort, normalizeAttachments,
 } from '../audioNotes';
 
 describe('첨부 종류 구분 — type이 없으면 사진(기존 데이터 호환)', () => {
@@ -76,6 +76,30 @@ describe('fmtClock / isTooShort', () => {
     expect(isTooShort(0)).toBe(true);
     expect(isTooShort(999)).toBe(true);
     expect(isTooShort(1000)).toBe(false);
+  });
+});
+
+describe('★normalizeAttachments — 편집기 왕복에서 음성 필드가 살아남아야 한다★', () => {
+  // 편집기는 노트를 열 때와 저장할 때 첨부 배열을 다시 만든다.
+  // 예전처럼 { file }만 뽑으면 음성이 사진으로 변해 썸네일 자리에 빈 칸이 뜬다
+  test('음성은 type·durationMs를 유지한다', () => {
+    const list = [{ file: 'a.m4a', type: 'audio', durationMs: 12345 }];
+    expect(normalizeAttachments(list)).toEqual([{ file: 'a.m4a', type: 'audio', durationMs: 12345 }]);
+  });
+
+  test('사진은 file만 남는다 (군더더기 필드 제거)', () => {
+    expect(normalizeAttachments([{ file: 'a.jpg', junk: 1 }])).toEqual([{ file: 'a.jpg' }]);
+  });
+
+  test('durationMs가 없거나 이상해도 숫자로 정규화', () => {
+    expect(normalizeAttachments([{ file: 'a.m4a', type: 'audio' }])[0].durationMs).toBe(0);
+    expect(normalizeAttachments([{ file: 'a.m4a', type: 'audio', durationMs: -5 }])[0].durationMs).toBe(0);
+    expect(normalizeAttachments([{ file: 'a.m4a', type: 'audio', durationMs: 10.6 }])[0].durationMs).toBe(11);
+  });
+
+  test('file 없는 항목·빈 입력 방어', () => {
+    expect(normalizeAttachments([null, { type: 'audio' }, { file: 'ok.jpg' }])).toEqual([{ file: 'ok.jpg' }]);
+    expect(normalizeAttachments(null)).toEqual([]);
   });
 });
 
