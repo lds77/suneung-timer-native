@@ -22,7 +22,7 @@ import { splitHm, commitTimeText } from '../utils/timeInput';
 // onFocus: 부모가 '이 칸이 키보드에 가리지 않게' 스크롤을 맞추기 위한 신호.
 // 안드 Modal은 별도 창이라 app.config의 softwareKeyboardLayoutMode:'pan'이 적용되지 않는다
 // (키보드가 입력창을 덮는다) — 모달마다 KeyboardAvoidingView + 이 신호로 스크롤을 맞춘다.
-export default function TimeField({ label, value, onChange, T, onFocus }) {
+export default function TimeField({ label, value, onChange, T, onFocus, style }) {
   const cur = value || '08:00';
   const { h, m } = splitHm(cur);
 
@@ -74,7 +74,11 @@ export default function TimeField({ label, value, onChange, T, onFocus }) {
   );
 
   return (
-    <View style={{ flex: 1 }}>
+    // ★루트에 flex:1을 박아두지 말 것★ — 시작/종료를 나란히 놓는 '행' 안에서는 반씩 나눠 갖는
+    // 뜻이 되지만, 세로 컨테이너에 홀로 놓이면 flexBasis 0이 되어 **높이가 0으로 접힌다**
+    // (설정 리마인더 시트가 이렇게 무너졌다 — 입력칸이 제목 위로 겹쳐 나옴, 2026-08-02).
+    // 행에서 쓰는 호출부가 style={{ flex: 1 }}을 직접 넘긴다.
+    <View style={style}>
       {!!label && <Text style={[styles.label, { color: T.sub }]}>{label}</Text>}
       <View style={styles.row}>
         {box('h', h, hDraft, '시')}

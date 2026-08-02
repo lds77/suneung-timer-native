@@ -1257,7 +1257,8 @@ export default function SettingsScreen() {
               <Ionicons name="close" size={22} color={T.sub} />
             </TouchableOpacity>
           </View>
-          <TimeField label="" value={reminderTime} onChange={setReminderTime} T={T} />
+          {/* 세로 컨테이너에 홀로 놓이므로 flex를 주지 않는다 (주면 높이가 0으로 접힌다) */}
+          <TimeField label="" value={reminderTime} onChange={setReminderTime} T={T} style={{ marginVertical: 4 }} />
           <TouchableOpacity
             onPress={() => {
               const [h, m] = reminderTime.split(':').map(Number);

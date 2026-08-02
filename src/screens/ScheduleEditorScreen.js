@@ -669,12 +669,12 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   <TimeField
                     label="시작 시간" value={fixedStart}
                     onChange={setFixedStart}
-                    T={T} onFocus={scrollToFixedTime}
+                    T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
                   <TimeField
                     label="종료 시간" value={fixedEnd}
                     onChange={setFixedEnd}
-                    T={T} onFocus={scrollToFixedTime}
+                    T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
                 </View>
               </ScrollView>
@@ -830,12 +830,12 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     if (parseTimeToMin(planEnd) <= newStartMin) {
                       setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
                     }
-                  }} T={T} onFocus={scrollToPlanTime} />
+                  }} T={T} onFocus={scrollToPlanTime} style={{ flex: 1 }} />
                   <TimeField label="종료 시간" value={planEnd} onChange={(v) => {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);
-                  }} T={T} onFocus={scrollToPlanTime} />
+                  }} T={T} onFocus={scrollToPlanTime} style={{ flex: 1 }} />
                 </View>
               )}
 

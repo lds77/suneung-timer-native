@@ -328,14 +328,14 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
               if (curEndMin <= newStartMin) {
                 setEnd(minToStr(Math.min(newStartMin + targetMin, 24 * 60)));
               }
-            }} T={T} onFocus={scrollToTimeRow} />
+            }} T={T} onFocus={scrollToTimeRow} style={{ flex: 1 }} />
             <TimeField label="종료 시간" value={end} onChange={(v) => {
               setEnd(v);
               if (type === 'plan') {
                 const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(start));
                 if (diff > 0) setTargetMin(diff);
               }
-            }} T={T} onFocus={scrollToTimeRow} />
+            }} T={T} onFocus={scrollToTimeRow} style={{ flex: 1 }} />
           </View>
         )}
 
