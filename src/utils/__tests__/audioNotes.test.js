@@ -3,6 +3,7 @@ import {
   MAX_AUDIO, MAX_AUDIO_MS, VOICE_RECORDING_OPTIONS,
   isAudioAttachment, photoAttachments, audioAttachments, canAddAudio,
   remainingMs, reachedLimit, fmtClock, isTooShort, normalizeAttachments,
+  checkAudioPick, audioExt, MAX_CLIP_BYTES,
 } from '../audioNotes';
 
 describe('첨부 종류 구분 — type이 없으면 사진(기존 데이터 호환)', () => {
@@ -100,6 +101,51 @@ describe('★normalizeAttachments — 편집기 왕복에서 음성 필드가 �
   test('file 없는 항목·빈 입력 방어', () => {
     expect(normalizeAttachments([null, { type: 'audio' }, { file: 'ok.jpg' }])).toEqual([{ file: 'ok.jpg' }]);
     expect(normalizeAttachments(null)).toEqual([]);
+  });
+});
+
+describe('checkAudioPick — 파일에서 오디오 첨부 검증', () => {
+  const ok = (over) => ({ uri: 'file:///x/a.m4a', name: 'a.m4a', size: 1000, ...over });
+
+  test('m4a·mp3·aac·wav는 받는다', () => {
+    for (const ext of ['m4a', 'mp3', 'aac', 'wav']) {
+      expect(checkAudioPick(ok({ name: `x.${ext}` })).ok).toBe(true);
+    }
+  });
+
+  test('★안드만 재생되는 포맷은 막는다★ (기종 변경에서 안 들리게 되므로)', () => {
+    for (const ext of ['ogg', 'flac', 'amr', '3gp']) {
+      const r = checkAudioPick(ok({ name: `x.${ext}` }));
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('아이폰');
+    }
+  });
+
+  test('확장자가 없으면 막는다', () => {
+    expect(checkAudioPick(ok({ name: 'noext' })).ok).toBe(false);
+  });
+
+  test('10MB 초과는 막는다 (백업 파일이 커지는 것 방지)', () => {
+    expect(checkAudioPick(ok({ size: MAX_CLIP_BYTES })).ok).toBe(true);
+    const over = checkAudioPick(ok({ size: MAX_CLIP_BYTES + 1 }));
+    expect(over.ok).toBe(false);
+    expect(over.reason).toContain('10MB');
+  });
+
+  test('size를 모르면 통과시킨다 (일부 기기가 size를 안 준다)', () => {
+    expect(checkAudioPick(ok({ size: undefined })).ok).toBe(true);
+  });
+
+  test('빈 입력 방어', () => {
+    expect(checkAudioPick(null).ok).toBe(false);
+    expect(checkAudioPick({}).ok).toBe(false);
+  });
+
+  test('audioExt — 대소문자·경로 방어', () => {
+    expect(audioExt('a.M4A')).toBe('m4a');
+    expect(audioExt('/x/y/b.mp3')).toBe('mp3');
+    expect(audioExt('noext')).toBe('');
+    expect(audioExt(null)).toBe('');
   });
 });
 

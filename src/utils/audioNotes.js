@@ -66,11 +66,50 @@ export const fmtClock = (ms) => {
 export const MIN_AUDIO_MS = 1000;
 export const isTooShort = (ms) => (ms || 0) < MIN_AUDIO_MS;
 
+// ── 파일에서 오디오 첨부 ──
+// 녹음과 같은 칸(MAX_AUDIO)을 나눠 쓴다 — 사용자에겐 '음성 N개'로 하나의 개념이어야 한다.
+
+// 첨부 파일 용량 상한. 녹음은 3분(약 1.5MB)으로 묶여 있지만 남의 파일은 몇십 분짜리도 들어온다.
+// 백업 zip에 그대로 담기므로(= 카톡·드라이브로 옮기는 파일) 여기서 막지 않으면 백업이 못 쓰게 커진다
+export const MAX_CLIP_BYTES = 10 * 1024 * 1024;
+
+// ★양 플랫폼에서 재생되는 포맷만 받는다★
+// 안드는 ogg·flac·amr을 재생하지만 iOS는 못 한다. 백업 zip으로 기종을 바꾸면
+// 안드에서 붙인 .ogg가 아이폰에서 재생 불가가 되므로 아예 첨부 단계에서 막는다
+// (녹음을 m4a로 고정한 것과 같은 이유 — 위 VOICE_RECORDING_OPTIONS 주석 참고)
+export const PLAYABLE_EXTS = ['m4a', 'mp3', 'aac', 'wav', 'mp4'];
+
+export const audioExt = (name) => {
+  const s = String(name || '');
+  const i = s.lastIndexOf('.');
+  return i < 0 ? '' : s.slice(i + 1).toLowerCase();
+};
+
+// 고른 파일을 받아도 되는지 판단. { ok } 또는 { ok:false, reason }
+export const checkAudioPick = (asset) => {
+  if (!asset || !asset.uri) return { ok: false, reason: '파일을 읽지 못했어요.' };
+  const ext = audioExt(asset.name || asset.uri);
+  if (!PLAYABLE_EXTS.includes(ext)) {
+    return {
+      ok: false,
+      reason: `${ext ? `.${ext}는` : '이 형식은'} 아이폰에서 재생되지 않을 수 있어요.\nm4a · mp3 · aac · wav 파일을 골라주세요.`,
+    };
+  }
+  if (typeof asset.size === 'number' && asset.size > MAX_CLIP_BYTES) {
+    const mb = Math.round(asset.size / 1024 / 1024);
+    return {
+      ok: false,
+      reason: `파일이 너무 커요 (${mb}MB).\n백업 파일이 감당하기 어려워져서 10MB까지만 붙일 수 있어요.`,
+    };
+  }
+  return { ok: true, ext };
+};
+
 // ── 네이티브 (lazy require — Jest 안전) ──
 
 const FS = () => require('expo-file-system/legacy');
 
-const genName = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.m4a`;
+const genName = (ext = 'm4a') => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
 // 녹음이 끝난 임시 파일을 앱 폴더로 옮기고 첨부 항목을 만든다.
 // 실패하면 null (호출부가 토스트로 알린다)
@@ -83,6 +122,22 @@ export const saveRecording = async (uri, durationMs) => {
     const name = genName();
     await fs.moveAsync({ from: uri, to: dir + name });
     return { file: name, type: 'audio', durationMs: Math.round(durationMs || 0) };
+  } catch {
+    return null;
+  }
+};
+
+// 고른 오디오 파일을 앱 폴더로 복사한다(원본은 그대로 둔다 — 남의 파일을 옮기면 안 된다).
+// 길이는 지금 알 수 없어 0으로 두고, 재생 행이 로드 후 실제 길이를 보여준다
+export const saveAudioFile = async (uri, ext) => {
+  try {
+    const fs = FS();
+    const dir = fs.documentDirectory + ATTACH_SUBDIR;
+    const info = await fs.getInfoAsync(dir);
+    if (!info.exists) await fs.makeDirectoryAsync(dir, { intermediates: true });
+    const name = genName(ext || 'm4a');
+    await fs.copyAsync({ from: uri, to: dir + name });
+    return { file: name, type: 'audio', durationMs: 0 };
   } catch {
     return null;
   }

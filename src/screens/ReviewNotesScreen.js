@@ -5,8 +5,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import {
-  useAudioRecorder, useAudioRecorderState, createAudioPlayer,
+  useAudioRecorder, useAudioRecorderState, useAudioPlayer, useAudioPlayerStatus,
   requestRecordingPermissionsAsync, setAudioModeAsync,
 } from 'expo-audio';
 import { useApp } from '../hooks/useAppState';
@@ -17,12 +18,80 @@ import {
   VOICE_RECORDING_OPTIONS, MAX_AUDIO, MAX_AUDIO_MS,
   photoAttachments, audioAttachments, canAddAudio, normalizeAttachments,
   reachedLimit, fmtClock, isTooShort, saveRecording,
+  checkAudioPick, saveAudioFile,
 } from '../utils/audioNotes';
 
 // 강조 색 라벨 팔레트 (요청#3 흡수 — 항목 전체 색 강조)
 const NOTE_COLORS = ['#E8575A', '#F5A623', '#4A90D9', '#5CB85C', '#9B6FC3'];
 const DANGER = '#E8575A';
 const MASTERED = '#00B894'; // 마스터 완료 표시(성공 녹색)
+
+// ── 음성 메모 한 줄: 재생/정지 + 진행바(탭해서 구간 이동) + 삭제 ──
+// 행마다 플레이어를 따로 둔다(노트당 최대 2개라 부담 없음) — 진행 상태를 훅으로 받으려면
+// 소스별 인스턴스가 필요하고, 부모가 imperative 하나로 돌리면 진행바를 그릴 수 없다.
+// 동시에 두 개가 울리지 않도록 재생 주도권은 부모의 activeFile이 갖는다.
+function AudioMemoRow({ file, durationMs, active, onActivate, onStop, onDelete, T }) {
+  const player = useAudioPlayer({ uri: resolveUri(file) });
+  const status = useAudioPlayerStatus(player);
+  const [barW, setBarW] = useState(0);
+
+  // 파일에서 붙인 클립은 durationMs를 모른 채 저장된다(0) — 로드되면 실제 길이로 채워진다
+  const totalSec = status?.duration > 0 ? status.duration : (durationMs || 0) / 1000;
+  const curSec = Math.min(status?.currentTime || 0, totalSec || Infinity);
+  const pct = totalSec > 0 ? Math.max(0, Math.min(1, curSec / totalSec)) : 0;
+  const playing = !!status?.playing;
+
+  // 다른 줄이 재생을 시작하면 이 줄은 멈춘다
+  useEffect(() => {
+    if (!active && playing) { try { player.pause(); } catch {} }
+  }, [active, playing]);
+
+  // 끝까지 들으면 처음으로 되감아 둔다 — 다시 누를 때 끝에서 시작하면 안 눌린 것처럼 보인다
+  useEffect(() => {
+    if (status?.didJustFinish) {
+      try { player.pause(); } catch {}
+      try { player.seekTo(0); } catch {}
+      onStop?.();
+    }
+  }, [status?.didJustFinish]);
+
+  const toggle = () => {
+    if (playing) { try { player.pause(); } catch {} onStop?.(); return; }
+    onActivate?.();
+    try { player.play(); } catch {}
+  };
+
+  // 진행바 탭 → 그 지점으로 이동. 듣고 싶은 구간만 다시 듣기 위한 것
+  const seekTo = (e) => {
+    if (!barW || !totalSec) return;
+    const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / barW));
+    try { player.seekTo(ratio * totalSec); } catch {}
+  };
+
+  return (
+    <View style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card }]}>
+      <TouchableOpacity onPress={toggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name={playing ? 'pause-circle' : 'play-circle'} size={32} color={T.accent} />
+      </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        {/* 얇은 막대는 누르기 어려우므로 터치 영역을 세로로 넉넉히 잡는다 */}
+        <TouchableOpacity activeOpacity={1} onPress={seekTo}
+          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+          style={{ height: 20, justifyContent: 'center' }}>
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: T.surface2 || T.surface }}>
+            <View style={{ width: `${pct * 100}%`, height: 4, borderRadius: 2, backgroundColor: T.accent }} />
+          </View>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>
+          {fmtClock(curSec * 1000)} / {totalSec > 0 ? fmtClock(totalSec * 1000) : '--:--'}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="trash-outline" size={17} color={DANGER} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function ReviewNotesScreen({ visible, onClose, initialSubjectId = null }) {
   const app = useApp();
@@ -189,28 +258,27 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const recState = useAudioRecorderState(recorder, 250);
   const [recording, setRecording] = useState(false);
+  // 재생 주도권 — 어느 줄이 울릴지 부모가 정한다(동시 재생 방지). 실제 플레이어는 각 줄이 갖는다
   const [playingFile, setPlayingFile] = useState(null);
-  const playerRef = useRef(null);
   const stoppingRef = useRef(false);   // 자동 정지와 사용자 정지가 겹쳐 두 번 저장되는 것 방지
+  const stopPlayback = () => setPlayingFile(null);
 
-  const stopPlayback = () => {
-    setPlayingFile(null);
-    const p = playerRef.current;
-    playerRef.current = null;
-    if (p) { try { p.pause(); } catch {} try { p.remove(); } catch {} }
-  };
-
-  const togglePlay = (file) => {
-    if (playingFile === file) { stopPlayback(); return; }
-    stopPlayback();
+  // 파일에서 오디오 첨부 — 녹음과 같은 칸을 나눠 쓴다
+  const attachAudioFile = async () => {
+    if (!canAddAudio(editor?.attachments)) {
+      app.showToastCustom(`음성은 ${MAX_AUDIO}개까지예요`, 'paengi'); return;
+    }
     try {
-      const p = createAudioPlayer({ uri: resolveUri(file) });
-      playerRef.current = p;
-      setPlayingFile(file);
-      p.play();
+      const res = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
+      if (res.canceled) return;
+      const asset = res.assets?.[0];
+      const check = checkAudioPick(asset);
+      if (!check.ok) { Alert.alert('첨부할 수 없어요', check.reason); return; }
+      const item = await saveAudioFile(asset.uri, check.ext);
+      if (!item) { app.showToastCustom('파일을 저장하지 못했어요', 'paengi'); return; }
+      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), item] }));
     } catch {
-      app.showToastCustom('녹음을 재생하지 못했어요', 'paengi');
-      stopPlayback();
+      app.showToastCustom('파일을 불러오지 못했어요', 'paengi');
     }
   };
 
@@ -413,14 +481,27 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                               )}
                             </View>
                           </View>
-                          {!selectMode && n.attachments?.length > 0 && (
-                            <View style={{ marginLeft: 8 }}>
-                              <Image source={{ uri: resolveUri(n.attachments[0].file) }} style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.bg }} />
-                              {n.attachments.length > 1 && (
-                                <View style={S.thumbBadge}><Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{n.attachments.length}</Text></View>
-                              )}
-                            </View>
-                          )}
+                          {/* 썸네일은 '첫 사진'이어야 한다 — 첫 첨부를 그대로 쓰면 음성 파일을
+                              Image가 그리려다 빈 칸이 된다. 사진이 없고 음성만 있으면 마이크 아이콘 */}
+                          {!selectMode && n.attachments?.length > 0 && (() => {
+                            const photos = photoAttachments(n.attachments);
+                            const audios = audioAttachments(n.attachments);
+                            if (photos.length === 0 && audios.length === 0) return null;
+                            return (
+                              <View style={{ marginLeft: 8 }}>
+                                {photos.length > 0 ? (
+                                  <Image source={{ uri: resolveUri(photos[0].file) }} style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.bg }} />
+                                ) : (
+                                  <View style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.surface2 || T.surface, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Ionicons name="mic" size={19} color={T.accent} />
+                                  </View>
+                                )}
+                                {photos.length + audios.length > 1 && (
+                                  <View style={S.thumbBadge}><Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{photos.length + audios.length}</Text></View>
+                                )}
+                              </View>
+                            );
+                          })()}
                           {selectMode ? (
                             <Ionicons name={sel ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={sel ? T.accent : T.sub} style={{ marginLeft: 8 }} />
                           ) : !mastered ? (
@@ -490,27 +571,16 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
 
                   {/* ── 음성 메모 ── */}
                   <Text style={[S.lbl, { color: T.sub, marginTop: 10 }]}>
-                    음성 메모 (선택 · 최대 {MAX_AUDIO}개 · 하나당 {Math.round(MAX_AUDIO_MS / 60000)}분)
+                    음성 (선택 · 최대 {MAX_AUDIO}개 · 녹음은 하나당 {Math.round(MAX_AUDIO_MS / 60000)}분)
                   </Text>
-                  {audioAttachments(editor.attachments).map(a => {
-                    const on = playingFile === a.file;
-                    return (
-                      <View key={a.file} style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card }]}>
-                        <TouchableOpacity onPress={() => togglePlay(a.file)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Ionicons name={on ? 'pause-circle' : 'play-circle'} size={30} color={T.accent} />
-                        </TouchableOpacity>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: T.text }}>
-                            {on ? '재생 중' : '음성 메모'}
-                          </Text>
-                          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>{fmtClock(a.durationMs)}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => removeAudio(a.file)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Ionicons name="trash-outline" size={17} color={DANGER} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
+                  {audioAttachments(editor.attachments).map(a => (
+                    <AudioMemoRow key={a.file} file={a.file} durationMs={a.durationMs}
+                      active={playingFile === a.file}
+                      onActivate={() => setPlayingFile(a.file)}
+                      onStop={() => setPlayingFile(null)}
+                      onDelete={() => removeAudio(a.file)}
+                      T={T} />
+                  ))}
                   {recording ? (
                     <TouchableOpacity onPress={finishRecording}
                       style={[S.audioRow, { borderColor: DANGER, backgroundColor: DANGER + '12' }]}>
@@ -523,13 +593,19 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                       </View>
                     </TouchableOpacity>
                   ) : canAddAudio(editor.attachments) && (
-                    <TouchableOpacity onPress={startRecording}
-                      style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card, borderStyle: 'dashed' }]}>
-                      <Ionicons name="mic-outline" size={26} color={T.accent} />
-                      <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: T.accent }}>
-                        음성으로 남기기
-                      </Text>
-                    </TouchableOpacity>
+                    // 녹음과 파일 첨부를 한 번 탭으로 각각 — Alert로 묶으면 주 용도인 녹음이 한 단계 멀어진다
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={startRecording}
+                        style={[S.audioRow, { flex: 1, borderColor: T.accent + '66', backgroundColor: T.card, borderStyle: 'dashed' }]}>
+                        <Ionicons name="mic-outline" size={24} color={T.accent} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>녹음하기</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={attachAudioFile}
+                        style={[S.audioRow, { flex: 1, borderColor: T.border, backgroundColor: T.card, borderStyle: 'dashed' }]}>
+                        <Ionicons name="attach-outline" size={22} color={T.sub} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>파일 첨부</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
 
                   <Text style={{ fontSize: 11, color: T.sub, marginTop: 8, marginBottom: 10, lineHeight: 15 }}>
