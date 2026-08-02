@@ -2,7 +2,7 @@
 // 미루기·자동배치 실사용 버그가 나왔던 영역의 회귀 안전망.
 import {
   parseTimeToMin, minToStr, makeTKey, tkeyWeek, tkeyPlan,
-  weekStartOf, isPlanInWeek, isMidnightCrossing,
+  weekStartOf, isPlanInWeek, isMidnightCrossing, spanMinutes,
   occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
 } from '../helpers';
 
@@ -19,6 +19,13 @@ describe('시간 변환', () => {
     expect(isMidnightCrossing('23:00', '07:00')).toBe(true);
     expect(isMidnightCrossing('09:00', '10:00')).toBe(false);
     expect(isMidnightCrossing('10:00', '10:00')).toBe(true);
+  });
+
+  test('spanMinutes: 자정을 넘으면 하루를 돌아서 계산', () => {
+    expect(spanMinutes('09:00', '10:30')).toBe(90);
+    expect(spanMinutes('23:00', '07:00')).toBe(480);   // 취침 8시간
+    expect(spanMinutes('22:00', '00:00')).toBe(120);   // 00:00은 다음 날 자정
+    expect(spanMinutes('08:00', '24:00')).toBe(960);   // 24:00은 당일 끝 (하루 안)
   });
 });
 

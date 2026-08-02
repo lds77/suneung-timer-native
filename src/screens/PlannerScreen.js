@@ -22,7 +22,7 @@ import ScheduleEditorScreen from './ScheduleEditorScreen';
 import {
   DAY_KEYS, START_HOUR, END_HOUR, parseTimeToMin, minToStr,
   TKEY_SEP, makeTKey, tkeyWeek, tkeyPlan, weekStartOf, weekStartOfDateStr,
-  isPlanInWeek, isMidnightCrossing, occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
+  isPlanInWeek, isMidnightCrossing, spanMinutes, occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
 } from './planner/helpers';
 
 const TEMP_STORAGE_KEY = 'plannerTempAssignments';
@@ -146,14 +146,22 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   const handleSave = () => {
     if (!label.trim()) { Alert.alert('이름을 입력해주세요'); return; }
     const needsTime = type === 'fixed' || useSchedule;
+    const startMin = parseTimeToMin(start);
+    const endMin   = parseTimeToMin(end);
+    const crossesMidnight = needsTime && endMin < startMin;
+
     if (needsTime) {
-      const startMin = parseTimeToMin(start);
-      const endMin   = parseTimeToMin(end);
-      if (endMin <= startMin) { Alert.alert('종료 시간이 시작 시간보다 늦어야 해요'); return; }
+      if (endMin === startMin) { Alert.alert('시간 오류', '시작과 종료 시간이 같아요'); return; }
+      // 공부 계획은 자정 넘김 불가 — 목표량이 '종료 - 시작'이라 음수가 된다 (일정편집과 동일)
+      if (crossesMidnight && type === 'plan') {
+        Alert.alert('종료 시간이 시작 시간보다 늦어야 해요'); return;
+      }
     }
-    const computedTargetMin = needsTime
-      ? Math.round(parseTimeToMin(end) - parseTimeToMin(start))
-      : targetMin;
+
+    // 고정 일정의 자정 넘김(취침 23:00~07:00 등)은 그리드가 이미 지원한다 —
+    // blockGeometry가 당일 24:00까지, carryoverGeometry가 다음 날 이어지는 부분을 그리고
+    // 빈 시간 계산도 감안한다. 예전엔 이 모달만 입력을 막아 일정편집에서만 만들 수 있었다(2026-08-02 통일)
+    const computedTargetMin = needsTime ? spanMinutes(start, end) : targetMin;
     const payload = {
       id: initial?.id || generateId('blk_'),
       blockType: type,
@@ -166,16 +174,32 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
       // 범위 선택이 표시된 새 계획만 scope 전달 (수정/고정일정은 undefined)
       ...(allowScopeChoice && !isEdit && type === 'plan' ? { scope } : {}),
     };
-    // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
-    if (recurringEdit) {
-      Alert.alert('수정 적용 범위', '매주 반복되는 일정이에요. 어떻게 적용할까요?', [
-        { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
-        { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
-        { text: '취소', style: 'cancel' },
-      ]);
+    const commit = () => {
+      // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
+      if (recurringEdit) {
+        Alert.alert('수정 적용 범위', '매주 반복되는 일정이에요. 어떻게 적용할까요?', [
+          { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
+          { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
+          { text: '취소', style: 'cancel' },
+        ]);
+        return;
+      }
+      onSave(payload);
+    };
+
+    // 타이핑으로 바뀐 뒤로는 오타(11:11 → 10:22)로도 쉽게 만들어지므로 한 번 확인 (일정편집과 같은 문구)
+    if (crossesMidnight) {
+      Alert.alert(
+        '자정을 넘는 일정인가요?',
+        `${start}에 시작해서 다음 날 ${end}에 끝나는 일정으로 저장돼요.`,
+        [
+          { text: '시간 고치기', style: 'cancel' },
+          { text: '네, 맞아요', onPress: commit },
+        ],
+      );
       return;
     }
-    onSave(payload);
+    commit();
   };
 
   return (
@@ -323,6 +347,10 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
             onLayout={(e) => { timeRowY.current = e.nativeEvent.layout.y; }}>
             <TimeField label="시작 시간" value={start} onChange={(v) => {
               setStart(v);
+              // 시작이 종료를 넘어서면 종료를 밀어준다 — 단 공부 계획만.
+              // 고정 일정은 자정 넘김이 정상 입력이라(23:00~07:00) 여기서 종료를 건드리면
+              // 23을 치는 순간 07:00이 24:00으로 튄다
+              if (type !== 'plan') return;
               const newStartMin = parseTimeToMin(v);
               const curEndMin   = parseTimeToMin(end);
               if (curEndMin <= newStartMin) {

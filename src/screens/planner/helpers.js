@@ -42,6 +42,14 @@ export const isPlanInWeek = (p, weekStartStr) =>
 // 자정 넘는 일정 여부 (end <= start)
 export const isMidnightCrossing = (start, end) => parseTimeToMin(end) <= parseTimeToMin(start);
 
+// 일정의 실제 지속시간(분) — 자정을 넘으면 하루를 돌아서 계산 (23:00~07:00 = 480분).
+// 같은 공식이 useAppState의 가용시간 계산과 블록 저장 두 곳에 흩어져 있던 것을 모은 것
+export const spanMinutes = (start, end) => {
+  const s = parseTimeToMin(start);
+  const e = parseTimeToMin(end);
+  return e > s ? e - s : (24 * 60 - s) + e;
+};
+
 // 특정 날짜(요일+주시작)에 이미 점유된 시간대(분 단위 구간) 목록
 // excludeId: 옮기는 계획 자신은 점유에서 제외 (같은 요일 다른 주로 옮길 때 자기충돌 방지)
 export const occupiedIntervalsForDay = (ws, dayKey, weekStartStr, excludeId) => {

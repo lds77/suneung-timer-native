@@ -35,6 +35,7 @@ import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calc
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
+import { spanMinutes } from '../screens/planner/helpers';
 
 // 이탈 인정 최소 시간 — 플랫폼의 첫 알림 시각에서 파생된다(focusAway.awayMinMs 주석 참조).
 // 안드 15초 / iOS 30초. ★숫자를 여기에 다시 박지 말 것★ — 예전에 그렇게 해서
@@ -2517,15 +2518,8 @@ export function AppProvider({ children }) {
     if (!weeklySchedule) return 24 * 60;
     const dayData = weeklySchedule[dayKey];
     if (!dayData || !dayData.fixed || dayData.fixed.length === 0) return 24 * 60;
-    const fixedMin = dayData.fixed.reduce((sum, f) => {
-      const [sh, sm] = f.start.split(':').map(Number);
-      const [eh, em] = f.end.split(':').map(Number);
-      const startMin = sh * 60 + sm;
-      const endMin = eh * 60 + em;
-      // 자정을 넘어가는 일정 처리 (ex: 23:00~07:00)
-      const dur = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
-      return sum + dur;
-    }, 0);
+    // 자정을 넘어가는 일정(ex: 23:00~07:00)은 하루를 돌아서 계산 — spanMinutes(테스트 有)
+    const fixedMin = dayData.fixed.reduce((sum, f) => sum + spanMinutes(f.start, f.end), 0);
     return Math.max(0, 24 * 60 - fixedMin);
   }, [weeklySchedule]);
 
