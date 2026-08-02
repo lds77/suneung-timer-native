@@ -184,6 +184,9 @@ module.exports = {
       './plugins/withAndroidWorkManagerFix',
       // 카메라를 선택 하드웨어로 선언 (CAMERA 권한이 카메라 필수를 암시해 Play 대상 기기가 줄던 문제)
       './plugins/withCameraNotRequired',
+      // 오답노트 첨부 폴더를 안드 클라우드 백업에서 제외 (25MB 상한 초과 시 백업 자체가
+      // 실패해 재설치 후 uid·공부 데이터 복원이 조용히 깨지던 문제 — 파일 주석 참고)
+      './plugins/withAttachmentsNotBackedUp',
     ],
     extra: {
       eas: {

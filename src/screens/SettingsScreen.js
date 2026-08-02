@@ -398,6 +398,11 @@ export default function SettingsScreen() {
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
   const [photoUsage, setPhotoUsage] = useState(null); // 오답노트 사진 사용량 { count, bytes }
+  // 기기 저장공간을 눈에 띄게 쓰기 시작하는 지점에서만 색으로 알린다.
+  // ※안드 자동 백업 25MB 상한과는 무관해졌다 — plugins/withAttachmentsNotBackedUp이
+  //   첨부 폴더를 백업에서 빼므로(1.0.40~) 사진이 아무리 많아도 백업은 안 깨진다.
+  //   그 대신 사진은 백업/복원으로 따라가지 않는다는 걸 문구로 알린다
+  const photoHeavy = !!photoUsage && photoUsage.bytes >= 300 * 1024 * 1024;
   const refreshPhotoUsage = useCallback(async () => {
     try { setPhotoUsage(await usageStats(app.reviewNotes || [])); } catch {}
   }, [app.reviewNotes]);
@@ -888,9 +893,9 @@ export default function SettingsScreen() {
           }}>
             <Row T={T} label="오답노트 저장공간"
               sub={photoUsage && photoUsage.count > 0
-                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중 · 눌러서 안 쓰는 파일 정리`
-                : '사진은 기기에만 저장돼요 · 서버로 안 가요'}
-              right={<Ionicons name="images-outline" size={18} color={T.accent} />} />
+                ? `사진 ${photoUsage.count}장 · ${formatBytes(photoUsage.bytes)} 사용 중${photoHeavy ? ' · 저장공간을 많이 쓰고 있어요' : ''}\n기기에만 저장돼요 · 백업/복원에는 포함되지 않아요`
+                : '사진은 기기에만 저장돼요 · 서버로 안 가요\n백업/복원에는 포함되지 않아요'}
+              right={<Ionicons name="images-outline" size={18} color={photoHeavy ? T.red : T.accent} />} />
           </TouchableOpacity>
         </Section>
 
