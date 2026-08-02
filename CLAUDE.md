@@ -66,8 +66,9 @@ src/
     CircularTimer.js      원형 타이머 UI
     AnalogClock.js        아날로그 시계 (수능 시험장 벽시계 스타일, v1.0.25+)
     CharacterAvatar.js    캐릭터 아바타
-    TimePickerGrid.js     시간 피커
-    GradientView.js / Stepper.js / Toast.js
+    TimeField.js          시각 입력 (네모 [시]·[분] 칸 — 휠 폐기, 2026-08-02)
+    NumberField.js        수치 입력 (네모 칸 — 타이머 분/시, +/- 스테퍼 폐기)
+    GradientView.js / Toast.js
   widgets/                Android 홈 위젯 + 양 플랫폼 위젯 데이터 (widgetData.js는 iOS 스냅샷도 계산)
     widgetData.js         getWidgetData() — AsyncStorage 직접 읽어 위젯 데이터 계산 (헤드리스 안전)
     updateStudyWidget.js  updateAllWidgets(activeTimer) — 안드 리렌더 / iOS App Group 스냅샷 기록

@@ -11,8 +11,7 @@ import TodoSection from './focus/TodoSection';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import ChallengeModal from './focus/ChallengeModal';
 import NicknameModal from './focus/NicknameModal';
-import Stepper from '../components/Stepper';
-import EditableNumber from '../components/EditableNumber';
+import NumberField from '../components/NumberField';
 import CharacterAvatar from '../components/CharacterAvatar';
 import GradientView from '../components/GradientView';
 import Svg, { Circle } from 'react-native-svg';
@@ -1454,9 +1453,9 @@ export default function FocusScreen() {
                 </View>
               </TouchableOpacity>))}
           </View>
-          {addType === 'countdown' && (<View style={S.ms}><Text style={[S.ml, { color: T.sub }]}>시간</Text><Stepper value={addMin} onChange={setAddMin} min={1} max={300} step={5} unit="분" colors={T} />
+          {addType === 'countdown' && (<View style={S.ms}><Text style={[S.ml, { color: T.sub }]}>시간</Text><NumberField value={addMin} onChange={setAddMin} min={1} max={300} unit="분" colors={T} />
             <View style={S.presetRow}>{[5,10,15,25,30,45,60,90,120].map(m => (<TouchableOpacity key={m} style={[S.pc, { borderColor: addMin === m ? T.accent : T.border, backgroundColor: addMin === m ? T.accent : 'transparent' }]} onPress={() => setAddMin(m)}><Text style={[S.pcT, { color: addMin === m ? 'white' : T.sub }]}>{m}분</Text></TouchableOpacity>))}</View></View>)}
-          {addType === 'pomodoro' && (<View style={S.ms}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}><Ionicons name="timer-outline" size={13} color={T.accent} /><Text style={[S.ml, { color: T.sub }]}>집중</Text></View><Stepper value={addPomoWork} onChange={setAddPomoWork} min={5} max={90} step={5} unit="분" colors={T} /><View style={{ height: 12 }} /><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}><Ionicons name="cafe-outline" size={13} color={T.sub} /><Text style={[S.ml, { color: T.sub }]}>휴식</Text></View><Stepper value={addPomoBreak} onChange={setAddPomoBreak} min={1} max={30} step={1} unit="분" colors={T} /></View>)}
+          {addType === 'pomodoro' && (<View style={S.ms}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}><Ionicons name="timer-outline" size={13} color={T.accent} /><Text style={[S.ml, { color: T.sub }]}>집중</Text></View><NumberField value={addPomoWork} onChange={setAddPomoWork} min={5} max={90} unit="분" colors={T} /><View style={{ height: 12 }} /><View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}><Ionicons name="cafe-outline" size={13} color={T.sub} /><Text style={[S.ml, { color: T.sub }]}>휴식</Text></View><NumberField value={addPomoBreak} onChange={setAddPomoBreak} min={1} max={30} unit="분" colors={T} /></View>)}
           {addType === 'sequence' && (<View style={S.ms}>
             <TextInput value={seqName} onChangeText={setSeqName} placeholder="루틴 이름 (저장용)" placeholderTextColor={T.sub} style={[S.todoInput, { borderColor: T.border, backgroundColor: T.surface, color: T.text }]} />
             {seqItems.map((it, i) => (
@@ -1471,20 +1470,13 @@ export default function FocusScreen() {
                     placeholder="항목명" placeholderTextColor={T.sub} maxLength={10}
                     style={{ flex: 1, fontSize: 12, fontWeight: '700', color: T.text, paddingVertical: 2, paddingHorizontal: 4, borderWidth: 1, borderColor: T.border, borderRadius: 5, backgroundColor: T.surface, minWidth: 50 }} />
                 )}
-                <TouchableOpacity style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: Math.max(1, x.min - 5) } : x))}><Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>-</Text></TouchableOpacity>
-                {/* 숫자를 탭하면 타이핑 — 25분→90분을 -5/+5로 13번 누르던 걸 대체 */}
-                <View style={{ minWidth: 44, alignItems: 'center' }}>
-                  <EditableNumber
-                    value={it.min}
-                    onChange={(v) => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: v } : x))}
-                    min={1} max={180} unit="분" colors={T}
-                    valueStyle={{ fontSize: 13, fontWeight: '900', color: it.isBreak ? T.green : T.accent }}
-                    inputStyle={{ fontSize: 13, fontWeight: '900', height: 24 }}
-                    unitStyle={{ fontSize: 11, marginTop: 2 }}
-                    inputWidth={30}
-                  />
-                </View>
-                <TouchableOpacity style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: Math.min(180, x.min + 5) } : x))}><Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>+</Text></TouchableOpacity>
+                {/* -5/+5 버튼 제거 — 25분→90분에 13번 누르던 걸 직접 입력으로 (2026-08-02) */}
+                <NumberField
+                  value={it.min}
+                  onChange={(v) => setSeqItems(p => p.map((x, idx) => idx === i ? { ...x, min: v } : x))}
+                  min={1} max={180} unit="분" colors={T} size="xs"
+                  accentColor={it.isBreak ? T.green : T.accent}
+                />
                 <TouchableOpacity onPress={() => setSeqItems(p => p.filter((_, idx) => idx !== i))}><Text style={{ fontSize: 14, fontWeight: '700', color: T.red, paddingHorizontal: 2 }}>✕</Text></TouchableOpacity>
               </View>
             ))}

@@ -16,7 +16,7 @@ import { FIXED_TYPES } from '../constants/presets';
 import { generateId, formatDDay, calcDDay, getToday, toDateStr, formatShort, getWeekStartStr } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import RunningTimersBar from '../components/RunningTimersBar';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 // 순수 배치/시간 로직은 planner/helpers.js로 분리 (테스트 대상)
 import {
@@ -309,7 +309,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
         {/* 시간 피커 — 고정 일정은 항상, 공부 계획은 토글 ON일 때만 */}
         {(type === 'fixed' || useSchedule) && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <TimePickerGrid label="시작 시간" value={start} onChange={(v) => {
+            <TimeField label="시작 시간" value={start} onChange={(v) => {
               setStart(v);
               const newStartMin = parseTimeToMin(v);
               const curEndMin   = parseTimeToMin(end);
@@ -317,7 +317,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
                 setEnd(minToStr(Math.min(newStartMin + targetMin, 24 * 60)));
               }
             }} T={T} minValue={!initial ? minStartTime : undefined} />
-            <TimePickerGrid label="종료 시간" value={end} onChange={(v) => {
+            <TimeField label="종료 시간" value={end} onChange={(v) => {
               setEnd(v);
               if (type === 'plan') {
                 const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(start));

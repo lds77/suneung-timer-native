@@ -20,7 +20,7 @@ import { formatDuration } from '../../utils/format';
 import { getTier } from '../../constants/presets';
 import { getDensityBreakdown } from '../../utils/density';
 import { maybeAskReview } from '../../utils/reviewAsk';
-import Stepper from '../../components/Stepper';
+import NumberField from '../../components/NumberField';
 import { createStyles } from './styles';
 
 export default function ResultModal() {
@@ -254,11 +254,11 @@ export default function ResultModal() {
             </Text>
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>시간</Text>
-              <Stepper value={editHour} onChange={setEditHour} min={0} max={5} step={1} unit="시간" colors={T} />
+              <NumberField value={editHour} onChange={setEditHour} min={0} max={5} unit="시간" colors={T} />
             </View>
             <View style={{ marginBottom: 14 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 6, textAlign: 'center' }}>분</Text>
-              <Stepper value={editMin} onChange={setEditMin} min={0} max={59} step={10} unit="분" colors={T} />
+              <NumberField value={editMin} onChange={setEditMin} min={0} max={59} unit="분" colors={T} />
             </View>
             <View style={{ backgroundColor: '#E8575A18', borderRadius: 10, padding: 12, marginBottom: 16 }}>
               <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>

@@ -29,7 +29,7 @@ import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import { Ionicons } from '@expo/vector-icons';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 
 
 // 모듈 레벨 스타일 참조 — SettingsScreen 렌더 시 갱신
@@ -1254,7 +1254,7 @@ export default function SettingsScreen() {
               <Ionicons name="close" size={22} color={T.sub} />
             </TouchableOpacity>
           </View>
-          <TimePickerGrid label="" value={reminderTime} onChange={setReminderTime} T={T} />
+          <TimeField label="" value={reminderTime} onChange={setReminderTime} T={T} />
           <TouchableOpacity
             onPress={() => {
               const [h, m] = reminderTime.split(':').map(Number);

@@ -1,7 +1,7 @@
 // src/utils/timeInput.js
 // 시간 '타이핑' 입력의 순수 로직 (파싱·클램프·커밋).
 // 휠/스테퍼는 항상 유효한 값만 만들지만, 타이핑은 사용자가 아무 문자열이나 넣을 수 있으므로
-// 커밋 시점에 한 번 정규화한다. UI 컴포넌트(EditableNumber/TimePickerGrid)는 이 함수들만 쓴다.
+// 커밋 시점에 한 번 정규화한다. UI 컴포넌트(NumberField/TimeField)는 이 함수들만 쓴다.
 
 // 문자열에서 숫자만 뽑아 [min, max]로 클램프. 빈 값/해석 불가면 fallback(직전 값) 유지.
 // 예) '' → fallback, '8분' → 8, '999'(max 300) → 300

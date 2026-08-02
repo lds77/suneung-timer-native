@@ -16,7 +16,7 @@ import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
 import { generateId } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import { Ionicons } from '@expo/vector-icons';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
@@ -630,14 +630,16 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>시간</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                  <TimePickerGrid
+                  {/* 예전 휠은 값이 바뀔 때마다 Keyboard.dismiss()를 불러도 됐지만,
+                      지금은 타이핑이 입력 수단이라 글자마다 키보드가 닫히면 아예 칠 수 없다 */}
+                  <TimeField
                     label="시작 시간" value={fixedStart}
-                    onChange={(v) => { setFixedStart(v); Keyboard.dismiss(); }}
+                    onChange={setFixedStart}
                     T={T}
                   />
-                  <TimePickerGrid
+                  <TimeField
                     label="종료 시간" value={fixedEnd}
-                    onChange={(v) => { setFixedEnd(v); Keyboard.dismiss(); }}
+                    onChange={setFixedEnd}
                     T={T} minValue={fixedStart}
                   />
                 </View>
@@ -782,14 +784,14 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
 
               {planUseSchedule && (
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  <TimePickerGrid label="시작 시간" value={planStart} onChange={(v) => {
+                  <TimeField label="시작 시간" value={planStart} onChange={(v) => {
                     setPlanStart(v);
                     const newStartMin = parseTimeToMin(v);
                     if (parseTimeToMin(planEnd) <= newStartMin) {
                       setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
                     }
                   }} T={T} />
-                  <TimePickerGrid label="종료 시간" value={planEnd} onChange={(v) => {
+                  <TimeField label="종료 시간" value={planEnd} onChange={(v) => {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);
