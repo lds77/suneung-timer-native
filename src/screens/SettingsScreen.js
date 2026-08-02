@@ -25,6 +25,7 @@ import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
 import { backupRowSub } from '../utils/backupNudge';
 import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
+import { backupFileName, buildArchive, openArchive, restoreFiles, finishRestore, filesToRestore, isZipFile } from '../utils/backupArchive';
 import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
@@ -403,6 +404,26 @@ export default function SettingsScreen() {
   //   첨부 폴더를 백업에서 빼므로(1.0.40~) 사진이 아무리 많아도 백업은 안 깨진다.
   //   그 대신 사진은 백업/복원으로 따라가지 않는다는 걸 문구로 알린다
   const photoHeavy = !!photoUsage && photoUsage.bytes >= 300 * 1024 * 1024;
+
+  // 백업 내보내기 — 사진을 담으면 zip(JSON + attachments/), 아니면 예전처럼 JSON 한 장.
+  // 복원 쪽은 매직바이트로 판별하므로 옛 .json 백업도 그대로 복원된다
+  const runBackup = useCallback(async (withPhotos) => {
+    try {
+      const data = await exportBackupData();
+      const name = backupFileName(getToday(), withPhotos); // 로컬 날짜 (UTC는 KST 새벽에 하루 밀림)
+      if (withPhotos) {
+        const { uri } = await buildArchive(data, app.reviewNotes || [], name);
+        await Sharing.shareAsync(uri, { mimeType: 'application/zip', UTI: 'public.zip-archive' });
+      } else {
+        const path = `${FileSystem.cacheDirectory}${name}`;
+        await FileSystem.writeAsStringAsync(path, JSON.stringify(data, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
+      }
+      app.updateSettings({ lastBackupAt: Date.now() }); // 공유 시트가 닫힌 시점 = 백업으로 간주
+    } catch {
+      Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+    }
+  }, [app.reviewNotes]);
   const refreshPhotoUsage = useCallback(async () => {
     try { setPhotoUsage(await usageStats(app.reviewNotes || [])); } catch {}
   }, [app.reviewNotes]);
@@ -827,47 +848,69 @@ export default function SettingsScreen() {
 
         {/* 데이터 관리 */}
         <Section T={T} title="데이터 관리" icon="folder-outline">
-          <TouchableOpacity onPress={async () => {
-            try {
-              const data = await exportBackupData();
-              const json = JSON.stringify(data, null, 2);
-              const date = getToday().replace(/-/g, ''); // 로컬 날짜 (UTC는 KST 새벽에 하루 밀림)
-              const path = `${FileSystem.cacheDirectory}yeolgong_backup_${date}.json`;
-              await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
-              await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
-              app.updateSettings({ lastBackupAt: Date.now() }); // 공유 시트가 닫힌 시점 = 백업으로 간주
-            } catch (e) {
-              Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+          <TouchableOpacity onPress={() => {
+            // 사진이 있으면 담을지 묻는다 — 사진을 담으면 백업 파일이 그만큼 커져서
+            // (100MB 사진이면 백업도 100MB) 공유·전송이 부담스러울 수 있다
+            if (photoUsage && photoUsage.count > 0) {
+              Alert.alert('데이터 백업', `오답노트 사진 ${photoUsage.count}장(${formatBytes(photoUsage.bytes)})을 함께 담을까요?\n\n사진을 담으면 새 폰에서 사진까지 복원돼요. 대신 백업 파일이 그만큼 커져요.`, [
+                { text: '취소', style: 'cancel' },
+                { text: '기록만', onPress: () => runBackup(false) },
+                { text: '사진도 함께', onPress: () => runBackup(true) },
+              ]);
+            } else {
+              runBackup(false);
             }
           }}>
             <Row T={T} label="데이터 백업" sub={backupRowSub(app.settings)} right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
           <TouchableOpacity onPress={async () => {
             try {
-              const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain', '*/*'], copyToCacheDirectory: true });
+              const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/zip', 'text/plain', '*/*'], copyToCacheDirectory: true });
               if (result.canceled) return;
               const file = result.assets?.[0];
               if (!file) return;
-              const resp = await fetch(file.uri);
-              if (!resp.ok) throw new Error('fetch_failed');
-              const raw = await resp.text();
-              const data = JSON.parse(raw);
-              if (!data._meta || data._meta.app !== 'yeolgong') {
+
+              // 사진 포함(zip) / 기록만(JSON) 판별은 **매직바이트**로 — 카톡·드라이브를 거치며
+              // 파일 이름이 바뀌어도 맞는다. 옛 .json 백업도 그대로 복원된다(하위호환)
+              const zipped = await isZipFile(file.uri);
+              let data, archiveFiles = [], stage = null, root = null;
+              if (zipped) {
+                ({ data, archiveFiles, root, stage } = await openArchive(file.uri));
+              } else {
+                const resp = await fetch(file.uri);
+                if (!resp.ok) throw new Error('fetch_failed');
+                data = JSON.parse(await resp.text());
+              }
+
+              if (!data?._meta || data._meta.app !== 'yeolgong') {
+                if (stage) await finishRestore(stage);
                 Alert.alert('복원 실패', '열공메이트 백업 파일이 아닙니다.');
                 return;
               }
+              const photoN = zipped
+                ? filesToRestore(archiveFiles, data.REVIEW_NOTES || []).length
+                : 0;
               Alert.alert(
                 '데이터 복원',
-                `${data._meta.exportedAt?.slice(0, 10) || ''} 백업을 복원하면 현재 데이터가 덮어씌워집니다. 계속할까요?`,
+                `${data._meta.exportedAt?.slice(0, 10) || ''} 백업을 복원하면 현재 데이터가 덮어씌워집니다.${photoN > 0 ? `\n오답노트 사진 ${photoN}장도 함께 복원돼요.` : ''} 계속할까요?`,
                 [
-                  { text: '취소', style: 'cancel' },
+                  { text: '취소', style: 'cancel', onPress: () => { if (stage) finishRestore(stage); } },
                   { text: '복원', style: 'destructive', onPress: async () => {
                     try {
                       await importBackupData(data);
+                      // 사진은 기록보다 뒤에 — 노트가 참조하는 파일만 되돌린다
+                      if (root) {
+                        await restoreFiles(root, filesToRestore(archiveFiles, data.REVIEW_NOTES || []));
+                      }
                       await app.reloadAllData();
-                      Alert.alert('복원 완료', '데이터가 성공적으로 복원되었습니다.');
+                      await refreshPhotoUsage();
+                      Alert.alert('복원 완료', photoN > 0
+                        ? `데이터와 사진 ${photoN}장을 복원했어요.`
+                        : '데이터가 성공적으로 복원되었습니다.');
                     } catch {
                       Alert.alert('복원 실패', '데이터를 복원하는 중 오류가 발생했습니다.');
+                    } finally {
+                      if (stage) await finishRestore(stage);
                     }
                   }},
                 ]
