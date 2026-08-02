@@ -1442,7 +1442,10 @@ export default function FocusScreen() {
 
       {/* ═══ 커스텀 타이머 + 연속모드 ═══ */}
       <Modal visible={showAdd} transparent animationType="fade">
-        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]}><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%' }]}>
+        {/* 안드 Modal은 별도 창이라 softwareKeyboardLayoutMode:'pan'이 안 먹는다 — KAV로 높이를
+            줄여야 시간/뽀모/연속 항목 입력칸이 키보드 위로 올라온다 (2026-08-02) */}
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <View style={S.mo}><ScrollView style={{ flex: 1 }} contentContainerStyle={[S.moScroll, isTablet && { alignItems: 'center' }]} keyboardShouldPersistTaps="handled"><View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%' }]}>
           <Text style={[S.modalTitle, { color: T.text }]}>커스텀 타이머</Text>
           <View style={[S.typeRow, { backgroundColor: T.surface2 }]}>
             {[{ id: 'countdown', icon: 'alarm-outline', l: '타임어택' }, { id: 'pomodoro', icon: 'nutrition-outline', l: '뽀모도로' }, { id: 'sequence', icon: 'clipboard-outline', l: '연속모드' }].map(m => (
@@ -1495,6 +1498,7 @@ export default function FocusScreen() {
             <TouchableOpacity onPress={() => setShowAdd(false)}><Text style={{ fontSize: 14, fontWeight: '600', color: T.sub, textAlign: 'center', paddingVertical: 6 }}>취소</Text></TouchableOpacity>
           </View>)}
         </View></ScrollView></View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 잠금 해제 챌린지 모달 (focus/ChallengeModal.js) */}

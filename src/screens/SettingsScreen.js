@@ -1246,8 +1246,11 @@ export default function SettingsScreen() {
           setReminderTime(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
         }}
       >
+        {/* 안드 Modal은 별도 창이라 키보드가 시트를 덮는다. KeyboardAvoidingView의 padding은
+            position:'absolute' 자식을 밀어내지 못하므로 시트를 flex-end 배치로 바꿨다 (2026-08-02) */}
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowReminderPicker(false); }} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+        <View style={{ marginLeft: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, marginRight: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>리마인더 시각</Text>
             <TouchableOpacity onPress={() => setShowReminderPicker(false)}>
@@ -1266,6 +1269,7 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>확인</Text>
           </TouchableOpacity>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </KeyboardAvoidingView>

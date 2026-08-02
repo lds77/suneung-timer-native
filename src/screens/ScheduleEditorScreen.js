@@ -121,6 +121,19 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [planStart, setPlanStart] = useState('08:00');
   const [planEnd, setPlanEnd] = useState('09:00');
 
+  // 키보드가 시간 입력칸을 덮지 않도록 그 줄을 위로 끌어올린다 (KeyboardAvoidingView와 한 쌍).
+  // 키보드가 올라오고 KAV가 높이를 줄인 뒤라야 위치가 맞아 지연을 준다
+  const fixedScrollRef = useRef(null);
+  const fixedTimeY = useRef(0);
+  const planScrollRef = useRef(null);
+  const planTimeY = useRef(0);
+  const scrollToFixedTime = useCallback(() => {
+    setTimeout(() => fixedScrollRef.current?.scrollTo({ y: Math.max(0, fixedTimeY.current - 8), animated: true }), 250);
+  }, []);
+  const scrollToPlanTime = useCallback(() => {
+    setTimeout(() => planScrollRef.current?.scrollTo({ y: Math.max(0, planTimeY.current - 8), animated: true }), 250);
+  }, []);
+
   // 요일 복사
   const [copyDays, setCopyDays] = useState({});
 
@@ -598,11 +611,14 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 고정 일정 추가/수정 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
           onRequestClose={() => { setShowAddFixed(false); resetFixedForm(); }}>
+          {/* 안드 Modal은 별도 창이라 softwareKeyboardLayoutMode:'pan'이 안 먹어 키보드가
+              시간 입력칸을 덮는다 — 아래 계획 모달과 같은 방식으로 통일 (2026-08-02) */}
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <View style={[s.sheetBg, Platform.OS === 'android' && { justifyContent: 'center' }]}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView ref={fixedScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} keyboardShouldPersistTaps="handled">
                   <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -629,18 +645,19 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   placeholder="일정 이름" placeholderTextColor={T.sub} />
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>시간</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}
+                  onLayout={(e) => { fixedTimeY.current = e.nativeEvent.layout.y; }}>
                   {/* 예전 휠은 값이 바뀔 때마다 Keyboard.dismiss()를 불러도 됐지만,
                       지금은 타이핑이 입력 수단이라 글자마다 키보드가 닫히면 아예 칠 수 없다 */}
                   <TimeField
                     label="시작 시간" value={fixedStart}
                     onChange={setFixedStart}
-                    T={T}
+                    T={T} onFocus={scrollToFixedTime}
                   />
                   <TimeField
                     label="종료 시간" value={fixedEnd}
                     onChange={setFixedEnd}
-                    T={T} minValue={fixedStart}
+                    T={T} minValue={fixedStart} onFocus={scrollToFixedTime}
                   />
                 </View>
               </ScrollView>
@@ -657,6 +674,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── 공부 계획 추가/수정 모달 ── */}
@@ -666,6 +684,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingPlanId ? '과목 수정' : '과목 추가'}</Text>
+
+              {/* 세로 스크롤이 없어 키보드가 뜨면 아래 내용(목표 시간·시간 입력)이 잘려 접근 불가했다
+                  — 시트 높이가 92% 고정이라 넘치는 만큼 그냥 사라진다 (2026-08-02 실기기) */}
+              <ScrollView ref={planScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 탭: 내 과목 / 직접 입력 */}
               <View style={[s.tabRow, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -783,21 +805,24 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </TouchableOpacity>
 
               {planUseSchedule && (
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}
+                  onLayout={(e) => { planTimeY.current = e.nativeEvent.layout.y; }}>
                   <TimeField label="시작 시간" value={planStart} onChange={(v) => {
                     setPlanStart(v);
                     const newStartMin = parseTimeToMin(v);
                     if (parseTimeToMin(planEnd) <= newStartMin) {
                       setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
                     }
-                  }} T={T} />
+                  }} T={T} onFocus={scrollToPlanTime} />
                   <TimeField label="종료 시간" value={planEnd} onChange={(v) => {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);
-                  }} T={T} minValue={planStart} />
+                  }} T={T} minValue={planStart} onFocus={scrollToPlanTime} />
                 </View>
               )}
+
+              </ScrollView>
 
               <View style={s.sheetBtnRow}>
                 <TouchableOpacity onPress={() => { setShowAddPlan(false); resetPlanForm(); }}

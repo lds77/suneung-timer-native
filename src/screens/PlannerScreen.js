@@ -103,6 +103,13 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   const [targetMin, setTargetMin] = useState(60);
   const [useSchedule, setUseSchedule] = useState(false);
   const [scope, setScope]         = useState('once'); // 'once'(이번 주만) | 'weekly'(매주 반복)
+  // 키보드가 뜨면 시간 입력칸이 가려지므로 그 줄을 화면 위로 끌어올린다 (KeyboardAvoidingView와 한 쌍)
+  const sheetScrollRef = useRef(null);
+  const timeRowY = useRef(0);
+  const scrollToTimeRow = useCallback(() => {
+    // 키보드가 올라오고 KAV가 높이를 줄인 뒤에 스크롤해야 위치가 맞는다
+    setTimeout(() => sheetScrollRef.current?.scrollTo({ y: Math.max(0, timeRowY.current - 8), animated: true }), 250);
+  }, []);
   // id가 있어야 진짜 수정 — 그리드 탭으로 시간만 프리필된 새 블록은 '추가'
   const isEdit = !!(initial && initial.id);
 
@@ -173,6 +180,10 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* 안드 Modal은 별도 창(Dialog)이라 app.config의 softwareKeyboardLayoutMode:'pan'이
+          적용되지 않는다 — 키보드가 시간 입력칸을 덮는다(2026-08-02 실기기). 키보드 이벤트 기반인
+          KeyboardAvoidingView는 Dialog에서도 동작하므로 스터디룸과 같은 방식으로 통일 */}
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
       <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
         {/* 헤더 */}
@@ -184,7 +195,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
             <Ionicons name="close" size={22} color={T.sub} />
           </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={sheetScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* 타입 선택 — 공부계획/고정일정 전용 모드에서는 숨김 */}
         {!planOnly && !fixedOnly && (
@@ -308,7 +319,8 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 
         {/* 시간 피커 — 고정 일정은 항상, 공부 계획은 토글 ON일 때만 */}
         {(type === 'fixed' || useSchedule) && (
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}
+            onLayout={(e) => { timeRowY.current = e.nativeEvent.layout.y; }}>
             <TimeField label="시작 시간" value={start} onChange={(v) => {
               setStart(v);
               const newStartMin = parseTimeToMin(v);
@@ -316,14 +328,14 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
               if (curEndMin <= newStartMin) {
                 setEnd(minToStr(Math.min(newStartMin + targetMin, 24 * 60)));
               }
-            }} T={T} minValue={!initial ? minStartTime : undefined} />
+            }} T={T} minValue={!initial ? minStartTime : undefined} onFocus={scrollToTimeRow} />
             <TimeField label="종료 시간" value={end} onChange={(v) => {
               setEnd(v);
               if (type === 'plan') {
                 const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(start));
                 if (diff > 0) setTargetMin(diff);
               }
-            }} T={T} minValue={start} />
+            }} T={T} minValue={start} onFocus={scrollToTimeRow} />
           </View>
         )}
 
@@ -372,6 +384,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

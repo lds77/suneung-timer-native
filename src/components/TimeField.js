@@ -17,7 +17,10 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { splitHm, commitTimeText } from '../utils/timeInput';
 
-export default function TimeField({ label, value, onChange, T, minValue }) {
+// onFocus: 부모가 '이 칸이 키보드에 가리지 않게' 스크롤을 맞추기 위한 신호.
+// 안드 Modal은 별도 창이라 app.config의 softwareKeyboardLayoutMode:'pan'이 적용되지 않는다
+// (키보드가 입력창을 덮는다) — 모달마다 KeyboardAvoidingView + 이 신호로 스크롤을 맞춘다.
+export default function TimeField({ label, value, onChange, T, minValue, onFocus }) {
   const cur = value || '08:00';
   const { h, m } = splitHm(cur);
 
@@ -52,7 +55,7 @@ export default function TimeField({ label, value, onChange, T, minValue }) {
       <TextInput
         value={draft !== null ? draft : two(val)}
         onChangeText={handleChange(key)}
-        onFocus={() => { setFocusKey(key); (key === 'h' ? setHDraft : setMDraft)(two(val)); }}
+        onFocus={() => { setFocusKey(key); (key === 'h' ? setHDraft : setMDraft)(two(val)); onFocus?.(); }}
         onBlur={handleBlur(key)}
         selectTextOnFocus
         keyboardType="number-pad"

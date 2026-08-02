@@ -28,6 +28,9 @@ export default function NumberField({
   width,            // 크기 프리셋의 폭을 덮어쓸 때
   accentColor,      // 숫자 색 (쉬는시간 초록 등)
   align = 'center',
+  // 부모가 '이 칸이 키보드에 가리지 않게' 스크롤을 맞추기 위한 신호.
+  // 안드 Modal은 별도 창이라 softwareKeyboardLayoutMode:'pan'이 적용되지 않는다
+  onFocus,
 }) {
   const T = colors;
   const S = SIZES[size] || SIZES.md;
@@ -58,7 +61,7 @@ export default function NumberField({
       <TextInput
         value={draft !== null ? draft : String(value)}
         onChangeText={handleChange}
-        onFocus={() => { setFocused(true); setDraft(String(value)); }}
+        onFocus={() => { setFocused(true); setDraft(String(value)); onFocus?.(); }}
         onBlur={handleBlur}
         selectTextOnFocus
         keyboardType="number-pad"
