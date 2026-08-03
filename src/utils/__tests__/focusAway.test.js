@@ -7,7 +7,7 @@ import {
   SCREEN_OFF_RACE_MS, AWAY_MIN_MS, SCREEN_OFF_LATE_MS, AWAY_NOTIF_IDS, IDLE_TOUCH_GAP_MS,
   ANDROID_AWAY_NOTIF_DELAY_SEC, awayMsAfterCall, POST_CALL_GRACE_MS,
   awayMinMs, AWAY_NOTIF_GRACE_SEC, IOS_AWAY_NOTIF_DELAY_SEC,
-  iosAwayBeforeLockMs, IOS_LOCK_DETECT_LAG_MS,
+  iosAwayBeforeLockMs, IOS_LOCK_DETECT_LAG_MS, awayMsAfterBreak,
 } from '../focusAway';
 
 // iOS: 다른 앱을 쓰다가 화면을 끄면 잠금이 감지돼 배경 구간이 통째로 면제됐다(실기기 제보).
@@ -298,5 +298,37 @@ describe('awayMsAfterCall', () => {
 
   it('오래전 통화는 유예를 주지 않는다', () => {
     expect(awayMsAfterCall(30000, 60 * 60000)).toBe(30000);
+  });
+});
+
+// 뽀모/연속 휴식 페이즈 중 배경 전환 — 세션 기록(불변식 5)과 대칭을 맞춘다.
+// ★단순 면제가 아니라 '휴식이 끝난 뒤부터'인 이유★: 판정이 배경 진입 시점에만 있어서
+// 통째로 면제하면 휴식에 나가 작업 페이즈까지 안 돌아오는 우회가 열린다.
+describe('awayMsAfterBreak', () => {
+  test('아직 휴식 중이면(음수) 통째로 면제된다', () => {
+    // 5분 휴식 중 40초 폰을 보고 돌아옴 → 휴식 종료까지 아직 4분 남음
+    expect(awayMsAfterBreak(40000, -240000)).toBe(0);
+  });
+
+  test('휴식이 끝난 뒤의 시간만 센다', () => {
+    // 총 3분 나가 있었고 그중 휴식이 끝난 지 30초 → 30초만 이탈
+    expect(awayMsAfterBreak(180000, 30000)).toBe(30000);
+  });
+
+  test('휴식 종료가 배경 진입보다 앞이면 awayMs를 넘지 않는다', () => {
+    expect(awayMsAfterBreak(20000, 999999)).toBe(20000);
+  });
+
+  test('경계: 휴식 종료 직후는 0', () => {
+    expect(awayMsAfterBreak(60000, 0)).toBe(0);
+  });
+
+  // ★awayMsAfterCall과 같은 이유★ — null이 0으로 강제 변환되면 '휴식이 방금 끝났다'가 되어
+  // 휴식이 아니었는데도 이탈이 통째로 면제된다. 타입까지 확인할 것
+  test('휴식이 아니었으면(null·undefined·NaN) 손대지 않는다', () => {
+    expect(awayMsAfterBreak(60000, null)).toBe(60000);
+    expect(awayMsAfterBreak(60000, undefined)).toBe(60000);
+    expect(awayMsAfterBreak(60000, NaN)).toBe(60000);
+    expect(awayMsAfterBreak(60000, '30000')).toBe(60000);
   });
 });

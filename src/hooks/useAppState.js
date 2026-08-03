@@ -29,9 +29,9 @@ import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
 import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
-import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, iosAwayBeforeLockMs } from '../utils/focusAway';
+import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, awayMsAfterBreak, iosAwayBeforeLockMs } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } from '../utils/timerCore';
+import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
@@ -373,6 +373,9 @@ export function AppProvider({ children }) {
   const screenOffBg = useRef(false);
   // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
   const iosDeferAway = useRef(false);
+  // 배경 진입 시점이 뽀모/연속 휴식 페이즈였다면 그 휴식의 종료 시각(ms), 아니면 null.
+  // 복귀 시 '휴식이 끝난 뒤'만 이탈로 센다 (focusAway.awayMsAfterBreak)
+  const breakEndsAtBg = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -611,6 +614,12 @@ export function AppProvider({ children }) {
         // iOS는 안드처럼 화면 상태를 물어볼 수단이 없고 네이티브 잠금 감지는 암호 미설정 기기에서
         // 실패하므로, 이 판정이 없으면 화면이 꺼질 때마다 이탈로 잡힌다.
         // 안드는 네이티브 screenState()가 정확하므로 쓰지 않는다(우회 방지 10초 규칙 유지).
+        // 휴식 페이즈였다면 그 종료 시각을 남긴다 — 복귀 시 그 이후만 이탈로 센다.
+        // 여기서 통째로 면제하지 않는 이유: 판정이 배경 진입 시점에만 있어서,
+        // 휴식에 나가 작업 페이즈까지 안 돌아오는 우회가 열린다(awayMsAfterBreak 주석)
+        breakEndsAtBg.current = awayCandidate
+          ? breakEndsAtMs(timersRef.current.find(t => t.status === 'running'), Date.now())
+          : null;
         const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
         const screenOffNow = awayCandidate && !awayExempt && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
@@ -751,6 +760,22 @@ export function AppProvider({ children }) {
             awayMs = adjusted;
           }
         }
+
+        // 휴식 페이즈에 나갔던 구간은 이탈이 아니다 — '휴식이 끝난 뒤'만 센다.
+        // 세션 기록이 이미 하고 있는 양보(불변식 5)를 이탈 카운트에도 맞춘 것.
+        // ※알림·넛지는 그대로 둔다 — 넛지 예약은 세대 가드가 얽혀 있어 함께 손대면 위험하다.
+        //   여기서 고치는 건 **영구히 기록되는 exitCount(=밀도 점수)** 쪽이다(체크리스트 4.12절)
+        if (wasAway && breakEndsAtBg.current) {
+          const adjusted = awayMsAfterBreak(awayMs, Date.now() - breakEndsAtBg.current);
+          if (adjusted < AWAY_MIN_MS) {
+            setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+            if (screenLockedRef.current) applyFocusBrightness();
+            wasAway = false;
+          } else {
+            awayMs = adjusted;
+          }
+        }
+        breakEndsAtBg.current = null;
 
         // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
         cancelAwayNudges();

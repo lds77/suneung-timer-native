@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -406,5 +406,35 @@ describe('restoreTimerCore — 콜드스타트 스냅샷 복원 분기 (불변�
     const r = restoreTimerCore(t, 60, NOW);
     expect(r.kind).toBe('resume');
     expect(r.timer).toMatchObject({ elapsedSec: 160, resumedAt: NOW });
+  });
+});
+
+// 휴식 페이즈 종료 시각 — 이탈 판정이 '휴식이 끝난 뒤'만 세기 위해 쓴다(focusAway.awayMsAfterBreak).
+describe('breakEndsAtMs', () => {
+  const now = 1_700_000_000_000;
+
+  test('뽀모 휴식: 남은 휴식만큼 뒤가 종료 시각', () => {
+    // 5분 휴식을 2분 진행한 상태 → 3분 뒤 종료
+    const t = { type: 'pomodoro', pomoPhase: 'break', pomoBreakMin: 5,
+                resumedAt: now, elapsedSecAtResume: 120 };
+    expect(breakEndsAtMs(t, now)).toBe(now + 180 * 1000);
+  });
+
+  test('연속모드 휴식: seqBreakSec 기준', () => {
+    const t = { type: 'sequence', seqPhase: 'break', seqBreakSec: 300,
+                resumedAt: now, elapsedSecAtResume: 60 };
+    expect(breakEndsAtMs(t, now)).toBe(now + 240 * 1000);
+  });
+
+  test('작업 페이즈면 null (면제 대상이 아니다)', () => {
+    expect(breakEndsAtMs({ type: 'pomodoro', pomoPhase: 'work', resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs({ type: 'sequence', seqPhase: 'work', resumedAt: now }, now)).toBeNull();
+  });
+
+  test('휴식 개념이 없는 타이머는 null', () => {
+    expect(breakEndsAtMs({ type: 'countdown', totalSec: 1500, resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs({ type: 'free', resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs(null, now)).toBeNull();
+    expect(breakEndsAtMs(undefined, now)).toBeNull();
   });
 });

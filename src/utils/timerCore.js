@@ -43,6 +43,22 @@ export const realRemainingSec = (t, nowMs = Date.now()) => {
 export const phaseEndAtMs = (t, targetSec, nowMs = Date.now()) =>
   (t.resumedAt || nowMs) + (targetSec - (t.elapsedSecAtResume || 0)) * 1000;
 
+// 지금이 휴식 페이즈면 그 종료 시각(ms), 아니면 null.
+// 이탈 판정이 '휴식이 끝난 뒤부터'만 세기 위해 쓴다(focusAway.awayMsAfterBreak).
+// 세션 기록은 이미 inBreakPhase로 휴식을 빼고 있는데(불변식 5) 이탈 카운트에는 그 가드가
+// 없어서, 뽀모 5분 휴식에 폰을 보면 exitCount가 올라 다음 세션의 밀도가 깎였다 —
+// 쉬라고 준 시간에 벌점을 주는 셈이었다(2026-08-03 버그헌트).
+export const breakEndsAtMs = (t, nowMs = Date.now()) => {
+  if (!t) return null;
+  if (t.type === 'pomodoro' && t.pomoPhase && t.pomoPhase !== 'work') {
+    return phaseEndAtMs(t, pomoBreakMinOf(t) * 60, nowMs);
+  }
+  if (t.type === 'sequence' && t.seqPhase && t.seqPhase !== 'work') {
+    return phaseEndAtMs(t, t.seqBreakSec || 0, nowMs);
+  }
+  return null;
+};
+
 // 뽀모도로 페이즈 전환 — 순수 계산부.
 // 반환: {
 //   endedPhase: 'work' | 'break'   (방금 끝난 페이즈 — 진동 패턴 선택용)

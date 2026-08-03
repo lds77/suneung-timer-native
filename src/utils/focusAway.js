@@ -196,6 +196,20 @@ export const POST_CALL_GRACE_MS = 60000;
 // callAgoMs: 마지막으로 통화를 관측한 이후 경과(ms). 기록이 없으면 음수 → 그대로 통과.
 // ★'통화 이후 유예가 끝난 시점'부터만 이탈로 센다★ — 통째로 면제하지 않는 이유는,
 // 통화가 끝난 뒤 다른 앱을 오래 쓰는 경우까지 봐주면 우회 수단이 되기 때문이다.
+// 뽀모/연속 **휴식 페이즈** 중의 배경 전환은 이탈이 아니다 — 쉬라고 준 시간이다.
+// 세션 기록은 이미 휴식을 빼는데(불변식 5) 이탈 카운트만 안 빼고 있었다.
+//
+// ★단순히 '휴식 중이면 면제'로 하면 안 된다★ — 판정이 **배경 진입 시점**에만 있어서,
+// 휴식에 나가 작업 페이즈까지 안 돌아오는 우회가 열린다. 그래서 통화 직후 유예
+// (awayMsAfterCall)와 같은 꼴로 **'휴식이 끝난 시각' 이후만** 센다.
+//   msSinceBreakEnd = now − breakEndsAt (아직 휴식 중이면 음수 → 0으로 눌려 면제)
+export function awayMsAfterBreak(awayMs, msSinceBreakEnd) {
+  // 휴식 중이 아니었으면(null 등) 손대지 않는다. ※awayMsAfterCall과 같은 이유로 타입까지 확인 —
+  //   null이 0으로 강제 변환되면 '휴식이 방금 끝났다'가 되어 이탈이 통째로 면제된다
+  if (typeof msSinceBreakEnd !== 'number' || !Number.isFinite(msSinceBreakEnd)) return awayMs;
+  return Math.max(0, Math.min(awayMs, msSinceBreakEnd));
+}
+
 export function awayMsAfterCall(awayMs, callAgoMs, grace = POST_CALL_GRACE_MS) {
   // ※`callAgoMs >= 0`만으로 거르면 안 된다 — null이 0으로 강제 변환돼 '방금 통화'로 둔갑하고,
   //   그러면 통화가 없었는데도 이탈이 통째로 면제된다. 타입까지 확인할 것
