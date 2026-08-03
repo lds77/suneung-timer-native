@@ -255,6 +255,12 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
         → 끊길 때 통화 중이었으면(`consumeCallHeld`) 그 배경 구간을 **통째로 면제**한다.
         잠금 감지가 이미 같은 양보를 하고 있어 일관되지만(아래 'iOS 한계' 참조),
         **통화 후 다른 앱을 오래 쓰는 우회를 안드만큼 막지 못한다**(수용)
+      - ★★**CallKit은 중국 본토 App Store에서 금지된다(MIIT) — 배포 지역에서 중국 본토를 빼는 것이
+        해결책이며, 다시 넣으면 즉시 리젝된다**★★ (2026-08-03 iOS 1.0.39/build56 **Guideline 5
+        Legal 리젝**으로 확인). **관측 전용(`CXCallObserver`)이라도 예외가 아니다** — 심사는
+        바이너리의 CallKit 링크를 보지 통화 UI 유무를 보지 않는다. 홍콩·마카오·대만은 대상이 아니다.
+        `import CallKit`이 남아 있는 한 이 제약은 계속 따라다닌다 — 상세·회신 문구는
+        `docs/release-next-build-checklist.md` 0-AAAAA절
     ※예전엔 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊으면 이탈 1회**가 찍혔다.
     울트라모드만 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다(고정을 거부하면 똑같이 발생)
   - **통화가 끝난 뒤 1분도 이탈이 아니다** (`POST_CALL_GRACE_MS`, `awayMsAfterCall`):

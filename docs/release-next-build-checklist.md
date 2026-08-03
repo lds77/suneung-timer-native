@@ -3,6 +3,63 @@
 2026-07-19 작성 — 메모리/커밋에 흩어진 대기 항목 통합. 어떤 모델/세션이든 이 문서만으로
 다음 릴리스를 진행할 수 있게 하는 것이 목적. 절차 기준: CLAUDE.md 빌드/배포 섹션.
 
+## 0-AAAAA. ★★2026-08-03 iOS 1.0.39(build56) 리젝 — Guideline 5 Legal: CallKit / 중국★★
+
+**심사 결과**: 리젝. Submission ID `e3c17b24-fd63-4564-a50c-cad453dbf0f4`, 심사 기기 iPad Air 11"(M3).
+
+> Recently, the Chinese Ministry of Industry and Information Technology (MIIT) requested that
+> CallKit functionality be deactivated in all apps available on the China App Store. …
+> This app cannot be approved with CallKit functionality active in China.
+
+**원인**: `modules/focus-shield/ios/FocusShieldModule.swift`의 `import CallKit` + `CXCallObserver`.
+2026-08-01에 **iOS 전화 수신 시 이탈 오탐을 고치려고** 넣은 것이다(CLAUDE.md 전화 처리 절).
+라이브인 1.0.36에는 없었으므로 **이번 빌드에서 처음 걸린 것이 맞다** — 회귀가 아니라 신규 표면.
+
+### ★관측 전용이라는 사실은 방어가 되지 않는다★
+`CXCallObserver`는 통화를 **읽기만** 하고 `CXProvider`/`CXCallController`(통화 UI·VoIP 제공)는
+전혀 안 쓴다. 그래도 리젝이다 — 심사는 **바이너리가 CallKit을 링크했는지**를 보지 통화 UI 유무를
+보지 않는다. "우린 VoIP 앱이 아니다"로 다투지 말 것.
+
+### 해결책 3안과 선택
+
+| | 내용 | 판단 |
+|---|---|---|
+| **A. 중국 본토 배포 해제** | ASC → 가격 및 사용 가능 여부 → **China mainland 체크 해제**. 코드·빌드 **무변경** | ★**채택**★ |
+| B. CallKit 제거 | 08-01에 고친 iOS 전화 이탈 오탐이 그대로 되살아남. iOS엔 대체 수단이 없다(안드 `AudioManager.getMode()` 대응물 부재) | 대가가 큼 |
+| C. 중국 리전에서만 비활성 | 리빌드 필요 + 리전 판정 기준(캐리어 MCC·스토어프론트)이 불확실해 재리젝 위험 | 지역 1개 값으론 과함 |
+
+A인 이유: 한국어 전용 수능·공시 학습앱이라 **중국 본토 App Store의 값어치가 사실상 0**이고,
+B는 실기기로 검증까지 마친 기능을 되돌리는 것이다. **홍콩·마카오·대만은 MIIT 대상이 아니므로 유지**한다.
+
+### ★이 제약은 영구적이다★
+- `import CallKit`이 코드에 남아 있는 한 **중국 본토를 다시 켜는 순간 재리젝**된다.
+  배포 지역을 손댈 일이 생기면 이 절을 먼저 볼 것.
+- **build57(1.0.40)도 같은 CallKit을 갖고 있다** — 지역 해제 없이 1.0.40으로 갈아타도 똑같이 리젝된다.
+  즉 지역 해제는 **어느 빌드로 재제출하든 선결 조건**이다.
+
+### 해결 센터 회신 초안 (★지역 해제를 실제로 끝낸 뒤 보낼 것★)
+
+```
+Thank you for the review.
+
+We have removed China mainland from this app's available territories in App Store Connect,
+so CallKit functionality is no longer available to users on the China App Store.
+
+For additional context: this app is a Korean-language study timer and provides no calling or
+VoIP feature of any kind. We use CallKit in a read-only manner only — a single CXCallObserver
+instance — to detect whether the user is currently on a phone call, so that our focus-session
+feature does not incorrectly penalize the user when an incoming call sends the app to the
+background. We do not use CXProvider, CXCallController, or any CallKit call UI.
+
+Please let us know if any further change is required.
+```
+
+### 처리 순서
+- [ ] ASC → 가격 및 사용 가능 여부 → **중국 본토만** 해제 (홍콩·마카오·대만 유지)
+- [ ] 해결 센터에 위 문구로 회신
+- [ ] 재제출 — **build56(1.0.39) 그대로** vs **build57(1.0.40)로 갈아타기** 결정 (아래 0-AAAA절 상태표 참고)
+- [ ] 승인 후 이 절을 이력으로 남기고 0-AAAA절 갱신
+
 ## 0-AAAA. ★2026-08-01 종료 시점 — 양대 심사 중, 승인 후 할 일만 남음★
 
 | | 상태 |
