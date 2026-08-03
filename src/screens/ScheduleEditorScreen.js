@@ -671,8 +671,9 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                     onChange={setFixedStart}
                     T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
+                  {/* allowEndOfDay: 종료만 24('하루 끝')를 받는다 — 시작 칸은 23까지 */}
                   <TimeField
-                    label="종료 시간" value={fixedEnd}
+                    label="종료 시간" value={fixedEnd} allowEndOfDay
                     onChange={setFixedEnd}
                     T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
@@ -838,7 +839,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                       setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
                     }
                   }} T={T} onFocus={scrollToPlanTime} style={{ flex: 1 }} />
-                  <TimeField label="종료 시간" value={planEnd} onChange={(v) => {
+                  <TimeField label="종료 시간" value={planEnd} allowEndOfDay onChange={(v) => {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);

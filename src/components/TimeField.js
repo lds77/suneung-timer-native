@@ -22,9 +22,13 @@ import { splitHm, commitTimeText } from '../utils/timeInput';
 // onFocus: 부모가 '이 칸이 키보드에 가리지 않게' 스크롤을 맞추기 위한 신호.
 // 안드 Modal은 별도 창이라 app.config의 softwareKeyboardLayoutMode:'pan'이 적용되지 않는다
 // (키보드가 입력창을 덮는다) — 모달마다 KeyboardAvoidingView + 이 신호로 스크롤을 맞춘다.
-export default function TimeField({ label, value, onChange, T, onFocus, style }) {
+// allowEndOfDay: 시 칸에 24('하루 끝')를 허용한다. **종료 시각 칸에서만** 켤 것 —
+// 켜지 않은 칸에서 24가 들어가면 분이 0으로 지워지거나(오타 '25' → 24) 저장된 뒤
+// 다른 뜻으로 해석된다(리마인더 24시 = 자정 발화). timeInput.commitTimeText 주석 참고.
+export default function TimeField({ label, value, onChange, T, onFocus, style, allowEndOfDay = false }) {
   const cur = value || '08:00';
   const { h, m } = splitHm(cur);
+  const maxHour = allowEndOfDay ? 24 : 23;
 
   const [hDraft, setHDraft] = useState(null);
   const [mDraft, setMDraft] = useState(null);
@@ -37,9 +41,9 @@ export default function TimeField({ label, value, onChange, T, onFocus, style })
     (key === 'h' ? setHDraft : setMDraft)(digits);
     if (!digits) return;                    // 빈 칸은 확정하지 않는다 (지우고 다시 치는 중)
     onChange(key === 'h'
-      ? commitTimeText(digits, String(m), { prev: cur })
-      : commitTimeText(String(h), digits, { prev: cur }));
-  }, [h, m, cur, onChange]);
+      ? commitTimeText(digits, String(m), { prev: cur, maxHour })
+      : commitTimeText(String(h), digits, { prev: cur, maxHour }));
+  }, [h, m, cur, onChange, maxHour]);
 
   const handleBlur = useCallback((key) => () => {
     const draft = key === 'h' ? hDraft : mDraft;
@@ -47,10 +51,10 @@ export default function TimeField({ label, value, onChange, T, onFocus, style })
     setFocusKey((f) => (f === key ? null : f));
     // 빈 칸으로 떠나면 직전 값이 살아난다 (commitTimeText의 fallback)
     const next = key === 'h'
-      ? commitTimeText(draft, String(m), { prev: cur })
-      : commitTimeText(String(h), draft, { prev: cur });
+      ? commitTimeText(draft, String(m), { prev: cur, maxHour })
+      : commitTimeText(String(h), draft, { prev: cur, maxHour });
     if (next !== cur) onChange(next);
-  }, [hDraft, mDraft, h, m, cur, onChange]);
+  }, [hDraft, mDraft, h, m, cur, onChange, maxHour]);
 
   const box = (key, val, draft, unit) => (
     <View style={styles.pair}>

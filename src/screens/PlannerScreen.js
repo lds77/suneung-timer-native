@@ -364,7 +364,8 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
                 setEnd(minToStr(Math.min(newStartMin + targetMin, 24 * 60)));
               }
             }} T={T} onFocus={scrollToTimeRow} style={{ flex: 1 }} />
-            <TimeField label="종료 시간" value={end} onChange={(v) => {
+            {/* allowEndOfDay: 종료만 24('하루 끝')를 받는다 — 시작 칸은 23까지 */}
+            <TimeField label="종료 시간" allowEndOfDay value={end} onChange={(v) => {
               setEnd(v);
               if (type === 'plan') {
                 const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(start));
