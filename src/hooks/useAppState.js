@@ -620,6 +620,14 @@ export function AppProvider({ children }) {
         breakEndsAtBg.current = awayCandidate
           ? breakEndsAtMs(timersRef.current.find(t => t.status === 'running'), Date.now())
           : null;
+        // ★알림도 이탈 카운트와 같은 기준을 쓴다★ — 휴식이 끝난 뒤부터 울린다.
+        // 카운트만 면제하고 알림을 그대로 뒀더니 **쉬는 중에 '돌아와'가 계속 울리는데
+        // 정작 이탈은 0회**가 됐다(실기기 제보 2026-08-03). 이건 07-30에 결함으로 분류해
+        // 고쳤던 '알림만 오고 카운트 없음'과 같은 어긋남이다 — 알림은 벌점 통보가 아니라
+        // **돌아올 기회**여야 하므로, 이탈이 될 수 없는 구간엔 울리지 않는 게 맞다.
+        const breakOffsetSec = breakEndsAtBg.current
+          ? Math.max(0, Math.ceil((breakEndsAtBg.current - Date.now()) / 1000))
+          : 0;
         const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
         const screenOffNow = awayCandidate && !awayExempt && (iosIdleOffNow || isScreenOff());
         screenOffBg.current = screenOffNow;
@@ -630,13 +638,15 @@ export function AppProvider({ children }) {
           // 안드는 background 진입 시점엔 아직 이탈인지 모른다(10초 규칙) — 첫 알림도 넛지 목록의
           // 맨 앞 항목으로 12초 뒤에 예약해 두고 복귀 시 함께 취소한다. 즉시 쏘면 알림창을
           // 내렸다 올리는 몇 초짜리 배경 전환에도 '돌아와' 알림만 울리고 이탈은 안 잡힌다.
-          const defer = Platform.OS === 'android' && !confirmed;
+          // 첫 알림까지의 지연 = 플랫폼 기본 지연 + 남은 휴식. 0이면 즉시 띄운다
+          const firstDelaySec = (Platform.OS === 'android' && !confirmed ? ANDROID_AWAY_NOTIF_DELAY_SEC : 0)
+            + breakOffsetSec;
           // identifier를 붙여야 복귀 시 트레이에서 지울 수 있다 (안 붙이면 유령 알림으로 남음)
-          if (!defer) fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
+          if (firstDelaySec === 0) fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
-          scheduleAwayNudges(charName, defer ? { firstDelaySec: ANDROID_AWAY_NOTIF_DELAY_SEC } : {});
+          scheduleAwayNudges(charName, { firstDelaySec, offsetSec: breakOffsetSec });
           // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거) — 첫 알림과 같은 이유로 지연 게시
-          presentAwaySticky(defer ? ANDROID_AWAY_NOTIF_DELAY_SEC : 0);
+          presentAwaySticky(firstDelaySec);
           // Live Activity 부제를 '이탈 중' 문구로 전환 (아래 laTimerBg 동기화에서 반영)
           setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
@@ -649,8 +659,10 @@ export function AppProvider({ children }) {
         if (screenOffNow && Platform.OS === 'android' && settingsRef.current.notifEnabled) {
           const limitSec = awayNotifLimitSec();
           armAwayWatch(
-            // 유예는 JS 예약 경로와 같은 값 — 어느 경로로 나가든 이탈 알림이 같은 체감으로 온다
-            ANDROID_AWAY_NOTIF_DELAY_SEC * 1000,
+            // 유예는 JS 예약 경로와 같은 값 — 어느 경로로 나가든 이탈 알림이 같은 체감으로 온다.
+            // 휴식 중이면 남은 휴식만큼 더 민다. 네이티브의 후속 넛지는 **첫 알림 시점 기준
+            // 상대 시각**이라(AwayWatch.onCheck) 유예만 늘리면 목록 전체가 함께 밀린다
+            (ANDROID_AWAY_NOTIF_DELAY_SEC + breakOffsetSec) * 1000,
             Number.isFinite(limitSec) ? Date.now() + limitSec * 1000 : 0,
             [{ sec: 0, ...awayFirstNotif(charName) }, ...awayNudgeSteps(charName)],
           );
@@ -663,7 +675,9 @@ export function AppProvider({ children }) {
             //  · isAway/Live Activity '이탈 중'은 세우지 않음 (잠금화면 오표시 방지)
             //  · 이탈 여부는 복귀 시점에 확정 (아래 active 핸들러의 iosDeferAway)
             iosDeferAway.current = true;
-            scheduleAwayNudges(charName, { firstDelaySec: IOS_AWAY_NOTIF_DELAY_SEC });
+            scheduleAwayNudges(charName, {
+              firstDelaySec: IOS_AWAY_NOTIF_DELAY_SEC + breakOffsetSec, offsetSec: breakOffsetSec,
+            });
           } else {
             markAway();
           }
@@ -1263,13 +1277,17 @@ export function AppProvider({ children }) {
   // (iOS는 잠금 판별 대기 20초, 안드는 순간 전환을 걸러낼 최소값 5초).
   // 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야 countdown 잔여시간 가드와
   // 취소 세대 가드를 똑같이 받는다
-  const scheduleAwayNudges = async (charName, { firstDelaySec = 0 } = {}) => {
+  // offsetSec: 목록 전체를 뒤로 민다 (휴식 페이즈 — 이탈이 될 수 없는 구간엔 울리지 않는다).
+  //   ★identifier는 원래 초를 유지해야 한다★ — `away-nudge-${sec}`는 focusAway.AWAY_NOTIF_IDS와
+  //   Swift 쪽 취소 목록의 단일 출처라, 밀린 초로 id를 만들면 복귀 시 취소도 iOS 네이티브
+  //   취소도 빗나가 유령 알림이 남는다
+  const scheduleAwayNudges = async (charName, { firstDelaySec = 0, offsetSec = 0 } = {}) => {
     if (!settingsRef.current.notifEnabled) return;
     const gen = awayNudgeCancelGen.current;
     const limitSec = awayNotifLimitSec();
     const NUDGES = [
       ...(firstDelaySec > 0 ? [{ sec: firstDelaySec, id: AWAY_NOW_ID, ...awayFirstNotif(charName) }] : []),
-      ...awayNudgeSteps(charName),
+      ...awayNudgeSteps(charName).map(n => ({ ...n, id: `away-nudge-${n.sec}`, sec: n.sec + offsetSec })),
     ];
     for (const n of NUDGES) {
       if (n.sec >= limitSec) break;
