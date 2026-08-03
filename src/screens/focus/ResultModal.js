@@ -21,6 +21,7 @@ import { getTier } from '../../constants/presets';
 import { getDensityBreakdown } from '../../utils/density';
 import { maybeAskReview } from '../../utils/reviewAsk';
 import NumberField from '../../components/NumberField';
+import Toast from '../../components/Toast';
 import { createStyles } from './styles';
 
 export default function ResultModal() {
@@ -293,6 +294,13 @@ export default function ResultModal() {
           </View>
         </View>
         )}
+        {/* ★Modal 안에서는 App.js 루트의 Toast가 보이지 않는다★ — 안드 Modal은 별도 창이라
+            그 아래 렌더된 것이 통째로 가린다. 이 파일의 토스트는 '자기평가를 선택해주세요',
+            '1분 이상 입력해 주세요' 같은 **저장이 막힌 이유**라, 안 보이면 사용자는 버튼이
+            먹통이라고 느낀다(오답노트에서 같은 증상 제보 2026-08-03).
+            같은 상태(app.toast)를 이 창에도 그린다 — 호출부는 그대로 둔다.
+            ※위 주석의 'Modal을 하나 더 추가하지 말 것'과 충돌하지 않는다(Toast는 Modal이 아니다) */}
+        <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
         </KeyboardAvoidingView>
       </Modal>
     </>

@@ -11,6 +11,7 @@ import {
   requestRecordingPermissionsAsync, setAudioModeAsync,
 } from 'expo-audio';
 import { useApp } from '../hooks/useAppState';
+import Toast from '../components/Toast';
 import { getTheme } from '../constants/colors';
 import { groupBySubjectChapter, chapterSuggestions, UNCATEGORIZED } from '../utils/reviewNotes';
 import { saveImage, deleteFiles, resolveUri, canAddMore, MAX_ATTACH } from '../utils/attachments';
@@ -718,6 +719,11 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
                 </ScrollView>
               </KeyboardAvoidingView>
             )}
+            {/* ★Modal 안에서는 App.js 루트의 Toast가 보이지 않는다★ — 안드 Modal은 별도 창이라
+                그 아래 렌더된 것이 통째로 가린다(스터디룸에서 먼저 밟은 함정, 2026-07-25).
+                같은 상태(app.toast)를 이 창에도 그려서 호출부는 그대로 두고 보이게만 만든다.
+                편집기는 목록 위의 **중첩** Modal이라 여기에도 따로 필요하다 */}
+            <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
           </View>
         </Modal>
 
@@ -729,6 +735,9 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
             <Text style={{ color: '#fff', position: 'absolute', bottom: 44, fontSize: 13, opacity: 0.8 }}>탭하여 닫기</Text>
           </TouchableOpacity>
         </Modal>
+
+        {/* 목록 화면용 (편집기가 닫혀 있을 때) — 위 편집기 Modal 안의 것과 짝 */}
+        <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
       </View>
     </Modal>
   );
