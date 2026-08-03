@@ -118,6 +118,8 @@ object AwayWatch {
     // (onCheck 안에서만 고쳐서는 안 된다 — onCheck 자체가 다시 불리지 않기 때문)
     if (inCall(ctx)) {
       usableSince = 0L
+      postCall = true // onCheck의 통화 분기와 같아야 한다 — 여기만 빠뜨리면 5초 안에 끝난
+                      // 통화 직후에 유예가 안 붙어 '알림은 오는데 이탈은 없는' 어긋남이 생긴다
       scheduleAt(ctx, System.currentTimeMillis() + CALL_POLL_MS, checkIntent(ctx))
       return
     }
@@ -133,8 +135,15 @@ object AwayWatch {
   fun onCheck(ctx: Context) {
     if (!armed) return
     val now = System.currentTimeMillis()
-    if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
 
+    // ★통화 검사가 limitAt 검사보다 **먼저** 와야 한다★ (2026-08-03 버그헌트)
+    // 통화 중에 카운트다운이 끝나면 여기서 armed=false로 폴링이 끊겨 '마지막 통화 관측 시각'이
+    // 그 자리에 굳는다 → 통화가 3분이면 JS의 통화 직후 유예(POST_CALL_GRACE_MS)가 이미 지난
+    // 것으로 계산돼, 통화 때문에 못 돌아온 시간이 이탈로 찍힌다.
+    // '기준점이 굳는다'는 07-30에 두 번 밟은 함정의 세 번째 변형이다.
+    // ※통화 분기는 알림을 게시하지 않고 곧바로 return하므로, 타이머가 끝난 뒤에도
+    //   폴링만 이어질 뿐 '돌아와' 알림이 새로 울지는 않는다. 통화가 끝나면 다음 onCheck에서
+    //   아래 limitAt 검사에 걸려 정상 종료된다.
     // ★통화 중에는 화면이 꺼져 있어도 계속 관측한다★ (2026-07-30 실기기 수정)
     // 통화 직후 유예(JS의 awayMsAfterCall)는 '마지막으로 통화를 관측한 시각'을 기준으로 잡는다.
     // 그런데 통화 중엔 근접센서로 화면이 꺼져, 아래 interactive 검사에 걸려 폴링이 멈춰버리면
@@ -148,6 +157,8 @@ object AwayWatch {
       scheduleAt(ctx, now + CALL_POLL_MS, checkIntent(ctx))
       return
     }
+
+    if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
 
     // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
     if (!interactive(ctx)) { usableSince = 0L; return }

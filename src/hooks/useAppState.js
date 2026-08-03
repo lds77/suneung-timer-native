@@ -561,6 +561,12 @@ export function AppProvider({ children }) {
     // 콜드스타트: 프로세스가 죽었다 살아난 경우 'active' 이벤트가 안 오므로 여기서 한 번 정리
     // (네이티브 armed 플래그는 프로세스와 함께 사라지지만, 이미 뜬 알림은 트레이에 남는다)
     if (Platform.OS === 'android') disarmAwayWatch();
+    // 위 disarm은 **네이티브가 게시한** 알림만 지운다. JS가 직접 쏜 이탈 알림(fireNotif —
+    // 안드 즉시 경로·iOS)은 프로세스가 죽어도 트레이에 남는데, 콜드스타트 sweep은
+    // cancelAllScheduledNotificationsAsync라 **'예약분'만** 지운다(이미 뜬 것은 대상 아님).
+    // 그래서 재실행 후에도 '돌아와' 알림이 유령으로 남아 있었다 → 이탈 알림 id만 골라 내린다
+    // (전체 dismiss는 안드 상시 타이머 알림까지 지운다)
+    AWAY_NOTIF_IDS.forEach(id => { Notifications.dismissNotificationAsync(id).catch(() => {}); });
     const sub = AppState.addEventListener('change', (state) => {
       const hasRunning = timersRef.current.some(t => t.status === 'running');
       const mode = focusModeRef.current;
