@@ -3,7 +3,7 @@ import {
   MAX_AUDIO, MAX_AUDIO_MS, VOICE_RECORDING_OPTIONS,
   isAudioAttachment, photoAttachments, audioAttachments, canAddAudio,
   remainingMs, reachedLimit, fmtClock, isTooShort, normalizeAttachments,
-  checkAudioPick, audioExt, MAX_CLIP_BYTES,
+  checkAudioPick, audioExt, MAX_CLIP_BYTES, photoSlotsLeft,
 } from '../audioNotes';
 
 describe('첨부 종류 구분 — type이 없으면 사진(기존 데이터 호환)', () => {
@@ -164,5 +164,33 @@ describe('★녹음 포맷은 양 플랫폼 동일해야 한다★', () => {
     expect(VOICE_RECORDING_OPTIONS.bitRate).toBe(64000);
     const bytesPerMin = (64000 / 8) * 60;
     expect(Math.round(bytesPerMin / 1024 / 1024 * 10) / 10).toBe(0.5);
+  });
+});
+
+// ★회귀 방지★ 2026-08-03: 남은 사진 자리를 '전체 첨부 개수'로 계산하는 바람에
+// 음성 2개가 있으면 사진 상한이 5장에서 3장으로 조용히 줄었다(추가 버튼은 그대로 보였다).
+describe('photoSlotsLeft', () => {
+  const photo = (f) => ({ file: f });
+  const audio = (f) => ({ file: f, type: 'audio', durationMs: 1000 });
+
+  test('음성은 사진 자리를 먹지 않는다', () => {
+    expect(photoSlotsLeft([audio('a.m4a'), audio('b.m4a')], 5)).toBe(5);
+    expect(photoSlotsLeft([photo('1.jpg'), photo('2.jpg'), photo('3.jpg'), audio('a.m4a'), audio('b.m4a')], 5)).toBe(2);
+  });
+
+  test('사진만 센다', () => {
+    expect(photoSlotsLeft([], 5)).toBe(5);
+    expect(photoSlotsLeft([photo('1.jpg')], 5)).toBe(4);
+    expect(photoSlotsLeft([photo('1.jpg'), photo('2.jpg'), photo('3.jpg'), photo('4.jpg'), photo('5.jpg')], 5)).toBe(0);
+  });
+
+  test('상한을 넘겨도 음수가 나오지 않는다 (앨범 selectionLimit에 그대로 쓰인다)', () => {
+    const six = Array.from({ length: 6 }, (_, i) => photo(`${i}.jpg`));
+    expect(photoSlotsLeft(six, 5)).toBe(0);
+  });
+
+  test('빈 값·비배열도 안전하다', () => {
+    expect(photoSlotsLeft(undefined, 5)).toBe(5);
+    expect(photoSlotsLeft(null, 5)).toBe(5);
   });
 });

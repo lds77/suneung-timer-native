@@ -16,7 +16,7 @@ import { groupBySubjectChapter, chapterSuggestions, UNCATEGORIZED } from '../uti
 import { saveImage, deleteFiles, resolveUri, canAddMore, MAX_ATTACH } from '../utils/attachments';
 import {
   VOICE_RECORDING_OPTIONS, MAX_AUDIO, MAX_AUDIO_MS,
-  photoAttachments, audioAttachments, canAddAudio, normalizeAttachments,
+  photoAttachments, audioAttachments, canAddAudio, normalizeAttachments, photoSlotsLeft,
   reachedLimit, fmtClock, isTooShort, saveRecording,
   checkAudioPick, saveAudioFile,
 } from '../utils/audioNotes';
@@ -174,10 +174,19 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
     const added = (e.attachments || []).map(a => a.file).filter(f => f && !e.origFiles.includes(f));
     if (added.length) deleteFiles(added);
   };
-  const closeEditor = () => { discardAddedFiles(editor); setEditor(null); };
+  // ★녹음 중에는 닫기·저장을 막는다★ — 예전엔 그대로 진행돼 편집기가 사라진 뒤 정리 effect가
+  // finishRecording을 부르는 바람에 **녹음이 통째로 사라졌다**(닫기 경로에서는 discardAddedFiles가
+  // 먼저 돌아 고아 파일까지 남았다). 정지 버튼 경로만 검증해서는 안 밟히던 자리(4.9절).
+  const blockedByRecording = () => {
+    if (!recording) return false;
+    app.showToastCustom('녹음을 먼저 정지해주세요', 'paengi');
+    return true;
+  };
+  const closeEditor = () => { if (blockedByRecording()) return; discardAddedFiles(editor); setEditor(null); };
   const saveEditor = () => {
     const e = editor;
     if (!e) return;
+    if (blockedByRecording()) return;
     if (!e.title.trim() && !e.body.trim()) { app.showToastCustom('제목이나 내용을 입력하세요', 'paengi'); return; }
     const subj = subjects.find(s => s.id === e.subjectId);
     const patch = {
@@ -203,7 +212,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
   };
   // 사진 추가 — 카메라(1장)/앨범(여러 장) → 리사이즈·압축 저장 → 파일명만 편집기에 추가
   const pickFrom = async (source) => {
-    const remaining = MAX_ATTACH - (editor?.attachments?.length || 0);
+    const remaining = photoSlotsLeft(editor?.attachments, MAX_ATTACH);
     if (remaining <= 0) { app.showToastCustom(`사진은 최대 ${MAX_ATTACH}장까지예요`, 'paengi'); return; }
     try {
       let res;
@@ -226,7 +235,7 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
         if (file) files.push({ file });
       }
       if (files.length === 0) { app.showToastCustom('사진 저장에 실패했어요', 'paengi'); return; }
-      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), ...files] }));
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), ...files] } : e));
       if ((res.assets || []).length > remaining) app.showToastCustom(`최대 ${MAX_ATTACH}장까지만 담았어요`, 'paengi');
     } catch {
       app.showToastCustom('사진을 불러오지 못했어요', 'paengi');
@@ -276,13 +285,15 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       if (!check.ok) { Alert.alert('첨부할 수 없어요', check.reason); return; }
       const item = await saveAudioFile(asset.uri, check.ext);
       if (!item) { app.showToastCustom('파일을 저장하지 못했어요', 'paengi'); return; }
-      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), item] }));
+      // null 가드: 비동기(피커·저장) 사이에 편집기가 닫히면 e가 null이라 `e.attachments`에서 터진다
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), item] } : e));
     } catch {
       app.showToastCustom('파일을 불러오지 못했어요', 'paengi');
     }
   };
 
-  const finishRecording = async () => {
+  // discard: 편집기가 이미 사라진 정리 경로. 녹음을 멈추고 세션만 되돌리며 **파일을 만들지 않는다**
+  const finishRecording = async ({ discard = false } = {}) => {
     if (stoppingRef.current) return;
     stoppingRef.current = true;
     try {
@@ -293,10 +304,16 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: true }); } catch {}
       app.resumeSounds?.();
 
+      // ★붙일 편집기가 없으면 저장하지 않는다★ — 예전엔 그대로 saveRecording까지 가서
+      // ①어느 노트도 참조하지 않는 고아 m4a가 남고 ②아래 setEditor 업데이터가 null을 받아
+      // `e.attachments`에서 터졌다. finishRecording은 매 렌더 다시 만들어지므로
+      // 여기 `editor`는 정리 effect가 도는 시점(=null)의 값이 맞다.
+      if (discard || !editor) return;
       if (!uri || isTooShort(ms)) { app.showToastCustom('너무 짧아서 저장하지 않았어요', 'paengi'); return; }
       const item = await saveRecording(uri, ms);
       if (!item) { app.showToastCustom('녹음 저장에 실패했어요', 'paengi'); return; }
-      setEditor(e => ({ ...e, attachments: [...(e.attachments || []), item] }));
+      // null 가드: 비동기(피커·저장) 사이에 편집기가 닫히면 e가 null이라 `e.attachments`에서 터진다
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), item] } : e));
     } catch {
       app.showToastCustom('녹음을 마치지 못했어요', 'paengi');
     } finally {
@@ -323,6 +340,10 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
       stoppingRef.current = false;
       setRecording(true);
     } catch {
+      // ★세션을 먼저 되돌린 뒤 재개한다★ — 순서가 바뀌면 소리가 안 난다(finishRecording과 동일).
+      // 예전엔 실패 경로만 이 복구를 빼먹어, prepareToRecordAsync/record가 던지면
+      // 오디오 세션이 녹음 모드로 남아 iOS에서 백색소음이 무음이거나 이어피스로 나갔다
+      try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: true }); } catch {}
       app.resumeSounds?.();
       app.showToastCustom('녹음을 시작하지 못했어요', 'paengi');
     }
@@ -337,7 +358,10 @@ export default function ReviewNotesScreen({ visible, onClose, initialSubjectId =
   useEffect(() => {
     if (!visible || !editor) {
       stopPlayback();
-      if (recording) finishRecording();
+      // 붙일 편집기가 없으므로 파일을 만들지 않고 멈추기만 한다(고아 방지).
+      // 편집기를 통한 닫기·저장은 blockedByRecording이 먼저 막으므로, 여기는
+      // 오답노트 화면 자체를 벗어나는 경로다
+      if (recording) finishRecording({ discard: true });
     }
   }, [visible, !!editor]);
   useEffect(() => () => { stopPlayback(); }, []);

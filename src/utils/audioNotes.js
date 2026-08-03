@@ -39,6 +39,13 @@ export const audioAttachments = (list) => (Array.isArray(list) ? list : []).filt
 
 export const canAddAudio = (list) => audioAttachments(list).length < MAX_AUDIO;
 
+// 사진을 몇 장 더 넣을 수 있는가. ★음성은 세지 않는다★ —
+// 음성이 attachments 배열을 함께 쓰게 되면서, 전체 개수로 남은 자리를 계산하던 곳이
+// **음성 2개면 사진 상한을 5장에서 3장으로 조용히 깎고 있었다**(추가 버튼은 그대로 보이는데
+// 누르면 "최대 5장" 토스트만 떴다). photoAttachments 기준으로 세는 것이 유일한 정답.
+export const photoSlotsLeft = (list, maxPhotos) =>
+  Math.max(0, maxPhotos - photoAttachments(list).length);
+
 // 첨부 항목을 저장 형태로 정규화한다.
 // ★편집기는 노트를 열고 저장할 때 첨부를 다시 만든다 — 여기서 필드를 흘리면
 //   음성이 사진으로 변해버린다(type·durationMs 유실 → 썸네일 자리에 빈 칸).
