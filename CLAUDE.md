@@ -10,9 +10,12 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: 1.0.39 (iOS buildNumber 53 / Android versionCode 70 — **2026-08 초 양대 스토어 동시 제출 예정**).
-  라이브: **iOS 1.0.36** / **Android 1.0.38(vc68, 2026-07-29 승인)**. iOS는 1.0.37·1.0.38을 빌드하지 않았고
-  (무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) buildNumber 53으로 1.0.39에 직행.
+- **현재 버전**: 1.0.40 (iOS buildNumber 57 / Android versionCode 72).
+  라이브: **iOS 1.0.40 (2026-08-04 승인)** / **Android 1.0.38(vc68, 2026-07-29 승인)**.
+  iOS는 1.0.37~1.0.39를 출시하지 않았다 — 1.0.37·1.0.38은 미빌드(무료 할당량 소진),
+  1.0.39(build56)는 **CallKit/중국 리젝**으로 폐기하고 build57(1.0.40)로 직행했다.
+  Android는 vc70(1.0.39)이 심사 중이고 **vc72(1.0.40)는 미빌드** — 음성 메모·백업 zip 등
+  네이티브 4건이 아직 어떤 출시본에도 없다.
   → 릴리스 진행 상태의 단일 진입점은 **`docs/release-next-build-checklist.md`** (이 줄보다 그 문서가 최신)
 
 ---
@@ -465,8 +468,8 @@ eas build --profile preview --platform android
 
 | 항목 | 내용 |
 |------|------|
-| iOS | App Store 라이브 **1.0.36** (2026-07-23 배포 — 스터디룸·오답노트 첫 출시. 1.0.36은 스크린샷 사유 2.3.3 리젝 후 실제화면으로 교체해 승인). **1.0.37·1.0.38은 iOS 미빌드**(무료 빌드 할당량 소진, Windows라 로컬 빌드 불가) → **8월 초 1.0.39(buildNumber 53) 빌드·제출 예정**. TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
-| Android | Google Play 라이브 **1.0.38(vc68)** (2026-07-29 승인 — 상시 타이머 알림·오답노트 사진첨부·라운지 신고 첫 출시). 다음은 **1.0.39(vc70)**, 8월 초 iOS와 동시 제출 예정 |
+| iOS | App Store 라이브 **1.0.40(build57)** — **2026-08-04 승인**. 1.0.36(07-23) 이후 첫 출시로, 시간 입력 개편·오답노트 음성 메모·백업 zip·이탈 판정 개선이 한꺼번에 나갔다. 1.0.39(build56)는 CallKit/중국 리젝으로 폐기(중국 본토 배포 해제 상태 유지). TestFlight 외부 링크: `https://testflight.apple.com/join/dsNaK9kb` |
+| Android | Google Play 라이브 **1.0.38(vc68)** (2026-07-29 승인). **vc70(1.0.39) 심사 중**, 다음이 **vc72(1.0.40) — 미빌드**. ★안드로이드만 네이티브 4건(RECORD_AUDIO·zip 백업·첨부 백업 제외·AwayWatch)이 미출시라 OTA로 못 메운다★ |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 2026-07-14 기준 Play 활성기기 94 · MAU 약 100 · 총 설치 198 / iOS 90일 다운로드 185 (6월 대비 약 2배) |
 | 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지 — **1.0.35 이후 머지 보류 중**. vc68 승인(07-29)으로 조건은 풀렸고 머지만 남음 |
