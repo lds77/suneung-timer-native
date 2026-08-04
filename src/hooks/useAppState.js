@@ -2705,11 +2705,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // 타이머 메모 업데이트 (완료 카드 표시용)
-  const updateTimerMemo = useCallback((timerId, memo) => {
-    setTimers(prev => prev.map(t => t.id === timerId ? { ...t, memoText: memo } : t));
-  }, []);
-
   const updateStreak = useCallback(() => {
     setSettings(prev => {
       const today = getToday(); if (prev.lastStudyDate === today) return prev;
@@ -3038,7 +3033,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
-      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating, deleteSessions, updateSessionDuration,
+      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateSessionSelfRating, deleteSessions, updateSessionDuration,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,

@@ -19,7 +19,7 @@ import AnalogClock from '../components/AnalogClock';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 import { getPlannerMessage } from '../constants/characters';
 import { Ionicons } from '@expo/vector-icons';
-import { createStyles, GAP } from './focus/styles';
+import { createStyles } from './focus/styles';
 import { hexLuminance, getSchoolDefaultFavs, resolveIcon, CalendarIcon } from './focus/helpers';
 
 export default function FocusScreen() {
@@ -40,8 +40,6 @@ export default function FocusScreen() {
   const contentMaxW = isTablet ? Math.round(winW * 0.83) : winW;
 
   // 동적 링/카드 크기 (회전 시 재계산)
-  const CONTENT_MAX_W = isTablet ? 680 : winW;
-  const CARD_W = isTablet ? (Math.min(CONTENT_MAX_W, winW) - 32 - GAP) / 2 : (winW - 32 - GAP) / 2;
   const RING_SIZE = isTablet ? Math.min(winW * 0.38, 340) : Math.min(winW - 72, 340);
   const RING_STROKE = isTablet ? 16 : 14;
   const RING_R = (RING_SIZE - RING_STROKE) / 2;
@@ -70,10 +68,6 @@ export default function FocusScreen() {
   const favs = app.favs || [];
   const [lapExpanded, setLapExpanded] = useState(false);
   const [showNicknameModal, setShowNicknameModal] = useState(false); // 편집 상태는 NicknameModal 소유
-  // 메모 모달
-  const [memoTimerId, setMemoTimerId] = useState(null);  // 메모 입력 중인 타이머 id
-  const [memoText, setMemoText] = useState('');
-  const [memoSessionId, setMemoSessionId] = useState(null); // 연결된 세션 id
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
   const [planCardCollapsed, setPlanCardCollapsed] = useState(false);
   const [nowStr, setNowStr] = useState(() => {
@@ -136,7 +130,6 @@ export default function FocusScreen() {
     return [...pinned, ...urgent].slice(0, 6);
   }, [app.ddays]);
   const active = app.timers.filter(t => t.status === 'running' || t.status === 'paused');
-  const completed = app.timers.filter(t => t.status === 'completed');
   const maxRunning = active.length > 0 ? Math.max(...active.map(t => t.elapsedSec)) : 0;
   const realToday = app.todayTotalSec + maxRunning;
   const goalPct = Math.min(100, Math.round((realToday / (app.settings.dailyGoalMin * 60)) * 100));
@@ -222,8 +215,6 @@ export default function FocusScreen() {
   const lapDone = app.timers.find(t => t.type === 'lap' && t.status === 'completed');
   const nonLapTimers = app.timers.filter(t => t.type !== 'lap');
   const nonLapActive = nonLapTimers.filter(t => t.status === 'running' || t.status === 'paused');
-  const nonLapCompleted = nonLapTimers.filter(t => t.status === 'completed');
-  const allNonLap = [...nonLapActive, ...nonLapCompleted];
 
   const handleAddTimer = () => {
     if (!checkCanStart()) return;
@@ -380,120 +371,6 @@ export default function FocusScreen() {
       opts.push({ text: '삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
     }
     Alert.alert(t.label, '타이머 옵션', opts);
-  };
-
-  const renderTimer = (t, single) => {
-    const isA = t.status === 'running', isP = t.status === 'paused', isD = t.status === 'completed';
-    const iconName = t.type === 'pomodoro' ? (t.pomoPhase === 'work' ? 'timer-outline' : 'cafe-outline') : t.type === 'countdown' ? 'alarm-outline' : 'stopwatch-outline';
-    const display = isD ? 0 : getDisplay(t);
-    const progress = isD ? 100 : getProgress(t);
-    return (
-      <TouchableOpacity key={t.id} activeOpacity={0.8} onLongPress={() => handleTimerLongPress(t)}
-        style={[S.tc, { borderRadius: T.cardRadius, backgroundColor: isD ? (t.result?.tier?.color || T.accent) + '10' : T.card, borderColor: isD ? (t.result?.tier?.color || T.accent) + '60' : isA ? t.color : T.border, borderWidth: isA ? 1.5 : 1, width: single ? '100%' : CARD_W }]}>
-        <View style={S.tcTop}><Ionicons name={iconName} size={14} color={isA ? t.color : T.sub} />
-          {(() => {
-            const isFav = t.type === 'sequence'
-              ? favs.some(f => f.label === (t.seqName || '연속모드'))
-              : (t.type === 'free' || t.type === 'lap')
-              ? countupFavs.some(f => f.label === t.label)
-              : favs.some(f => f.label === t.label && f.type === t.type);
-            return (
-              <TouchableOpacity onPress={() => handleToggleFav(t)} hitSlop={{top:8,bottom:8,left:6,right:2}}>
-                <Ionicons name={isFav ? 'star' : 'star-outline'} size={14} color={isFav ? '#F0B429' : T.sub} />
-              </TouchableOpacity>
-            );
-          })()}
-          <Text style={[S.tcLabel, { color: T.text }]} numberOfLines={1}>{t.label}</Text>
-          <TouchableOpacity
-            onPress={() => {
-              if ((t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60) {
-                app.showToastCustom('■ 종료 버튼으로 먼저 타이머를 종료해주세요', 'paengi');
-              } else {
-                app.removeTimer(t.id);
-              }
-            }}
-            hitSlop={{top:8,bottom:8,left:8,right:8}}>
-            <Text style={[S.tcClose, { color: (t.status === 'running' || t.status === 'paused') && t.elapsedSec >= 60 ? T.border : T.sub }]}>✕</Text>
-          </TouchableOpacity></View>
-        {t.type === 'pomodoro' && !isD && <Text style={[S.tcPhase, { color: t.pomoPhase === 'work' ? t.color : T.green }]}>{t.pomoPhase === 'work' ? `집중·${t.pomoSet+1}세트` : t.pomoPhase === 'longbreak' ? '긴 휴식' : '휴식'}</Text>}
-        {isD ? (
-          <View style={S.resArea}>
-            {(!t.memoSessionId && t.elapsedSec < 300) ? (
-              /* 5분 미만 — 통계 저장 안 됨 */
-              <>
-                <Ionicons name="stopwatch-outline" size={18} color={T.sub} style={{ marginBottom: 2 }} />
-                <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', marginTop: 4 }}>5분 미만 · 통계에 저장되지 않아요</Text>
-                <Text style={{ fontSize: 11, color: T.sub, textAlign: 'center', marginTop: 2 }}>{formatDuration(t.elapsedSec)} 진행</Text>
-              </>
-            ) : (
-              /* 정상 결과 */
-              <>
-                <Ionicons name="trophy-outline" size={28} color={T.accent} />
-                {t.result?.tier && <View style={[S.resTier, { backgroundColor: t.result.tier.color + '20' }]}><Text style={[S.resTierT, { color: t.result.tier.color }]}>{t.result.tier.label}</Text></View>}
-                <Text style={[S.resDensity, { color: T.text }]}>밀도 {t.result?.density || 0}점</Text>
-                {/* 점수 이유 한 줄 */}
-                <Text style={{ fontSize: 11, color: T.sub, marginTop: 2, textAlign: 'center' }}>
-                  {(() => {
-                    const r = t.result || {};
-                    const parts = [];
-                    if (t.type === 'countdown') parts.push(r.density >= 30 ? '완주' : '도전');
-                    else if (t.type === 'pomodoro') parts.push(`${t.pomoSet || 1}세트`);
-                    else parts.push(formatDuration(t.elapsedSec));
-                    if ((t.pauseCount || 0) === 0) parts.push('일시정지 0회');
-                    else parts.push(`일시정지 ${t.pauseCount}회`);
-                    if (r.focusMode === 'screen_on') { parts.push(r.verified ? 'Verified' : '집중모드'); }
-                    return parts.join(' · ');
-                  })()}
-                </Text>
-                <Text style={[S.resTime, { color: T.sub }]}>{formatDuration(t.type === 'countdown' ? t.totalSec : t.elapsedSec)}</Text>
-                {/* 메모 버튼 */}
-                <TouchableOpacity
-                  style={[S.memoBtn, { backgroundColor: t.memoText ? T.accent + '18' : T.surface2, borderColor: t.memoText ? T.accent + '50' : T.border }]}
-                  onPress={() => { setMemoTimerId(t.id); setMemoSessionId(t.memoSessionId || null); setMemoText(t.memoText || ''); }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="pencil-outline" size={12} color={t.memoText ? T.accent : T.sub} />
-                    <Text style={[S.memoBtnT, { color: t.memoText ? T.accent : T.sub }]} numberOfLines={1}>
-                      {t.memoText || '한줄 메모 남기기'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                {/* 세션 완료 시 할일 체크 */}
-                {app.todos.filter(td => !td.done).length > 0 && (
-                  <View style={{ width: '100%', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
-                    <Text style={{ fontSize: 12, color: T.sub, marginBottom: 4, textAlign: 'center' }}>이 세션에서 완료한 할 일이 있나요?</Text>
-                    {app.todos.filter(td => !td.done).slice(0, 4).map(td => (
-                      <TouchableOpacity key={td.id} onPress={() => app.toggleTodo(td.id)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
-                        <View style={{ width: 14, height: 14, borderRadius: 3, borderWidth: 1.5, borderColor: T.border, backgroundColor: 'transparent' }} />
-                        <Text style={{ fontSize: 13, color: T.text, flex: 1 }} numberOfLines={1}>{td.text}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    {app.todos.filter(td => !td.done).length > 4 && (
-                      <Text style={{ fontSize: 11, color: T.sub, textAlign: 'center' }}>+{app.todos.filter(td => !td.done).length - 4}개 더</Text>
-                    )}
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        ) : (<>
-          <Text testID="timer-text" style={[S.tcTime, { color: isA ? t.color : T.sub, fontSize: single ? 36 : 26, fontWeight: T.timerFontWeight }]}>{formatTime(display)}</Text>
-          {t.type !== 'lap' && getTotalElapsed(t) > 0 && <Text style={[S.tcElapsed, { color: T.sub }]}>{formatTime(getTotalElapsed(t))}</Text>}
-          <View style={[S.tcTrack, { backgroundColor: T.surface2 }]}><View style={[S.tcFill, { width: `${Math.min(100,progress)}%`, backgroundColor: isP ? T.sub : t.color }]} /></View>
-        </>)}
-        <View style={S.tcCtrls}>
-          {isA && (<><TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.resetTimer(t.id)}><Text style={[S.tcBtnT, { color: T.text }]}>↺</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', flex: 2 }]} onPress={() => app.pauseTimer(t.id)}><Text style={[S.tcBtnT, { color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }]}>⏸</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(t.id)}><Text style={[S.tcBtnT, { color: T.sub }]}>■</Text></TouchableOpacity></>)}
-          {isP && (<><TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.resetTimer(t.id)}><Text style={[S.tcBtnT, { color: T.text }]}>↺</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: t.color, flex: 2 }]} onPress={() => app.resumeTimer(t.id)}><Text style={S.tcBtnT}>▶</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.stopTimer(t.id)}><Text style={[S.tcBtnT, { color: T.sub }]}>■</Text></TouchableOpacity></>)}
-          {isD && (<><TouchableOpacity style={[S.tcBtn, { backgroundColor: t.color, flex: 1 }]} onPress={() => app.restartTimer(t.id)}><Text style={S.tcBtnT}>▶ 다시</Text></TouchableOpacity>
-            <TouchableOpacity style={[S.tcBtn, { backgroundColor: T.surface2 }]} onPress={() => app.removeTimer(t.id)}><Text style={[S.tcBtnT, { color: T.sub }]}>삭제</Text></TouchableOpacity></>)}
-        </View>
-      </TouchableOpacity>
-    );
   };
 
   const renderLargeTimer = (t) => {
@@ -1391,51 +1268,6 @@ export default function FocusScreen() {
       <Modal visible={isLandscape && timerViewMode === 'full' && nonLapActive.length > 0} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setTimerViewMode('default')}>
         <View style={{ flex: 1, backgroundColor: T.bg }}>
           {nonLapActive.length > 0 && renderFullTimer(nonLapActive[0])}
-        </View>
-      </Modal>
-
-      {/* ── 메모 입력 모달 ── */}
-      <Modal visible={!!memoTimerId} transparent animationType="fade">
-        <View style={S.mo}>
-          <View style={[S.modal, { backgroundColor: T.card, borderColor: T.border }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
-            <Text style={[S.modalTitle, { color: T.text }]}>한줄 메모</Text>
-            <Text style={[{ fontSize: 13, color: T.sub, marginBottom: 8, textAlign: 'center' }]}>오늘 이 공부, 한 줄로 남겨봐요</Text>
-            <TextInput
-              value={memoText}
-              onChangeText={setMemoText}
-              placeholder="예) 수학 미적분 어려웠다, 단어 80개 완료"
-              placeholderTextColor={T.sub}
-              style={[S.memoInput, { borderColor: T.border, backgroundColor: T.surface2, color: T.text }]}
-              maxLength={50}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={() => {
-                // 타이머에 메모 저장 + 세션에도 업데이트
-                app.setTimers && app.setTimers(prev => prev.map(t => t.id === memoTimerId ? { ...t, memoText: memoText.trim() } : t));
-                if (memoSessionId) app.updateSessionMemo(memoSessionId, memoText);
-                setMemoTimerId(null);
-              }}
-            />
-            <Text style={[{ fontSize: 11, color: T.sub, textAlign: 'right', marginBottom: 12 }]}>{memoText.length}/50</Text>
-            <View style={S.mBtns}>
-              <TouchableOpacity style={[S.mCancel, { borderColor: T.border }]} onPress={() => setMemoTimerId(null)}>
-                <Text style={[S.mCancelT, { color: T.sub }]}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[S.mConfirm, { backgroundColor: T.accent }]}
-                onPress={() => {
-                  // 타이머 state에 메모 저장 (표시용)
-                  app.updateTimerMemo(memoTimerId, memoText.trim());
-                  // 세션에도 반영
-                  if (memoSessionId) app.updateSessionMemo(memoSessionId, memoText.trim());
-                  setMemoTimerId(null);
-                  app.showToastCustom('메모 저장!', 'toru');
-                }}
-              >
-                <Text style={S.mConfirmT}>저장</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       </Modal>
 
