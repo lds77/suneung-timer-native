@@ -289,16 +289,25 @@ export function AppProvider({ children }) {
     return true;
   }, []);
 
+  // 연속모드 중도 종료 — 완주(seqFlip)·stopTimer와 같은 대접을 한다.
+  // 예전엔 세션만 기록하고 결과 모달을 안 띄워, 5분 넘게 공부해도 자기평가를 못 해
+  // 밀도 보너스(최대 +3)를 놓쳤다 (계획 타이머 80% 게이트를 없앤 2026-08-01과 같은 문제)
   const cancelSequence = useCallback(() => {
     setTimers(prev => prev.map(t => {
       if (t.type !== 'sequence' || t.status === 'completed') return t;
       cancelTimerNotif(t.id);
+      const result = calcResult(t, t.elapsedSec);
+      // 휴식 페이즈 중 종료는 기록하지 않는다 (불변식 5 — 직전 work는 seqFlip이 이미 기록)
       if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)), dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)), dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        // 기록 기준 300초 = RESULT_MODAL_MIN_SEC이라 추가 게이트 불필요.
+        // 완주 모달과 달리 대상은 방금 끝낸 항목 하나 — isSeq:false여야 문구가 맞고 시간 수정도 열린다
+        setCompletedResultData({ timerId: t.id, result, isSeq: false, sessionId: sessId });
+        return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
-      return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
+      return { ...t, status: 'completed', result };
     }));
   }, []);
 

@@ -363,7 +363,7 @@ export default function FocusScreen() {
     }
     opts.push({ text: '↺ 리셋', onPress: () => app.resetTimer(t.id) });
     if (inSeq) {
-      opts.push({ text: '✕ 연속모드 전체취소', style: 'destructive', onPress: () => app.cancelSequence() });
+      opts.push({ text: '■ 연속모드 종료', style: 'destructive', onPress: () => app.cancelSequence() });
     } else {
       opts.push({ text: '삭제', style: 'destructive', onPress: () => app.removeTimer(t.id) });
     }
@@ -638,15 +638,10 @@ export default function FocusScreen() {
           <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.resetTimer(t.id)}>
             <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
-          {t.type === 'sequence' ? (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>✕ 취소</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.stopTimer(t.id)}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-            </TouchableOpacity>
-          )}
+          {/* 연속모드도 5분 이상이면 기록·결과 모달이 뜨므로 '종료'로 통일 (2026-08-04) */}
+          <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => t.type === 'sequence' ? app.cancelSequence() : app.stopTimer(t.id)}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>■ 종료</Text>
+          </TouchableOpacity>
           {isA ? (
             <TouchableOpacity style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>⏸ 일시정지</Text>
@@ -734,15 +729,10 @@ export default function FocusScreen() {
           <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.resetTimer(t.id)}>
             <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
-          {t.type === 'sequence' ? (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.cancelSequence()}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>✕ 취소</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.stopTimer(t.id)}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-            </TouchableOpacity>
-          )}
+          {/* 연속모드도 5분 이상이면 기록·결과 모달이 뜨므로 '종료'로 통일 (2026-08-04) */}
+          <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => t.type === 'sequence' ? app.cancelSequence() : app.stopTimer(t.id)}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: T.sub }}>■ 종료</Text>
+          </TouchableOpacity>
           {isA ? (
             <TouchableOpacity style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: T.stylePreset === 'minimal' ? T.surface2 : '#E8404720', alignItems: 'center' }} onPress={() => app.pauseTimer(t.id)}>
               <Text style={{ fontSize: 15, fontWeight: '800', color: T.stylePreset === 'minimal' ? T.sub : '#E84047' }}>⏸ 일시정지</Text>
