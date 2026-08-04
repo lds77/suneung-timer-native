@@ -28,12 +28,50 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://lds77.github.io/suneung-timer-native/screenshots/og-image.png">
 
+  <!-- 발행 주체(열공메이트)를 명시 — 이 사이트가 lds77.github.io 아래 경로에 있어서
+       검색·AI가 상위 사이트 이름을 출처로 잡는 걸 줄이기 위한 신호. @id로 서로 연결한다 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://lds77.github.io/suneung-timer-native/#publisher",
+    "name": "열공메이트",
+    "alternateName": ["열공메이트 공부타이머", "Yeolgong Mate"],
+    "url": "https://lds77.github.io/suneung-timer-native/",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://lds77.github.io/suneung-timer-native/screenshots/store-icon-512.png",
+      "width": 512,
+      "height": 512
+    },
+    "sameAs": [
+      "https://blog.naver.com/yeolgongmate",
+      "https://apps.apple.com/app/id6759892516",
+      "https://play.google.com/store/apps/details?id=com.yeolgong.timer"
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://lds77.github.io/suneung-timer-native/#website",
+    "name": "열공메이트",
+    "alternateName": "열공메이트 공부타이머·공부플래너",
+    "url": "https://lds77.github.io/suneung-timer-native/",
+    "inLanguage": "ko-KR",
+    "publisher": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" }
+  }
+  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "열공메이트",
     "alternateName": "공부타이머 열공메이트",
+    "publisher": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" },
+    "author": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" },
+    "isPartOf": { "@id": "https://lds77.github.io/suneung-timer-native/#website" },
     "description": "집중밀도 점수로 집중 습관까지 돌아보는 공부타이머앱·공부플래너. 포모도로, 집중 잠금, D-day 위젯, 잔디 통계, 친구와 같이 공부하는 스터디룸을 광고 없이 무료로 제공. iOS·Android 지원.",
     "operatingSystem": "iOS, Android",
     "applicationCategory": "EducationalApplication",
