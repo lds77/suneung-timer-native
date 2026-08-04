@@ -320,6 +320,18 @@ export default function FocusScreen() {
     }
   };
 
+  // 리셋은 경과를 세션으로 남기지 않고 그냥 버린다 — 종료 버튼 바로 옆이라 오탭하면
+  // 몇 시간짜리 공부가 되돌릴 수 없이 사라진다. 기록 기준(불변식 7)을 넘긴 타이머만 한 번 확인.
+  // 휴식 페이즈는 어차피 기록 대상이 아니므로(불변식 5) 묻지 않는다 (2026-08-04 자체 감사)
+  const confirmReset = (t) => {
+    const inBreak = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
+    const minRec = (t.planId || t.todoId) ? 30 : 300;
+    if (t.status === 'completed' || inBreak || t.elapsedSec < minRec) { app.resetTimer(t.id); return; }
+    Alert.alert('타이머 리셋',
+      `지금까지 ${formatDuration(t.elapsedSec)} 진행했어요. 리셋하면 이 시간은 기록되지 않고 사라집니다.\n\n기록을 남기려면 '종료'를 눌러주세요.`,
+      [{ text: '취소', style: 'cancel' }, { text: '리셋', style: 'destructive', onPress: () => app.resetTimer(t.id) }]);
+  };
+
   // 일반 타이머 렌더
   const handleTimerLongPress = (t) => {
     const opts = [{ text: '취소', style: 'cancel' }];
@@ -361,7 +373,7 @@ export default function FocusScreen() {
         }
       }
     }
-    opts.push({ text: '↺ 리셋', onPress: () => app.resetTimer(t.id) });
+    opts.push({ text: '↺ 리셋', onPress: () => confirmReset(t) });
     if (inSeq) {
       opts.push({ text: '■ 연속모드 종료', style: 'destructive', onPress: () => app.cancelSequence() });
     } else {
@@ -635,7 +647,7 @@ export default function FocusScreen() {
 
         {/* 컨트롤 버튼 */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.resetTimer(t.id)}>
+          <TouchableOpacity style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => confirmReset(t)}>
             <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
           {/* 연속모드도 5분 이상이면 기록·결과 모달이 뜨므로 '종료'로 통일 (2026-08-04) */}
@@ -726,7 +738,7 @@ export default function FocusScreen() {
         </View>
         {/* 컨트롤 버튼 */}
         <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-          <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => app.resetTimer(t.id)}>
+          <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }} onPress={() => confirmReset(t)}>
             <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
           </TouchableOpacity>
           {/* 연속모드도 5분 이상이면 기록·결과 모달이 뜨므로 '종료'로 통일 (2026-08-04) */}
