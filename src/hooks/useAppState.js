@@ -19,7 +19,7 @@ const SOUND_FILES = {
   writing: require('../../assets/sounds/writing.mp3'),
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty, saveReviewNotes, loadReviewNotes } from '../utils/storage';
-import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
+import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId, formatDuration } from '../utils/format';
 import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
 import { makeNoteFromTodo } from '../utils/reviewNotes';
 import { deleteFiles as deleteAttachmentFiles } from '../utils/attachments';
@@ -31,7 +31,7 @@ import { syncOngoingNotif } from '../utils/ongoingNotif';
 import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
 import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, awayMsAfterBreak, iosAwayBeforeLockMs } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
+import { realRemainingSec, wallElapsedSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
@@ -293,6 +293,8 @@ export function AppProvider({ children }) {
   // 예전엔 세션만 기록하고 결과 모달을 안 띄워, 5분 넘게 공부해도 자기평가를 못 해
   // 밀도 보너스(최대 +3)를 놓쳤다 (계획 타이머 80% 게이트를 없앤 2026-08-01과 같은 문제)
   const cancelSequence = useCallback(() => {
+    // 모달이 안 뜨는 종료(5분 미만·휴식 중)에 아무 피드백이 없던 문제 — stopTimer와 같은 처리
+    stopFeedbackToast(timersRef.current.find(t => t.type === 'sequence' && t.status !== 'completed'));
     setTimers(prev => prev.map(t => {
       if (t.type !== 'sequence' || t.status === 'completed') return t;
       cancelTimerNotif(t.id);
@@ -1962,8 +1964,25 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => t.id === id && t.status === 'paused' ? { ...t, status: 'running', resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
   }, []);
 
+  // 결과 모달이 뜨지 않는 종료(5분 미만·휴식 페이즈)에는 아무 피드백도 없었다 (2026-08-04 제보).
+  // 완료 카드('5분 미만 · 통계에 저장되지 않아요')를 그리던 `FocusScreen.renderTimer`가
+  // 타이머 뷰 개편 때 호출부를 잃어 지금은 미사용이라, 화면에서 타이머만 조용히 사라진다.
+  // 카드를 되살리는 건 별도 판단이고, 최소한 '왜 기록이 안 됐는지'는 알려준다.
+  // ※판정은 timersRef(틱 캐시 ≤100ms)의 벽시계 경과 — 아래 setTimers 업데이터가 쓰는 값보다
+  //   같거나 크므로, '미기록' 안내가 실제로는 기록된 세션에 뜨는 일은 없다
+  const stopFeedbackToast = (t) => {
+    if (!t || t.type === 'lap' || t.status === 'completed') return;
+    const inBreak = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
+    if (inBreak) { showToastCustom('휴식을 끝냈어요 · 휴식 시간은 기록하지 않아요', 'toru'); return; }
+    const el = wallElapsedSec(t, Date.now());
+    const minRec = (t.planId || t.todoId) ? 30 : 300; // 불변식 7
+    if (el < minRec) showToastCustom(`${formatDuration(el)} · ${minRec === 30 ? '30초' : '5분'} 미만이라 기록되지 않았어요`, 'paengi');
+    else if (el < RESULT_MODAL_MIN_SEC) showToastCustom(`${formatDuration(el)} 기록했어요`, 'toru');
+  };
+
   const stopTimer = useCallback((id) => {
     cancelTimerNotif(id);
+    stopFeedbackToast(timersRef.current.find(t => t.id === id));
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
       // 휴식 페이즈 중 중지 → 휴식 시간을 공부 세션으로 기록하지 않음 (work 페이즈는 flip 시 이미 기록됨)
