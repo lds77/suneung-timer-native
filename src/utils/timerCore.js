@@ -104,14 +104,22 @@ export const pomoFlipCore = (t, nowMs = Date.now()) => {
 // 타이머 완료/종료 시 결과(밀도·티어·인증) 계산 — 순수 계산부.
 // focusMode/exitCount/ultraFocusLevel 게이팅(screen_on일 때만 반영)은 호출부 책임.
 // 연속모드는 전체 항목 합산 + countdown 기준으로 계산 (불변식 6).
-export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 0, schoolLevel = 'high', ultraFocusLevel = 'normal' } = {}) => {
+export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 0, schoolLevel = 'high', ultraFocusLevel = 'normal', seqPartial = false } = {}) => {
   let timerType = t.type;
   let totalSec = dur;
   let completionRatio = t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1;
   if (t.type === 'sequence') {
     timerType = 'countdown';
-    totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
-    completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+    if (seqPartial) {
+      // 중도 종료 — 대상은 '진행 중이던 항목 하나'다. 아래 완주 기준(전 항목 합계 + 항목 진척도)을
+      // 쓰면 90분 항목을 7분 하고 끝냈을 때 결과 모달에 '1시간 50분'이 뜨고(시간 수정 기본값까지
+      // 오염돼 그대로 저장하면 통계가 부풀려진다) 밀도도 실제 기록된 세션과 어긋난다.
+      // 세션 기록(cancelSequence/stopTimer)의 completionRatio와 같은 식이어야 한다 (2026-08-04)
+      completionRatio = Math.min(1, dur / Math.max(1, t.totalSec));
+    } else {
+      totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
+      completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+    }
   }
   const densityInputs = {
     pausedCount: t.pauseCount, totalSec,

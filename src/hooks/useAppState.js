@@ -296,7 +296,7 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => {
       if (t.type !== 'sequence' || t.status === 'completed') return t;
       cancelTimerNotif(t.id);
-      const result = calcResult(t, t.elapsedSec);
+      const result = calcResult(t, t.elapsedSec, { seqPartial: true });
       // 휴식 페이즈 중 종료는 기록하지 않는다 (불변식 5 — 직전 work는 seqFlip이 이미 기록)
       if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
@@ -1021,7 +1021,7 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => {
       if (t.status === 'running' || t.status === 'paused') {
         const sessId = fireComplete(t);
-        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec), gaveUp: true, ...(sessId ? { memoSessionId: sessId } : {}) };
+        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec, { seqPartial: true }), gaveUp: true, ...(sessId ? { memoSessionId: sessId } : {}) };
       }
       return t;
     }));
@@ -1029,9 +1029,11 @@ export function AppProvider({ children }) {
   }, []);
 
   // 타이머 결과 계산 — 순수 계산은 timerCore.calcTimerResult, 여기서는 현재 모드/이탈 상태만 주입
-  const calcResult = (t, dur) => {
+  // opts.seqPartial: 연속모드를 완주 전에 끝낸 경우 — 진행 중이던 항목 하나만 결과에 반영
+  const calcResult = (t, dur, opts = {}) => {
     const mode = focusModeRef.current || 'screen_off';
     return calcTimerResult(t, dur, {
+      ...opts,
       focusMode: mode,
       exitCount: mode === 'screen_on' ? (ultraRef.current.exitCount || 0) : 0,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
@@ -1972,7 +1974,7 @@ export function AppProvider({ children }) {
         // 연속모드는 항목 기준 카운트다운으로 기록 (seqFlip/cancelSequence와 동일 규칙 — 밀도 공식·통계 라벨 일관)
         const recType = t.type === 'sequence' ? 'countdown' : t.type;
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
-        const result = calcResult(t, t.elapsedSec);
+        const result = calcResult(t, t.elapsedSec, { seqPartial: true });
         // 완료 결과 모달 트리거 (랩 제외)
         // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 게이트를 건너뛰고 할일 결과 모달을 띄운다 (위 stop 경로와 동일 규칙)
         if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
@@ -1983,7 +1985,7 @@ export function AppProvider({ children }) {
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
-      return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec) };
+      return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec, { seqPartial: true }) };
     }));
   }, []);
 

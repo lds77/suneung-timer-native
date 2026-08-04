@@ -290,6 +290,36 @@ describe('calcTimerResult', () => {
     expect(r.durationSec).toBe(4200); // 합산
   });
 
+  // 2026-08-04 실기기 제보: 울트라디안(집중 90 + 휴식 20)을 7분 하고 종료했더니
+  // 결과 모달이 '1시간 50분'(= 전 항목 합계)을 보여줬다. 통계엔 7분으로 남으므로 표시만
+  // 어긋난 게 아니라, 시간 수정 시트가 그 값을 기본값으로 채워 그대로 저장하면 통계가 부풀려진다
+  test('연속모드 중도 종료(seqPartial): 진행 중이던 항목 하나만 반영', () => {
+    const t = {
+      type: 'sequence', totalSec: 5400, pauseCount: 0,
+      seqItems: [{ totalSec: 5400 }, { totalSec: 1200 }], seqIndex: 0, seqTotal: 2,
+    };
+    const partial = calcTimerResult(t, 420, { focusMode: 'screen_off', seqPartial: true });
+    expect(partial.durationSec).toBe(420);                    // 합계(6600)가 아니라 실제 경과
+    expect(partial.densityInputs.completionRatio).toBeCloseTo(420 / 5400);
+    expect(partial.densityInputs.timerType).toBe('countdown'); // 불변식 6은 그대로
+    // 완주 기준(기본값)은 종전 그대로 — 합계 + 항목 진척도
+    expect(calcTimerResult(t, 420, { focusMode: 'screen_off' }).durationSec).toBe(6600);
+  });
+
+  test('연속모드 중도 종료: 밀도가 세션 기록과 일치 (모달 표시 = 저장 값)', () => {
+    const t = {
+      type: 'sequence', totalSec: 5400, pauseCount: 0,
+      seqItems: [{ totalSec: 5400 }, { totalSec: 1200 }], seqIndex: 0, seqTotal: 2,
+    };
+    const r = calcTimerResult(t, 420, { focusMode: 'screen_off', seqPartial: true });
+    // cancelSequence/stopTimer가 기록하는 세션과 같은 입력 (불변식 6: timerType countdown)
+    const sess = buildSessionRecord({
+      durationSec: 420, mode: 'countdown', timerType: 'countdown',
+      completionRatio: Math.min(1, 420 / 5400), pauseCount: 0, focusMode: 'screen_off',
+    });
+    expect(sess.focusDensity).toBe(r.density);
+  });
+
   test('카운트다운 중도 종료: 밀도 입력에 완료율 반영 (완주 대비 낮거나 같음)', () => {
     const t = { type: 'countdown', totalSec: 3600, pauseCount: 0 };
     const full = calcTimerResult(t, 3600, { focusMode: 'screen_off' });
