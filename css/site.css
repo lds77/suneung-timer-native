@@ -475,6 +475,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .hcount { font-size: 0.84rem; color: var(--muted-2); padding: 12px 0 0; }
 
+/* 항목이 숨겨질 때 브라우저가 '보던 자리 유지'하려고 스크롤을 되돌리지 않게 한다
+   (분류를 눌렀을 때 결과 맨 위로 올리는 동작과 부딪힌다) */
+.hgroup, .hitem { overflow-anchor: none; }
 .hgroup { margin-top: 34px; }
 .hgroup[hidden] { display: none; }
 .hgroup > h2 {

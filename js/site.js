@@ -130,8 +130,16 @@
       var navH = nav ? nav.offsetHeight : 0;
       // sticky라도 offsetTop은 '원래 자리'를 준다(레이아웃 값) — 붙어 있는 위치가 아니다
       var y = Math.max(0, tools.offsetTop - navH - 8);
-      if (window.pageYOffset > y + 2) {
-        window.scrollTo({ top: y, behavior: 'smooth' });
+      if (window.pageYOffset <= y + 2) return;
+      var go = function () { window.scrollTo({ top: y, behavior: 'smooth' }); };
+      go();
+      // ★다음 프레임에 한 번 더 확인★ — 항목이 숨겨져 문서 높이가 바뀌는 순간 크롬의
+      // 스크롤 앵커링이 "보던 자리"로 되돌려 우리 이동을 덮을 수 있다(css의 overflow-anchor:none과
+      // 이중 방어). rAF에만 맡기지 않는 이유는 프레임이 안 도는 환경에서 아예 안 움직이기 때문이다.
+      if (window.requestAnimationFrame) {
+        requestAnimationFrame(function () {
+          if (window.pageYOffset > y + 40) go();
+        });
       }
     };
 
