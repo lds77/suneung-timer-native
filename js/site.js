@@ -128,10 +128,28 @@
       if (!tools) return;
       var nav = document.querySelector('.nav');
       var navH = nav ? nav.offsetHeight : 0;
-      // sticky라도 offsetTop은 '원래 자리'를 준다(레이아웃 값) — 붙어 있는 위치가 아니다
-      var y = Math.max(0, tools.offsetTop - navH - 8);
+      // ★★sticky 요소의 offsetTop은 '붙어 있는 위치'를 포함한다★★ — 원래 자리가 아니다.
+      // 실측(2026-08-06): scrollY 0에서 439, scrollY 732에서 786(=732+54), 1254에서 1308.
+      // 그대로 쓰면 목표가 늘 '지금 보고 있는 자리'로 계산돼 **아무 데도 안 간다**(이 버그였다).
+      // 그래서 잠깐 sticky를 끄고 원래 자리를 잰다(읽는 순간 리플로우돼 정확한 값이 나온다).
+      var prevPos = tools.style.position;
+      tools.style.position = 'static';
+      var naturalTop = tools.offsetTop;
+      tools.style.position = prevPos;
+      var y = Math.max(0, naturalTop - navH - 8);
       if (window.pageYOffset <= y + 2) return;
-      var go = function () { window.scrollTo({ top: y, behavior: 'smooth' }); };
+      // 즉시 이동으로 간다 — 목록이 통째로 바뀌는 전환이라 애니메이션은 값어치가 없고,
+      // 항목이 숨겨져 문서가 짧아지는 도중에 진행되는 애니메이션은 중간에 끊길 수 있다.
+      // ※`scrollTo(0, y)`만으로는 즉시가 아니다 — css `html{scroll-behavior:smooth}`가
+      //   프로그램 스크롤에도 걸리므로 그 순간만 꺼야 한다
+      //   (`behavior:'instant'`는 옛 브라우저에서 TypeError라 쓰지 않는다)
+      var go = function () {
+        var root = document.documentElement;
+        var prev = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        window.scrollTo(0, y);
+        root.style.scrollBehavior = prev;
+      };
       go();
       // ★다음 프레임에 한 번 더 확인★ — 항목이 숨겨져 문서 높이가 바뀌는 순간 크롬의
       // 스크롤 앵커링이 "보던 자리"로 되돌려 우리 이동을 덮을 수 있다(css의 overflow-anchor:none과
