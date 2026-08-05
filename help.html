@@ -134,18 +134,19 @@
         <ol>
           <li><strong>과목 등록</strong> — <span class="path">과목</span> 탭에서 공부하는 과목을 추가하면 과목별로 시간이 쌓입니다.</li>
           <li><strong>시험 D-Day 등록</strong> — <span class="path">플래너 &gt; 월간</span>에서 시험일을 등록하면 집중 탭과 위젯에 남은 날짜가 표시됩니다.</li>
-          <li><strong>주간 계획</strong> — <span class="path">플래너</span> 탭의 톱니바퀴에서 요일별 시간표를 만들면 계획과 실제 공부량이 자동으로 연결됩니다.</li>
+          <li><strong>주간 계획</strong> — <span class="path">플래너</span> 탭 맨 아래 '반복설정'에서 요일별 시간표를 만들면 계획과 실제 공부량이 자동으로 연결됩니다.</li>
           <li><strong>즐겨찾기</strong> — 자주 쓰는 타이머를 저장해두면 다음부터 한 번에 시작할 수 있습니다.</li>
         </ol>
         <div class="note">앱 안에서도 같은 설명을 볼 수 있습니다. <span class="path">설정 &gt; 도움말 &gt; 사용 가이드</span></div>
       </div>
     </details>
 
-    <details class="hitem" id="school-level" data-cat="start" data-k="학년 학교급 초등 중등 고등 공시생 대학생 변경 바꾸기">
+    <details class="hitem" id="school-level" data-cat="start" data-k="학년 학교급 초등 중등 고등 공시생 대학생 변경 바꾸기 진학 새학기">
       <summary>학년(학교급)을 바꾸고 싶어요</summary>
       <div class="hbody">
         <p><span class="path">설정 &gt; 내 정보</span>에서 학교급을 바꿀 수 있습니다. 초등 저학년부터 중·고등학생, N수생, 대학생, 공시생·자격증까지 고를 수 있어요.</p>
         <p>학교급을 고르면 집중밀도의 기준과 추천 학습법이 그에 맞게 조정됩니다. 초등학생에게 3시간 연속 집중을 기대하지 않도록 하기 위한 장치입니다.</p>
+        <div class="note"><strong>바뀌지 않는 것이 있습니다.</strong> 이미 만들어 둔 <strong>주간 시간표와 과목은 그대로 남습니다</strong>. 학교급만 바꾸면 시간표는 예전 학교급 그대로예요. 새 학교급 기준으로 갈아끼우려면 <a class="textlink" href="help.html#reset-timetable">기본 시간표 다시 불러오기</a>와 <a class="textlink" href="help.html#subject-manage">과목 정리</a>를 따로 해주세요.</div>
       </div>
     </details>
 
@@ -467,15 +468,33 @@
   <div class="hgroup" id="plan">
     <h2>계획·할 일</h2>
 
-    <details class="hitem" id="weekly-plan" data-cat="plan" data-k="주간계획 시간표 플래너 계획만들기 요일별 스터디플래너">
+    <details class="hitem" id="weekly-plan" data-cat="plan" data-k="주간계획 시간표 플래너 계획만들기 요일별 스터디플래너 반복설정 편집">
       <summary>주간 공부 계획(시간표) 만들기</summary>
       <div class="hbody">
         <ol>
-          <li><span class="path">플래너</span> 탭 오른쪽 위 톱니바퀴를 눌러 주간 플래너 편집을 엽니다.</li>
+          <li><span class="path">플래너</span> 탭으로 가서 <strong>화면 맨 아래 오른쪽 '반복설정'</strong> 버튼을 누릅니다. 여기가 주간 플래너 편집 화면입니다.</li>
           <li>요일과 시간을 정해 과목·목표 시간을 넣습니다. 학교·학원·식사 같은 고정 일정도 함께 넣을 수 있습니다.</li>
+          <li>한 요일을 다 짰으면 <strong>다른 요일에 복사</strong>로 나머지 요일을 빠르게 채웁니다.</li>
           <li>저장하면 매일 그 요일의 계획이 집중 탭 '오늘의 계획'에 자동으로 올라옵니다.</li>
         </ol>
-        <p>학교급에 맞는 기본 시간표를 불러와서 고쳐 쓰는 방법도 있습니다(기본 시간표 초기화).</p>
+        <div class="note">'반복설정'은 <strong>매주 반복되는 시간표</strong>를 만드는 곳입니다. 이번 주에만 있는 일정은 주간 뷰에서 바로 추가하세요(<a class="textlink" href="help.html#plan-once">이번 주만 vs 매주 반복</a>).</div>
+        <p>처음부터 짜기 부담스러우면 학교급에 맞는 <a class="textlink" href="help.html#reset-timetable">기본 시간표를 불러와서</a> 고쳐 쓰는 방법도 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="reset-timetable" data-cat="plan" data-k="기본시간표 초기화 시간표초기화 플래너초기화 리셋 다시불러오기 학교급변경 기본세팅 예전시간표 그대로 반복설정">
+      <summary>학교급을 바꿨는데 시간표가 그대로예요 (기본 시간표 다시 불러오기)</summary>
+      <div class="hbody">
+        <p>학교급을 바꿔도 <strong>이미 만들어 둔 주간 시간표는 자동으로 바뀌지 않습니다</strong>. 공들여 짠 시간표를 앱이 마음대로 지우지 않으려는 것인데, 고등에서 초등으로 바꾸는 것처럼 일과가 통째로 달라질 땐 새로 불러오는 편이 빠릅니다.</p>
+        <ol>
+          <li>먼저 <span class="path">설정 &gt; 내 정보</span>에서 학교급을 바꿉니다.</li>
+          <li><span class="path">플래너</span> 탭 &gt; <strong>화면 맨 아래 오른쪽 '반복설정'</strong>을 누릅니다.</li>
+          <li>위쪽 '주간 플래너' 스위치 아래의 빨간 <strong>기본으로 초기화</strong>를 누릅니다.</li>
+          <li>확인하면 지금 학교급에 맞는 학교·식사·취침 시간이 자동으로 채워집니다.</li>
+        </ol>
+        <div class="note"><strong>그동안 만든 주간 시간표(고정 일정·매주 반복 계획)는 모두 사라집니다.</strong> 대신 <strong>지난 공부 기록·통계·잔디는 그대로</strong>이고, 과목 목록도 지워지지 않습니다.</div>
+        <p>초기화한 계획 블록에는 <strong>과목이 연결돼 있지 않습니다</strong>. 계획을 눌러 과목을 다시 지정해 주세요. 예전 학교급 과목(예: 초등으로 바꿨는데 남아 있는 '모의고사')은 <a class="textlink" href="help.html#subject-manage">과목 탭</a>에서 따로 정리하면 됩니다.</p>
+        <p>전부 갈아엎기가 부담스러우면 초기화 대신 요일별로 직접 고치거나, 한 요일만 고쳐 놓고 <strong>다른 요일에 복사</strong>를 쓰는 방법도 있습니다.</p>
       </div>
     </details>
 
