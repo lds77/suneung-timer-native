@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build:android": "eas build --platform android",
-    "postinstall": "patch-package && node scripts/fix-reset-cache.js"
+    "postinstall": "patch-package && node scripts/fix-reset-cache.js",
+    "sync:blog-guide": "node scripts/sync-blog-guide.js"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
