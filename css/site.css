@@ -508,6 +508,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .hitem[open] > summary { color: var(--accent); }
 .hitem[open] > summary::after { transform: rotate(-135deg); margin-top: 9px; }
 .hitem:target { border-color: rgba(167, 139, 250, 0.5); }
+/* JS가 죽어도 앵커로 들어온 항목은 펼쳐 보이게 (details는 앵커만으로 안 열린다) */
+.hitem:target > .hbody { display: block; }
 .hbody { padding: 0 18px 18px; color: rgba(255, 255, 255, 0.78); font-size: 0.94rem; }
 .hbody p { margin-bottom: 10px; }
 .hbody p:last-child, .hbody ul:last-child, .hbody ol:last-child { margin-bottom: 0; }

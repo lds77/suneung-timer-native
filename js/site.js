@@ -146,18 +146,50 @@
       });
     });
 
+    // ── 항목으로 이동 (#앵커) ──
+    // ★`<details>`는 앵커로 찍어도 저절로 열리지 않는다★ — 그래서 항목끼리 걸어둔 링크를
+    // 눌러도 "아무 일도 안 일어난" 것처럼 보였다(2026-08-05 제보). 직접 열어준다.
+    var goToItem = function (id) {
+      var target = document.getElementById(id);
+      if (!target || !target.classList.contains('hitem')) return false;
+      // 검색·분류로 가려진 항목이면 필터부터 푼다 — 안 그러면 열어도 화면에 없다
+      if (target.hidden) {
+        hSearch.value = '';
+        curCat = 'all';
+        hCats.forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-cat') === 'all'); });
+        apply('');
+        syncUrl('');
+      }
+      target.open = true;
+      target.setAttribute('data-keep-open', '');
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return true;
+    };
+
+    // 같은 페이지 항목을 가리키는 링크는 우리가 처리한다(브라우저 기본 이동은 막는다)
+    document.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a[href*="#"]') : null;
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      var id = decodeURIComponent(href.slice(href.indexOf('#') + 1));
+      if (!id || !document.getElementById(id)) return;
+      if (!document.getElementById(id).classList.contains('hitem')) return;
+      e.preventDefault();
+      if (window.history && history.replaceState) history.replaceState(null, '', '#' + id);
+      else location.hash = id;
+      goToItem(id);
+    });
+
+    // 주소창 직접 입력·뒤로가기로 해시가 바뀐 경우
+    window.addEventListener('hashchange', function () {
+      if (location.hash.length > 1) goToItem(decodeURIComponent(location.hash.slice(1)));
+    });
+
     // ?q= 로 들어오면 검색어를 채우고, #앵커로 들어오면 그 항목을 펼친다
     var q0 = (location.search.match(/[?&]q=([^&]*)/) || [])[1];
     if (q0) { hSearch.value = decodeURIComponent(q0.replace(/\+/g, ' ')); }
     apply(hSearch.value);
-    if (location.hash.length > 1) {
-      var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-      if (target && target.classList.contains('hitem')) {
-        target.open = true;
-        target.setAttribute('data-keep-open', '');
-        target.scrollIntoView({ block: 'center' });
-      }
-    }
+    if (location.hash.length > 1) goToItem(decodeURIComponent(location.hash.slice(1)));
   }
 
   // 현재 연도
