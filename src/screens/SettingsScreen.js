@@ -425,7 +425,7 @@ export default function SettingsScreen() {
             text: '새로 불러오기',
             style: hadContent ? 'destructive' : 'default',
             onPress: () => {
-              app.setWeeklySchedule(buildDefaultSchedule(level.id));
+              app.setWeeklySchedule(buildDefaultSchedule(level.id, app.subjects));
               app.showToastCustom(`${level.label} 기본 시간표로 채웠어요`, 'toru');
             },
           },

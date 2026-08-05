@@ -17,8 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
-import { DEFAULT_SCHEDULES, SCHOOL_DEFAULT_SUBJECTS } from './src/constants/presets';
-import { generateId } from './src/utils/format';
+import { SCHOOL_DEFAULT_SUBJECTS } from './src/constants/presets';
+import { buildDefaultSchedule, hasScheduleTemplate } from './src/utils/scheduleTemplate';
 import { normalizeRoomCode, isValidRoomCode } from './src/utils/studyRoomCore';
 import { openExactAlarmSettings } from './src/utils/permissions';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
@@ -203,27 +203,20 @@ function OnboardingScreen() {
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
 
     // 학교급 기본 과목 자동 세팅 (온보딩에서 과목 추가 단계 제거 — 사용자는 과목탭에서 수정·삭제).
-    // 이름→id 맵을 만들어 아래 계획 블록과 subjectId로 연결 → 할일↔계획 연동이 바로 작동.
-    const nameToId = {};
-    (app.subjects || []).forEach(x => { nameToId[x.name] = x.id; });
+    // 여기서 만든 과목이 아래 계획 블록과 이름으로 연결된다 → 할일↔계획 연동이 바로 작동.
+    const subjects = [...(app.subjects || [])];
     (SCHOOL_DEFAULT_SUBJECTS[schoolLevel] || []).forEach(s => {
-      if (!nameToId[s.name]) { const n = app.addSubject({ name: s.name, color: s.color }); nameToId[s.name] = n.id; }
+      if (!subjects.some(x => x.name === s.name)) {
+        const n = app.addSubject({ name: s.name, color: s.color });
+        subjects.push(n);
+      }
     });
 
-    // 학교급 기본 시간표 자동 적용 — 계획 블록은 같은 이름의 과목과 subjectId로 연결
-    const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
-    const template = DEFAULT_SCHEDULES[schoolLevel];
-    if (template) {
-      const newWs = { enabled: true };
-      DAY_KEYS.forEach(key => {
-        const src = weekdays.includes(key) ? template.weekday : template.weekend;
-        newWs[key] = {
-          fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
-          plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: nameToId[p.label] || null })),
-        };
-      });
-      app.setWeeklySchedule?.(newWs);
+    // 학교급 기본 시간표 자동 적용 — 생성은 utils/scheduleTemplate.js가 담당한다
+    // (설정탭 학교급 변경 제안 · 플래너 '기본으로 초기화'와 같은 함수. 예전엔 여기에 따로 구현돼 있어
+    //  온보딩만 과목을 연결하고 나머지 두 경로는 연결하지 않았다 — 2026-08-05 통합)
+    if (hasScheduleTemplate(schoolLevel)) {
+      app.setWeeklySchedule?.(buildDefaultSchedule(schoolLevel, subjects));
     }
   };
 

@@ -143,8 +143,8 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   // ── 기본 템플릿 적용 ──
   // 생성 로직은 utils/scheduleTemplate.js (설정탭의 학교급 변경 제안과 공용 — 결과가 갈리면 안 된다)
   const applyDefaultTemplate = useCallback(() => {
-    app.setWeeklySchedule(buildDefaultSchedule(app.settings.schoolLevel || 'high'));
-  }, [app.settings.schoolLevel]);
+    app.setWeeklySchedule(buildDefaultSchedule(app.settings.schoolLevel || 'high', app.subjects));
+  }, [app.settings.schoolLevel, app.subjects]);
 
   // ── 플래너 ON/OFF ──
   const handleToggle = useCallback((val) => {

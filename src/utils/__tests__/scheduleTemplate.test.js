@@ -36,9 +36,35 @@ describe('buildDefaultSchedule', () => {
     expect(ws.sun.plans.map(p => p.label)).toEqual(t.weekend.plans.map(p => p.label));
   });
 
-  it('★계획에는 과목을 연결하지 않는다★ — 라벨이 같아도 사용자 과목 id와는 다르다', () => {
+  it('과목 목록을 안 주면 계획에 과목이 연결되지 않는다', () => {
     const ws = buildDefaultSchedule('high');
     DAY_KEYS.forEach(k => ws[k].plans.forEach(p => expect(p.subjectId).toBeNull()));
+  });
+
+  it('★이름이 같은 과목이 있으면 연결한다★ — 온보딩·초기화·학교급 변경이 같아야 한다', () => {
+    const subjects = [
+      { id: 'subj_1', name: '국어' }, { id: 'subj_2', name: '수학' },
+    ];
+    const ws = buildDefaultSchedule('high', subjects);
+    const plans = DAY_KEYS.flatMap(k => ws[k].plans);
+    const korean = plans.filter(p => p.label === '국어');
+    expect(korean.length).toBeGreaterThan(0);
+    korean.forEach(p => expect(p.subjectId).toBe('subj_1'));
+    // 목록에 없는 이름은 그대로 null (사용자가 직접 고른다)
+    plans.filter(p => !['국어', '수학'].includes(p.label))
+      .forEach(p => expect(p.subjectId).toBeNull());
+  });
+
+  it('같은 이름의 과목이 여러 개면 먼저 만든 것에 붙는다', () => {
+    const subjects = [{ id: 'a', name: '수학' }, { id: 'b', name: '수학' }];
+    const ws = buildDefaultSchedule('middle', subjects);
+    DAY_KEYS.flatMap(k => ws[k].plans).filter(p => p.label === '수학')
+      .forEach(p => expect(p.subjectId).toBe('a'));
+  });
+
+  it('이름 없는 과목이 섞여 있어도 터지지 않는다', () => {
+    const ws = buildDefaultSchedule('high', [{ id: 'x' }, null, { id: 'y', name: '국어' }]);
+    expect(DAY_KEYS.flatMap(k => ws[k].plans).some(p => p.subjectId === 'y')).toBe(true);
   });
 
   it('id는 항목마다 새로 붙고 서로 겹치지 않는다', () => {
