@@ -43,6 +43,123 @@
     reveals.forEach(function (el) { el.classList.add('in'); });
   }
 
+  // ── 도움말 검색 (help.html) ──────────────────
+  // 서버 없이 페이지 안의 항목만 걸러낸다. 비교 전에 공백을 없애므로
+  // '시간수정'으로 검색해도 '시간 수정'이 걸린다 (한국어 검색어는 띄어쓰기가 제각각).
+  var hSearch = document.querySelector('[data-help-search]');
+  if (hSearch) {
+    var hItems = [].slice.call(document.querySelectorAll('.hitem'));
+    var hResults = document.querySelector('[data-help-results]');
+    var hGroups = [].slice.call(document.querySelectorAll('.hgroup')).filter(function (g) {
+      return g !== hResults;
+    });
+    var hCats = [].slice.call(document.querySelectorAll('.hcat'));
+    var hCount = document.querySelector('[data-help-count]');
+    var hEmpty = document.querySelector('[data-help-empty]');
+    var hClear = document.querySelector('[data-help-clear]');
+    var curCat = 'all';
+
+    var norm = function (s) { return (s || '').toLowerCase().replace(/\s+/g, ''); };
+
+    // 항목별 검색 대상 텍스트를 미리 만들어 둔다 (제목 + 본문 + 별칭 키워드)
+    // _home: 검색이 끝나면 돌아갈 원래 분류. hItems가 문서 순서라 순서대로 다시 붙이면 원래 배열이 된다
+    hItems.forEach(function (item) {
+      var sum = item.querySelector('summary');
+      item._title = norm(sum ? sum.textContent : '');
+      item._keys = norm(item.getAttribute('data-k') || '');
+      item._hay = norm(item.textContent) + ' ' + item._keys;
+      item._home = item.parentNode;
+    });
+
+    // 제목에 있으면 가장 관련도가 높고, 별칭 키워드, 본문 순 — '시간 수정'을 검색했을 때
+    // 본문에서 스쳐 지나가듯 언급한 항목이 위로 올라오지 않게 한다
+    var score = function (item, terms) {
+      var s = 0;
+      terms.forEach(function (t) {
+        if (item._title.indexOf(t) !== -1) s += 4;
+        else if (item._keys.indexOf(t) !== -1) s += 2;
+        else s += 1;
+      });
+      return s;
+    };
+
+    var apply = function (q) {
+      // 공백으로 나눈 낱말이 모두 들어 있어야 결과로 친다 (AND 조건)
+      var terms = q.trim().length ? q.trim().split(/\s+/).map(norm).filter(Boolean) : [];
+      var searching = terms.length > 0;
+      var matched = [];
+      var shown = 0;
+
+      hItems.forEach(function (item) {
+        var catOk = curCat === 'all' || item.getAttribute('data-cat') === curCat;
+        var hit = !searching || terms.every(function (t) { return item._hay.indexOf(t) !== -1; });
+        var show = catOk && hit;
+        item.hidden = !show;
+        if (show) { shown++; if (searching) matched.push(item); }
+        // 검색 중에는 결과를 펼쳐 보여준다 (검색어를 지우면 다시 접는다)
+        if (searching) { if (show) item.open = true; }
+        else if (!item.hasAttribute('data-keep-open')) { item.open = false; }
+      });
+
+      if (searching && hResults) {
+        matched.forEach(function (item) { item._score = score(item, terms); });
+        matched.sort(function (a, b) { return b._score - a._score; });
+        matched.forEach(function (item) { hResults.appendChild(item); });
+        hResults.hidden = shown === 0;
+        hGroups.forEach(function (g) { g.hidden = true; });
+      } else {
+        if (hResults) { hItems.forEach(function (item) { item._home.appendChild(item); }); hResults.hidden = true; }
+        hGroups.forEach(function (g) { g.hidden = !g.querySelector('.hitem:not([hidden])'); });
+      }
+
+      if (hCount) {
+        hCount.textContent = terms.length || curCat !== 'all'
+          ? shown + '개 항목' : '전체 ' + shown + '개 항목';
+      }
+      if (hEmpty) hEmpty.hidden = shown > 0;
+      if (hClear) hClear.classList.toggle('on', !!q);
+    };
+
+    var syncUrl = function (q) {
+      if (!window.history || !history.replaceState) return;
+      var url = location.pathname + (q ? '?q=' + encodeURIComponent(q) : '');
+      history.replaceState(null, '', url);
+    };
+
+    hSearch.addEventListener('input', function () {
+      apply(hSearch.value);
+      syncUrl(hSearch.value);
+    });
+    hSearch.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { hSearch.value = ''; apply(''); syncUrl(''); }
+    });
+    if (hClear) {
+      hClear.addEventListener('click', function () {
+        hSearch.value = ''; apply(''); syncUrl(''); hSearch.focus();
+      });
+    }
+    hCats.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        curCat = btn.getAttribute('data-cat');
+        hCats.forEach(function (b) { b.classList.toggle('on', b === btn); });
+        apply(hSearch.value);
+      });
+    });
+
+    // ?q= 로 들어오면 검색어를 채우고, #앵커로 들어오면 그 항목을 펼친다
+    var q0 = (location.search.match(/[?&]q=([^&]*)/) || [])[1];
+    if (q0) { hSearch.value = decodeURIComponent(q0.replace(/\+/g, ' ')); }
+    apply(hSearch.value);
+    if (location.hash.length > 1) {
+      var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (target && target.classList.contains('hitem')) {
+        target.open = true;
+        target.setAttribute('data-keep-open', '');
+        target.scrollIntoView({ block: 'center' });
+      }
+    }
+  }
+
   // 현재 연도
   var y = document.querySelector('[data-year]');
   if (y) y.textContent = new Date().getFullYear();
