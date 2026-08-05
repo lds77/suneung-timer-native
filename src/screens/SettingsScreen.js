@@ -24,7 +24,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
 import { backupRowSub } from '../utils/backupNudge';
-import { buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent } from '../utils/scheduleTemplate';
+import { buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent, describeScheduleLoss } from '../utils/scheduleTemplate';
 import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
 import { backupFileName, buildArchive, openArchive, restoreFiles, finishRestore, filesToRestore, isZipFile } from '../utils/backupArchive';
 import { openExactAlarmSettings } from '../utils/permissions';
@@ -413,16 +413,23 @@ export default function SettingsScreen() {
     if (app.weeklySchedule?.enabled !== true) return;        // 플래너를 안 쓰면 물어볼 게 없다
     if (!hasScheduleTemplate(level.id)) return;              // 기본 시간표가 없는 학교급
     const hadContent = hasScheduleContent(app.weeklySchedule);
+    const loss = describeScheduleLoss(app.weeklySchedule);
+    // ★경고는 문구와 버튼 이름으로만 전달된다★ — RN의 style:'destructive'(빨간 글씨)는
+    // **iOS 전용**이라 안드에서는 아무 표시도 안 난다(Alert.js의 destructiveButtonKey는 iOS 분기뿐).
+    // 그래서 ①사라지는 것을 개수로 적고 ②확인 버튼 이름에 '지우고'를 넣는다.
+    // '새로 불러오기'처럼 뭔가 추가되는 듯한 말은 쓰지 말 것.
     // ★피커 Modal이 닫히는 동안 Alert를 띄우면 안드에서 같이 사라진다★ — 애니메이션 뒤로 미룬다
     setTimeout(() => {
       Alert.alert(
-        '기본 시간표도 새로 불러올까요?',
-        `학교급을 「${level.label}」(으)로 바꿨어요.\n주간 시간표는 예전 학교급 그대로예요.\n\n「${level.label}」 기본 시간표(학교·식사·취침)로 새로 채울까요?`
-        + (hadContent ? '\n\n지금까지 만든 주간 시간표는 사라져요.\n공부 기록·통계·과목은 그대로예요.' : ''),
+        '주간 시간표를 새로 채울까요?',
+        `학교급을 「${level.label}」(으)로 바꿨어요.\n지금 주간 시간표는 예전 학교급 그대로예요.\n\n「${level.label}」 기본 시간표(학교·식사·취침)로 새로 채울까요?`
+        + (hadContent
+          ? `\n\n지금까지 만든 ${loss}가 모두 지워져요. 되돌릴 수 없어요.\n공부 기록·통계·과목은 그대로예요.`
+          : ''),
         [
-          { text: '지금 그대로', style: 'cancel' },
+          { text: hadContent ? '취소' : '나중에', style: 'cancel' },
           {
-            text: '새로 불러오기',
+            text: hadContent ? '지우고 채우기' : '채우기',
             style: hadContent ? 'destructive' : 'default',
             onPress: () => {
               app.setWeeklySchedule(buildDefaultSchedule(level.id, app.subjects));

@@ -4,6 +4,7 @@
 import { DEFAULT_SCHEDULES } from '../../constants/presets';
 import {
   DAY_KEYS, buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent, emptyDaySchedule,
+  countScheduleItems, describeScheduleLoss,
 } from '../scheduleTemplate';
 
 describe('hasScheduleTemplate', () => {
@@ -113,5 +114,38 @@ describe('hasScheduleContent', () => {
 
   it('기본 시간표를 채운 직후는 내용이 있는 상태', () => {
     expect(hasScheduleContent(buildDefaultSchedule('high'))).toBe(true);
+  });
+});
+
+describe('countScheduleItems / describeScheduleLoss', () => {
+  // 덮어쓰기 경고 문구용 — 안드는 destructive 빨간 글씨가 안 나와서 문구가 유일한 신호다
+  const make = (setup) => {
+    const ws = { enabled: true };
+    DAY_KEYS.forEach(k => { ws[k] = emptyDaySchedule(); });
+    setup(ws);
+    return ws;
+  };
+
+  it('요일을 가로질러 합산한다', () => {
+    const ws = make(w => {
+      w.mon.fixed.push({ id: 'f1' }, { id: 'f2' });
+      w.mon.plans.push({ id: 'p1' });
+      w.sat.plans.push({ id: 'p2' }, { id: 'p3' });
+    });
+    expect(countScheduleItems(ws)).toEqual({ fixed: 2, plans: 3 });
+    expect(describeScheduleLoss(ws)).toBe('고정 일정 2개와 반복 계획 3개');
+  });
+
+  it('한 종류만 있으면 그것만 말한다', () => {
+    const onlyFixed = make(w => { w.tue.fixed.push({ id: 'f1' }); });
+    expect(describeScheduleLoss(onlyFixed)).toBe('고정 일정 1개');
+    const onlyPlans = make(w => { w.tue.plans.push({ id: 'p1' }); });
+    expect(describeScheduleLoss(onlyPlans)).toBe('반복 계획 1개');
+  });
+
+  it('비었거나 null이면 빈 문자열 — 경고 문단 자체를 빼는 근거', () => {
+    expect(describeScheduleLoss(null)).toBe('');
+    expect(describeScheduleLoss(make(() => {}))).toBe('');
+    expect(countScheduleItems(null)).toEqual({ fixed: 0, plans: 0 });
   });
 });

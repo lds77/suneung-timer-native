@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
 import { FIXED_TYPES } from '../constants/presets';
 import { generateId } from '../utils/format';
-import { buildDefaultSchedule } from '../utils/scheduleTemplate';
+import { buildDefaultSchedule, describeScheduleLoss } from '../utils/scheduleTemplate';
 import { useApp } from '../hooks/useAppState';
 import { Ionicons } from '@expo/vector-icons';
 import TimeField from '../components/TimeField';
@@ -480,9 +480,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               <TouchableOpacity
                 onPress={() => {
                   const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
+                  // 사라지는 것을 개수로 적는다 — "설정한 내용은 사라져요"는 흘려보내기 쉽다.
+                  // (안드에서는 destructive 빨간 글씨가 안 나오므로 문구가 유일한 신호다)
+                  const loss = describeScheduleLoss(ws);
                   Alert.alert(
                     '기본 시간표로 초기화',
-                    `「${levelLabel}」 기본 시간표로 전체 초기화할까요?\n\n학교·식사·취침 시간이 자동으로 채워져요.\n지금까지 설정한 내용은 모두 사라져요.`,
+                    `「${levelLabel}」 기본 시간표로 전체 초기화할까요?\n\n학교·식사·취침 시간이 자동으로 채워져요.`
+                    + (loss ? `\n지금까지 만든 ${loss}가 모두 지워져요. 되돌릴 수 없어요.` : ''),
                     [
                       { text: '취소', style: 'cancel' },
                       { text: '초기화', style: 'destructive', onPress: () => {

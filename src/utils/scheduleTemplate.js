@@ -53,8 +53,32 @@ export function buildDefaultSchedule(level, subjects = []) {
   return ws;
 }
 
+/**
+ * 시간표에 들어 있는 항목 수 — 덮어쓰기 경고에 **숫자로** 보여주기 위한 것.
+ * "설정한 내용이 사라져요"는 눈으로 흘려보내지만 "고정 일정 12개, 반복 계획 8개"는 걸린다.
+ */
+export function countScheduleItems(ws) {
+  let fixed = 0;
+  let plans = 0;
+  if (!ws) return { fixed, plans };
+  DAY_KEYS.forEach(k => {
+    fixed += ws[k]?.fixed?.length || 0;
+    plans += ws[k]?.plans?.length || 0;
+  });
+  return { fixed, plans };
+}
+
 /** 사용자가 만들어 둔 내용이 시간표에 있는가 — "사라져요" 경고를 띄울지 판단용 */
 export function hasScheduleContent(ws) {
-  if (!ws) return false;
-  return DAY_KEYS.some(k => ((ws[k]?.fixed?.length || 0) + (ws[k]?.plans?.length || 0)) > 0);
+  const { fixed, plans } = countScheduleItems(ws);
+  return fixed + plans > 0;
+}
+
+/** 덮어쓰면 사라지는 것을 사람 말로 — '고정 일정 12개와 반복 계획 8개' (없으면 빈 문자열) */
+export function describeScheduleLoss(ws) {
+  const { fixed, plans } = countScheduleItems(ws);
+  return [
+    fixed > 0 ? `고정 일정 ${fixed}개` : null,
+    plans > 0 ? `반복 계획 ${plans}개` : null,
+  ].filter(Boolean).join('와 ');
 }
