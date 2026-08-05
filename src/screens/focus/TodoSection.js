@@ -6,9 +6,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { calcDDay, generateId, getToday, formatDuration } from '../../utils/format';
-import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex } from '../../utils/todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex, isTodoDuplicate } from '../../utils/todoUtils';
 import { getTodoMessage } from '../../constants/characters';
 import TodoFormSheet from './TodoFormSheet';
+import ReviewNotesScreen from '../ReviewNotesScreen';
 
 export default function TodoSection({ app, T, S, isTablet, isLandscape, contentMaxW, tabletModalW, mainScrollRef, scrollYRef, onDragActive }) {
   const [expandedTodo, setExpandedTodo] = useState(null);
@@ -17,7 +18,19 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   const [todoListModal, setTodoListModal] = useState(null); // { mode:'add' } | { mode:'rename', target:'today'|'exam'|커스텀 목록 id }
   const [todoListName, setTodoListName] = useState('');
   const [showAddTodoModal, setShowAddTodoModal] = useState(false);
+  const [showReviewNotes, setShowReviewNotes] = useState(false);
   const inlineInputRef = useRef(null);
+
+  // 할일 → 오답노트로 복사 (메모/제목 스냅샷). 원본 할일은 그대로 — 챕터/색은 오답노트에서 정리.
+  const handleArchiveTodo = (t) => {
+    const res = app.archiveTodoToNote(t.id);
+    Vibration.vibrate([0, 30]);
+    if (res && res.duplicate) {
+      app.showToastCustom('이미 오답노트에 있어요', 'paengi');
+    } else {
+      app.showToastCustom('오답노트에 저장했어요', 'toru');
+    }
+  };
   const [addTodoText, setAddTodoText] = useState('');
 
   const inlineFocusedRef = useRef(false);
@@ -78,18 +91,32 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   // PanResponder는 컴포넌트당 1개로 고정 — 렌더마다 새로 만들면 드래그 중 재렌더(setDrag) 시
   // 핸들러가 교체돼 gestureState 기준점이 끊기고 이동 이벤트가 죽는다 (grant만 되고 move 안 됨).
   // 어느 행을 잡았는지는 손잡이의 onStartShouldSetResponder에서 pendingDragRef로 전달.
+  // 드래그는 손잡이를 220ms 길게 눌러야 활성화 — 스크롤하던 손가락이 손잡이에 닿아
+  // 순서가 바뀌는 오작동 방지. 활성화 전엔 부모 ScrollView에 responder를 양보(스크롤 우선),
+  // 활성화 후(진동 알림)엔 안 뺏김.
   const pendingDragRef = useRef(null); // { todo, ids }
+  const holdTimerRef = useRef(null);
+  const clearHoldTimer = () => { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; };
+  useEffect(() => clearHoldTimer, []);
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderTerminationRequest: () => false, // 부모 ScrollView에 responder 안 뺏김
+    onPanResponderTerminationRequest: () => !dragRef.current, // 활성화 전엔 스크롤에 양보
     onPanResponderGrant: () => {
-      const p = pendingDragRef.current;
-      if (p) startDrag(p.todo, p.ids);
+      clearHoldTimer();
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        const p = pendingDragRef.current;
+        if (p) startDrag(p.todo, p.ids); // startDrag의 진동이 활성화 신호
+      }, 220);
     },
-    onPanResponderMove: (_, g) => moveDrag(g.dy),
-    onPanResponderRelease: endDrag,
-    onPanResponderTerminate: endDrag,
+    onPanResponderMove: (_, g) => {
+      if (dragRef.current) { moveDrag(g.dy); return; }
+      // 활성화 전에 손가락이 움직이면 스크롤 의도 — 길게누름 취소
+      if (holdTimerRef.current && (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6)) clearHoldTimer();
+    },
+    onPanResponderRelease: () => { clearHoldTimer(); endDrag(); },
+    onPanResponderTerminate: () => { clearHoldTimer(); endDrag(); },
   })).current;
 
   // 앱 복귀 시 키보드 자동 열림 방지
@@ -132,7 +159,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     scope === 'exam' ? examLabel
       : (scope === 'today' || scope == null) ? todayLabel
         : (todoLists.find(l => l.id === scope)?.name ?? '목록');
-  const MAX_TODO_LISTS = 5;
+  const MAX_TODO_LISTS = 8;
   // 모달 날짜(기한) 칩 후보: 오늘 + 다음 6일
   const todoDateToday = getToday();
   const todoDateChoices = [todoDateToday, ...nextDates(todoDateToday, 6)];
@@ -205,12 +232,14 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   // ── 할일 추가/수정 ──
   const submitInlineTodo = () => {
     if (!addTodoText.trim()) { setAddTodoText(''); return; }
-    app.addTodo({
+    const f = {
       text: addTodoText.trim(),
       priority: 'normal',
       scope: todoScopeFilter === 'all' ? 'today' : todoScopeFilter,
       isTemplate: false,
-    });
+    };
+    if (isTodoDuplicate(app.todos, f)) { app.showToastCustom('같은 할 일이 이미 있어요', 'paengi'); return; }
+    app.addTodo(f);
     Vibration.vibrate([0, 30]);
     setAddTodoText('');
     Keyboard.dismiss();
@@ -234,7 +263,9 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
   };
 
   const handleAddSave = (fields) => {
-    app.addTodo(buildTodoFields(fields));
+    const f = buildTodoFields(fields);
+    if (isTodoDuplicate(app.todos, f)) { app.showToastCustom('같은 할 일이 이미 있어요', 'paengi'); return; } // 시트 유지 — 이름 바꿀 수 있게
+    app.addTodo(f);
     // 반복 템플릿 인스턴스 생성은 addTodo 내부에서 처리
     Vibration.vibrate([0, 30]);
     setAddTodoText(''); // 인라인 입력에서 이월된 텍스트 정리
@@ -242,11 +273,23 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     setShowAddTodoModal(false);
   };
 
-  const openEditTodo = (t) => setEditTarget(t);
+  const openEditTodo = (t) => {
+    // 반복 인스턴스는 repeatDays가 부모 템플릿에만 있음 — 그대로 넘기면 폼이 '반복 안 함'으로
+    // 초기화되고 저장 시 템플릿까지 삭제돼 반복이 풀린다. 템플릿의 반복 요일을 주입해 유지
+    const tmpl = t.templateId ? app.todos.find(x => x.id === t.templateId) : null;
+    setEditTarget(tmpl?.repeatDays?.length ? { ...t, repeatDays: tmpl.repeatDays } : t);
+  };
 
   const handleEditSave = (fields) => {
     const todo = editTarget;
     if (!todo) return;
+    const f = buildTodoFields(fields);
+    // 중복(같은 과목·목록에 같은 이름)이면 조용히 막히므로 사전 판정 — 시트 유지해 이름을 바꿀 수 있게.
+    // 과목/목록을 옮길 때 대상에 같은 이름이 있는 경우가 대표적 (사장님 신고: 과학→수학 이동 시 안 넘어감)
+    if (isTodoDuplicate(app.todos, f, todo.id)) {
+      app.showToastCustom('옮기려는 곳에 같은 할 일이 이미 있어요', 'paengi');
+      return;
+    }
     // 인스턴스 편집 시 부모 템플릿도 함께 제거 (새 템플릿 생성 또는 반복 해제 시 중복/유령 템플릿 방지)
     if (todo.templateId) {
       app.removeTodo(todo.templateId);
@@ -255,8 +298,8 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     if (todo.isTemplate) {
       app.todos.filter(x => x.templateId === todo.id).forEach(x => app.removeTodo(x.id));
     }
-    app.removeTodo(todo.id);
-    app.addTodo(buildTodoFields(fields));
+    // 삭제 후 재추가 대신 replaceId로 제자리 교체 — 맨 뒤로 붙으면 드래그로 정한 순서가 깨짐
+    app.addTodo({ ...f, replaceId: todo.id });
     setEditTarget(null);
     Vibration.vibrate([0, 30]);
     app.showToastCustom('수정했어요!', 'toru');
@@ -392,17 +435,21 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                       </View>
                     </View>
                   )}
-                  {/* 펼침 퀵액션: 집중 시작(자유 타이머) / 내일로 미루기 */}
+                  {/* 펼침 퀵액션: 집중 시작(자유 타이머) / 내일로 미루기 / 오답노트 저장 */}
                   {isExpanded && !t.done && (
-                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                       <TouchableOpacity onPress={() => {
                         setExpandedTodo(null);
+                        // 정방향 연동: 같은 과목의 오늘 계획 블록(80% 미달)이 있으면 planId 주입 → 계획 진행도에 반영.
+                        // 없으면(과목 미지정 포함) null → 예전처럼 계획 미반영 폴백.
+                        const linkedPlanId = app.findTodayPlanIdForSubject?.(t.subjectId, t.subjectLabel) || null;
                         app.addTimer({
                           type: 'free',
                           label: t.text.length > 18 ? t.text.slice(0, 18) + '…' : t.text,
                           subjectId: t.subjectId || null,
                           color: t.subjectColor || T.accent,
                           todoId: t.id, // 종료 시 완료 확인 + 할일에 집중시간 누적 표시
+                          planId: linkedPlanId, // 할일→계획 정방향 연동 (역방향은 계획 타이머에 todoId 없어 자동 차단)
                         });
                       }}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.accent }}>
@@ -422,7 +469,20 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                           <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>내일로</Text>
                         </TouchableOpacity>
                       )}
+                      <TouchableOpacity onPress={() => handleArchiveTodo(t)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                        <Ionicons name="reader-outline" size={12} color={T.sub} />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>오답노트 저장</Text>
+                      </TouchableOpacity>
                     </View>
+                  )}
+                  {/* 완료 항목: 다음날 사라지기 전에 메모를 오답노트로 남길 수 있게 */}
+                  {isExpanded && t.done && (
+                    <TouchableOpacity onPress={() => handleArchiveTodo(t)}
+                      style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, marginTop: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                      <Ionicons name="reader-outline" size={12} color={T.sub} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>오답노트 저장</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
                 {/* 드래그 손잡이 — 같은 그룹에 미완료가 2개 이상일 때만.
@@ -459,12 +519,19 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
             <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && !isLandscape && S.tabletBlock]}>
               {/* 헤더 */}
               <View style={S.todoH}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={T.accent} />
                   <Text style={[S.todoTitle, { color: T.text }]}>해야 할 일</Text>
+                  <TouchableOpacity onPress={() => setShowReviewNotes(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: T.accent + '15', borderWidth: 1, borderColor: T.accent + '55', marginLeft: 2 }}>
+                    <Ionicons name="reader-outline" size={13} color={T.accent} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>오답노트</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={[S.todoCnt, { color: T.sub }]}>{doneCount}/{todayTodos.length}</Text>
-                <Text style={{ fontSize: 11, color: T.border, marginLeft: 4 }}>탭:펼치기 · 꾹:수정</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <Text style={{ fontSize: 11, color: T.border }} numberOfLines={1}>탭:펼치기 · 꾹:수정</Text>
+                  <Text style={[S.todoCnt, { color: T.sub }]}>{doneCount}/{todayTodos.length}</Text>
+                </View>
               </View>
               {/* scope 필터 탭 — 꾹 누르면 이름변경(오늘/시험대비) 또는 이름변경·삭제(커스텀), +로 목록 추가 */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6, alignItems: 'center', flexGrow: 1 }}>
@@ -782,6 +849,8 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ReviewNotesScreen visible={showReviewNotes} onClose={() => setShowReviewNotes(false)} />
     </>
   );
 }

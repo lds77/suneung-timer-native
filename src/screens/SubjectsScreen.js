@@ -1,6 +1,6 @@
 // src/screens/SubjectsScreen.js
 // v24: 가로모드 독립 2분할 스크롤
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, useWindowDimensions, Animated, PanResponder, Vibration } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -12,6 +12,8 @@ import { CHARACTERS, CHARACTER_LIST } from '../constants/characters';
 import { formatShort, formatTime, getWeekStartStr } from '../utils/format';
 import CharacterAvatar from '../components/CharacterAvatar';
 import RunningTimersBar from '../components/RunningTimersBar';
+import FavoritesCard from './focus/FavoritesCard';
+import ReviewNotesScreen from './ReviewNotesScreen';
 import { Ionicons } from '@expo/vector-icons';
 
 // ═══ 추천 루틴 ═══
@@ -130,7 +132,10 @@ const SUNEUNG_SUBJECTS = [
   { name: '제2외국어', min: 40, color: '#00B894', order: 7 },
 ];
 
-// 실제 수능 시간표 (2025학년도 기준)
+// 실제 수능 시간표. 교시별 시간·쉬는시간은 해마다 사실상 동일하다.
+// ★화면 문구에 학년도를 박지 말 것★ — '2025학년도'라고 적어 뒀다가 두 해가 지나도록
+// 그대로 남아 있었다(2026-08-01 스토어 스크린샷 점검에서 발견). 매년 손대야 하는 문구는
+// 결국 낡는다 — CLAUDE.md 작업 규칙 14와 같은 계열.
 const SUNEUNG_TIMETABLE = [
   { order: 1, period: '1교시', name: '국어',      min: 80,  start: '08:40', end: '10:00', breakMin: 30, color: '#E8575A' },
   { order: 2, period: '2교시', name: '수학',      min: 100, start: '10:30', end: '12:10', breakMin: 60, color: '#4A90D9' },
@@ -174,6 +179,7 @@ export default function SubjectsScreen({ navigation }) {
 
   const [goalSubj, setGoalSubj] = useState(null);
   const [goalInput, setGoalInput] = useState('');
+  const [showReviewNotes, setShowReviewNotes] = useState(false);
 
   const key = ELEM_GRADE_KEY(school);
   const routines = ROUTINES[key] || ROUTINES.high;
@@ -240,18 +246,31 @@ export default function SubjectsScreen({ navigation }) {
   };
   // PanResponder는 컴포넌트당 1개로 고정 — 렌더마다 새로 만들면 드래그 중 재렌더(setDrag) 시
   // 핸들러가 교체돼 gestureState 기준점이 끊긴다. 잡은 행은 pendingDragRef로 전달.
+  // 드래그는 손잡이를 220ms 길게 눌러야 활성화 — 스크롤하던 손가락이 손잡이에 닿아
+  // 순서가 바뀌는 오작동 방지 (TodoSection과 동일 패턴). 활성화 전엔 스크롤에 양보.
   const pendingDragRef = useRef(null); // { subj, ids }
+  const holdTimerRef = useRef(null);
+  const clearHoldTimer = () => { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; };
+  useEffect(() => clearHoldTimer, []);
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderTerminationRequest: () => false, // 부모 ScrollView에 responder 안 뺏김
+    onPanResponderTerminationRequest: () => !dragRef.current, // 활성화 전엔 스크롤에 양보
     onPanResponderGrant: () => {
-      const p = pendingDragRef.current;
-      if (p) startDrag(p.subj, p.ids);
+      clearHoldTimer();
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        const p = pendingDragRef.current;
+        if (p) startDrag(p.subj, p.ids); // startDrag의 진동이 활성화 신호
+      }, 220);
     },
-    onPanResponderMove: (_, g) => moveDrag(g.dy),
-    onPanResponderRelease: endDrag,
-    onPanResponderTerminate: endDrag,
+    onPanResponderMove: (_, g) => {
+      if (dragRef.current) { moveDrag(g.dy); return; }
+      // 활성화 전에 손가락이 움직이면 스크롤 의도 — 길게누름 취소
+      if (holdTimerRef.current && (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6)) clearHoldTimer();
+    },
+    onPanResponderRelease: () => { clearHoldTimer(); endDrag(); },
+    onPanResponderTerminate: () => { clearHoldTimer(); endDrag(); },
   })).current;
 
   const weekSubjSec = useMemo(() => {
@@ -536,7 +555,7 @@ export default function SubjectsScreen({ navigation }) {
 
       {suneungMode === 'timetable' ? (
         <>
-          <Text style={[S.secLabel, { color: T.sub }]}>2025학년도 수능 시간표 · 실제 쉬는시간 반영</Text>
+          <Text style={[S.secLabel, { color: T.sub }]}>실제 수능 시간표 · 쉬는시간 그대로 반영</Text>
           {SUNEUNG_TIMETABLE.map((tt, i) => {
             const sel = suneungSelected.includes(tt.name);
             const prevTt = i > 0 ? SUNEUNG_TIMETABLE[i - 1] : null;
@@ -672,10 +691,10 @@ export default function SubjectsScreen({ navigation }) {
 
   const renderSubjectHeader = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0 }]}>
+      <Text style={[S.secLabel, { color: T.sub, marginBottom: 0, flex: 1, marginRight: 8 }]} numberOfLines={1}>
         {editMode ? '탭하면 수정 · 손잡이를 끌면 순서 변경' : '과목별 타이머 바로 시작'}
       </Text>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0 }}>
         {sorted.length > 0 && (
           <TouchableOpacity
             style={[S.addBtn, editMode
@@ -769,6 +788,18 @@ export default function SubjectsScreen({ navigation }) {
               {/* 내 과목 — 과목 리스트 */}
               {tab === 'subjects' && (
                 <>
+                  {/* 즐겨찾기 타이머 (집중탭에서 이전) — 시작하면 집중탭으로 이동 */}
+                  <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
+                  {/* 오답노트 진입 — 편집/추가와 분리된 별도 줄 */}
+                  <TouchableOpacity activeOpacity={0.8} onPress={() => setShowReviewNotes(true)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.accent + '12', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: T.accent + '40' }}>
+                    <Ionicons name="reader-outline" size={19} color={T.accent} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>오답노트</Text>
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>과목별로 오답·메모를 모아 복습해요</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={T.accent} />
+                  </TouchableOpacity>
                   {renderSubjectHeader()}
                   {sorted.length === 0 && (
                     <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -871,6 +902,18 @@ export default function SubjectsScreen({ navigation }) {
             {/* ═══ 탭: 내 과목 ═══ */}
             {tab === 'subjects' && (
               <>
+                {/* 즐겨찾기 타이머 (집중탭에서 이전, 2026-07-19) — 시작하면 집중탭으로 이동 */}
+                <FavoritesCard app={app} T={T} onStarted={() => navigation.navigate('Focus')} />
+                {/* 오답노트 진입 — 편집/추가와 분리된 별도 줄 */}
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setShowReviewNotes(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.accent + '12', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: T.accent + '40' }}>
+                  <Ionicons name="reader-outline" size={19} color={T.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: T.accent }}>오답노트</Text>
+                    <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>과목별로 오답·메모를 모아 복습해요</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={T.accent} />
+                </TouchableOpacity>
                 {renderSubjectHeader()}
                 {sorted.length === 0 && (
                   <View style={[S.emptyCard, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -1024,6 +1067,8 @@ export default function SubjectsScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      <ReviewNotesScreen visible={showReviewNotes} onClose={() => setShowReviewNotes(false)} />
 
     </View>
   );

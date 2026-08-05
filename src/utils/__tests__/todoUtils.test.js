@@ -1,7 +1,29 @@
 // 할일 기한(dueDate) 순수 로직 테스트
-import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex, applyDailyTodoReset } from '../todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, diffDays, nextDates, dateChipLabel, buildMonthCells, applyReorder, computeDropIndex, applyDailyTodoReset, sweepOrphanExamTodos, isTodoDuplicate } from '../todoUtils';
 
 const TODAY = '2026-07-10';
+
+describe('isTodoDuplicate', () => {
+  const todos = [
+    { id: 'a', text: '복습', subjectId: 'sci', scope: 'today', done: false },
+    { id: 'b', text: '복습', subjectId: 'math', scope: 'today', done: false },
+    { id: 'c', text: '숙제', subjectId: 'math', scope: 'today', done: true }, // 완료 → 무시
+  ];
+  it('같은 과목·목록에 같은 이름 있으면 true', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today' })).toBe(true));
+  it('과목이 다르면 false', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'eng', scope: 'today' })).toBe(false));
+  it('자기 자신(selfId)은 제외 — 수정 시 자기와 충돌 안 함', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'sci', scope: 'today' }, 'a')).toBe(false));
+  it('수학으로 옮길 때 수학에 같은 이름 있으면 true (사장님 신고 케이스)', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today' }, 'a')).toBe(true));
+  it('완료된 할일은 중복으로 치지 않음', () =>
+    expect(isTodoDuplicate(todos, { text: '숙제', subjectId: 'math', scope: 'today' })).toBe(false));
+  it('반복 템플릿(isTemplate)은 항상 false', () =>
+    expect(isTodoDuplicate(todos, { text: '복습', subjectId: 'math', scope: 'today', isTemplate: true })).toBe(false));
+  it('빈 텍스트는 false', () =>
+    expect(isTodoDuplicate(todos, { text: '  ', subjectId: 'math', scope: 'today' })).toBe(false));
+});
 
 describe('diffDays', () => {
   it('같은 날은 0', () => expect(diffDays(TODAY, TODAY)).toBe(0));
@@ -221,5 +243,38 @@ describe('buildMonthCells', () => {
   it('윤년 2월', () => {
     const cells = buildMonthCells(2028, 1).filter(Boolean);
     expect(cells.length).toBe(29);
+  });
+});
+
+describe('sweepOrphanExamTodos — 삭제된 D-Day의 고아 시험 할일 청소', () => {
+  const todos = [
+    { id: 't1', scope: 'today', ddayId: null },
+    { id: 't2', scope: 'exam', ddayId: 'dd1' },
+    { id: 't3', scope: 'exam', ddayId: 'ddGone' },  // 고아
+    { id: 't4', scope: 'exam', ddayId: null },       // 고아 (ddayId 유실)
+    { id: 't5', scope: 'list_x', ddayId: null },
+  ];
+
+  test('살아있는 D-Day의 할일과 비-exam 할일은 유지, 고아만 제거', () => {
+    const { todos: kept, swept } = sweepOrphanExamTodos(todos, [{ id: 'dd1' }]);
+    expect(swept).toBe(true);
+    expect(kept.map(t => t.id)).toEqual(['t1', 't2', 't5']);
+  });
+
+  test('고아가 없으면 원본 참조 그대로 + swept=false', () => {
+    const clean = [{ id: 'a', scope: 'exam', ddayId: 'dd1' }];
+    const r = sweepOrphanExamTodos(clean, [{ id: 'dd1' }]);
+    expect(r.swept).toBe(false);
+    expect(r.todos).toBe(clean);
+  });
+
+  test('ddays가 배열이 아니면(로드 실패) 건드리지 않음', () => {
+    expect(sweepOrphanExamTodos(todos, null).swept).toBe(false);
+    expect(sweepOrphanExamTodos(todos, null).todos).toBe(todos);
+  });
+
+  test('ddays 빈 배열이면 exam 전부 고아', () => {
+    const { todos: kept } = sweepOrphanExamTodos(todos, []);
+    expect(kept.map(t => t.id)).toEqual(['t1', 't5']);
   });
 });

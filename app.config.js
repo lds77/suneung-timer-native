@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.34',
+    version: '1.0.40',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,7 +31,17 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      buildNumber: '49', // 48은 2열 그리드 이전 버전 (TestFlight 업로드됨, 미사용)
+      // build57 = 1.0.40 (2026-08-03): 시간 입력 개편(네모 입력창) + 스터디룸 2건 +
+      //           첨부 백업 제외 + 사진 포함 백업(zip) + 오답노트 음성 메모.
+      //           ★iOS는 이 전부가 미검증 — 먼저 TestFlight로 확인하고, 심사 제출은 1.0.39 승인 후★
+      // build56 = 1.0.39 재빌드 (2026-08-01): '다른 앱 → 화면 끔'에서 이탈 알림·카운트가
+      //           통째로 누락되던 문제 (네이티브 취소 창 + 잠금 전 구간 계산). ★Swift 변경 있음★
+      // build55 = 결과 모달 시간 수정 iOS 미표시(형제 Modal) 수정
+      //           + 계획 타이머 결과 모달을 5분 규칙으로 통일 (실기기 검증 통과).
+      // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
+      // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
+      // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
+      buildNumber: '57',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -46,25 +56,45 @@ module.exports = {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // 앱 기본 언어를 한국어로 선언 — 미선언 시 App Store가 언어를 English로 표시(검색·인상 손해).
+        // 네이티브 설정이라 OTA 불가, 빌드 53+부터 반영됨
+        CFBundleDevelopmentRegion: 'ko',
+        CFBundleLocalizations: ['ko'],
         // 집중 타이머 Live Activity (자체 ActivityKit — modules/live-activity + targets/widgets)
         NSSupportsLiveActivities: true,
+        // 오답노트 사진 첨부 (expo-image-picker) — 촬영/앨범. 사진은 기기 내 앱 폴더에만 저장, 외부 전송 없음.
+        NSCameraUsageDescription: '오답 문제를 사진으로 찍어 오답노트에 첨부할 때 사용해요. 사진은 기기에만 저장돼요.',
+        NSPhotoLibraryUsageDescription: '오답노트에 첨부할 사진을 앨범에서 고를 때 사용해요. 사진은 기기에만 저장돼요.',
+        // 오답노트 음성 메모 (expo-audio 녹음) — 기기 내 앱 폴더에만 저장, 외부 전송 없음
+        NSMicrophoneUsageDescription: '오답 문제를 왜 틀렸는지 음성으로 남길 때 사용해요. 녹음은 기기에만 저장돼요.',
       },
     },
     android: {
-      allowBackup: false,
+      // true: OS 자동백업(기기 잠금 암호화)으로 재설치 시 AsyncStorage(익명 uid+공부 데이터) 복원
+      // — 계정 영속 1단계 (docs/account-persistence-design.md, 2026-07-19 사용자 승인)
+      allowBackup: true,
       softwareKeyboardLayoutMode: 'pan',
       adaptiveIcon: {
         foregroundImage: './assets/icons/adaptive-icon.png',
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      versionCode: 56, // 짝수 관행 + 로컬 테스트 APK(vc54)보다 커야 기기에서 스토어 빌드로 업그레이드 가능
+      versionCode: 72, // 1.0.40: 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
+      //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
+      //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★
+      // vc70=1.0.39(2026-08-01 제출, 심사 중): 화면 끄기/잠금은 이탈 아님 + 🔥모드 화면 꺼짐을 시스템에 맡김.
+      // vc68=1.0.38(2026-07-29 승인·라이브), vc64=1.0.37.
+      // vc66은 Play 검토에서 '기기 402대 지원 중단' 경고 — CAMERA 권한의 카메라 필수 암시 때문(미제출 폐기).
+      // vc68부터 withCameraNotRequired 플러그인 적용 — 짝수 관행 유지
       permissions: [
         'VIBRATE',
         'RECEIVE_BOOT_COMPLETED',
         'SCHEDULE_EXACT_ALARM',
         'android.permission.USE_EXACT_ALARM',
         'android.permission.MODIFY_AUDIO_SETTINGS',
+        'android.permission.CAMERA', // 오답노트 사진 촬영 (expo-image-picker). 앨범 선택은 시스템 피커라 권한 불필요
+        'android.permission.RECORD_AUDIO', // 오답노트 음성 메모 (expo-audio 녹음)
+                                           // ※마이크를 필수 하드웨어로 암시하므로 withMicrophoneNotRequired 필수 (규칙 12)
       ],
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },
@@ -162,10 +192,26 @@ module.exports = {
       '@bacons/apple-targets',
       // androidx.work 중복 클래스 정렬 (SDK 56에서 발생 — 파일 주석 참고)
       './plugins/withAndroidWorkManagerFix',
+      // 카메라를 선택 하드웨어로 선언 (CAMERA 권한이 카메라 필수를 암시해 Play 대상 기기가 줄던 문제)
+      './plugins/withCameraNotRequired',
+      // 마이크도 선택 하드웨어로 (RECORD_AUDIO가 마이크 필수를 암시 — 카메라와 같은 함정)
+      './plugins/withMicrophoneNotRequired',
+      // 오답노트 첨부 폴더를 안드 클라우드 백업에서 제외 (25MB 상한 초과 시 백업 자체가
+      // 실패해 재설치 후 uid·공부 데이터 복원이 조용히 깨지던 문제 — 파일 주석 참고)
+      './plugins/withAttachmentsNotBackedUp',
     ],
     extra: {
       eas: {
         projectId: 'ff1ee02a-77f5-4799-96d9-accb8eab8b36',
+      },
+      // 스터디룸(같이 공부) — Firebase 웹 앱 설정 (웹 API 키는 공개 전제 — 보안은 RTDB rules).
+      // 설계/설정 절차: docs/realtime-study-design.md. 비활성화하려면 null로.
+      firebase: {
+        apiKey: 'AIzaSyBXYFhftSloJTRClGPqdEugDLrfC-pjyqs',
+        authDomain: 'yeolgong-1e5cf.firebaseapp.com',
+        databaseURL: 'https://yeolgong-1e5cf-default-rtdb.firebaseio.com',
+        projectId: 'yeolgong-1e5cf',
+        appId: '1:495353537662:web:b87be3a2e0b86415c2642f',
       },
     },
   },

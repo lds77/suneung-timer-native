@@ -6,9 +6,43 @@ export const SUBJECT_PRESETS = [
   { name: '수학', color: '#4A90D9', character: 'paengi' },
   { name: '영어', color: '#5CB85C', character: 'taco' },
   { name: '과학', color: '#F5A623', character: 'totoru' },
-  { name: '사회·한국사', color: '#9B6FC3', character: 'toru' },
+  { name: '사회', color: '#9B6FC3', character: 'toru' },
+  { name: '한국사', color: '#E17055', character: 'paengi' },
   { name: '기타', color: '#8E8E93', character: 'paengi' },
 ];
+
+// 학교급별 기본 과목 — 온보딩에서 학교급 선택 시 '내 과목'에 자동 세팅 (사용자가 수정·삭제 가능).
+// 과목명은 DEFAULT_SCHEDULES(기본 계획) 및 SUBJECT_PRESETS(빠른추가)와 일치시켜 할일↔계획 연동이 바로 되도록 한다.
+// 대학생·공시생은 대표값 — 전공/직렬마다 달라 사용자가 실제 과목명으로 바꾸도록 안내.
+export const SCHOOL_DEFAULT_SUBJECTS = {
+  elementary_lower: [
+    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' }, { name: '영어', color: '#5CB85C' },
+  ],
+  elementary_upper: [
+    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' }, { name: '영어', color: '#5CB85C' },
+    { name: '과학', color: '#F5A623' }, { name: '사회', color: '#9B6FC3' },
+  ],
+  middle: [
+    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' }, { name: '영어', color: '#5CB85C' },
+    { name: '과학', color: '#F5A623' }, { name: '사회', color: '#9B6FC3' },
+  ],
+  high: [
+    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' }, { name: '영어', color: '#5CB85C' },
+    { name: '과학', color: '#F5A623' }, { name: '사회', color: '#9B6FC3' }, { name: '한국사', color: '#E17055' },
+  ],
+  nsuneung: [
+    { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' }, { name: '영어', color: '#5CB85C' },
+    { name: '과학', color: '#F5A623' }, { name: '사회', color: '#9B6FC3' }, { name: '한국사', color: '#E17055' },
+  ],
+  university: [
+    { name: '전공', color: '#4A90D9' }, { name: '교양', color: '#5CB85C' }, { name: '영어', color: '#E8575A' },
+    { name: '자격증', color: '#9B6FC3' },
+  ],
+  exam_prep: [
+    { name: '국어', color: '#E8575A' }, { name: '영어', color: '#5CB85C' }, { name: '한국사', color: '#E17055' },
+    { name: '행정학', color: '#4A90D9' }, { name: '행정법', color: '#9B6FC3' },
+  ],
+};
 
 export const TIERS = [
   { id: 'SS', min: 100, max: 120, color: '#FF4FCC', label: 'SS', message: '전설!' },
@@ -49,8 +83,9 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '숙제', icon: 'pencil-outline',        color: '#F5A623', targetMin: 20 },
-        { label: '독서', icon: 'bookmark-outline',      color: '#9B6FC3', targetMin: 20 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 20 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 20 },
+        { label: '독서', icon: 'bookmark-outline',   color: '#9B6FC3', targetMin: 20 },
       ],
     },
     weekend: {
@@ -59,8 +94,9 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '독서', icon: 'bookmark-outline',      color: '#9B6FC3', targetMin: 30 },
-        { label: '복습', icon: 'document-text-outline', color: '#4A90D9', targetMin: 20 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 30 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 20 },
+        { label: '독서', icon: 'bookmark-outline',   color: '#9B6FC3', targetMin: 20 },
       ],
     },
   },
@@ -74,9 +110,10 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '숙제', icon: 'pencil-outline',        color: '#F5A623', targetMin: 30 },
-        { label: '수학', icon: 'calculator-outline',    color: '#4A90D9', targetMin: 30 },
-        { label: '독서', icon: 'bookmark-outline',      color: '#9B6FC3', targetMin: 20 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 30 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 30 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 20 },
+        { label: '독서', icon: 'bookmark-outline',   color: '#9B6FC3', targetMin: 20 },
       ],
     },
     weekend: {
@@ -85,9 +122,10 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '수학', icon: 'calculator-outline',    color: '#4A90D9', targetMin: 40 },
-        { label: '독서', icon: 'bookmark-outline',      color: '#9B6FC3', targetMin: 30 },
-        { label: '복습', icon: 'document-text-outline', color: '#5CB85C', targetMin: 20 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 40 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 30 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 20 },
+        { label: '독서', icon: 'bookmark-outline',   color: '#9B6FC3', targetMin: 20 },
       ],
     },
   },
@@ -101,9 +139,9 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',   icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '수학',     icon: 'calculator-outline',    color: '#4A90D9', targetMin: 40 },
-        { label: '영어',     icon: 'globe-outline',         color: '#5CB85C', targetMin: 30 },
-        { label: '숙제/복습', icon: 'document-text-outline', color: '#F5A623', targetMin: 30 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 40 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 30 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 30 },
       ],
     },
     weekend: {
@@ -112,10 +150,10 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '수학',     icon: 'calculator-outline',    color: '#4A90D9', targetMin: 50 },
-        { label: '영어',     icon: 'globe-outline',         color: '#5CB85C', targetMin: 40 },
-        { label: '국어',     icon: 'book-outline',          color: '#E8575A', targetMin: 30 },
-        { label: '과학/사회', icon: 'flask-outline',         color: '#F5A623', targetMin: 30 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 50 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 40 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 30 },
+        { label: '과학', icon: 'flask-outline',      color: '#F5A623', targetMin: 30 },
       ],
     },
   },
@@ -134,7 +172,7 @@ export const DEFAULT_SCHEDULES = {
       plans: [
         { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 50 },
         { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 40 },
-        { label: '탐구', icon: 'flask-outline',      color: '#F5A623', targetMin: 30 },
+        { label: '과학', icon: 'flask-outline',      color: '#F5A623', targetMin: 30 },
       ],
     },
     weekend: {
@@ -143,11 +181,11 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '국어',  icon: 'book-outline',       color: '#E8575A', targetMin: 50 },
-        { label: '수학',  icon: 'calculator-outline', color: '#4A90D9', targetMin: 60 },
-        { label: '영어',  icon: 'globe-outline',      color: '#5CB85C', targetMin: 50 },
-        { label: '탐구1', icon: 'flask-outline',      color: '#F5A623', targetMin: 40 },
-        { label: '탐구2', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 40 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 50 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 60 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 50 },
+        { label: '과학', icon: 'flask-outline',      color: '#F5A623', targetMin: 40 },
+        { label: '사회', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 40 },
       ],
     },
   },
@@ -161,11 +199,11 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '국어',  icon: 'book-outline',       color: '#E8575A', targetMin: 80 },
-        { label: '수학',  icon: 'calculator-outline', color: '#4A90D9', targetMin: 100 },
-        { label: '영어',  icon: 'globe-outline',      color: '#5CB85C', targetMin: 60 },
-        { label: '탐구1', icon: 'flask-outline',      color: '#F5A623', targetMin: 50 },
-        { label: '탐구2', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 50 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 80 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 100 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 60 },
+        { label: '과학', icon: 'flask-outline',      color: '#F5A623', targetMin: 50 },
+        { label: '사회', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 50 },
       ],
     },
     weekend: {
@@ -174,11 +212,11 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '국어',  icon: 'book-outline',       color: '#E8575A', targetMin: 80 },
-        { label: '수학',  icon: 'calculator-outline', color: '#4A90D9', targetMin: 100 },
-        { label: '영어',  icon: 'globe-outline',      color: '#5CB85C', targetMin: 60 },
-        { label: '탐구1', icon: 'flask-outline',      color: '#F5A623', targetMin: 50 },
-        { label: '탐구2', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 50 },
+        { label: '국어', icon: 'book-outline',       color: '#E8575A', targetMin: 80 },
+        { label: '수학', icon: 'calculator-outline', color: '#4A90D9', targetMin: 100 },
+        { label: '영어', icon: 'globe-outline',      color: '#5CB85C', targetMin: 60 },
+        { label: '과학', icon: 'flask-outline',      color: '#F5A623', targetMin: 50 },
+        { label: '사회', icon: 'layers-outline',     color: '#9B6FC3', targetMin: 50 },
       ],
     },
   },
@@ -191,9 +229,9 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '전공', icon: 'book-outline',          color: '#E8575A', targetMin: 60 },
-        { label: '교양', icon: 'globe-outline',         color: '#5CB85C', targetMin: 30 },
-        { label: '과제', icon: 'document-text-outline', color: '#F5A623', targetMin: 40 },
+        { label: '전공', icon: 'book-outline',   color: '#4A90D9', targetMin: 60 },
+        { label: '교양', icon: 'library-outline', color: '#5CB85C', targetMin: 30 },
+        { label: '영어', icon: 'globe-outline',  color: '#E8575A', targetMin: 40 },
       ],
     },
     weekend: {
@@ -202,8 +240,9 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '전공',    icon: 'book-outline',      color: '#E8575A', targetMin: 90 },
-        { label: '시험 준비', icon: 'clipboard-outline', color: '#4A90D9', targetMin: 60 },
+        { label: '전공',   icon: 'book-outline',      color: '#4A90D9', targetMin: 90 },
+        { label: '교양',   icon: 'library-outline',   color: '#5CB85C', targetMin: 60 },
+        { label: '자격증', icon: 'ribbon-outline',    color: '#9B6FC3', targetMin: 60 },
       ],
     },
   },
@@ -217,10 +256,10 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '과목1',    icon: 'book-outline',          color: '#E8575A', targetMin: 90 },
-        { label: '과목2',    icon: 'layers-outline',        color: '#4A90D9', targetMin: 90 },
-        { label: '과목3',    icon: 'globe-outline',         color: '#5CB85C', targetMin: 60 },
-        { label: '기출/오답', icon: 'document-text-outline', color: '#F5A623', targetMin: 60 },
+        { label: '국어',  icon: 'book-outline',          color: '#E8575A', targetMin: 90 },
+        { label: '영어',  icon: 'globe-outline',         color: '#5CB85C', targetMin: 60 },
+        { label: '한국사', icon: 'library-outline',       color: '#E17055', targetMin: 50 },
+        { label: '행정학', icon: 'layers-outline',        color: '#4A90D9', targetMin: 90 },
       ],
     },
     weekend: {
@@ -229,10 +268,10 @@ export const DEFAULT_SCHEDULES = {
         { label: '저녁 식사', start: '18:30', end: '19:00', type: 'meal',  icon: 'nutrition-outline', color: '#FDCB6E' },
       ],
       plans: [
-        { label: '과목1',   icon: 'book-outline',      color: '#E8575A', targetMin: 90 },
-        { label: '과목2',   icon: 'layers-outline',    color: '#4A90D9', targetMin: 90 },
-        { label: '과목3',   icon: 'globe-outline',     color: '#5CB85C', targetMin: 60 },
-        { label: '모의고사', icon: 'clipboard-outline', color: '#9B6FC3', targetMin: 120 },
+        { label: '국어',  icon: 'book-outline',          color: '#E8575A', targetMin: 90 },
+        { label: '한국사', icon: 'library-outline',       color: '#E17055', targetMin: 50 },
+        { label: '행정학', icon: 'layers-outline',        color: '#4A90D9', targetMin: 90 },
+        { label: '행정법', icon: 'document-text-outline', color: '#9B6FC3', targetMin: 90 },
       ],
     },
   },

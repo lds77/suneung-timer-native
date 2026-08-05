@@ -1,10 +1,12 @@
 // src/widgets/TodayTodoWidget.js
 // 오늘 할 일 위젯 — 앱 오늘 탭과 같은 목록(My Day 판정), 행을 누르면 위젯에서 바로 체크/해제.
 // 체크는 widgetTaskHandler의 TODO_TOGGLE이 AsyncStorage에 직접 반영(헤드리스) 후 재렌더.
-// 헤더 탭 → 앱 열기. iOS TodayTodoWidget.swift는 보기 전용(탭 → 앱)으로 동일 데이터 사용.
+// 헤더/빈 영역 탭 → 집중탭 할일 카드로 스크롤. iOS TodayTodoWidget.swift는 보기 전용(탭 → 동일 딥링크)으로 동일 데이터 사용.
 
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
+
+const OPEN_FOCUS_TODOS = { uri: 'yeolgong://open?tab=focus&section=todos' };
 
 const theme = (darkMode) => darkMode
   ? { bg: '#1C1C1E', text: '#FFFFFF', sub: '#9A9AA0', chip: '#2C2C2E', border: '#48484D' }
@@ -58,7 +60,7 @@ export function TodayTodoWidget({ data, width = 0, height = 0 }) {
   // 1x1 컴팩트: 완료 카운트만 (탭 → 앱)
   if (isCompact) {
     return (
-      <FlexWidget clickAction="OPEN_APP" style={{ ...rootStyle, alignItems: 'center', padding: 8 }}>
+      <FlexWidget clickAction="OPEN_URI" clickActionData={OPEN_FOCUS_TODOS} style={{ ...rootStyle, alignItems: 'center', padding: 8 }}>
         <TextWidget text="오늘 할 일" style={{ fontSize: 12, fontWeight: '700', color: t.text }} maxLines={1} />
         <TextWidget
           text={todoTotal > 0 ? `${todoDone}/${todoTotal}` : '없음'}
@@ -72,7 +74,7 @@ export function TodayTodoWidget({ data, width = 0, height = 0 }) {
   return (
     <FlexWidget style={rootStyle}>
       {/* 헤더: 제목(탭 → 앱) + 완료 카운트 */}
-      <FlexWidget clickAction="OPEN_APP" style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <FlexWidget clickAction="OPEN_URI" clickActionData={OPEN_FOCUS_TODOS} style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <TextWidget text="오늘 할 일" style={{ flex: 1, fontSize: 12, color: t.sub, fontWeight: '600', marginLeft: 3 }} maxLines={1} />
         {todoTotal > 0 && (
           <TextWidget
@@ -83,7 +85,7 @@ export function TodayTodoWidget({ data, width = 0, height = 0 }) {
         )}
       </FlexWidget>
       {todos.length === 0 ? (
-        <FlexWidget clickAction="OPEN_APP" style={{ width: 'match_parent', height: 'wrap_content' }}>
+        <FlexWidget clickAction="OPEN_URI" clickActionData={OPEN_FOCUS_TODOS} style={{ width: 'match_parent', height: 'wrap_content' }}>
           <TextWidget text="오늘 할 일을 추가해보세요" style={{ fontSize: 13, color: t.sub, marginLeft: 3, marginTop: 6 }} maxLines={2} />
         </FlexWidget>
       ) : (() => {

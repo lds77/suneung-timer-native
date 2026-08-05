@@ -32,6 +32,15 @@ class AlarmReceiver : BroadcastReceiver() {
       refreshWidgets(context)
       return
     }
+    // 🔥모드 이탈 알림 — 앱이 배경에 있는 동안 JS로는 판단할 수 없는 구간 (AwayWatch 주석 참조)
+    if (intent.action == AwayWatch.CHECK_ACTION) {
+      AwayWatch.onCheck(context)
+      return
+    }
+    if (intent.action == AwayWatch.NUDGE_ACTION) {
+      AwayWatch.onNudge(context, intent.getIntExtra("index", -1))
+      return
+    }
 
     val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return
     if (am.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE) return

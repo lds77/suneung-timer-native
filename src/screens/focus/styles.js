@@ -40,6 +40,8 @@ export function createStyles(fs) { return StyleSheet.create({
   planProgTrack: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden' },
   planProgFill: { height: 5, borderRadius: 3 },
   planProgLabel: { fontSize: Math.round(12 * fs), fontWeight: '700', minWidth: 52, textAlign: 'right' },
+  roomPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 10, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 8 },
+  roomPillText: { flex: 1, fontSize: Math.round(12.5 * fs), fontWeight: '800' },
   progCard: { borderRadius: 12, padding: 10, borderWidth: 1, marginBottom: 8 },
   progRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   progLabel: { fontSize: Math.round(12 * fs), fontWeight: '600' }, progVal: { fontSize: Math.round(15 * fs), fontWeight: '900' },

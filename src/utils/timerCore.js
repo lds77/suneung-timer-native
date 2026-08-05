@@ -18,14 +18,22 @@ export const wallElapsedSec = (t, nowMs = Date.now()) =>
     ? (t.elapsedSecAtResume || 0) + Math.floor((nowMs - t.resumedAt) / 1000)
     : t.elapsedSec;
 
+// 카운트업(자유/랩) 상한 — 도달 시 카운트다운 완료와 동일하게 자동 종료.
+// 잊힌 타이머 방어: 방치된 카운트업이 수백 시간짜리 세션으로 기록되면 통계가 오염된다
+// (2026-07 아이패드 311시간 방치 사례). 일시정지 시간은 경과에 포함되지 않으므로
+// 실공부 중 밥/화장실 일시정지 사용자는 상한에 실질적으로 닿지 않는다.
+export const COUNTUP_MAX_SEC = 5 * 60 * 60;
+
 // 실제 남은 초 정밀 계산 (소수점 포함 — 알림 예약용).
-// countdown은 전체 목표, pomodoro는 현재 페이즈 목표 기준. 그 외 타입은 0.
+// countdown은 전체 목표, pomodoro는 현재 페이즈 목표, 자유/랩은 상한(COUNTUP_MAX_SEC) 기준.
+// sequence는 0 (페이즈 알림은 buildPhaseNotifSpecs가 별도 계산).
 export const realRemainingSec = (t, nowMs = Date.now()) => {
   const realElapsedSec = t.resumedAt
     ? (t.elapsedSecAtResume || 0) + (nowMs - t.resumedAt) / 1000
     : t.elapsedSec;
   if (t.type === 'countdown') return Math.max(0, t.totalSec - realElapsedSec);
   if (t.type === 'pomodoro') return Math.max(0, pomoPhaseTargetSec(t) - realElapsedSec);
+  if (t.type === 'free' || t.type === 'lap') return Math.max(0, COUNTUP_MAX_SEC - realElapsedSec);
   return 0;
 };
 
@@ -35,6 +43,22 @@ export const realRemainingSec = (t, nowMs = Date.now()) => {
 export const phaseEndAtMs = (t, targetSec, nowMs = Date.now()) =>
   (t.resumedAt || nowMs) + (targetSec - (t.elapsedSecAtResume || 0)) * 1000;
 
+// 지금이 휴식 페이즈면 그 종료 시각(ms), 아니면 null.
+// 이탈 판정이 '휴식이 끝난 뒤부터'만 세기 위해 쓴다(focusAway.awayMsAfterBreak).
+// 세션 기록은 이미 inBreakPhase로 휴식을 빼고 있는데(불변식 5) 이탈 카운트에는 그 가드가
+// 없어서, 뽀모 5분 휴식에 폰을 보면 exitCount가 올라 다음 세션의 밀도가 깎였다 —
+// 쉬라고 준 시간에 벌점을 주는 셈이었다(2026-08-03 버그헌트).
+export const breakEndsAtMs = (t, nowMs = Date.now()) => {
+  if (!t) return null;
+  if (t.type === 'pomodoro' && t.pomoPhase && t.pomoPhase !== 'work') {
+    return phaseEndAtMs(t, pomoBreakMinOf(t) * 60, nowMs);
+  }
+  if (t.type === 'sequence' && t.seqPhase && t.seqPhase !== 'work') {
+    return phaseEndAtMs(t, t.seqBreakSec || 0, nowMs);
+  }
+  return null;
+};
+
 // 뽀모도로 페이즈 전환 — 순수 계산부.
 // 반환: {
 //   endedPhase: 'work' | 'break'   (방금 끝난 페이즈 — 진동 패턴 선택용)
@@ -43,15 +67,17 @@ export const phaseEndAtMs = (t, targetSec, nowMs = Date.now()) =>
 // }
 export const pomoFlipCore = (t, nowMs = Date.now()) => {
   if (t.pomoPhase === 'work') {
+    const workPhaseEndAt = phaseEndAtMs(t, t.pomoWorkMin * 60, nowMs);
     const workSession = {
       subjectId: t.subjectId, label: t.label,
-      startedAt: nowMs - t.pomoWorkMin * 60 * 1000,
+      // 페이즈 실제 종료 시각 기준 역산 — nowMs 기준이면 bg/복원 캐치업 플립에서
+      // 몇 시간 전 세트가 전부 '지금' 시각으로 기록됨 (자정 걸치면 날짜 귀속도 틀어짐)
+      startedAt: workPhaseEndAt - t.pomoWorkMin * 60 * 1000,
       durationSec: t.pomoWorkMin * 60, mode: 'pomodoro',
       pauseCount: t.pauseCount, timerType: 'pomodoro',
       pomoSets: t.pomoSet + 1,
       dedupeKey: `pomo|${t.id}|${t.startedAt}|${t.pomoSet}`,
     };
-    const workPhaseEndAt = phaseEndAtMs(t, t.pomoWorkMin * 60, nowMs);
     return {
       endedPhase: 'work',
       workSession,
@@ -78,25 +104,35 @@ export const pomoFlipCore = (t, nowMs = Date.now()) => {
 // 타이머 완료/종료 시 결과(밀도·티어·인증) 계산 — 순수 계산부.
 // focusMode/exitCount/ultraFocusLevel 게이팅(screen_on일 때만 반영)은 호출부 책임.
 // 연속모드는 전체 항목 합산 + countdown 기준으로 계산 (불변식 6).
-export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 0, schoolLevel = 'high', ultraFocusLevel = 'normal' } = {}) => {
+export const calcTimerResult = (t, dur, { focusMode = 'screen_off', exitCount = 0, schoolLevel = 'high', ultraFocusLevel = 'normal', seqPartial = false } = {}) => {
   let timerType = t.type;
   let totalSec = dur;
   let completionRatio = t.type === 'countdown' ? Math.min(1, dur / Math.max(1, t.totalSec)) : 1;
   if (t.type === 'sequence') {
     timerType = 'countdown';
-    totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
-    completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+    if (seqPartial) {
+      // 중도 종료 — 대상은 '진행 중이던 항목 하나'다. 아래 완주 기준(전 항목 합계 + 항목 진척도)을
+      // 쓰면 90분 항목을 7분 하고 끝냈을 때 결과 모달에 '1시간 50분'이 뜨고(시간 수정 기본값까지
+      // 오염돼 그대로 저장하면 통계가 부풀려진다) 밀도도 실제 기록된 세션과 어긋난다.
+      // 세션 기록(cancelSequence/stopTimer)의 completionRatio와 같은 식이어야 한다 (2026-08-04)
+      completionRatio = Math.min(1, dur / Math.max(1, t.totalSec));
+    } else {
+      totalSec = (t.seqItems || []).reduce((s, it) => s + (it.totalSec || 0), 0);
+      completionRatio = Math.min(1, ((t.seqIndex || 0) + 1) / Math.max(1, t.seqTotal || 1));
+    }
   }
-  const d = calculateDensity({
+  const densityInputs = {
     pausedCount: t.pauseCount, totalSec,
     timerType, completionRatio,
     pomoSets: t.pomoSet || 0, focusMode,
     exitCount, schoolLevel, ultraFocusLevel,
-  });
+  };
+  const d = calculateDensity(densityInputs);
   return {
     density: d, tier: getTier(d), focusMode, exitCount,
     verified: focusMode === 'screen_on' && exitCount === 0,
     durationSec: totalSec,
+    densityInputs, // 결과 모달 점수 상세(getDensityBreakdown)용 — selfRating은 표시 시점에 합성
   };
 };
 
@@ -108,7 +144,7 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     subjectId = null, label = '', startedAt = null, durationSec, mode = 'free',
     pauseCount = 0, memo = '', exitCount = 0, focusMode: fm = 'screen_off',
     timerType = 'free', completionRatio = 1, pomoSets = 0, selfRating = null,
-    planId = null, todoId = null, densityOverride = null,
+    planId = null, todoId = null, densityOverride = null, dedupeKey = null,
   } = spec;
   const { schoolLevel = 'high', ultraFocusLevel = 'normal', nowMs = Date.now() } = ctx;
   const density = densityOverride ?? calculateDensity({
@@ -128,6 +164,9 @@ export const buildSessionRecord = (spec, ctx = {}) => {
     schoolLevel,
     ultraFocusLevel: fm === 'screen_on' ? ultraFocusLevel : null,
     timerType, completionRatio, pomoSets,
+    // 레코드에 보존 — 인메모리 dedupe 맵은 앱 재시작에 유실되므로,
+    // 스냅샷 복원 캐치업이 같은 세트/항목을 재기록하는 걸 영속 키로 막는다
+    dedupeKey,
   };
 };
 
@@ -248,4 +287,45 @@ export const seqFlipCore = (t, nowMs = Date.now()) => {
       resumedAt: breakPhaseEndAt, elapsedSecAtResume: 0,
     },
   };
+};
+
+// ─── 콜드스타트 스냅샷 복원 (불변식 8·9의 복원 경로) ───
+// 강제종료 후 재실행 시 스냅샷 타이머 하나를 어떻게 살릴지 결정하는 순수 함수.
+// 부수효과 없음 — 호출부(useAppState)가 kind에 따라 세션 기록/토스트/페이즈 전진을 수행한다.
+//   gapSec: 스냅샷 저장 시각 ~ 지금 사이의 경과 초 (running만 가산)
+// 반환 kind:
+//   'complete'    죽어 있는 동안 목표/상한 도달 → 타이머 제거. record면 세션 기록
+//                 (durationSec/timerType 포함, dedupe는 호출부가 complete|id|startedAt).
+//                 capped=true는 카운트업 5시간 상한 (토스트 문구 구분용)
+//   'fastforward' running 뽀모/연속 — timer.elapsedSec에 벽시계 경과를 넣었으니
+//                 호출부가 fastForwardPhases(중간 세션 기록 포함)로 페이즈를 전진시킬 것
+//   'resume'      running 유지 — resumedAt을 지금으로 재앵커한 timer 반환
+//   'pause'       paused 유지 — resumedAt null로 정리한 timer 반환
+export const restoreTimerCore = (t, gapSec, nowMs = Date.now()) => {
+  const addedSec = t.status === 'running' ? gapSec : 0;
+  const newElapsed = t.elapsedSec + addedSec;
+  if (t.type === 'countdown') {
+    const e = Math.min(newElapsed, t.totalSec);
+    if (e >= t.totalSec) {
+      // 불변식 7: 5분(계획·할일 연결 시 30초) 미만은 미기록
+      const record = t.totalSec >= 300 || (!!(t.planId || t.todoId) && t.totalSec >= 30);
+      return { kind: 'complete', record, durationSec: t.totalSec, timerType: 'countdown', capped: false };
+    }
+    if (t.status === 'running') return { kind: 'resume', timer: { ...t, elapsedSec: e, status: 'running', resumedAt: nowMs, elapsedSecAtResume: e } };
+    return { kind: 'pause', timer: { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e } };
+  }
+  // 불변식 9: 카운트업 상한 — 자유는 기록 후 제거, 랩은 조용히 제거. paused는 상한 미적용(경과 정지 상태)
+  if ((t.type === 'free' || t.type === 'lap') && t.status === 'running' && newElapsed >= COUNTUP_MAX_SEC) {
+    return { kind: 'complete', record: t.type === 'free', durationSec: COUNTUP_MAX_SEC, timerType: 'free', capped: true };
+  }
+  if (t.status === 'running') {
+    // 뽀모/연속: stale 페이즈로 재앵커하면 페이즈 알림 스펙이 0개가 되고 틱 캐치업이 페이즈마다
+    // 진동을 울린다 → 벽시계 경과(resumedAt은 epoch라 프로세스가 죽어도 유효)로 전진 대상 표시
+    if ((t.type === 'pomodoro' || t.type === 'sequence') && t.resumedAt) {
+      const wallElapsed = (t.elapsedSecAtResume || 0) + Math.floor((nowMs - t.resumedAt) / 1000);
+      return { kind: 'fastforward', timer: { ...t, elapsedSec: wallElapsed } };
+    }
+    return { kind: 'resume', timer: { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: nowMs, elapsedSecAtResume: newElapsed } };
+  }
+  return { kind: 'pause', timer: { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed } };
 };

@@ -19,3 +19,8 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // NotificationCompat — AwayWatch가 배경에서 직접 이탈 알림을 게시한다
+  implementation "androidx.core:core:1.13.1"
+}

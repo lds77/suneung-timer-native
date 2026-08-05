@@ -11,6 +11,51 @@ if (Platform.OS === 'ios') {
   try { mod = require('../../modules/focus-shield').default; } catch { mod = null; }
 }
 
+// ─── 화면 잠금 감지 (🔥모드 이탈 판정용) ───────────────────────────────────
+// iOS는 화면 잠금과 앱 전환이 같은 이벤트라 즉시 구분이 안 된다. 네이티브가 백그라운드에서
+// isProtectedDataAvailable을 지켜보다 잠금을 감지하면(약 10초 뒤) 시각을 기록해 둔다.
+// 구 네이티브 빌드에는 이 함수들이 없어 조용히 무시됨 → 기존 동작 유지 (OTA 안전).
+export const lockDetectSupported = () => !!mod && typeof mod.consumeLockedAt === 'function';
+
+// 🔥모드 세션 동안만 감시 켜기 (세션 밖에서 백그라운드 태스크를 쓰지 않도록)
+export const setLockWatch = (on) => {
+  if (!mod || typeof mod.setLockWatch !== 'function') return;
+  try { mod.setLockWatch(!!on); } catch {}
+};
+
+// 직전 백그라운드가 '화면 잠금'이었으면 감지 시각(ms), 아니면 0. 읽으면 초기화된다.
+export const consumeScreenLock = () => {
+  if (!mod || typeof mod.consumeLockedAt !== 'function') return 0;
+  try { return mod.consumeLockedAt() || 0; } catch { return 0; }
+};
+
+// ─── 전화 수신·통화 감지 (iOS, 2026-08-01) ─────────────────────────────────
+// 안드 screenPin의 isInCall()/msSinceCall()과 같은 계약 — useAppState가 두 플랫폼을
+// 같은 모양으로 다룰 수 있게 맞췄다. 구 네이티브 빌드에는 없으므로 조용히 no-op (OTA 안전).
+export const callDetectSupported = () => !!mod && typeof mod.msSinceCall === 'function';
+
+// 지금 통화 중인가 (호출만 해도 네이티브의 통화 기준 시각이 갱신된다)
+export const isInCallIOS = () => {
+  if (!mod || typeof mod.isInCall !== 'function') return false;
+  try { return !!mod.isInCall(); } catch { return false; }
+};
+
+// 마지막 통화 관측 이후 경과(ms). 기록이 없으면 -1
+export const msSinceCallIOS = () => {
+  if (!mod || typeof mod.msSinceCall !== 'function') return -1;
+  try {
+    const v = mod.msSinceCall();
+    return typeof v === 'number' && Number.isFinite(v) ? v : -1;
+  } catch { return -1; }
+};
+
+// 백그라운드 관측이 끊길 때 통화가 진행 중이었는가 (읽으면 초기화).
+// true면 통화가 언제 끝났는지 알 수 없어 그 배경 구간을 통째로 면제한다 — iOS 고유의 양보.
+export const consumeCallHeldIOS = () => {
+  if (!mod || typeof mod.consumeCallHeld !== 'function') return false;
+  try { return !!mod.consumeCallHeld(); } catch { return false; }
+};
+
 export const shieldSupported = () => {
   if (!mod) return false;
   try { return mod.isSupported(); } catch { return false; }

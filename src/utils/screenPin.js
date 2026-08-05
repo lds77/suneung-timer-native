@@ -4,6 +4,7 @@
 // 해제: 사용자가 뒤로+최근앱 버튼을 동시에 길게 누르거나, 세션 종료 시 unpinScreen().
 
 import { Platform } from 'react-native';
+import { isScreenOffState, screenOffAwayMs, offHappenedAround } from './focusAway';
 
 let mod = null;
 if (Platform.OS === 'android') {
@@ -31,6 +32,78 @@ export const unpinScreen = async () => {
 export const isScreenPinned = () => {
   if (!mod) return false;
   try { return mod.isPinned(); } catch { return false; }
+};
+
+// ─── 화면 켜짐/꺼짐 (🔥모드 이탈 판정용) ─────────────────────────────────
+// 안드로이드는 화면만 꺼도 앱이 background로 내려간다. 화면 끄기는 다른 앱을 쓰는 게
+// 아니므로 이탈이 아니다 (화면 고정 중과 같은 취급). 구버전 네이티브에는 screenState가
+// 없으므로 null → 기존 동작(이탈 처리) 유지.
+const screenState = () => {
+  if (!mod || typeof mod.screenState !== 'function') return null;
+  try { return mod.screenState(); } catch { return null; }
+};
+
+// 이 빌드의 네이티브가 화면 상태를 알려줄 수 있는가.
+// 없으면 화면 끄기가 여전히 '이탈'로 잡히므로, 잠금화면 무동작 자동 꺼짐을 켜면 안 된다
+// (1분마다 스스로 이탈을 만들어내게 된다 — vc70 미만 구빌드 OTA 안전장치).
+export const screenStateSupported = () => !!(mod && typeof mod.screenState === 'function');
+
+// 지금 화면이 꺼져 있는가 (백그라운드 전환 원인이 '화면 끄기'인지 판별)
+export const isScreenOff = () => {
+  if (Platform.OS !== 'android') return false;
+  return isScreenOffState(screenState(), Date.now());
+};
+
+// 백그라운드 진입이 사실은 화면 끄기였는지 복귀 시점에 재확인
+// (SCREEN_OFF 브로드캐스트/isInteractive 갱신이 AppState 이벤트보다 늦는 기기 대비)
+export const screenWentOffAround = (bgAt) => {
+  if (Platform.OS !== 'android') return false;
+  const st = screenState();
+  if (!st) return false;
+  return offHappenedAround(bgAt, st.lastOffAt);
+};
+
+// 화면 끄기로 백그라운드에 갔다가 돌아왔을 때 이탈로 볼 시간(ms).
+// 잠금이 아직 안 풀렸으면 이탈 0 — 잠금화면에서 곧장 다른 앱을 열고 놀다 돌아온 경우만 걸러낸다.
+// (구빌드는 keyguardLocked/deviceSecure가 없어 화면 켬 기준으로 폴백)
+export const awayMsSinceScreenOn = (bgAt) => {
+  if (Platform.OS !== 'android') return 0;
+  const st = screenState();
+  if (!st) return 0;
+  return screenOffAwayMs(bgAt, st.lastOnAt, Date.now(), st);
+};
+
+// 지금 통화 중인가 (벨 울림·통화·보이스톡 등 인터넷 통화 포함).
+// 전화를 받는 건 이탈이 아니므로 화면 고정 중과 같이 이탈 판정을 통째로 건너뛴다.
+// 권한 없이 오디오 모드로 판별한다 — 구빌드/iOS는 false (기존 동작 유지)
+export const isInCall = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.inCall !== 'function') return false;
+  try { return !!mod.inCall(); } catch { return false; }
+};
+
+// 마지막으로 통화를 관측한 이후 경과(ms), 기록이 없으면 -1.
+// 배경에 있는 동안 JS는 통화를 볼 수 없다(타이머가 멈춘다) — 그 구간은 네이티브 AwayWatch
+// 폴링이 관측해 두므로, 복귀 시 이 값으로 '통화 직후였는지'를 되짚는다
+export const msSinceCall = () => {
+  if (Platform.OS !== 'android' || !mod || typeof mod.msSinceCall !== 'function') return -1;
+  try { return mod.msSinceCall(); } catch { return -1; }
+};
+
+// ─── 이탈 알림 감시 (화면 끄기로 배경에 내려간 구간 전용) ───────────────────
+// 이 구간에서는 앱이 'active'를 한 번도 못 받고 JS 타이머도 멈추므로(focusAway.js 하단 주석),
+// '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단을 네이티브가 대신한다.
+// 판단만 네이티브로 옮긴 것이고, 이탈 카운트는 기존대로 복귀 시점에 JS가 확정한다.
+export const awayWatchSupported = () => !!(mod && typeof mod.armAwayWatch === 'function');
+
+// steps: [{ sec, title, body }] — 첫 항목은 이탈 확정 즉시, 나머지는 확정 시각 기준 sec 뒤
+export const armAwayWatch = async (graceMs, limitAtMs, steps) => {
+  if (!awayWatchSupported()) return false;
+  try { return await mod.armAwayWatch(graceMs, limitAtMs || 0, steps); } catch { return false; }
+};
+
+export const disarmAwayWatch = async () => {
+  if (!awayWatchSupported()) return false;
+  try { return await mod.disarmAwayWatch(); } catch { return false; }
 };
 
 // 고정 중에는 OS가 알림 소리/진동을 차단하므로, 완료/페이즈 시각에 네이티브 알람으로

@@ -3,11 +3,13 @@
 //  - 1x1: 라벨 + D-n (중앙)
 //  - 2x1+: 모든 시험을 동일한 2줄 카드로 (윗줄 이름 / 아랫줄 날짜·D-n).
 //          대표 시험은 맨 위 정렬로만 구분(폰트 크기 차이 없음).
-// 탭 시 앱 열기.
+// 탭 시 플래너탭 월간 뷰로 이동 (시험 일정 관리 화면).
 
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 import { ddayLabel } from './widgetData';
+
+const OPEN_PLANNER_MONTHLY = { uri: 'yeolgong://open?tab=planner&view=monthly' };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -54,7 +56,7 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
   // 비어있음
   if (list.length === 0) {
     return (
-      <FlexWidget style={rootStyle(t, 'center', isCompact ? 'center' : undefined)} clickAction="OPEN_APP">
+      <FlexWidget style={rootStyle(t, 'center', isCompact ? 'center' : undefined)} clickAction="OPEN_URI" clickActionData={OPEN_PLANNER_MONTHLY}>
         <TextWidget text={isCompact ? '시험 없음' : '시험 일정을 추가해보세요'} style={{ fontSize: isCompact ? 12 : 13, color: t.sub }} maxLines={2} />
       </FlexWidget>
     );
@@ -65,7 +67,8 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
     const d = list[0];
     return (
       <FlexWidget
-        clickAction="OPEN_APP"
+        clickAction="OPEN_URI"
+        clickActionData={OPEN_PLANNER_MONTHLY}
         style={{ height: 'match_parent', width: 'match_parent', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: t.bg, borderRadius: 20, padding: 6 }}
       >
         <TextWidget text={d.label || '시험'} style={{ fontSize: 9, color: t.sub, fontWeight: '600', textAlign: 'center', width: 'match_parent' }} maxLines={1} truncate="END" />
@@ -82,7 +85,7 @@ export function DDayWidget({ data, width = 0, height = 0 }) {
   const showDate = height === 0 || height >= 96;  // 아주 낮으면 날짜 생략(공간)
 
   return (
-    <FlexWidget style={rootStyle(t, 'center', 'flex-start')} clickAction="OPEN_APP">
+    <FlexWidget style={rootStyle(t, 'center', 'flex-start')} clickAction="OPEN_URI" clickActionData={OPEN_PLANNER_MONTHLY}>
       {shown.map((d, i) => (
         <DDayItem key={i} item={d} accent={accent} t={t} isFirst={i === 0} showDate={showDate} />
       ))}

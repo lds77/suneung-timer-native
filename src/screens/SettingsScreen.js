@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, KeyboardAvoidingView, useWindowDimensions,
+  TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, Share, KeyboardAvoidingView, useWindowDimensions,
   Keyboard, Dimensions,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
@@ -23,24 +23,33 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
+import { backupRowSub } from '../utils/backupNudge';
+import { buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent, describeScheduleLoss } from '../utils/scheduleTemplate';
+import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
+import { backupFileName, buildArchive, openArchive, restoreFiles, finishRestore, filesToRestore, isZipFile } from '../utils/backupArchive';
 import { openExactAlarmSettings } from '../utils/permissions';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import { Ionicons } from '@expo/vector-icons';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 
 
 // 모듈 레벨 스타일 참조 — SettingsScreen 렌더 시 갱신
 let _styles = null;
 
+// 타이머 시작 시 뜨는 3지 선택 팝업(App.js MODE_CHOICES)과 같은 값. 여기 설정은 그 팝업의
+// 기본 선택값이고, 실제 모드는 시작할 때마다 고른다 — 문구를 고칠 땐 양쪽을 함께 볼 것.
+// ※사용자에게 보이는 이름은 '일반모드 / 집중모드 / 울트라모드'로 통일돼 있다(2026-07-30).
+//   내부 id(normal/focus/exam)와 코드 주석의 '강도'는 그대로다 — 저장값이라 못 바꾼다.
 const FOCUS_LEVELS = [
-  { id: 'normal', label: '일반',       desc: '자동 편한모드 · 이탈 감지 없이 자유롭게 공부해요', color: '#4CAF50' },
-  { id: 'focus',  label: '집중',       desc: '모드 선택 가능 · 1분 이탈 시 챌린지 문구 입력 필요', color: '#FFB74D' },
-  { id: 'exam',   label: '울트라집중',  desc: '자동 집중모드 · 일시정지/잠깐 쉬기 불가 · 10초 이탈 시 타이머 정지 + 챌린지'
+  { id: 'normal', label: '일반모드', desc: '이탈 감지 없이 자유롭게 · 집중 점수 +5', color: '#4CAF50' },
+  { id: 'focus',  label: '집중모드',    desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력 · 집중 점수 +10', color: '#FFB74D' },
+  // ※숫자를 쓰지 않는다 — App.js MODE_CHOICES와 같은 이유(실제 하한이 플랫폼별로 다름)
+  { id: 'exam',   label: '울트라모드',   desc: '일시정지/잠깐 쉬기 불가 · 잠깐만 다른 앱을 써도 타이머 정지 + 챌린지 · 집중 점수 +15'
       + (Platform.OS === 'android' ? ' · 화면 고정(홈 버튼 차단)' : ''), color: '#FF6B6B' },
 ];
 
-// iOS 앱 차단(Screen Time) 설정 블록 — 울트라집중 세션 중 선택한 앱을 실제 차단.
+// iOS 앱 차단(Screen Time) 설정 블록 — 울트라모드 세션 중 선택한 앱을 실제 차단.
 // 미지원(안드/Expo Go/iOS 15 이하/entitlement 미포함 빌드)이면 아무것도 렌더하지 않음.
 function AppBlockSettings({ T, app }) {
   const [blockedCount, setBlockedCount] = useState(() => getShieldBlockedCount());
@@ -65,12 +74,12 @@ function AppBlockSettings({ T, app }) {
     app.updateSettings({ appBlockEnabled: true });
     await pickApps();
   };
-  // 울트라집중 전체 차단: 켜기 전에 필수 앱(전화·메시지 등) 허용을 반드시 안내
+  // 울트라모드 전체 차단: 켜기 전에 필수 앱(전화·메시지 등) 허용을 반드시 안내
   const onToggleExamAll = (v) => {
     if (!v) { app.updateSettings({ appBlockExamAll: false }); return; }
     Alert.alert(
-      '울트라집중 전체 차단',
-      '울트라집중으로 집중 도전을 시작하면 허용 목록에 없는 앱이 모두 잠겨요.\n\n전화, 메시지처럼 꼭 필요한 앱을 먼저 허용 목록에 추가해주세요.',
+      '울트라모드 전체 차단',
+      '울트라모드로 시작하면 허용 목록에 없는 앱이 모두 잠겨요.\n\n전화, 메시지처럼 꼭 필요한 앱을 먼저 허용 목록에 추가해주세요.',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -90,9 +99,9 @@ function AppBlockSettings({ T, app }) {
         <Ionicons name="shield-checkmark-outline" size={18} color={T.accent} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13, fontWeight: '800', color: T.text }}>앱 차단</Text>
-          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중 도전 중에는 선택한 앱이 잠겨요</Text>
+          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>집중모드로 공부하는 동안은 선택한 앱이 잠겨요</Text>
         </View>
-        <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} />
+        <Switch value={!!app.settings.appBlockEnabled} onValueChange={onToggle} trackColor={{ true: T.accent }} thumbColor="white" />
       </View>
       {!!app.settings.appBlockEnabled && (
         <TouchableOpacity onPress={pickApps}
@@ -105,10 +114,10 @@ function AppBlockSettings({ T, app }) {
         <>
           <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: T.border }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>울트라집중 전체 차단</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라집중에서는 허용한 앱 빼고 모두 잠겨요</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: T.text }}>울트라모드 전체 차단</Text>
+              <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>울트라모드에서는 허용한 앱 빼고 모두 잠겨요</Text>
             </View>
-            <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} />
+            <Switch value={!!app.settings.appBlockExamAll} onValueChange={onToggleExamAll} trackColor={{ true: T.accent }} thumbColor="white" />
           </View>
           {!!app.settings.appBlockExamAll && (
             <TouchableOpacity onPress={pickAllowedApps}
@@ -391,6 +400,87 @@ export default function SettingsScreen() {
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
 
+  // ── 학교급 변경 ──
+  // 학교급을 바꿔도 **이미 만들어 둔 주간 시간표는 그대로 남는다**(공들여 짠 걸 앱이 지우지 않는 것).
+  // 그래서 고등→초등처럼 일과가 통째로 달라지면 예전 시간표가 남아 있는 걸 모른 채 쓰게 된다
+  // (테스터가 플래너 > 반복설정 > 기본으로 초기화를 매번 찾아 들어가야 했다 — 2026-08-05).
+  // 바꾼 그 자리에서 한 번 물어본다. ★학교급 변경 자체는 이 팝업과 무관하게 이미 저장된다★ —
+  // 팝업이 정하는 것은 **시간표를 갈아끼울지 뿐**이라, 문구와 버튼 이름이 그렇게 읽혀야 한다.
+  const pickSchoolLevel = useCallback((level) => {
+    const prev = app.settings.schoolLevel || 'high';
+    app.updateSettings({ schoolLevel: level.id });
+    setShowSchoolPicker(false);
+    if (level.id === prev) return;                          // 같은 걸 다시 고름
+    if (app.weeklySchedule?.enabled !== true) return;        // 플래너를 안 쓰면 물어볼 게 없다
+    if (!hasScheduleTemplate(level.id)) return;              // 기본 시간표가 없는 학교급
+    const hadContent = hasScheduleContent(app.weeklySchedule);
+    const loss = describeScheduleLoss(app.weeklySchedule);
+    // ★경고는 문구와 버튼 이름으로만 전달된다★ — RN의 style:'destructive'(빨간 글씨)는
+    // **iOS 전용**이라 안드에서는 아무 표시도 안 난다(Alert.js의 destructiveButtonKey는 iOS 분기뿐).
+    // 그래서 ①사라지는 것을 개수로 적고 ②확인 버튼 이름에 '지우고'를 넣는다.
+    // '새로 불러오기'처럼 뭔가 추가되는 듯한 말은 쓰지 말 것.
+    // ★피커 Modal이 닫히는 동안 Alert를 띄우면 안드에서 같이 사라진다★ — 애니메이션 뒤로 미룬다
+    setTimeout(() => {
+      Alert.alert(
+        '주간 시간표도 바꿀까요?',
+        // ★첫 문장은 '바뀌었어요'(완료형)★ — 학교급 변경은 이 팝업 전에 이미 저장됐다.
+        //  '바꿨어요…취소'로 읽히면 **학교급까지 되돌려진다고 오해**한다(사용자 지적 2026-08-05).
+        //  실제로 집중밀도 기준·학습법 추천은 이미 새 학교급으로 동작한다 — 그것도 함께 알린다.
+        `학교급은 「${level.label}」으로 바뀌었어요. 집중밀도 기준과 학습법 추천도 함께 바뀝니다.\n\n`
+        + `주간 시간표만 예전 학교급 그대로예요. 「${level.label}」 기본 시간표(학교·식사·취침)로 새로 채울까요?`
+        + (hadContent
+          ? `\n\n지금까지 만든 ${loss}가 모두 지워져요. 되돌릴 수 없어요.\n(공부 기록·통계·과목은 그대로예요)`
+          : ''),
+        [
+          {
+            // '취소'라고 하면 무엇이 취소되는지 모호하다 — 버튼 이름에 남는 것을 적는다
+            text: '시간표는 그대로',
+            style: 'cancel',
+            onPress: () => app.showToastCustom(`학교급만 바꿨어요 · 시간표는 그대로`, 'toru'),
+          },
+          {
+            text: hadContent ? '지우고 채우기' : '채우기',
+            style: hadContent ? 'destructive' : 'default',
+            onPress: () => {
+              app.setWeeklySchedule(buildDefaultSchedule(level.id, app.subjects));
+              app.showToastCustom(`${level.label} 기본 시간표로 채웠어요`, 'toru');
+            },
+          },
+        ]
+      );
+    }, 350);
+  }, [app.settings.schoolLevel, app.weeklySchedule]);
+  const [photoUsage, setPhotoUsage] = useState(null); // 오답노트 사진 사용량 { count, bytes }
+  // 기기 저장공간을 눈에 띄게 쓰기 시작하는 지점에서만 색으로 알린다.
+  // ※안드 자동 백업 25MB 상한과는 무관해졌다 — plugins/withAttachmentsNotBackedUp이
+  //   첨부 폴더를 백업에서 빼므로(1.0.40~) 사진이 아무리 많아도 백업은 안 깨진다.
+  //   그 대신 사진은 백업/복원으로 따라가지 않는다는 걸 문구로 알린다
+  const photoHeavy = !!photoUsage && photoUsage.bytes >= 300 * 1024 * 1024;
+
+  // 백업 내보내기 — 사진을 담으면 zip(JSON + attachments/), 아니면 예전처럼 JSON 한 장.
+  // 복원 쪽은 매직바이트로 판별하므로 옛 .json 백업도 그대로 복원된다
+  const runBackup = useCallback(async (withPhotos) => {
+    try {
+      const data = await exportBackupData();
+      const name = backupFileName(getToday(), withPhotos); // 로컬 날짜 (UTC는 KST 새벽에 하루 밀림)
+      if (withPhotos) {
+        const { uri } = await buildArchive(data, app.reviewNotes || [], name);
+        await Sharing.shareAsync(uri, { mimeType: 'application/zip', UTI: 'public.zip-archive' });
+      } else {
+        const path = `${FileSystem.cacheDirectory}${name}`;
+        await FileSystem.writeAsStringAsync(path, JSON.stringify(data, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
+      }
+      app.updateSettings({ lastBackupAt: Date.now() }); // 공유 시트가 닫힌 시점 = 백업으로 간주
+    } catch {
+      Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+    }
+  }, [app.reviewNotes]);
+  const refreshPhotoUsage = useCallback(async () => {
+    try { setPhotoUsage(await usageStats(app.reviewNotes || [])); } catch {}
+  }, [app.reviewNotes]);
+  useEffect(() => { refreshPhotoUsage(); }, [refreshPhotoUsage]);
+
   // 모달 닫힐 때 키보드 자동 dismiss (배경 TextInput 포커스 방지)
   const prevModalOpen = useRef(false);
   useEffect(() => {
@@ -461,8 +551,8 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        {/* 🔥 집중 도전 모드 */}
-        <Section T={T} title="집중 도전 모드" icon="flame-outline">
+        {/* 🔥 공부 모드 */}
+        <Section T={T} title="공부 모드" icon="flame-outline">
           {(() => {
             const lv = FOCUS_LEVELS.find(l => l.id === (app.settings.ultraFocusLevel || 'normal')) || FOCUS_LEVELS[0];
             const isExam = lv.id === 'exam';
@@ -471,7 +561,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 onPress={() => {
                   const hasActive = app.timers?.some(t => t.status === 'running' || t.status === 'paused');
-                  if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 잠금 강도를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
+                  if (hasActive) { Alert.alert('변경 불가', '타이머가 실행 중일 때는 공부 모드를 바꿀 수 없어요.\n모든 타이머를 먼저 종료해주세요.'); return; }
                   openPicker(setShowFocusPicker);
                 }}
                 style={{ marginHorizontal: 16, marginVertical: 8, padding: 14, borderRadius: 14, backgroundColor: lv.color + '12', borderWidth: 1.5, borderColor: lv.color + '40' }}
@@ -484,24 +574,46 @@ export default function SettingsScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 15, fontWeight: '800', color: lv.color }}>{lv.label}</Text>
                       <Text style={{ fontSize: 11.5, color: T.sub, marginTop: 2, lineHeight: 16 }}>{lv.desc}</Text>
+                      {/* 이 카드가 '지금 모드'가 아니라 '시작할 때 뜰 모드'라는 걸 밝힌다.
+                          자동 시작이면 문구가 달라야 한다 — 아래 토글과 앞뒤가 맞아야 하므로 */}
+                      <Text style={{ fontSize: 11, color: T.sub, marginTop: 4, opacity: 0.8 }}>
+                        {app.settings.modeAutoStart ? '묻지 않고 이 모드로 바로 시작해요' : '타이머를 시작할 때 기본으로 선택돼요'}
+                      </Text>
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={lv.color} />
                 </View>
                 {isNormal && (
                   <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: lv.color + '20' }}>
-                    <Text style={{ fontSize: 12, color: '#FF6B6B', fontWeight: '600', textAlign: 'center' }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+                    <Text style={{ fontSize: 12, color: '#FF6B6B', fontWeight: '600', textAlign: 'center' }}>울트라모드에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
                   </View>
                 )}
               </TouchableOpacity>
             );
           })()}
+          {/* ★자동 시작을 끄는 유일한 길★ — 켜면 시작 팝업이 아예 안 뜨므로 여기 말고는 되돌릴 곳이 없다.
+              (팝업의 '다음부터 묻지 않고 이 모드로 시작'이 이 값을 켠다) */}
+          <Row
+            T={T}
+            label="시작할 때마다 모드 고르기"
+            sub={app.settings.modeAutoStart
+              ? '지금은 묻지 않고 위 모드로 바로 시작해요'
+              : '타이머를 시작할 때 3가지 중에서 골라요'}
+            right={(
+              <Switch
+                value={!app.settings.modeAutoStart}
+                onValueChange={(v) => app.updateSettings({ modeAutoStart: !v })}
+                trackColor={{ true: T.accent }}
+                thumbColor="white"
+              />
+            )}
+          />
           {(app.settings.ultraStreak > 0 || app.settings.ultraStreakBest > 0) && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B10', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FF6B6B30' }}>
                 <Ionicons name="flame" size={18} color="#FF6B6B" />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B6B' }}>울트라집중 {app.settings.ultraStreak || 0}일 연속</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B6B' }}>울트라모드 {app.settings.ultraStreak || 0}일 연속</Text>
                   <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>최장 기록 {app.settings.ultraStreakBest || 0}일</Text>
                 </View>
               </View>
@@ -542,6 +654,21 @@ export default function SettingsScreen() {
               <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 4 }}>세부 설정</Text>
               </View>
+              {Platform.OS === 'android' && (
+                <Row
+                  T={T}
+                  label="잠금화면 타이머 표시"
+                  sub="타이머 실행 중 상단바·잠금화면에 흐르는 시간을 보여줘요"
+                  right={
+                    <Switch
+                      value={app.settings.timerOngoingNotif !== false}
+                      onValueChange={(v) => app.updateSettings({ timerOngoingNotif: v })}
+                      trackColor={{ true: T.accent }}
+                      thumbColor="white"
+                    />
+                  }
+                />
+              )}
               <Row
                 T={T}
                 label="공부 리마인더"
@@ -669,7 +796,7 @@ export default function SettingsScreen() {
             );
           })()}
           {(() => {
-            const sp = app.settings.stylePreset || 'cute';
+            const sp = app.settings.stylePreset || 'minimal';
             const spLabel = sp === 'minimal' ? '✦ 미니멀' : '귀여운';
             return (
               <Row T={T} label="타이머 스타일"
@@ -759,50 +886,84 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => setShowGuide(true)}>
             <Row T={T} label="사용 가이드" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('https://lds77.github.io/suneung-timer-native/')}>
+            <Row T={T} label="열공메이트 웹사이트" sub="기능 소개와 활용 팁 보기" right={<Text testID="chevron" style={{ color: T.sub }}>→</Text>} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => {
+            Share.share({
+              message: '공부 타이머 앱 "열공메이트"를 추천해요!\n집중밀도 점수로 공부의 질까지 기록하고, 플래너·통계·홈 위젯까지 전부 무료예요.\n\niPhone: https://apps.apple.com/app/id6759892516\nAndroid: https://play.google.com/store/apps/details?id=com.yeolgong.timer',
+            }).catch(() => {});
+          }}>
+            <Row T={T} label="친구에게 추천하기" sub="같이 공부할 친구에게 앱 알려주기" right={<Ionicons name="share-outline" size={18} color={T.accent} />} />
+          </TouchableOpacity>
         </Section>
 
         {/* 데이터 관리 */}
         <Section T={T} title="데이터 관리" icon="folder-outline">
-          <TouchableOpacity onPress={async () => {
-            try {
-              const data = await exportBackupData();
-              const json = JSON.stringify(data, null, 2);
-              const date = getToday().replace(/-/g, ''); // 로컬 날짜 (UTC는 KST 새벽에 하루 밀림)
-              const path = `${FileSystem.cacheDirectory}yeolgong_backup_${date}.json`;
-              await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
-              await Sharing.shareAsync(path, { mimeType: 'application/json', UTI: 'public.json' });
-            } catch (e) {
-              Alert.alert('백업 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+          <TouchableOpacity onPress={() => {
+            // 사진이 있으면 담을지 묻는다 — 사진을 담으면 백업 파일이 그만큼 커져서
+            // (100MB 사진이면 백업도 100MB) 공유·전송이 부담스러울 수 있다
+            if (photoUsage && photoUsage.count > 0) {
+              // 안드 Alert는 버튼 3개일 때 라벨이 길면 잘린다 — 설명은 본문에, 버튼은 짧게
+              Alert.alert('데이터 백업', `오답노트 첨부 ${photoUsage.count}개(${formatBytes(photoUsage.bytes)})를 함께 담을까요?\n\n담으면 새 폰에서 사진·녹음까지 복원돼요. 대신 백업 파일이 그만큼 커져요.`, [
+                { text: '취소', style: 'cancel' },
+                { text: '기록만', onPress: () => runBackup(false) },
+                { text: '사진·녹음', onPress: () => runBackup(true) },
+              ]);
+            } else {
+              runBackup(false);
             }
           }}>
-            <Row T={T} label="데이터 백업" sub="JSON 파일로 내보내기" right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
+            <Row T={T} label="데이터 백업" sub={backupRowSub(app.settings)} right={<Ionicons name="cloud-upload-outline" size={18} color={T.accent} />} />
           </TouchableOpacity>
           <TouchableOpacity onPress={async () => {
             try {
-              const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain', '*/*'], copyToCacheDirectory: true });
+              const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/zip', 'text/plain', '*/*'], copyToCacheDirectory: true });
               if (result.canceled) return;
               const file = result.assets?.[0];
               if (!file) return;
-              const resp = await fetch(file.uri);
-              if (!resp.ok) throw new Error('fetch_failed');
-              const raw = await resp.text();
-              const data = JSON.parse(raw);
-              if (!data._meta || data._meta.app !== 'yeolgong') {
+
+              // 사진 포함(zip) / 기록만(JSON) 판별은 **매직바이트**로 — 카톡·드라이브를 거치며
+              // 파일 이름이 바뀌어도 맞는다. 옛 .json 백업도 그대로 복원된다(하위호환)
+              const zipped = await isZipFile(file.uri);
+              let data, archiveFiles = [], stage = null, root = null;
+              if (zipped) {
+                ({ data, archiveFiles, root, stage } = await openArchive(file.uri));
+              } else {
+                const resp = await fetch(file.uri);
+                if (!resp.ok) throw new Error('fetch_failed');
+                data = JSON.parse(await resp.text());
+              }
+
+              if (!data?._meta || data._meta.app !== 'yeolgong') {
+                if (stage) await finishRestore(stage);
                 Alert.alert('복원 실패', '열공메이트 백업 파일이 아닙니다.');
                 return;
               }
+              const photoN = zipped
+                ? filesToRestore(archiveFiles, data.REVIEW_NOTES || []).length
+                : 0;
               Alert.alert(
                 '데이터 복원',
-                `${data._meta.exportedAt?.slice(0, 10) || ''} 백업을 복원하면 현재 데이터가 덮어씌워집니다. 계속할까요?`,
+                `${data._meta.exportedAt?.slice(0, 10) || ''} 백업을 복원하면 현재 데이터가 덮어씌워집니다.${photoN > 0 ? `\n오답노트 사진 ${photoN}장도 함께 복원돼요.` : ''} 계속할까요?`,
                 [
-                  { text: '취소', style: 'cancel' },
+                  { text: '취소', style: 'cancel', onPress: () => { if (stage) finishRestore(stage); } },
                   { text: '복원', style: 'destructive', onPress: async () => {
                     try {
                       await importBackupData(data);
+                      // 사진은 기록보다 뒤에 — 노트가 참조하는 파일만 되돌린다
+                      if (root) {
+                        await restoreFiles(root, filesToRestore(archiveFiles, data.REVIEW_NOTES || []));
+                      }
                       await app.reloadAllData();
-                      Alert.alert('복원 완료', '데이터가 성공적으로 복원되었습니다.');
+                      await refreshPhotoUsage();
+                      Alert.alert('복원 완료', photoN > 0
+                        ? `데이터와 사진 ${photoN}장을 복원했어요.`
+                        : '데이터가 성공적으로 복원되었습니다.');
                     } catch {
                       Alert.alert('복원 실패', '데이터를 복원하는 중 오류가 발생했습니다.');
+                    } finally {
+                      if (stage) await finishRestore(stage);
                     }
                   }},
                 ]
@@ -812,6 +973,25 @@ export default function SettingsScreen() {
             }
           }}>
             <Row T={T} label="데이터 복원" sub="백업 파일에서 불러오기" right={<Ionicons name="cloud-download-outline" size={18} color={T.accent} />} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={async () => {
+            try {
+              const { removed, bytes } = await cleanupOrphans(app.reviewNotes || []);
+              await refreshPhotoUsage();
+              // ※지우는 대상은 '삭제된 오답이 남긴 고아 파일'뿐이다 — 노트에 붙어 있는 사진은
+              // 절대 건드리지 않는다. 문구가 그렇게 안 읽히면 사용자가 누르기를 겁낸다
+              Alert.alert('저장공간 정리', removed > 0
+                ? `안 쓰는 사진 파일 ${removed}장(${formatBytes(bytes)})을 지웠어요.\n오답노트에 붙어 있는 사진은 그대로예요.`
+                : '지울 파일이 없어요.\n오답노트에 붙어 있는 사진은 그대로 유지돼요.');
+            } catch {
+              Alert.alert('저장공간 정리', '정리하는 중 오류가 발생했어요.');
+            }
+          }}>
+            <Row T={T} label="오답노트 저장공간"
+              sub={photoUsage && photoUsage.count > 0
+                ? `사진·녹음 ${photoUsage.count}개 · ${formatBytes(photoUsage.bytes)} 사용 중${photoHeavy ? ' · 저장공간을 많이 쓰고 있어요' : ''}\n기기에만 저장돼요 · 백업할 때 '사진·녹음'을 고르면 함께 담겨요`
+                : '사진·녹음은 기기에만 저장돼요 · 서버로 안 가요'}
+              right={<Ionicons name="images-outline" size={18} color={photoHeavy ? T.red : T.accent} />} />
           </TouchableOpacity>
         </Section>
 
@@ -842,41 +1022,44 @@ export default function SettingsScreen() {
 
               {/* 기본 사용법 */}
               <GuideSection id="basic" title="기본 사용법" color={T.accent} T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 잠금 강도에 따라 모드가 자동 선택되거나 직접 선택해요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n잠금 강도 (설정에서 변경):\n• 일반 — 편하게 공부 모드 자동 시작\n• 집중 — 집중 도전 / 편하게 공부 중 선택\n• 울트라집중 — 집중 도전 모드 자동 시작\n\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
+                {'열공메이트에 오신 걸 환영해요!\n\n① 집중탭 하단의 + 버튼으로 타이머를 만들어요\n② 어떻게 공부할지 3가지 중에서 골라요\n③ 타이머가 끝나면 집중밀도 점수와 등급을 확인해요\n④ 통계탭에서 오늘·이번 주·이번 달 기록을 분석해요\n\n공부 모드 3가지 (시작할 때마다 고를 수 있어요):\n• 일반모드 — 이탈 감지 없이 자유롭게 (점수 +5)\n• 집중모드 — 폰 내려놓고 집중 (점수 +10)\n• 울트라모드 — 일시정지도 막는 가장 강한 모드 (점수 +15)\n\n설정 > 공부 모드에서 기본으로 뜰 모드를 정할 수 있어요.\n처음엔 즐겨찾기에 자주 쓰는 타이머를 저장해두면 빠르게 시작할 수 있어요!'}
               </GuideSection>
 
               {/* 타이머 종류 */}
               <GuideSection id="timers" title="타이머 5가지" color="#00B4D8" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'카운트다운\n목표 시간을 정해놓고 카운트다운해요. 끝나면 완료 알림!\n\n자유(카운트업)\n시간 제한 없이 올라가는 스톱워치예요. 원할 때 직접 종료해요.\n\n뽀모도로\n집중(25분) → 휴식(5분)을 자동으로 반복해요.\n설정에서 집중·휴식 시간을 자유롭게 바꿀 수 있어요.\n\n연속모드\n여러 과목을 순서대로 이어서 실행해요.\n예) 수학 40분 → 영어 30분 → 국어 20분\n각 과목이 끝날 때마다 알림이 울리고 자동으로 다음으로 넘어가요.\n\n랩 스톱워치\n랩(구간) 기록을 남길 수 있는 스톱워치예요.\n문제 풀이 속도를 측정할 때 유용해요!'}
+                {'카운트다운\n목표 시간을 정해놓고 카운트다운해요. 끝나면 완료 알림!\n\n자유(카운트업)\n계속 올라가는 스톱워치예요. 원할 때 직접 종료해요.\n끄는 걸 잊어도 걱정 마세요 — 5시간이 되면 자동으로 저장하고 종료돼요.\n\n뽀모도로\n집중(25분) → 휴식(5분)을 자동으로 반복해요.\n설정에서 집중·휴식 시간을 자유롭게 바꿀 수 있어요.\n\n연속모드\n여러 과목을 순서대로 이어서 실행해요.\n예) 수학 40분 → 영어 30분 → 국어 20분\n각 과목이 끝날 때마다 알림이 울리고 자동으로 다음으로 넘어가요.\n\n랩 스톱워치\n랩(구간) 기록을 남길 수 있는 스톱워치예요.\n문제 풀이 속도를 측정할 때 유용해요!'}
               </GuideSection>
 
               {/* 즐겨찾기 팁 */}
               <GuideSection id="fav" title="즐겨찾기 사용법" color="#FFD700" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'자주 쓰는 타이머를 즐겨찾기에 저장하면 한 번의 탭으로 바로 시작할 수 있어요!\n\n저장 방법:\n• 실행 중인 타이머 이름 왼쪽 별표 탭 → 즐겨찾기 추가\n• 편집 버튼으로 직접 추가·수정도 가능해요\n\n관리:\n• 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나와요'}
+                {'자주 쓰는 타이머를 즐겨찾기에 저장하면 한 번의 탭으로 바로 시작할 수 있어요!\n\n위치: 과목탭 > 내 과목 상단 (시작하면 집중탭으로 이동해요)\n\n저장 방법:\n• 실행 중인 타이머 이름 왼쪽 별표 탭 → 즐겨찾기 추가\n• 편집 버튼으로 직접 추가·수정도 가능해요\n\n관리:\n• 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나와요'}
               </GuideSection>
 
               {/* 집중 모드 */}
-              <GuideSection id="focus" title="집중 도전 vs 편하게 공부" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'타이머를 시작할 때 잠금 강도에 따라 공부 모드가 결정돼요.\n\n집중 도전 — 화면을 켠 채 공부\n→ 화면이 자동으로 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈하면 30초부터 단계별 복귀 알림이 와요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n편하게 공부 — 화면을 꺼도 OK\n→ 화면을 꺼도 타이머가 계속 돌아가요\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 음악 들으며, 또는 부담 없이 공부하고 싶을 때 추천!\n\n모드 자동 선택:\n• 일반 강도 → 편하게 공부가 자동 시작돼요\n• 집중 강도 → 매번 직접 선택할 수 있어요\n• 울트라집중 → 집중 도전이 자동 시작돼요'}
+              <GuideSection id="focus" title="집중모드 vs 일반모드" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'타이머를 시작할 때 3가지 중에서 골라요.\n\n집중모드 — 폰 내려놓고 공부\n→ 화면이 어두워지고 잠금 화면이 나타나요\n→ 앱을 나가거나 다른 앱을 열면 "이탈"로 기록돼요\n→ 이탈하면 30초부터 단계별 복귀 알림이 와요\n→ 이탈 0회를 달성하면 Verified 인증 + 보너스 점수!\n→ 스스로에게 도전하고 싶을 때 추천!\n\n일반모드 — 부담 없이\n→ 이탈 체크 없이 조용히 공부할 수 있어요\n→ 일시정지도 자유로워요\n→ 음악 들으며, 또는 가볍게 공부하고 싶을 때 추천!\n\n울트라모드 — 가장 강한 모드\n→ 집중모드에 더해 일시정지·잠깐 쉬기가 막혀요\n→ 잠깐만 앱을 나가도 타이머가 멈춰요\n→ 울트라 연속 기록(스트릭)이 따로 쌓여요\n\n화면은 어느 모드에서든 안 만지면 기기 설정대로 꺼져요.\n화면이 꺼져도 타이머는 계속 돌아가고, 이탈로 치지 않아요.'}
               </GuideSection>
 
               {/* 잠금화면 */}
-              <GuideSection id="lock" title="잠금화면 & 집중 강도" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'집중 도전 모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 "잠금 해제" 버튼을 눌러야 앱으로 돌아올 수 있어요\n• 잠금 해제 시 "이탈" 횟수가 올라가요\n• 잠금화면에 Verified 진행 상태가 표시돼요 — 이탈 없이 완료하면 인증!\n\n이탈하면 이렇게 돼요:\n• 즉시 알림에 이어 30초/1분/3분/5분 단계별로 복귀 알림이 와요 (돌아오면 멈춰요)\n'
+              <GuideSection id="lock" title="잠금화면 & 공부 모드" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'집중모드·울트라모드에서는 잠금화면이 활성화돼요.\n\n잠금화면 사용법:\n• 화면이 어두워지면 잠금 화면 상태예요\n• 하단 손잡이를 옆으로 밀면 앱으로 돌아올 수 있어요\n• 잠금을 풀어도 이탈이 아니에요 — 앱을 나가야 이탈로 기록돼요\n• 한동안 안 만지면 기기 설정대로 화면이 꺼져요 (기록은 계속돼요)\n• 잠금화면에 Verified 진행 상태가 표시돼요 — 이탈 없이 완료하면 인증!\n\n이탈하면 이렇게 돼요:\n• 앱을 나가고 잠시 뒤 알림이 오고, 이어서 30초/1분/3분/5분 단계별로 복귀 알림이 와요 (돌아오면 멈춰요)\n• 알림을 보고 바로 돌아오면 이탈로 세지 않아요 — 알림은 벌점이 아니라 돌아올 기회예요\n'
                 + (Platform.OS === 'android'
                   ? '• 이탈 중에는 지울 수 없는 상태 알림이 떠 있고, 복귀하면 사라져요\n'
-                  : '• 잠금화면의 실시간 타이머(Live Activity)에 "이탈 중"이 표시돼요\n')
-                + '\n집중 강도 3단계 (설정에서 변경 가능):\n\n일반: 편하게 공부가 자동 시작돼요.\n이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중: 집중 도전 / 편하게 공부를 직접 선택해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라집중: 집중 도전이 자동 시작돼요.\n일시정지와 잠깐 쉬기가 불가능해요!\n10초 이상 앱을 나가면 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
+                  // iOS는 잠금과 앱 전환이 같은 이벤트라 이탈이 확정되기 전이므로 Live Activity에
+                  // '이탈 중'을 세우지 않는다(세우면 잠금화면에 오표시되고 되돌릴 방법이 없다).
+                  // 예전 문구가 표시된다고 말하고 있었다 — 2026-08-01 정정
+                  : '• 화면을 끄거나 기기를 잠근 것은 이탈이 아니에요 — 다른 앱을 써야 이탈이에요\n')
+                + '\n공부 모드 3가지 (타이머를 시작할 때마다 선택):\n\n일반모드: 이탈 감지 없이 자유롭게 공부할 수 있어요.\n\n집중모드: 폰을 내려놓고 집중해요.\n1분 이상 이탈 시 챌린지 문구를 입력해야 잠금이 해제돼요.\n\n울트라모드: 가장 강한 모드예요.\n일시정지와 잠깐 쉬기가 불가능해요!\n잠깐만 앱을 나가도 타이머가 즉시 정지돼요.\n돌아올 때 챌린지 문구를 입력해야만 재개돼요.\n'
                 + (Platform.OS === 'android'
                   ? '화면이 고정돼 홈·최근앱 버튼도 잠겨요.\n(해제: 뒤로+최근앱 버튼을 동시에 길게 누르기)\n고정을 풀어도 앱에 돌아오면 다시 고정돼요.\n'
-                  : '앱 차단을 켜두면 집중 도전 중에는 강도와 무관하게 선택한 앱이 잠겨요.\n울트라집중 전체 차단까지 켜면 허용한 앱 빼고 모든 앱이 잠겨요.\n(설정 > 집중 도전 모드 > 앱 차단)\n')
-                + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 집중 강도에서 직접 바꿀 수 있어요\n타이머 실행 중에는 잠금 강도를 변경할 수 없어요'}
+                  : '앱 차단을 켜두면 집중모드·울트라모드로 공부하는 동안 선택한 앱이 잠겨요.\n울트라모드 전체 차단까지 켜면 허용한 앱 빼고 모든 앱이 잠겨요.\n(설정 > 공부 모드 > 앱 차단)\n')
+                + '울트라 연속 기록이 별도로 쌓여요!\n\n챌린지 문구는 설정 > 공부 모드에서 직접 바꿀 수 있어요\n설정의 "기본 공부 모드"는 시작 팝업에서 미리 골라둘 값이에요\n타이머 실행 중에는 공부 모드를 변경할 수 없어요'}
               </GuideSection>
 
               {/* 앱 차단 (iOS 전용) */}
               {Platform.OS === 'ios' && (
                 <GuideSection id="appblock" title="앱 차단" color="#FF6B6B" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                  {'집중 도전 중에 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 집중 도전 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중 도전으로 타이머가 도는 동안 선택한 앱이 잠겨요 (잠금 강도와 무관)\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n울트라집중 전체 차단:\n더 강하게 막고 싶다면 "울트라집중 전체 차단"을 켜보세요.\n잠금 강도가 울트라집중일 때는 허용 목록에 넣은 앱만 남기고 모든 앱이 잠겨요. 폰이 공부폰이 되는 거죠!\n• 전화, 메시지처럼 꼭 필요한 앱은 미리 허용 목록에 추가하세요\n• 허용 목록에는 개별 앱만 적용돼요 (카테고리 선택은 반영되지 않아요)\n• 일반·집중 강도에서는 기존처럼 선택한 앱만 차단돼요\n\n차단 목록은 설정 > 집중 도전 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n편하게 공부(화면 꺼짐) 모드에서는 차단이 적용되지 않아요.'}
+                  {'집중모드로 공부하는 동안 유튜브, 인스타그램 등 방해되는 앱을 실제로 차단하는 기능이에요. (iOS 16 이상)\n\n켜는 방법:\n① 설정 > 공부 모드 > 앱 차단을 켜요\n② 스크린 타임 접근을 허용해요\n③ 차단할 앱이나 카테고리를 선택해요\n\n동작 방식:\n• 집중모드·울트라모드로 타이머가 도는 동안 선택한 앱이 잠겨요\n• 차단된 앱을 열면 시스템 차단 화면이 표시돼요\n• 타이머가 끝나면 자동으로 풀려요\n• 잠깐 쉬기, 뽀모도로 휴식 중에도 차단은 유지돼요\n\n울트라모드 전체 차단:\n더 강하게 막고 싶다면 "울트라모드 전체 차단"을 켜보세요.\n공부 모드가 울트라모드일 때는 허용 목록에 넣은 앱만 남기고 모든 앱이 잠겨요. 폰이 공부폰이 되는 거죠!\n• 전화, 메시지처럼 꼭 필요한 앱은 미리 허용 목록에 추가하세요\n• 허용 목록에는 개별 앱만 적용돼요 (카테고리 선택은 반영되지 않아요)\n• 일반모드·집중모드에서는 기존처럼 선택한 앱만 차단돼요\n\n차단 목록은 설정 > 공부 모드 > 차단할 앱 선택에서 언제든 바꿀 수 있어요.\n일반모드(화면 꺼짐)에서는 차단이 적용되지 않아요.'}
                 </GuideSection>
               )}
 
@@ -887,17 +1070,22 @@ export default function SettingsScreen() {
 
               {/* 집중밀도 */}
               <GuideSection id="density" title="집중밀도란?" color="#6C5CE7" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 일시정지·이탈·완주율·자가평가 같은 타이머 사용 습관으로 계산하는 56~103점 참고 점수예요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 집중 도전 이탈 0회 → Verified 최대 +15점\n• 편하게 공부 완료 시에도 +5점 보너스\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
+                {'같은 1시간을 공부해도 집중한 정도는 다를 수 있어요.\n집중밀도는 일시정지·이탈·완주율·자가평가 같은 타이머 사용 습관으로 계산하는 56~103점 참고 점수예요.\n어떤 세션이든 최소 C등급이 보장돼요\n\n5분 미만은 통계에 저장되지 않아요\n짧은 태스크는 기록 대신 할 일 체크로 관리해요!\n\n점수를 높이는 핵심:\n• 타이머를 완주할수록 완료 점수 UP\n• 일시정지를 줄일수록 습관 점수 UP\n• 고른 모드만큼 선언 보너스 (이탈 0회 기준)\n  일반모드 +5 · 집중모드 +10 · 울트라모드 +15\n• 세션 후 자가평가 최고 선택 시 +3점\n\n등급:\nSS (100+) > S+ (93+) > S (86+) > A (76+) > B (66+) > C (56+)\n\n메모와 자가평가를 남기면 나중에 돌아봤을 때 도움이 많이 돼요!'}
               </GuideSection>
 
               {/* 통계 */}
               <GuideSection id="stats" title="통계 탭 활용법" color="#A29BFE" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n주간 리포트에서 울트라집중 세션 수도 확인할 수 있어요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 4개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.\n\n세션 뱃지:\n• Verified — 이탈 0회 달성\n• Ultra — 울트라집중 모드로 완료'}
+                {'공부 기록을 다양한 방식으로 분석할 수 있어요.\n\n일간\n오늘 공부한 시간, 목표 달성률, 간트 차트(시간대별 공부 블록)를 볼 수 있어요. 세션을 탭하면 메모를 수정할 수 있어요.\n\n주간\n이번 주 공부량 그래프와 시간대별 집중 패턴을 확인해요.\n← → 버튼으로 지난 주 기록도 볼 수 있고, 주간 플래너 달성률도 표시돼요.\n주간 리포트에서 울트라모드 세션 수도 확인할 수 있어요.\n\n월간\n달력 형식으로 매일 공부 시간을 한눈에 확인해요.\n날짜를 탭하면 그날의 세션 상세 내역이 나와요.\n\n잔디\n최근 4개월의 공부 기록을 한눈에 볼 수 있어요.\n칸을 탭하면 그날의 상세 내역, 아래엔 공부 일기(메모 모음)도 확인할 수 있어요.\n\n과목\n과목별 공부 시간을 7일·30일·전체 기간으로 비교해볼 수 있어요.\n\n세션 뱃지:\n• Verified — 이탈 0회 달성\n• Ultra — 울트라모드로 완료'}
               </GuideSection>
 
               {/* 잔디 */}
               <GuideSection id="heatmap" title="공부 잔디" color="#4CAF50" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'통계 > 잔디 탭에서 최근 4개월 기록을 한눈에 볼 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 편하게 공부한 날\n• 초록 = 집중 도전한 날\n• 금색 = Verified 달성한 날!\n• 빨강 = 울트라집중 모드로 공부한 날\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
+                {'통계 > 잔디 탭에서 최근 4개월 기록을 한눈에 볼 수 있어요.\n공부한 날은 칸이 색칠돼요!\n\n색상 의미:\n• 연한색 = 일반모드로 공부한 날\n• 초록 = 집중모드로 공부한 날\n• 금색 = Verified 달성한 날!\n• 빨강 = 울트라모드로 공부한 날\n\n상단 요약 카드:\n• 올해 총 공부 시간\n• 현재 연속 공부 일수\n• 역대 최장 연속 기록\n\n공부 일기\n메모를 남긴 세션이 날짜별로 모여서 표시돼요.\n탭하면 메모를 수정할 수 있어요.\n\n매일 칸을 채워서 풀잔디에 도전해보세요!'}
+              </GuideSection>
+
+              {/* 스터디룸 */}
+              <GuideSection id="studyroom" title="스터디룸 — 같이 공부" color="#0984E3" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'통계탭 상단의 스터디룸 배너로 들어가요.\n친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 보는 기능이에요.\n\n시작하기:\n• 공개 라운지 — 전국의 열공메이트 유저들과 바로 같이 공부해요\n• 새 방 만들기 — 방 이름과 분위기(스터디카페/독서실/교실)를 골라요\n• 코드로 참여 — 친구가 공유한 6자리 코드를 입력해요 (한 방 최대 30명)\n\n방 안에서:\n• 타이머를 시작하면 내 자리에 공부 중 표시와 과목·경과 시간이 실시간으로 보여요\n• 공부 모드에 따라 자리 색이 달라요 — 일반(초록)/집중(주황)/울트라(빨강)\n• 화면을 끄고 공부해도 "몰입 중"으로 표시돼요\n• 빈 책상을 누르면 그 자리로 옮길 수 있어요\n• 열심히 하는 사람에게 응원을 보낼 수 있어요 (누가 보냈는지는 표시되지 않아요)\n• 다같이 집중 — 방장이 시작하면 모두 같은 카운트다운으로 함께 달려요 (라운지 제외)\n• 상단 공유 버튼으로 친구에게 방 코드를 보내요\n• 방 나가기를 해도 코드가 있으면 다시 들어올 수 있어요\n\n불편한 사용자가 있다면:\n• 상대를 길게 누르면 숨기기·신고를 할 수 있어요\n• 숨긴 사용자는 내 화면에서 익명으로 바뀌어요\n\n알아두세요:\n• 닉네임·캐릭터·공부 상태만 공유돼요. 공부 기록과 통계는 공유되지 않아요\n• 별도 가입 없이 익명으로 이용해요. 방 화면 오른쪽 위 설정에서 스터디룸 데이터를 삭제할 수 있어요'}
               </GuideSection>
 
               {/* 과목 & 할 일 */}
@@ -907,7 +1095,7 @@ export default function SettingsScreen() {
 
               {/* 플래너 탭 */}
               <GuideSection id="planner" title="플래너 탭" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'플래너 탭에서 오늘·주간·월간 일정을 한눈에 파악해요.\n\n오늘 뷰\n• 오늘 시간표 블록과 계획을 시각적으로 확인해요\n• 공부 계획 옆 재생 버튼으로 바로 타이머를 시작해요\n• 배치 버튼으로 빈 시간에 미배치 계획을 넣을 수 있어요\n• 빈 시간에 배치한 계획은 탭해서 "시간 변경"으로 다른 빈 시간으로 옮길 수 있어요\n\n주간 뷰\n• 요일별 시간표를 그리드로 확인해요\n• 블록을 탭하면 바로 타이머를 시작할 수 있어요\n• 계획 블록 아래 미니바로 계획 대비 실제 공부량을 비교해요\n\n이번 주만 vs 매주 반복\n• 계획을 추가할 때 "이번 주만"과 "매주 반복" 중 고를 수 있어요\n• 이번 주만 — 이번 주에만 표시되는 일회성 계획이에요\n• 매주 반복 — 매주 같은 요일에 반복되는 시간표 계획이에요\n\n이번 주만 바꾸기 (회차별 조정)\n• 반복 계획이나 고정 일정을 탭하면 "이번 주만"과 "매주 전체" 중 골라서 수정·삭제할 수 있어요\n• 이번 주 학원 휴강·학교 휴교 → "이번 주만 휴무"로 그 주만 빼고 다음 주는 그대로예요\n• "계획 다른 날로 미루기"로 계획을 다른 날짜·요일로 옮길 수 있어요 (이번 회차만 이동하고 반복은 유지돼요)\n• 옮긴 날 같은 시간에 다른 과목이 있으면 가장 가까운 빈 시간으로 자동 배치돼요 (빈 시간이 없으면 미배치로 이동, 오늘로 옮길 땐 지난 시간은 피해서 배치)\n\n월간 뷰 (D-Day·일정 관리)\n• 날짜를 탭하면 그날의 공부 기록과 일정을 확인해요\n• 날짜를 길게 누르면 새 일정을 바로 추가해요\n• 과거 날짜에는 공부량에 따라 색상 도트가 표시돼요\n• 시험·일정에 별(★)을 고정하면 집중탭에 상시 표시돼요\n\n⚙ 버튼\n• 주간 플래너 편집 화면이 열려요\n• 요일별 고정 일정(학교·식사 등)과 공부 계획을 설정해요\n• 기본 시간표 초기화로 학교급에 맞는 시간표를 불러올 수 있어요'}
+                {'플래너 탭에서 오늘·주간·월간 일정을 한눈에 파악해요.\n\n오늘 뷰\n• 오늘 시간표 블록과 계획을 시각적으로 확인해요\n• 공부 계획 옆 재생 버튼으로 바로 타이머를 시작해요\n• 배치 버튼으로 빈 시간에 미배치 계획을 넣을 수 있어요\n• 빈 시간에 배치한 계획은 탭해서 "시간 변경"으로 다른 빈 시간으로 옮길 수 있어요\n\n주간 뷰\n• 요일별 시간표를 그리드로 확인해요\n• 블록을 탭하면 바로 타이머를 시작할 수 있어요\n• 계획 블록 아래 미니바로 계획 대비 실제 공부량을 비교해요\n\n이번 주만 vs 매주 반복\n• 계획을 추가할 때 "이번 주만"과 "매주 반복" 중 고를 수 있어요\n• 이번 주만 — 이번 주에만 표시되는 일회성 계획이에요\n• 매주 반복 — 매주 같은 요일에 반복되는 시간표 계획이에요\n\n이번 주만 바꾸기 (회차별 조정)\n• 반복 계획이나 고정 일정을 탭하면 "이번 주만"과 "매주 전체" 중 골라서 수정·삭제할 수 있어요\n• 이번 주 학원 휴강·학교 휴교 → "이번 주만 휴무"로 그 주만 빼고 다음 주는 그대로예요\n• "계획 다른 날로 미루기"로 계획을 다른 날짜·요일로 옮길 수 있어요 (이번 회차만 이동하고 반복은 유지돼요)\n• 옮긴 날 같은 시간에 다른 과목이 있으면 가장 가까운 빈 시간으로 자동 배치돼요 (빈 시간이 없으면 미배치로 이동, 오늘로 옮길 땐 지난 시간은 피해서 배치)\n\n월간 뷰 (D-Day·일정 관리)\n• 날짜를 탭하면 그날의 공부 기록과 일정을 확인해요\n• 날짜를 길게 누르면 새 일정을 바로 추가해요\n• 과거 날짜에는 공부량에 따라 색상 도트가 표시돼요\n• 시험·일정에 별(★)을 고정하면 집중탭에 상시 표시돼요\n\n반복설정 버튼 (플래너 탭 맨 아래 오른쪽)\n• 매주 반복되는 주간 시간표를 편집하는 화면이 열려요\n• 요일별 고정 일정(학교·식사 등)과 공부 계획을 설정해요\n• 한 요일을 짠 뒤 "다른 요일에 복사"로 나머지를 빠르게 채워요\n• "기본으로 초기화"로 지금 학교급에 맞는 시간표를 불러올 수 있어요\n  (학교급을 바꿔도 시간표는 그대로 남아요 — 새로 채우려면 여기서 초기화해요)'}
               </GuideSection>
 
               {/* 스마트 할 일 */}
@@ -917,6 +1105,11 @@ export default function SettingsScreen() {
                 + '\n시험이 7일 이내로 다가오면 집중탭에 경고 배너가 표시돼요'}
               </GuideSection>
 
+              {/* 오답노트 */}
+              <GuideSection id="review" title="오답노트" color="#E17055" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
+                {'과목 탭 > 오답노트에서 틀린 문제를 모아둘 수 있어요.\n할 일은 매일 리셋되지만, 오답노트는 계속 남아요.\n\n적는 방법:\n• + 버튼으로 새 오답을 추가해요\n• 과목과 챕터(예: 3단원, 문법)를 적어두면 나중에 묶어서 볼 수 있어요\n• 사진 첨부 — 문제를 찍거나 앨범에서 골라 최대 5장까지 붙일 수 있어요\n• 음성 — 왜 틀렸는지 직접 녹음하거나(하나당 3분) 가지고 있는 오디오 파일을 붙일 수 있어요 (최대 2개)\n• 완료한 할 일을 펼치면 "오답노트 저장" 버튼이 있어요. 메모가 그대로 옮겨와요\n\n복습하기:\n• 다시 풀어봤으면 "복습 완료"를 눌러요. 복습 횟수가 쌓여요\n• 이제 확실하면 "마스터"로 표시해요\n• "복습 필요만" 필터를 켜면 아직 마스터하지 않은 것만 보여요\n\n알아두세요:\n• 사진·녹음은 이 기기에만 저장돼요. 서버로 올라가지 않아요\n• 새 폰으로 옮기려면 설정 > 데이터 백업에서 "사진·녹음"을 골라요\n• 과목을 지워도 오답은 "미분류"로 남아요 — 기록이 사라지지 않게요\n• 사용 중인 용량은 설정 > 오답노트 저장공간에서 확인할 수 있어요'}
+              </GuideSection>
+
               {/* 알림 팁 */}
               <GuideSection id="notif" title="알림이 안 울려요?" color="#74B9FF" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
                 {'타이머 완료 알림이 오지 않는다면 아래를 확인해주세요!\n\n① 알림 권한 확인\n설정 앱 > 앱 > 열공메이트 > 알림을 허용해주세요.\n\n② 정확한 알람 권한 (Android 12+)\n설정 > 앱 > 특별한 앱 권한 > 알람 및 알림에서 이 앱을 허용해주세요.\n\n③ 배터리 최적화 해제 (일부 기기)\n대부분의 기기에서는 위 설정만으로 충분해요.\n만약 그래도 알림이 안 온다면:\n• Android: 설정 > 앱 > 열공메이트 > 배터리 > "제한 없음" 선택\n• 일부 제조사(Xiaomi, Huawei 등): "자동 실행" 또는 "백그라운드 활동" 허용 필요\n• iPhone: 설정 > 알림 > 열공메이트 > 알림 허용 확인'}
@@ -924,7 +1117,7 @@ export default function SettingsScreen() {
 
               {/* 학습법 */}
               <GuideSection id="method" title="학습법 — 왜 이 방법들인가요?" color="#E07050" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'과목 탭의 학습법은 모두 연구로 검증된 방법들이에요!\n\n미션 스프린트 (15분×3)\n짧은 목표를 반복하면 동기부여가 30% 이상 높아져요.\n\n소리+묵독\n소리 내어 읽으면 묵독보다 기억이 77% 향상되는 "프로덕션 효과"가 있어요.\n\n인터리빙\n한 과목만 계속하는 것보다 과목을 번갈아 공부하면 기억력이 43% 향상돼요.\n\n52-17 법칙\n52분 집중 + 17분 휴식이 생산성이 가장 높은 황금 비율이에요.\n\n울트라디안 90\n인간의 집중력은 90분 주기로 움직여요. 90분 집중 후 충분히 쉬면 다음 사이클도 고효율!\n\n하드 스타트\n어려운 문제를 먼저 시작하면 쉬운 걸 하는 동안에도 뇌가 무의식적으로 계속 처리해요.'}
+                {'과목 탭의 학습법은 학습·심리 연구에서 소개된 방법들을 참고해 만들었어요.\n효과는 사람마다, 과목마다 달라요. 몇 가지 써보고 나에게 맞는 걸 고르는 게 가장 좋아요.\n\n미션 스프린트 (15분×3)\n큰 목표보다 짧은 목표를 여러 번 끝내는 쪽이 동기가 잘 붙는다고 해요. (게이미피케이션)\n\n소리+묵독\n소리 내어 읽은 내용이 눈으로만 읽은 것보다 더 잘 기억된다는 "프로덕션 효과"에서 왔어요. (MacLeod, 2011)\n\n인터리빙\n한 과목을 몰아서 하는 것보다 번갈아 공부하는 쪽이 오래 기억에 남는다는 연구가 있어요.\n\n52-17 법칙\n한 생산성 앱의 사용 시간 데이터에서 나온 비율이에요. 실험실 연구가 아니라 참고용 리듬으로 보세요.\n\n울트라디안 90\n사람의 각성 상태가 90분 안팎으로 오르내린다는 가설에서 나온 방법이에요.\n\n하드 스타트\n어려운 문제를 먼저 열어두면 다른 걸 하는 동안에도 머릿속에서 계속 굴러간다는 아이디어예요.'}
               </GuideSection>
 
               {/* 닫기 */}
@@ -936,17 +1129,17 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* 잠금 강도 피커 */}
+      {/* 공부 모드 피커 */}
       <Modal visible={showFocusPicker} transparent animationType="slide" onShow={onPickerShow}>
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowFocusPicker(false); }} />
         <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, maxHeight: isLandscape ? '95%' : '92%', backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>잠금 강도</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>기본 공부 모드</Text>
             <TouchableOpacity onPress={() => setShowFocusPicker(false)}><Text style={{ fontSize: 14, color: T.sub }}>닫기</Text></TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 24, marginBottom: 12 }}>
             <Ionicons name="information-circle-outline" size={13} color={T.sub} />
-            <Text style={{ fontSize: 12, color: T.sub }}>타이머 시작 시 적용돼요</Text>
+            <Text style={{ fontSize: 12, color: T.sub }}>타이머를 시작할 때마다 고를 수 있어요 · 여기서 정한 건 기본 선택값</Text>
           </View>
           {FOCUS_LEVELS.map(lv => {
             const sel = (app.settings.ultraFocusLevel || 'normal') === lv.id;
@@ -974,7 +1167,7 @@ export default function SettingsScreen() {
           })}
           {(app.settings.ultraFocusLevel || 'normal') !== 'exam' && (
             <View style={{ marginHorizontal: 24, marginTop: 6, marginBottom: 4 }}>
-              <Text style={{ fontSize: 11.5, color: '#FF6B6B', textAlign: 'center', fontWeight: '500', lineHeight: 17 }}>울트라집중에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
+              <Text style={{ fontSize: 11.5, color: '#FF6B6B', textAlign: 'center', fontWeight: '500', lineHeight: 17 }}>울트라모드에 도전해보세요! 공부의 밀도가 올라갑니다.</Text>
             </View>
           )}
         </View>
@@ -1049,7 +1242,7 @@ export default function SettingsScreen() {
               { id: 'cute',    label: '귀여운',  desc: '둥글고 컬러풀한 스타일' },
               { id: 'minimal', label: '✦ 미니멀',   desc: '각지고 단정한 스타일' },
             ].map(p => {
-              const sel = (app.settings.stylePreset || 'cute') === p.id;
+              const sel = (app.settings.stylePreset || 'minimal') === p.id;
               return (
                 <TouchableOpacity key={p.id} onPress={() => { app.updateSettings({ stylePreset: p.id }); setShowStylePicker(false); }}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, borderWidth: sel ? 2 : 1, borderColor: sel ? T.accent : T.border, backgroundColor: sel ? T.accent + '12' : 'transparent' }}>
@@ -1132,7 +1325,7 @@ export default function SettingsScreen() {
           {SCHOOL_LEVELS.map(s => {
             const sel = (app.settings.schoolLevel || 'high') === s.id;
             return (
-              <TouchableOpacity key={s.id} onPress={() => { app.updateSettings({ schoolLevel: s.id }); setShowSchoolPicker(false); }}
+              <TouchableOpacity key={s.id} onPress={() => { pickSchoolLevel(s); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
                 <View>
                   <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{s.label}</Text>
@@ -1154,15 +1347,19 @@ export default function SettingsScreen() {
           setReminderTime(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
         }}
       >
+        {/* 안드 Modal은 별도 창이라 키보드가 시트를 덮는다. KeyboardAvoidingView의 padding은
+            position:'absolute' 자식을 밀어내지 못하므로 시트를 flex-end 배치로 바꿨다 (2026-08-02) */}
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]} activeOpacity={1} onPress={() => { if (!backdropLocked.current) setShowReminderPicker(false); }} />
-        <View style={{ position: 'absolute', bottom: 0, left: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, right: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+        <View style={{ marginLeft: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, marginRight: isTablet ? Math.max(0, (winW - tabletMaxW) / 2) : 0, backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '900', color: T.text }}>리마인더 시각</Text>
             <TouchableOpacity onPress={() => setShowReminderPicker(false)}>
               <Ionicons name="close" size={22} color={T.sub} />
             </TouchableOpacity>
           </View>
-          <TimePickerGrid label="" value={reminderTime} onChange={setReminderTime} T={T} />
+          {/* 세로 컨테이너에 홀로 놓이므로 flex를 주지 않는다 (주면 높이가 0으로 접힌다) */}
+          <TimeField label="" value={reminderTime} onChange={setReminderTime} T={T} style={{ marginVertical: 4 }} />
           <TouchableOpacity
             onPress={() => {
               const [h, m] = reminderTime.split(':').map(Number);
@@ -1174,6 +1371,7 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>확인</Text>
           </TouchableOpacity>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </KeyboardAvoidingView>

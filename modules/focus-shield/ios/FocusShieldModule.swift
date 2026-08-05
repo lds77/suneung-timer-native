@@ -1,8 +1,10 @@
+import CallKit
 import ExpoModulesCore
 import FamilyControls
 import ManagedSettings
 import SwiftUI
 import UIKit
+import UserNotifications
 
 // iOS Screen Time API(FamilyControls) 앱 차단 — 울트라집중 세션 중 사용자가 고른 앱을 실제로 차단.
 // 요구사항: iOS 16+, Family Controls (Distribution) entitlement (2026-07-05 승인),
@@ -65,9 +67,233 @@ private struct PickerSheet: View {
   }
 }
 
+// ─── 화면 잠금 감지 (🔥모드 이탈 판정용) ───────────────────────────────────
+// iOS는 '화면 잠금'과 '앱 전환'이 앱 입장에서 완전히 같은 이벤트(didEnterBackground)라
+// 구분할 공개 API가 없다. 대신 기기가 잠기면 잠시 뒤(약 10초) 보호 데이터가 잠기는 것을 이용한다:
+// 백그라운드 진입 시 beginBackgroundTask로 실행 시간을 벌어 isProtectedDataAvailable을
+// 지켜보다가 false가 되면 '화면 잠금이었다'고 기록한다.
+//
+// 백그라운드에서는 JS 타이머가 멈추므로 알림 취소도 네이티브가 해야 한다:
+// JS는 이탈 알림을 20초 뒤로, 넛지를 30초~5분 뒤로 예약해 두고(고정 identifier),
+// 여기서 잠금을 감지하면 그 예약들을 지운다 → 잠금화면에 헛알림이 뜨지 않는다.
+// 이탈 카운트 되돌리기는 JS가 복귀 시 consumeLockedAt()으로 처리
+// (src/utils/focusShield.js · useAppState AppState 핸들러).
+// 한계: 기기 암호를 설정하지 않은 사용자는 감지되지 않는다 (그 경우 기존대로 이탈 처리).
+// ★감지까지 걸리는 시간은 기기·직전 잠금해제 시점에 따라 10~40초로 들쭉날쭉하다(Apple 포럼).
+//   그래서 자체 데드라인으로 일찍 끊지 않고, OS가 백그라운드 태스크를 회수할 때(만료 핸들러)까지
+//   최대한 버틴다 — 아래 값은 그마저도 안 올 때를 위한 안전망일 뿐이다.
+//   즉 감지 실패는 구조적으로 있을 수 있고, 그때는 기존대로 '이탈'로 처리된다(fail-safe).
+private let LOCK_WATCH_SEC: TimeInterval = 60
+private let LOCK_POLL_SEC: TimeInterval = 0.5
+
+// ★잠금을 감지해도 '첫 이탈 알림이 나갈 시각'을 넘겼으면 알림을 취소하지 않는다★ (2026-08-01)
+// 이 취소는 원래 **JS의 오판을 되돌리려고** 있는 것이다: 앱을 만지고 곧바로 화면을 끄면
+// JS가 '앱 전환'으로 보고 알림을 예약해 버려 잠금화면에 헛알림이 뜬다.
+// 그런데 **다른 앱을 쓰다가 화면을 끈 경우**까지 같이 취소돼, 이탈 알림이 그 배경 구간 내내
+// 한 번도 안 오는 문제가 있었다(실기기 제보).
+// 두 경우는 **배경 진입 ~ 잠금 감지 사이의 간격**으로 갈린다:
+//   · 화면 끄기로 배경 진입  → 간격 ≈ 감지 지연분(약 10초)뿐
+//   · 다른 앱을 쓰다가 끔    → 간격 = 그 앱을 쓴 시간 + 10초
+// 그래서 기준을 **첫 알림 시각**으로 둔다 — "첫 알림이 나가기도 전에 잠금이 감지됐다면
+// 이탈이라 할 만한 시간이 아예 없었다"가 성립하고, 반대로 알림이 이미 나갈 만큼 지났다면
+// 되돌리지 않는다. ★JS의 IOS_AWAY_NOTIF_DELAY_SEC와 같아야 한다 — focusAway.test.js가 대조★
+private let LOCK_CANCEL_WINDOW_SEC: TimeInterval = 20
+// useAppState의 이탈 알림 identifier와 반드시 일치해야 한다 (fireNotif 'away-now' / scheduleAwayNudges)
+private let AWAY_NOTIF_IDS = ["away-now", "away-nudge-30", "away-nudge-60", "away-nudge-180", "away-nudge-300"]
+
+// ─── 전화 수신·통화 감지 (🔥모드 이탈 판정용, 2026-08-01) ──────────────────
+// 전화를 받으면 앱이 백그라운드로 내려가 이탈로 잡히고, 통화 중에 '돌아와' 넛지가 울린 뒤
+// 끊으면 이탈 1회가 찍힌다. 안드로이드는 2026-07-30에 AudioManager.getMode()로 해결했는데
+// iOS엔 대응물이 전혀 없었다 — 그 구멍을 CallKit CXCallObserver로 메운다.
+//
+// CXCallObserver는 **권한도 usage description도 필요 없다**(안드의 READ_PHONE_STATE 회피와 같은 이유로 중요).
+// 셀룰러 통화와 CallKit을 쓰는 인터넷 통화(보이스톡 등)가 모두 잡힌다.
+// ★관측자는 반드시 프로퍼티로 붙들고 있어야 한다★ — 매번 새로 만들면 통화 목록이
+//   동기화되기 전이라 빈 배열이 돌아온다.
+//
+// ★한계(iOS 고유): 백그라운드에서 앱이 정지되면 관측이 끊긴다★
+// 안드는 네이티브가 배경에서 계속 폴링하지만 iOS는 beginBackgroundTask가 회수되면 끝이다.
+// 그래서 '통화가 언제 끝났는지'를 못 볼 수 있다 → 관측이 끊길 때 통화 중이었으면
+// callHeldAtWatchEnd를 세워 그 배경 구간을 통째로 면제한다(consumeCallHeld).
+// 잠금 감지가 이미 같은 양보를 하고 있으므로(잠기면 그 구간 전체 면제) 일관된 선택이다.
+
 public class FocusShieldModule: Module {
+  // lockWatch/lockedAtMs는 JS 스레드(Function)와 메인 스레드(타이머·앱 생명주기)가 함께 만지므로
+  // 반드시 lock으로 감싼다. 타이머·백그라운드 태스크 관련 상태는 메인 스레드 전용.
+  private let stateLock = NSLock()
+  private var lockWatch = false                  // 🔥모드 세션 중에만 감시 (JS가 토글)
+  private var lockedAtMs: Double = 0             // 잠금 감지 시각(epoch ms), 0 = 감지 안 됨
+  private var bgTaskId: UIBackgroundTaskIdentifier = .invalid
+  private var lockPollTimer: Timer?
+  private var watchDeadline: Date?
+  private var watchStartedAt: Date?   // 배경 진입 시각 — 잠금 감지까지의 간격으로 알림 취소 여부를 가른다
+  // 통화 관측 (위 주석 참고) — 관측자는 계속 붙들고 있어야 목록이 정확하다
+  private let callObserver = CXCallObserver()
+  private var lastCallAtMs: Double = 0        // 마지막으로 통화를 관측한 시각(epoch ms), 0 = 없음
+  private var callHeldAtWatchEnd = false      // 관측이 끊길 때 통화가 진행 중이었는가
+
+  private func isWatchEnabled() -> Bool {
+    stateLock.lock(); defer { stateLock.unlock() }
+    return lockWatch
+  }
+
+  // 지금 통화 중(벨 울림 포함)인가. 관측되면 기준 시각을 갱신한다.
+  // ★기준점을 계속 갱신하는 것이 핵심★ — 통화 시작 시각에 굳으면 '통화 직후 유예'가
+  //   `유예 − 통화 시간`으로 줄어든다(안드에서 실제로 밟은 함정, focusAway.js POST_CALL_GRACE_MS 주석).
+  @discardableResult
+  private func observeCall() -> Bool {
+    let active = callObserver.calls.contains { !$0.hasEnded }
+    if active {
+      stateLock.lock()
+      lastCallAtMs = Date().timeIntervalSince1970 * 1000
+      stateLock.unlock()
+    }
+    return active
+  }
+
+  private func setCallHeld(_ v: Bool) {
+    stateLock.lock(); defer { stateLock.unlock() }
+    callHeldAtWatchEnd = v
+  }
+
+  private func setLockedAt(_ ms: Double) {
+    stateLock.lock(); defer { stateLock.unlock() }
+    lockedAtMs = ms
+  }
+
+  // 호출 스레드를 모를 때 (JS 스레드에서 오는 setLockWatch, 소멸 시점 등)
+  private func endWatchSafely() {
+    if Thread.isMainThread { endWatch() } else { DispatchQueue.main.async { self.endWatch() } }
+  }
+
+  // 메인 스레드 전용 (타이머 정리 + 백그라운드 태스크 종료)
+  private func endWatch() {
+    lockPollTimer?.invalidate()
+    lockPollTimer = nil
+    watchDeadline = nil
+    watchStartedAt = nil
+    if bgTaskId != .invalid {
+      UIApplication.shared.endBackgroundTask(bgTaskId)
+      bgTaskId = .invalid
+    }
+  }
+
+  // 예약해 둔 이탈 알림/넛지를 발송 전에 지운다.
+  // 감지가 예약 시각(20초)보다 늦은 기기에서 이미 발송됐을 수 있어 발송분도 함께 정리.
+  private func cancelAwayNotifs() {
+    let center = UNUserNotificationCenter.current()
+    center.removePendingNotificationRequests(withIdentifiers: AWAY_NOTIF_IDS)
+    center.removeDeliveredNotifications(withIdentifiers: AWAY_NOTIF_IDS)
+  }
+
+  // ※메인 스레드에서 동기 호출해야 한다. OnAppEntersBackground는 didEnterBackground 알림에서
+  //   메인 스레드로 동기 전달되므로, 여기서 DispatchQueue.main.async로 한 번 미루면
+  //   블록이 실행되기 전에 앱이 정지될 수 있다(= 감시가 아예 시작 안 되거나, 다음 포그라운드
+  //   복귀 때 유령 감시가 도는 레이스). beginBackgroundTask는 didEnterBackground가 리턴하기
+  //   전에 호출하는 것이 Apple 권장이기도 하다.
+  private func startWatch() {
+    endWatch()
+    setLockedAt(0)
+    setCallHeld(false)
+    bgTaskId = UIApplication.shared.beginBackgroundTask(withName: "yeolgongLockWatch") { [weak self] in
+      guard let self = self else { return }
+      // OS가 백그라운드 태스크를 회수하는 시점 = 관측이 끊기는 시점.
+      // 이때 통화가 진행 중이었다면 통화 종료 시각을 영영 알 수 없으므로 표시해 둔다.
+      if self.observeCall() { self.setCallHeld(true) }
+      self.endWatch()
+    }
+    guard bgTaskId != .invalid else { return }
+    watchStartedAt = Date()
+    watchDeadline = Date().addingTimeInterval(LOCK_WATCH_SEC)
+    lockPollTimer = Timer.scheduledTimer(withTimeInterval: LOCK_POLL_SEC, repeats: true) { [weak self] timer in
+      guard let self = self else {
+        // 모듈이 사라졌는데 타이머만 남는 일이 없도록 (백그라운드 태스크는 OnDestroy에서 종료)
+        timer.invalidate()
+        return
+      }
+      // 통화 중이면 이탈 판정을 통째로 건너뛴다 — 알림을 지우고 관측만 계속한다.
+      // ★여기서 endWatch()를 부르면 안 된다★: 감시를 끊는 순간 lastCallAtMs가 통화 시작
+      //   시각에 굳어, 통화가 길수록 '통화 직후 유예'가 사라진다(안드에서 밟은 함정).
+      if self.observeCall() {
+        self.cancelAwayNotifs()
+        self.watchDeadline = Date().addingTimeInterval(LOCK_WATCH_SEC)
+        return
+      }
+      if !UIApplication.shared.isProtectedDataAvailable {
+        self.setLockedAt(Date().timeIntervalSince1970 * 1000)
+        // 잠금 시각은 항상 기록한다(JS가 '잠금 전까지 다른 앱을 쓴 시간'을 계산한다).
+        // 알림 취소는 첫 알림이 나가기 전에 감지된 경우만 — 위 LOCK_CANCEL_WINDOW_SEC 주석 참고
+        let elapsed = Date().timeIntervalSince(self.watchStartedAt ?? Date())
+        if elapsed <= LOCK_CANCEL_WINDOW_SEC { self.cancelAwayNotifs() }
+        self.endWatch()
+      } else if let dl = self.watchDeadline, Date() >= dl {
+        self.endWatch()
+      }
+    }
+  }
+
   public func definition() -> ModuleDefinition {
     Name("FocusShield")
+
+    // 🔥모드 세션 동안만 잠금 감시 (백그라운드 태스크를 세션 밖에서 쓰지 않기 위해)
+    Function("setLockWatch") { (on: Bool) in
+      self.stateLock.lock()
+      self.lockWatch = on
+      if !on {
+        self.lockedAtMs = 0
+        self.lastCallAtMs = 0
+        self.callHeldAtWatchEnd = false
+      }
+      self.stateLock.unlock()
+      if !on { self.endWatchSafely() }
+    }
+
+    // 마지막 백그라운드 구간에서 감지한 잠금 시각(epoch ms). 0이면 잠금 아님(=앱 전환).
+    // 읽으면 초기화된다 (JS가 복귀 때 한 번만 소비).
+    Function("consumeLockedAt") { () -> Double in
+      self.stateLock.lock(); defer { self.stateLock.unlock() }
+      let v = self.lockedAtMs
+      self.lockedAtMs = 0
+      return v
+    }
+
+    // 지금 통화 중(벨 울림 포함)인가 — 호출만 해도 통화 기준 시각이 갱신된다.
+    // 안드 screenPin.isInCall()의 iOS 대응물 (useAppState가 배경 진입·복귀 시점에 호출).
+    Function("isInCall") { () -> Bool in
+      return self.observeCall()
+    }
+
+    // 마지막 통화 관측 이후 경과(ms). 관측 기록이 없으면 -1 (JS의 awayMsAfterCall이 그대로 통과시킴).
+    Function("msSinceCall") { () -> Double in
+      self.stateLock.lock(); defer { self.stateLock.unlock() }
+      if self.lastCallAtMs <= 0 { return -1 }
+      return Date().timeIntervalSince1970 * 1000 - self.lastCallAtMs
+    }
+
+    // 백그라운드 관측이 끊길 때 통화가 진행 중이었는가 (읽으면 초기화).
+    // true면 통화 종료 시각을 알 수 없으므로 그 배경 구간을 통째로 이탈 면제한다.
+    Function("consumeCallHeld") { () -> Bool in
+      self.stateLock.lock(); defer { self.stateLock.unlock() }
+      let v = self.callHeldAtWatchEnd
+      self.callHeldAtWatchEnd = false
+      return v
+    }
+
+    // ※메인 스레드에서 동기 호출됨 (didEnterBackground 알림) — startWatch 주석 참고
+    OnAppEntersBackground {
+      guard self.isWatchEnabled() else { return }
+      self.startWatch()
+    }
+
+    OnAppEntersForeground {
+      self.endWatch()
+    }
+
+    // 모듈/AppContext 소멸(개발 중 리로드 등) 시 백그라운드 태스크가 살아남으면
+    // 만료 핸들러가 no-op이 되어 OS가 앱을 강제 종료한다(0x8badf00d) — 반드시 정리
+    OnDestroy {
+      self.endWatchSafely()
+    }
 
     // 기기 지원 여부 (iOS 16+)
     Function("isSupported") { () -> Bool in

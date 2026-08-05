@@ -1,0 +1,255 @@
+# 실시간 "같이 공부" 기능 설계 문서
+
+> 작성: 2026-07-17 (Claude Fable 5). 목적: 이후 세션/모델이 이 문서만 보고 단계별 구현할 수 있게
+> 핵심 설계 결정을 전부 내려둔다. 구현 전 이 문서를 통독할 것.
+> 관련 배경: 열품타(YPT)류 앱의 핵심 리텐션 기능. 현재 열공메이트는 서버·로그인 없음.
+
+---
+
+## 0. 제품 결정 (확정)
+
+| 결정 | 내용 | 이유 |
+|------|------|------|
+| 모델 | **스터디룸(그룹) 코드 기반**, 개별 친구관계 없음 | 친구요청/수락 UX·차단·신고가 전부 생략됨. 반 친구들끼리 코드 공유가 실사용 패턴 |
+| 계정 | **Firebase 익명 인증 + 닉네임/캐릭터만** | 로그인 화면 없음. 이메일/전화번호 수집 안 함 — "가입 없음" 셀링포인트 최대한 보존 |
+| 공유 범위 | 닉네임, 캐릭터, 지금 공부 중 여부(+과목 라벨), 오늘 누적 공부시간 **만** | 세션 상세/통계/플래너는 서버에 절대 올리지 않음 (데이터 최소화) |
+| 게이팅 | `settings.studyRoomEnabled` 기본 false — 기능을 켠 유저만 네트워크 사용 | 기존 유저 무영향. 미사용 시 완전 로컬 앱 유지 |
+| 백엔드 | **Firebase** (Auth 익명 + Realtime Database) | 아래 1절 |
+
+## 1. 스택 선택: Firebase (Supabase 대비)
+
+- **RTDB `onDisconnect()`가 결정적**: 앱 강제종료/네트워크 단절 시 서버가 자동으로 '공부 끝' 처리.
+  Supabase Realtime presence도 가능하지만 RN에서 소켓 수명 관리가 더 까다롭고 레퍼런스가 적다.
+- Firebase **JS SDK는 순수 JS** → 네이티브 모듈 불필요 → **기존 바이너리에 OTA로도 배포 가능**
+  (`@react-native-firebase/*` 네이티브 SDK는 쓰지 말 것 — prebuild 필요해짐).
+- 전부 RTDB만 사용 (Firestore 혼용 금지 — 데이터가 단순해서 한 DB로 충분, 과금·규칙 단순화).
+- 무료 티어(Spark): 동시 연결 100, 저장 1GB, 다운로드 10GB/월 — 현재 규모(MAU 100)에 충분.
+  동시 연결 100 초과 시점(대략 DAU 500+)에 Blaze 전환 검토.
+
+## 2. 데이터 모델 (RTDB)
+
+```
+/users/{uid}
+  nickname: string (2~12자, 로컬 금칙어 필터 통과분)
+  character: string ('toru' | 'paengi' | ...)
+  roomId: string | null        // 현재 소속 방 (1인 1방 — 단순화)
+  createdAt: number
+
+/rooms/{roomId}                // roomId = 6자리 대문자+숫자 코드 (예: 'A3K9QZ')
+  name: string (방 이름, 1~16자)
+  ownerUid: string
+  createdAt: number
+  members/{uid}: { nickname, character, joinedAt }   // 최대 30명
+
+/status/{roomId}/{uid}         // presence — 방 단위로 묶어 구독 1회로 전체 수신
+  state: 'studying' | 'idle'
+  subjectLabel: string | ''    // 과목명만 (과목 id/색상 등 로컬 정보 불필요)
+  startedAt: number | null     // 공부 시작 시각 (경과 표시는 클라이언트가 계산)
+  todaySec: number             // 오늘 누적 초 (아래 3.3 규칙으로 클라이언트가 갱신)
+  date: string                 // todaySec의 기준일 'YYYY-MM-DD' (KST) — 자정 리셋 판별
+  updatedAt: number
+```
+
+- 방 목록 화면 = `/status/{roomId}` 구독 하나로 렌더 (멤버 메타는 `/rooms/{roomId}/members` 1회 read).
+- 과거 이력·랭킹 보존 없음(오늘만). 이력이 필요해지면 그때 `/daily/{roomId}/{date}/{uid}` 추가.
+
+## 3. 동작 규칙
+
+### 3.1 초기화·가입
+1. 설정탭(또는 새 '스터디룸' 진입점)에서 기능 켬 → `signInAnonymously()` → 닉네임/캐릭터 입력 → `/users/{uid}` 생성.
+2. Auth 영속화: `initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })` 필수
+   (기본 메모리 영속이면 재시작마다 새 uid가 생겨 유령 유저가 쌓인다).
+3. **앱 삭제 = 계정 유실**임을 켜기 화면에 명시 (익명 인증의 트레이드오프. 복구 기능 안 만듦).
+
+### 3.2 Presence
+- 타이머 시작(단일 활성 타이머 제약 덕에 신호가 깔끔): `/status/{roomId}/{uid}`에
+  `{ state:'studying', subjectLabel, startedAt: Date.now(), ... }` set.
+- 타이머 종료/일시정지: `state:'idle'` + todaySec 갱신. (일시정지도 idle로 — '공부 중' 신뢰가 기능의 생명)
+- 연결 시마다 `onDisconnect(ref).update({ state:'idle', updatedAt: serverTimestamp })` 재등록.
+  등록 위치: 로그인 직후 + `.info/connected` 리스너에서 재연결 때마다.
+- 클라이언트 표시: `state==='studying'`이면 `startedAt` 기준 경과를 로컬에서 카운팅 (서버 틱 없음 — 쓰기 비용 0).
+- **연동 지점**: useAppState의 Live Activity 동기화 effect와 같은 시그니처 패턴을 재사용
+  (`활성 타이머 id|status|phase` 변화 시에만 쓰기 — elapsedSec 틱 제외. 초당 네트워크 쓰기 금지).
+- 뽀모/연속의 휴식 페이즈는 `state:'studying'` 유지하되 subjectLabel '휴식 중' — 단순하게.
+
+### 3.3 오늘 누적(todaySec)
+- 로컬 세션 기록(recordSessionInternal) 후 오늘 세션 합계를 계산해 `todaySec`/`date`를 통째로 set (increment 아님 — 멱등, 중복 기록 걱정 없음).
+- 원본은 항상 로컬 sessions. 서버 값은 표시용 캐시일 뿐 (기기 재설치 시 서버 잔존값은 다음 set으로 덮임).
+- `date !== 오늘(KST)`인 항목은 클라이언트가 0으로 표시 (자정 리셋을 서버에서 안 함).
+- 날짜는 반드시 `format.js`의 `getToday()` 사용 (작업 규칙 7 — toISOString 금지).
+
+### 3.4 방 생성/참여/탈퇴
+- 생성: 코드 6자 랜덤 생성 → `/rooms/{code}` 트랜잭션 set (충돌 시 재생성) → 본인 join.
+- 참여: 코드 입력 → members에 자기 uid 추가 (30명 초과 시 클라이언트가 거부.
+  ※RTDB 규칙은 자식 수를 셀 수 없어 정원의 서버측 강제는 불가 — 악의적 클라이언트는 초과 입장
+  가능하지만 좌석 도면이 30석뿐이라 표시상 영향 없음. 실제 규칙은 `docs/firebase-database.rules.json`).
+- 코드 공유는 기존 `Share.share` 재사용 ("[열공메이트] 스터디룸 A3K9QZ로 들어와!" + 스토어 링크 → 초대가 곧 설치 유도).
+- 탈퇴: members/{uid}·status/{roomId}/{uid} 제거, users.roomId null. 방장 탈퇴 시 방은 남고 방장 이양 없음(오너 필드만 잔존 — 기능상 무해).
+
+## 4. 보안 규칙 초안 (RTDB rules)
+
+```json
+{
+  "rules": {
+    "users": {
+      "$uid": { ".read": "auth.uid === $uid", ".write": "auth.uid === $uid",
+        ".validate": "newData.child('nickname').val().length <= 12" }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": "auth !== null",
+        "members": {
+          "$uid": { ".write": "auth.uid === $uid" }
+        },
+        ".write": "auth !== null && !data.exists()"
+      }
+    },
+    "status": {
+      "$roomId": {
+        ".read": "root.child('rooms').child($roomId).child('members').child(auth.uid).exists()",
+        "$uid": { ".write": "auth.uid === $uid" }
+      }
+    }
+  }
+}
+```
+- 요지: 본인 것만 쓰기, 방 상태는 멤버만 읽기, 방 생성은 없는 코드에만. members 30명 제한과
+  todaySec 상한(예: 86400) validate는 구현 시 추가.
+
+## 5. 화면 (신규 1개 + 진입점)
+
+- **스터디룸 화면** (신규, 통계탭 상단 진입 버튼 or 설정): 방 이름/코드 + 멤버 리스트.
+  각 행: 캐릭터 아바타, 닉네임, 상태점(공부 중=accent/휴식=회색), 공부 중이면 실시간 경과, 오늘 누적.
+  정렬: 공부 중 우선 → 오늘 누적 내림차순. 미참여 상태면 생성/참여/코드입력 UI.
+- 기존 캐릭터 시스템(characters.js)을 아바타로 재사용 — 신규 에셋 불필요.
+- 테마는 T 객체, 이모지 금지(Ionicons) — 기존 작업 규칙 그대로.
+
+## 6. 개인정보/정책 (출시 전 필수)
+
+- privacy-policy.html 개정: "스터디룸 기능을 켠 경우에 한해 닉네임·캐릭터·공부 상태·오늘 공부시간이
+  같은 방 참여자에게 공유되며 서버(Firebase, Google)에 저장됩니다. 기능을 끄거나 방을 나가면 서버 데이터가 삭제됩니다."
+- 스토어 데이터 안전(Play)/개인정보 처리방침(ASC) 설문 갱신 필요 — **수집 항목이 '없음'에서 바뀜**.
+  (닉네임은 개인 식별 불가 가명 정보지만 설문에는 '기타 정보' 공유로 신고하는 게 안전)
+- 탈퇴(기능 끄기) 시 `/users/{uid}`·status·members 삭제 구현 필수 (Play 계정 삭제 정책 대응).
+- 닉네임 금칙어: 로컬 필터(간단 목록)로 시작. 신고 기능은 MVP 제외 — 방 코드 기반이라 아는 사이 전제.
+
+## 7. 구현 단계 (각 단계 독립 배포 가능)
+
+1. **P0 인프라**: Firebase 프로젝트 생성(콘솔), RTDB 인스턴스(서울 리전 asia-southeast1 없음 → us-central1 또는 asia-southeast1 중 지연 확인), `firebase` npm 설치, `src/utils/studyRoom.js` 모듈 뼈대 + config. **API 키는 app.config.js extra로** (JS 번들에 들어가도 됨 — Firebase 웹 키는 공개 전제, 보안은 rules가 담당).
+2. **P1 계정**: 익명 로그인 + 닉네임/캐릭터 설정 + AsyncStorage 영속.
+3. **P2 방**: 생성/참여/탈퇴/코드 공유. 멤버 리스트 표시(정적).
+4. **P3 presence**: 타이머 연동 쓰기 + onDisconnect + 실시간 구독 렌더.
+5. **P4 누적**: todaySec 갱신/표시, 정렬.
+6. **P5 정책**: privacy 개정, 스토어 설문, 삭제 흐름, 금칙어.
+- P0~P2까지는 Expo Go에서도 개발 가능. 전 단계 순수 JS라 **이론상 OTA 배포 가능**하나,
+  첫 릴리스는 실기기 검증(로컬 APK 레시피) 후 내보낼 것.
+
+## 8. 함정 목록 (구현 시 주의)
+
+- **초당 쓰기 금지**: presence는 상태 변화 시에만. elapsed는 클라이언트 계산 (Live Activity 시그니처 패턴 참조).
+- 익명 auth 영속 누락 → 재시작마다 새 uid (위 3.1).
+- onDisconnect는 **연결마다 재등록** 필요 — 한 번 등록으로 영구가 아님.
+- iOS 백그라운드: 소켓이 수십 초 내 끊김 → onDisconnect 발화 → 백그라운드 공부(📖모드)가 idle로 보임.
+  **대응(확정)**: `state:'studying'`이면 클라이언트가 `updatedAt` 기준 30분까지는 공부 중으로 그려주고,
+  onDisconnect는 `state:'bg'`(별도 값)로 내려서 '자리비움 가능성' 표시. 완전 정확성보다 단순성 우선.
+- 시계 조작: startedAt/todaySec은 클라이언트 신고값 — 시험/보상 기능이 아니므로 수용. 랭킹에 상금 걸지 말 것.
+- RTDB 값에 undefined 금지 (set 시 에러) — null로 정규화.
+- 기존 불변식(타이머·세션)은 이 기능과 완전 분리 유지 — studyRoom.js가 useAppState를 **구독만** 하고 역방향 의존 금지.
+
+## 9. 하지 않기로 한 것 (스코프 밖 — 재론 금지 이유 포함)
+
+- 개별 친구요청/팔로우: 차단·신고·프라이버시 설정이 따라와 MVP 3배 크기.
+- 공부 인증샷/채팅: 모더레이션 비용이 기능 가치보다 큼 (미성년 사용자).
+- 주간/전체 랭킹 보존: 오늘만으로 시작 — 경쟁 과열/조작 유인 최소화.
+- 푸시 알림("친구가 공부 시작"): 서버 함수 필요(Blaze) + 피로도. presence 화면으로 충분.
+
+---
+
+## 10. 후속 개선 (2026-07-24 — "어항" 탈피 3종)
+
+냉정 평가에서 나온 핵심 결함 3개를 서버함수 없이(OTA 가능) 정면 대응. 전부 순수 JS.
+
+### C. 화면끔 공부 승격 (커밋: 화면끔 몰입)
+- 문제: 📖 screen_off는 화면을 꺼 소켓이 끊겨 `state:'bg'`가 되는데, 이걸 자리비움(opacity 0.55)으로
+  흐리게 그려 **가장 성실한 몰입자가 반쯤 사라져** 보였다.
+- 해결: `onDisconnect`가 mode를 보존(update 머지)하므로 `displayStatus`에서 mode로 분기 —
+  `book`(화면끔)은 흐림 없이 **달 뱃지로 승격**, `fire/ultra`(화면켬)의 bg는 잠금 이탈이므로 자리비움 유지.
+  mode 불명은 관대하게 화면끔으로 해석. `screenOff` 플래그 신설.
+
+### A. 방 밖에서도 '우리 방 N명 집중 중' (커밋: 집중 중 표시)
+- 문제: '같이 있는 느낌'이 방 화면을 볼 때만 났는데 정작 공부 중엔 타이머·잠금 화면이라 못 봤다(**가시성 역전**).
+- 해결: `subscribeRoomStatus`(status만 경량 구독)로 useAppState가 켠 유저의 방 집중 인원(나 제외)을
+  집계 → `roomStudyingCount` 컨텍스트. 집중 탭 pill(탭→스터디룸) + 잠금 오버레이 비탭 표시.
+  30초 재계산으로 스테일 경계 반영.
+
+### B. 다같이 집중 세션 (커밋: 다같이 집중)
+- 문제: 사람 사이 상호작용 0(어항). 함께 '시작'하는 순간이 없음.
+- 데이터: `/rooms/{roomId}/focusSession { startedAt, durationMin, by, byNick }`. 멤버 누구나 시작,
+  방당 1세션(마지막 쓰기 승). 벽시계 startedAt 기준이라 전원이 같은 카운트다운을 봄(서버 틱 0).
+- **타이머 불변식과 분리**: 남의 타이머를 강제로 켜지 않음. 배너 + '나도 지금 시작' 버튼이
+  남은 시간만큼 **각자** countdown을 `addTimer`로 켠다(단일 타이머 가드·모드 선택은 addTimer가 처리).
+- 표시: `focusSessionView` — 진행 중(remainingSec)/완주 직후 축하창(90초)/만료(정리). 1초 틱으로 카운트.
+  만료 세션은 방 진입 멤버가 1회 `clearFocusSession`(다음 세션 덮어쓰기도 함).
+- **규칙 변경 필수**: `rooms/$id/focusSession` 멤버 write 블록 추가(`docs/firebase-database.rules.json`).
+  room 레벨 `$other: validate false`가 있어 focusSession을 **명시 블록**으로 넣어야 하고,
+  room 레벨 `.write`가 안 여니 focusSession 자체 `.write`로 멤버 권한 부여. **콘솔에 규칙 재배포 필요**.
+- 스코프: 방 화면 한정(초대 없이 함께 보는 사람만). 방 밖 멤버에게 세션 시작 토스트는 후속 후보.
+- (2026-07-24 후속) **공개 라운지(STUDY*)에선 미노출** — 모르는 사람끼리라 불필요. `isLoungeCode` 게이팅, 그룹(코드) 방 전용.
+  시간은 25/50분 프리셋 + **직접 입력(1~180분)** 지원.
+
+### H. 라운지 최소 안전 (2026-07-24 — 라운지 유지 결정에 따른 UGC 대응)
+- 배경: 닉네임이 남에게 보이는 공개 라운지 = UGC. 애플 1.2는 UGC+미성년 앱에 필터/신고/차단을 요구 → 심사 리스크.
+  라운지는 재미 요소로 유지하되 최소 요건만 붙임(학교급 분리는 인구 파편화로 실익 적어 스킵).
+- **숨기기(로컬 차단)**: 다른 사람 좌석 탭 → 숨기기/신고 메뉴. 숨긴 uid는 `@yeolgong/studyRoomBlocked`(로컬)
+  에 저장. '숨긴 N명 · 모두 다시 보기' 또는 익명 타일 탭으로 개별 해제. 내 자리는 비탭.
+- (2026-07-25 버그헌트 후속) 숨긴 사용자는 **명단에서 빼지 않고 익명 타일**('숨긴 사용자', eye-off,
+  닉네임/캐릭터/상태 미표시)로 렌더 — 빼면 그 좌석이 내 화면에서만 빈자리가 되어 앉을 수 있고
+  클라이언트 간 좌석 배치가 어긋난다. 좌석 점유·인원수·pill 카운트가 서버와 일관돼
+  useAppState에 차단목록 동기화도 불필요해짐.
+- **신고**: `reportMember`가 `/reports`에 append(create-only, 본인 것만). 콘솔에서 검토(자동 처리 약속 안 함).
+  신고 시 로컬 숨김도 동시 적용. **규칙에 reports 노드 추가 — 콘솔 재배포 필요**.
+- **닉네임 필터 강화**: BAD_WORDS 확장 + `normalizeForFilter`(공백/구분자 제거)로 "시 발", "s.e.x" 우회 차단.
+
+---
+
+## 11. 후속 2차 (2026-07-25 — 응원·리스트·프로필·방밖 인지)
+
+리뷰에서 "코드는 건강한데 지금 규모(MAU~100)에선 방이 자주 비어 상호작용이 없다"는 진단 →
+혼자여도 볼거리가 있고, 겹치면 상호작용이 생기는 4종. 전부 순수 JS(OTA 가능).
+
+### D. 응원 보내기 (익명 · 엄지척)
+- `/cheers/{roomId}/{targetUid}/{senderUid} = { at }` — **보낸이 uid가 키**라 연타해도
+  자기 것만 덮어써 스팸이 구조적으로 억제됨(별도 스로틀 불필요). 표시는 5분(`CHEER_FRESH_MS`).
+- **익명 확정(2026-07-25 사용자 결정)**: 값에 보낸 사람 이름을 담지 않고 수신 토스트도
+  '같은 방 누군가가'로 표기. 이유 — 누가 보냈는지 남으면 아는 사이끼리만 주고받게 되어
+  '모르는 사람에게 부담 없이 보낸다'는 기능의 핵심 가치가 죽는다. 되돌리지 말 것.
+  (※senderUid는 키로 남지만 스팸 억제·규칙 검증용이며 앱 UI에는 어디에도 노출하지 않음)
+- 표식은 **엄지척**(하트는 공부 맥락에 연애 뉘앙스가 섞임). 수신 표시: 좌석 엄지척 뱃지(2명+면 수),
+  방 밖에서도 토스트. 좌석 탭 메뉴 최상단에 배치(기존엔 숨기기/신고뿐 = 상호작용이 차단밖에 없던 상태 해소).
+- **공개 라운지 포함 전 방에서 허용**(2026-07-25 결정). 익명이라 아는 사이 밖으로 나가는 게 본령이고,
+  자유 입력이 없어 UGC 위험이 없다(닉네임은 이미 방에서 보이는 정보). B(다같이 집중)의 라운지 미노출과는 별개 판단.
+- **안드 Alert는 버튼 최대 3개** — 4개를 넘기면 RN이 뒤를 잘라 '취소'가 사라지고 기본
+  non-cancelable이라 숨기기/신고 말고는 못 빠져나간다. 그래서 좌석 메뉴는 2단계
+  (응원/숨기기·신고/취소 → 숨기기/신고하고 숨기기/취소). 버튼 추가 시 이 상한을 항상 확인할 것.
+- **라운지 미노출**(`isLoungeCode` 게이팅 — B와 같은 기조). 되돌리려면 `allowCheer` 한 줄.
+- **규칙 추가 — 콘솔 재배포 필요**: cheers 노드. read=방 멤버, write=본인 sender 키 + 양쪽 다 멤버 +
+  자기 자신 불가. 대상 본인은 자기 수신함 삭제만 가능(퇴장 시 정리). 방 삭제 후 잔재 정리는 status와 동일 패턴.
+
+### E. 방 오늘공부 리스트
+- 좌석 도면 아래 접이식 '오늘 이 방' — `sortMembers`(공부 중 우선 → 누적 내림차순) **드디어 소비**
+  (그동안 테스트만 있고 프로덕션 미사용이었음). 추가 구독 0 — 이미 받은 members 재사용.
+- 숨긴 사용자는 '숨긴 사용자'로 익명 표기(좌석 타일과 일관).
+
+### 프로필 수정
+- 헤더 설정 → 메뉴화(프로필 수정 / 스터디룸 끄기). 기존엔 수정 경로가 없어 오타 시 전체 삭제 후 재가입뿐이었음.
+- `updateProfile`: 닉네임/캐릭터가 `users/{uid}`와 `rooms/{id}/members/{uid}` **두 곳에 중복 저장**되므로
+  멀티패스 update로 원자 갱신. seat/joinedAt은 건드리지 않음(재작성 시 자리·순번 초기화 — 재입장 버그 전례).
+- 겸사: `saveProfile`이 매번 createdAt을 덮어쓰던 것 → 최초 1회만(유령 판정 기준값 보존).
+
+### 다같이 집중 방 밖 인지
+- `subscribeFocusSession`(rooms/{id}/focusSession 노드 하나 — rooms는 auth read라 **규칙 변경 불필요**).
+- roomStudyingCount 구독 effect에 **같은 생명주기로 편승**(방 이동 감지·해제 공유). 집중탭 pill이
+  '다같이 집중 진행 중'으로 확장 + 남이 시작 시 토스트 1회(startedAt ref 가드, 2분 이내, 라운지 제외).
+- **새 1초 인터벌 없음** — 진행 중 판정은 기존 15초 재계산에 편승(초당 리렌더 회피). 남은 시간 라이브는 방 화면 몫.
+
+> 남은 후속 후보(미구현): 스터디룸 위젯 재방문(F — 헤드리스 스테일 문제로 보류 권고).

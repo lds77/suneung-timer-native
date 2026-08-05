@@ -16,13 +16,13 @@ import { FIXED_TYPES } from '../constants/presets';
 import { generateId, formatDDay, calcDDay, getToday, toDateStr, formatShort, getWeekStartStr } from '../utils/format';
 import { useApp } from '../hooks/useAppState';
 import RunningTimersBar from '../components/RunningTimersBar';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 import ScheduleEditorScreen from './ScheduleEditorScreen';
 // 순수 배치/시간 로직은 planner/helpers.js로 분리 (테스트 대상)
 import {
   DAY_KEYS, START_HOUR, END_HOUR, parseTimeToMin, minToStr,
   TKEY_SEP, makeTKey, tkeyWeek, tkeyPlan, weekStartOf, weekStartOfDateStr,
-  isPlanInWeek, isMidnightCrossing, occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
+  isPlanInWeek, isMidnightCrossing, spanMinutes, occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
 } from './planner/helpers';
 
 const TEMP_STORAGE_KEY = 'plannerTempAssignments';
@@ -103,6 +103,13 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   const [targetMin, setTargetMin] = useState(60);
   const [useSchedule, setUseSchedule] = useState(false);
   const [scope, setScope]         = useState('once'); // 'once'(이번 주만) | 'weekly'(매주 반복)
+  // 키보드가 뜨면 시간 입력칸이 가려지므로 그 줄을 화면 위로 끌어올린다 (KeyboardAvoidingView와 한 쌍)
+  const sheetScrollRef = useRef(null);
+  const timeRowY = useRef(0);
+  const scrollToTimeRow = useCallback(() => {
+    // 키보드가 올라오고 KAV가 높이를 줄인 뒤에 스크롤해야 위치가 맞는다
+    setTimeout(() => sheetScrollRef.current?.scrollTo({ y: Math.max(0, timeRowY.current - 8), animated: true }), 250);
+  }, []);
   // id가 있어야 진짜 수정 — 그리드 탭으로 시간만 프리필된 새 블록은 '추가'
   const isEdit = !!(initial && initial.id);
 
@@ -139,14 +146,22 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
   const handleSave = () => {
     if (!label.trim()) { Alert.alert('이름을 입력해주세요'); return; }
     const needsTime = type === 'fixed' || useSchedule;
+    const startMin = parseTimeToMin(start);
+    const endMin   = parseTimeToMin(end);
+    const crossesMidnight = needsTime && endMin < startMin;
+
     if (needsTime) {
-      const startMin = parseTimeToMin(start);
-      const endMin   = parseTimeToMin(end);
-      if (endMin <= startMin) { Alert.alert('종료 시간이 시작 시간보다 늦어야 해요'); return; }
+      if (endMin === startMin) { Alert.alert('시간 오류', '시작과 종료 시간이 같아요'); return; }
+      // 공부 계획은 자정 넘김 불가 — 목표량이 '종료 - 시작'이라 음수가 된다 (일정편집과 동일)
+      if (crossesMidnight && type === 'plan') {
+        Alert.alert('종료 시간이 시작 시간보다 늦어야 해요'); return;
+      }
     }
-    const computedTargetMin = needsTime
-      ? Math.round(parseTimeToMin(end) - parseTimeToMin(start))
-      : targetMin;
+
+    // 고정 일정의 자정 넘김(취침 23:00~07:00 등)은 그리드가 이미 지원한다 —
+    // blockGeometry가 당일 24:00까지, carryoverGeometry가 다음 날 이어지는 부분을 그리고
+    // 빈 시간 계산도 감안한다. 예전엔 이 모달만 입력을 막아 일정편집에서만 만들 수 있었다(2026-08-02 통일)
+    const computedTargetMin = needsTime ? spanMinutes(start, end) : targetMin;
     const payload = {
       id: initial?.id || generateId('blk_'),
       blockType: type,
@@ -159,20 +174,40 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
       // 범위 선택이 표시된 새 계획만 scope 전달 (수정/고정일정은 undefined)
       ...(allowScopeChoice && !isEdit && type === 'plan' ? { scope } : {}),
     };
-    // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
-    if (recurringEdit) {
-      Alert.alert('수정 적용 범위', '매주 반복되는 일정이에요. 어떻게 적용할까요?', [
-        { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
-        { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
-        { text: '취소', style: 'cancel' },
-      ]);
+    const commit = () => {
+      // 매주 반복 계획 수정 → 적용 범위(이번 주만 / 매주 전체) 선택
+      if (recurringEdit) {
+        Alert.alert('수정 적용 범위', '매주 반복되는 일정이에요. 어떻게 적용할까요?', [
+          { text: '이번 주만', onPress: () => onSave({ ...payload, editScope: 'thisWeek' }) },
+          { text: '매주 전체', onPress: () => onSave({ ...payload, editScope: 'all' }) },
+          { text: '취소', style: 'cancel' },
+        ]);
+        return;
+      }
+      onSave(payload);
+    };
+
+    // 타이핑으로 바뀐 뒤로는 오타(11:11 → 10:22)로도 쉽게 만들어지므로 한 번 확인 (일정편집과 같은 문구)
+    if (crossesMidnight) {
+      Alert.alert(
+        '자정을 넘는 일정인가요?',
+        `${start}에 시작해서 다음 날 ${end}에 끝나는 일정으로 저장돼요.`,
+        [
+          { text: '시간 고치기', style: 'cancel' },
+          { text: '네, 맞아요', onPress: commit },
+        ],
+      );
       return;
     }
-    onSave(payload);
+    commit();
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* 안드 Modal은 별도 창(Dialog)이라 app.config의 softwareKeyboardLayoutMode:'pan'이
+          적용되지 않는다 — 키보드가 시간 입력칸을 덮는다(2026-08-02 실기기). 키보드 이벤트 기반인
+          KeyboardAvoidingView는 Dialog에서도 동작하므로 스터디룸과 같은 방식으로 통일 */}
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000055' }} activeOpacity={1} onPress={onClose} />
       <View style={[{ backgroundColor: T.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 28, maxHeight: '90%' }, isTablet && { maxWidth: tabletModalW, width: '100%', alignSelf: 'center' }]}>
         {/* 헤더 */}
@@ -184,7 +219,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
             <Ionicons name="close" size={22} color={T.sub} />
           </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={sheetScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* 타입 선택 — 공부계획/고정일정 전용 모드에서는 숨김 */}
         {!planOnly && !fixedOnly && (
@@ -278,10 +313,14 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
               })}
             </View>
 
+            {/* 켜면 시간 입력줄이 아래에 새로 생긴다 — 그냥 두면 잘린 채 나오므로 그 줄까지 스크롤 */}
             <TouchableOpacity onPress={() => {
               const next = !useSchedule;
               setUseSchedule(next);
-              if (next) setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+              if (next) {
+                setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                scrollToTimeRow();
+              }
             }} style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
               paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
@@ -297,7 +336,10 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
                 value={useSchedule}
                 onValueChange={(v) => {
                   setUseSchedule(v);
-                  if (v) setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                  if (v) {
+                    setEnd(minToStr(Math.min(parseTimeToMin(start) + targetMin, 24 * 60)));
+                    scrollToTimeRow();
+                  }
                 }}
                 trackColor={{ false: T.border, true: T.accent + '80' }}
                 thumbColor={useSchedule ? T.accent : '#ccc'}
@@ -308,22 +350,28 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
 
         {/* 시간 피커 — 고정 일정은 항상, 공부 계획은 토글 ON일 때만 */}
         {(type === 'fixed' || useSchedule) && (
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <TimePickerGrid label="시작 시간" value={start} onChange={(v) => {
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}
+            onLayout={(e) => { timeRowY.current = e.nativeEvent.layout.y; }}>
+            <TimeField label="시작 시간" value={start} onChange={(v) => {
               setStart(v);
+              // 시작이 종료를 넘어서면 종료를 밀어준다 — 단 공부 계획만.
+              // 고정 일정은 자정 넘김이 정상 입력이라(23:00~07:00) 여기서 종료를 건드리면
+              // 23을 치는 순간 07:00이 24:00으로 튄다
+              if (type !== 'plan') return;
               const newStartMin = parseTimeToMin(v);
               const curEndMin   = parseTimeToMin(end);
               if (curEndMin <= newStartMin) {
                 setEnd(minToStr(Math.min(newStartMin + targetMin, 24 * 60)));
               }
-            }} T={T} minValue={!initial ? minStartTime : undefined} />
-            <TimePickerGrid label="종료 시간" value={end} onChange={(v) => {
+            }} T={T} onFocus={scrollToTimeRow} style={{ flex: 1 }} />
+            {/* allowEndOfDay: 종료만 24('하루 끝')를 받는다 — 시작 칸은 23까지 */}
+            <TimeField label="종료 시간" allowEndOfDay value={end} onChange={(v) => {
               setEnd(v);
               if (type === 'plan') {
                 const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(start));
                 if (diff > 0) setTargetMin(diff);
               }
-            }} T={T} minValue={start} />
+            }} T={T} onFocus={scrollToTimeRow} style={{ flex: 1 }} />
           </View>
         )}
 
@@ -372,6 +420,7 @@ function BlockModal({ visible, onClose, onSave, onDelete, initial, subjects, T, 
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -733,7 +782,8 @@ export default function PlannerScreen({ navigation, route }) {
   const [showDDayModal, setShowDDayModal] = useState(false);
   const [editingDDay, setEditingDDay]     = useState(null);
   const [ddLabel, setDdLabel]             = useState('');
-  const [ddPickerMonth, setDdPickerMonth] = useState(new Date());
+  // 1일로 정규화 — 29~31일에 setMonth 이전/다음 이동 시 짧은 달 오버플로(2월 건너뜀 등) 방지
+  const [ddPickerMonth, setDdPickerMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [ddSelectedDates, setDdSelectedDates] = useState(new Set()); // 다중 날짜 선택
   const [selectedDate, setSelectedDate]   = useState(null); // 캘린더 탭한 날짜
 
@@ -1888,7 +1938,7 @@ export default function PlannerScreen({ navigation, route }) {
                   학교급에 맞는 기본 시간표가 설정됐어요!
                 </Text>
                 <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
-                  주간 탭에서 시간표를 확인하고, 하단 <Text style={{ fontWeight: '800' }}>⚙ 편집</Text> 버튼으로 내 일정에 맞게 수정해보세요.
+                  주간 탭에서 시간표를 확인하고, 화면 맨 아래 오른쪽 <Text style={{ fontWeight: '800' }}>반복설정</Text> 버튼으로 내 일정에 맞게 수정해보세요.
                 </Text>
                 <TouchableOpacity
                   onPress={() => { setShowScheduleEditor(true); app.updateSettings({ plannerGuideSeen: true }); }}
@@ -1897,7 +1947,7 @@ export default function PlannerScreen({ navigation, route }) {
                     backgroundColor: T.accent, borderRadius: 10,
                     alignSelf: 'flex-start',
                   }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>⚙ 지금 편집하기</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>지금 편집하기</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity

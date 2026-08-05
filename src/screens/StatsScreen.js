@@ -33,6 +33,8 @@ import {
   ReportGradientHeader, SubjectProportionBar, ReportFooterMessage, ReportWatermark,
 } from './stats/components/ReportComponents';
 import { createStyles, HM_WEEKS, HM_GAP } from './stats/styles';
+import StudyRoomScreen from './StudyRoomScreen';
+import { isStudyRoomAvailable } from '../utils/studyRoom';
 
 const TABLET_MAX_W = 680;
 
@@ -58,6 +60,7 @@ export default function StatsScreen() {
   }, [isLandscape, scrollW, tabletMaxW, winW]);
   const app = useApp();
   const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const [showStudyRoom, setShowStudyRoom] = useState(false); // 스터디룸 모달 (extra.firebase 설정 시에만 진입점 노출)
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
   const S = useMemo(() => createStyles(fs), [fs]);
   const [tab, setTab] = useState('daily');
@@ -70,6 +73,16 @@ export default function StatsScreen() {
       app.clearPendingReportTab?.();
     }
   }, [app.pendingReportTab]);
+
+  // 스터디룸 초대 딥링크 → 모달 열기 (코드 소비/클리어는 StudyRoomScreen이 담당)
+  useEffect(() => {
+    if (app.pendingStudyRoomCode) setShowStudyRoom(true);
+  }, [app.pendingStudyRoomCode]);
+  // 집중탭 '우리 방 N명' pill 등에서 바로 열기 요청 — 소비 후 클리어
+  // (안 하면 스테일 값이 남아 StatsScreen 리마운트(폰트 변경 등) 때 모달이 예기치 않게 열림)
+  useEffect(() => {
+    if (app.openStudyRoomAt) { setShowStudyRoom(true); app.clearOpenStudyRoom?.(); }
+  }, [app.openStudyRoomAt]);
   const [activeCard, setActiveCard] = useState(null);
   const activeCardTimer = useRef(null);
   const tapCard = useCallback((key) => {
@@ -100,9 +113,10 @@ export default function StatsScreen() {
 
   // 월간 탭 네비게이션
   const [monthOffset, setMonthOffset] = useState(0);
+  // 1일로 정규화 — 29~31일에 setMonth로 이동하면 짧은 달에서 오버플로돼 달이 건너뛰거나 제자리
   const viewMonth = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset); return d;
-  }, [monthOffset]);
+    const now = new Date(); return new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  }, [monthOffset, today]);
   const viewMonthStr = `${viewMonth.getFullYear()}.${String(viewMonth.getMonth() + 1).padStart(2, '0')}`;
 
   // 리포트 카드 모달
@@ -148,16 +162,17 @@ export default function StatsScreen() {
     const sess = app.sessions.filter(s => s.date === yd);
     const sec = sess.reduce((s, x) => s + (x.durationSec || 0), 0);
     return { sec, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions]);
+  }, [app.sessions, today]); // today 의존: 자정 넘겨 열어둔 화면에서 '어제'가 그저께로 남는 것 방지
 
-  // ─── 7일 데이터 ───────────────────────────────────────────────
+  // ─── 주간 데이터 (달력 주 일~토 — 플래너/위젯/잔디와 주 기준 통일) ───
+  // 과거: 오늘 포함 롤링 7일 창이라 '이번 주/지난 주' 라벨·플래너 주간 달성률과 어긋났음
   const weekData = useMemo(() => {
     const data = [];
-    const base = addDays(new Date(), weekOffset * 7);
-    for (let i = 6; i >= 0; i--) {
-      const d = addDays(base, -i); const ds = dateStr(d);
+    const weekStart = new Date(getWeekStartStr(weekOffset) + 'T00:00:00');
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i); const ds = dateStr(d);
       const sess = app.sessions.filter(s => s.date === ds);
-      data.push({ date: ds, day: DAYS_KR[d.getDay()], sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), density: calcAverageDensity(sess), isToday: ds === today, sessions: sess.length });
+      data.push({ date: ds, day: DAYS_KR[d.getDay()], sec: sess.reduce((s, x) => s + (x.durationSec || 0), 0), density: calcAverageDensity(sess), isToday: ds === today, isFuture: ds > today, sessions: sess.length });
     }
     return data;
   }, [app.sessions, today, weekOffset]);
@@ -165,16 +180,16 @@ export default function StatsScreen() {
   const weekTotal = weekData.reduce((s, d) => s + d.sec, 0);
   const weekStudyDays = weekData.filter(d => d.sec > 0).length;
 
+  // 지난주(이전 달력 주) 날짜 7개 — 비교 카드/리포트 공용
+  const prevWeekDates = useMemo(() => {
+    const prevStart = new Date(getWeekStartStr(weekOffset - 1) + 'T00:00:00');
+    return Array.from({ length: 7 }, (_, i) => dateStr(addDays(prevStart, i)));
+  }, [weekOffset, today]);
+
   // 지난주 데이터 (리포트용)
-  const weekPrevTotal = useMemo(() => {
-    let total = 0;
-    const base = addDays(new Date(), weekOffset * 7);
-    for (let i = 13; i >= 7; i--) {
-      const ds = dateStr(addDays(base, -i));
-      total += app.sessions.filter(s => s.date === ds).reduce((s, x) => s + (x.durationSec || 0), 0);
-    }
-    return total;
-  }, [app.sessions, weekOffset]);
+  const weekPrevTotal = useMemo(
+    () => app.sessions.filter(s => prevWeekDates.includes(s.date)).reduce((s, x) => s + (x.durationSec || 0), 0),
+    [app.sessions, prevWeekDates]);
 
   // 주간 평균 밀도 (리포트용)
   const weekAvgDensity = useMemo(() => {
@@ -184,13 +199,10 @@ export default function StatsScreen() {
 
   // 지난주 공부일수 + 평균밀도 (카드 비교용)
   const weekPrevData = useMemo(() => {
-    const base = addDays(new Date(), weekOffset * 7);
-    const days = [];
-    for (let i = 13; i >= 7; i--) days.push(dateStr(addDays(base, -i)));
-    const sess = app.sessions.filter(s => days.includes(s.date));
+    const sess = app.sessions.filter(s => prevWeekDates.includes(s.date));
     const studyDays = new Set(sess.map(s => s.date)).size;
     return { studyDays, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions, weekOffset]);
+  }, [app.sessions, prevWeekDates]);
 
   // 주간 과목별 (stats/helpers.aggregateSubjectTotals)
   const weekSubjects = useMemo(() => {
@@ -213,14 +225,6 @@ export default function StatsScreen() {
 
   // 일간 과목별 (stats/helpers.aggregateSubjectTotals)
   const daySubjects = useMemo(() => aggregateSubjectTotals(todaySessions, app.subjects), [todaySessions, todayTotalSec]);
-
-  // 타임라인 (시간별 24칸)
-  const timeline = useMemo(() => {
-    const hours = new Array(24).fill(0);
-    todaySessions.forEach(s => { if (s.startedAt) hours[new Date(s.startedAt).getHours()] += s.durationSec || 0; });
-    return hours;
-  }, [todaySessions]);
-  const timelineMax = Math.max(...timeline, 1800);
 
   // 시간대별 상세 (타임라인 팝업) — 계산은 stats/helpers.buildHourlyDetail
   const hourlyDetail = useMemo(() => buildHourlyDetail(todaySessions, app.subjects), [todaySessions, app.subjects]);
@@ -309,12 +313,12 @@ export default function StatsScreen() {
   const yearTotalSec = useMemo(() => {
     const thisYear = new Date().getFullYear().toString();
     return app.sessions.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.durationSec || 0), 0);
-  }, [app.sessions]);
+  }, [app.sessions, today]);
   const yearAvgDensity = useMemo(() => {
+    // calcAverageDensity로 통일 (5분 미만 제외) — 30초 밀도 100 고정 세션이 평균을 부풀리지 않게 (타 탭과 동일 기준)
     const thisYear = new Date().getFullYear().toString();
-    const ySess = app.sessions.filter(s => s.date?.startsWith(thisYear) && (s.focusDensity || 0) > 0);
-    return ySess.length > 0 ? Math.round(ySess.reduce((s, x) => s + (x.focusDensity || 0), 0) / ySess.length) : 0;
-  }, [app.sessions]);
+    return calcAverageDensity(app.sessions.filter(s => s.date?.startsWith(thisYear)));
+  }, [app.sessions, today]);
 
   // ─── 역대 기록 (stats/helpers.calcPersonalBests) ───
   const personalBests = useMemo(() => calcPersonalBests(app.sessions), [app.sessions]);
@@ -361,7 +365,7 @@ export default function StatsScreen() {
       pct: total > 0 ? Math.round((m.sec / total) * 100) : 0,
       avgDensity: m.sessions > 0 ? Math.round(m.densitySum / m.sessions) : 0,
     })).sort((a, b) => b.sec - a.sec);
-  }, [app.sessions, app.subjects, subjPeriod]);
+  }, [app.sessions, app.subjects, subjPeriod, today]);
 
   // ─── 과목 상세 시트 데이터 ──────────────────────────────────
   const subjDetailData = useMemo(() => {
@@ -651,11 +655,11 @@ export default function StatsScreen() {
 
   const renderWeekBarsCard = () => (
     <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
-      <Text style={[S.secLabel, { color: T.sub }]}>7일간 공부량</Text>
+      <Text style={[S.secLabel, { color: T.sub }]}>요일별 공부량</Text>
       {weekData.map((d, i) => (
         <TouchableOpacity key={i} onPress={() => d.sec > 0 && setDayDetailDate(d.date)} activeOpacity={d.sec > 0 ? 0.7 : 1}>
           <View style={S.barRow}>
-            <Text style={[S.barDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+            <Text style={[S.barDay, { color: d.isToday ? T.accent : d.isFuture ? T.border : T.sub }]}>{d.day}</Text>
             <View style={[S.barTrack, { backgroundColor: T.surface2 }]}>
               <View style={[S.barFill, { width: `${Math.max(1, (d.sec / weekMax) * 100)}%`, backgroundColor: d.isToday ? T.accent : T.purple || '#6C5CE7' }]} />
             </View>
@@ -743,7 +747,7 @@ export default function StatsScreen() {
           return (
             <TouchableOpacity key={i} onPress={() => d.density > 0 && setDayDetailDate(d.date)} activeOpacity={d.density > 0 ? 0.7 : 1} style={S.densityCol}>
               <View style={[S.densityBar, { height: h, backgroundColor: tier ? tier.color : T.surface2 }]} />
-              <Text style={[S.densityDay, { color: d.isToday ? T.accent : T.sub }]}>{d.day}</Text>
+              <Text style={[S.densityDay, { color: d.isToday ? T.accent : d.isFuture ? T.border : T.sub }]}>{d.day}</Text>
               {tier && <Text style={[S.densityTier, { color: tier.color }]}>{tier.label}</Text>}
             </TouchableOpacity>
           );
@@ -1254,13 +1258,13 @@ export default function StatsScreen() {
 
   // 이전 달 데이터 (월간 카드 비교용)
   const prevMonthData = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset - 1);
+    const d = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
     const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const sess = app.sessions.filter(s => s.date?.startsWith(prefix));
     const sec = sess.reduce((s, x) => s + (x.durationSec || 0), 0);
     const studyDays = new Set(sess.map(s => s.date)).size;
     return { sec, studyDays, avgDensity: calcAverageDensity(sess) };
-  }, [app.sessions, monthOffset]);
+  }, [app.sessions, viewMonth]);
 
   // 리포트 카드 캡처용 ref
   const reportRef = useRef();
@@ -1479,6 +1483,14 @@ export default function StatsScreen() {
                 <Text style={{ fontSize: 13, fontWeight: tab === t.id ? '900' : '600', color: tab === t.id ? T.accent : T.sub }}>{t.l}</Text>
               </TouchableOpacity>
             ))}
+            {isStudyRoomAvailable() && (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 'auto' }}
+                onPress={() => setShowStudyRoom(true)}>
+                <Ionicons name="people-outline" size={15} color={T.sub} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: T.sub }}>스터디룸</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -1588,6 +1600,22 @@ export default function StatsScreen() {
               ))}
             </View>
           </View>
+
+          {/* 스터디룸 진입 배너 (Firebase 설정이 있을 때만) */}
+          {isStudyRoomAvailable() && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 8,
+                backgroundColor: T.card, borderWidth: 1, borderColor: T.accent + '40',
+                borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 10,
+              }}
+              onPress={() => setShowStudyRoom(true)} activeOpacity={0.8}>
+              <Ionicons name="people-outline" size={18} color={T.accent} />
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }}>스터디룸</Text>
+              <Text style={{ fontSize: 12, color: T.sub }}>친구와 같이 공부</Text>
+              <Ionicons name="chevron-forward" size={16} color={T.sub} />
+            </TouchableOpacity>
+          )}
 
           {tab !== 'subject' && (
             <View style={S.summaryRow}>{renderSummaryCards()}</View>
@@ -2653,7 +2681,7 @@ export default function StatsScreen() {
               ];
               const timerTypeLabel = { countdown: '카운트다운', free: '자유 모드', pomodoro: '뽀모도로' }[sess.timerType] || '자유 모드';
               const focusModeIcon = sess.focusMode === 'screen_on' ? 'flame-outline' : 'book-outline';
-              const focusModeLabel = sess.focusMode === 'screen_on' ? '집중 도전' : '편하게 공부';
+              const focusModeLabel = sess.focusMode === 'screen_on' ? '집중모드' : '일반모드';
               const selfRating = { fire: { icon: 'flame-outline', label: '집중됨' }, perfect: { icon: 'star-outline', label: '완벽' }, neutral: { icon: 'remove-outline', label: '보통' }, tired: { icon: 'moon-outline', label: '피곤' } }[sess.selfRating] || null;
               return (
                 <>
@@ -2926,6 +2954,9 @@ export default function StatsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 스터디룸 (같이 공부) */}
+      <StudyRoomScreen visible={showStudyRoom} onClose={() => setShowStudyRoom(false)} />
     </View>
   );
 }

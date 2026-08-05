@@ -6,7 +6,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Modal,
   TextInput, ScrollView, Platform, Dimensions,
-  Animated, PanResponder, useWindowDimensions, Linking,
+  Animated, PanResponder, useWindowDimensions, Linking, Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -17,8 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppProvider, useApp } from './src/hooks/useAppState';
 import { LIGHT, DARK, getTheme } from './src/constants/colors';
 import { CHARACTERS, CHARACTER_LIST } from './src/constants/characters';
-import { DEFAULT_SCHEDULES } from './src/constants/presets';
-import { generateId } from './src/utils/format';
+import { SCHOOL_DEFAULT_SUBJECTS } from './src/constants/presets';
+import { buildDefaultSchedule, hasScheduleTemplate } from './src/utils/scheduleTemplate';
+import { normalizeRoomCode, isValidRoomCode } from './src/utils/studyRoomCore';
 import { openExactAlarmSettings } from './src/utils/permissions';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
@@ -26,6 +27,7 @@ import Toast from './src/components/Toast';
 import { getSchoolDefaultFavs } from './src/screens/focus/helpers';
 
 import FocusScreen from './src/screens/FocusScreen';
+import ResultModal from './src/screens/focus/ResultModal';
 import SubjectsScreen from './src/screens/SubjectsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -80,7 +82,7 @@ React.createElement = function (type, props, ...children) {
 };
 
 
-// ── 온보딩 (6단계) ──
+// ── 온보딩 (5단계) ──
 function OnboardingScreen() {
   const app = useApp();
   const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목, 5=15초체험
@@ -178,30 +180,10 @@ function OnboardingScreen() {
     setDdLabel(''); setDdSelectedDates(new Set());
   };
 
-  // 과목
-  const [subjName, setSubjName] = useState('');
-  const SUBJ_PRESETS = (() => {
-    if (selectedSchool === 'elementary') return [
-      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
-      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
-      { name: '사회', color: '#9B6FC3' }, { name: '한자', color: '#E17055' },
-    ];
-    if (selectedSchool === 'university') return [
-      { name: '전공', color: '#4A90D9' }, { name: '교양', color: '#5CB85C' },
-      { name: '영어', color: '#E8575A' }, { name: '수학', color: '#F5A623' },
-      { name: '자격증', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
-    ];
-    if (selectedSchool === 'exam_prep') return [
-      { name: '국어', color: '#E8575A' }, { name: '영어', color: '#5CB85C' },
-      { name: '한국사', color: '#F5A623' }, { name: '행정학', color: '#4A90D9' },
-      { name: '행정법', color: '#9B6FC3' }, { name: '기타', color: '#E17055' },
-    ];
-    return [
-      { name: '국어', color: '#E8575A' }, { name: '수학', color: '#4A90D9' },
-      { name: '영어', color: '#5CB85C' }, { name: '과학', color: '#F5A623' },
-      { name: '사회', color: '#9B6FC3' }, { name: '역사', color: '#E17055' },
-    ];
-  })();
+  // 과목 — 학교급 선택 시 자동 세팅되므로 온보딩에선 미리보기만 (실제 추가는 handleFinish)
+  const previewLevel = selectedSchool === 'elementary' ? `elementary_${selectedElemGrade}` : selectedSchool;
+  const previewSubjects = SCHOOL_DEFAULT_SUBJECTS[previewLevel] || [];
+  const isCustomSubjects = selectedSchool === 'university' || selectedSchool === 'exam_prep';
 
   // getSchoolDefaultFavs는 src/screens/focus/helpers.js와 공유 (초등 고학년 20/30/45 기준으로 통일)
 
@@ -220,29 +202,30 @@ function OnboardingScreen() {
     });
     app.setFavs?.(getSchoolDefaultFavs(schoolLevel));
 
-    // 학교급 기본 시간표 자동 적용
-    const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
-    const template = DEFAULT_SCHEDULES[schoolLevel];
-    if (template) {
-      const newWs = { enabled: true };
-      DAY_KEYS.forEach(key => {
-        const src = weekdays.includes(key) ? template.weekday : template.weekend;
-        newWs[key] = {
-          fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
-          plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: null })),
-        };
-      });
-      app.setWeeklySchedule?.(newWs);
+    // 학교급 기본 과목 자동 세팅 (온보딩에서 과목 추가 단계 제거 — 사용자는 과목탭에서 수정·삭제).
+    // 여기서 만든 과목이 아래 계획 블록과 이름으로 연결된다 → 할일↔계획 연동이 바로 작동.
+    const subjects = [...(app.subjects || [])];
+    (SCHOOL_DEFAULT_SUBJECTS[schoolLevel] || []).forEach(s => {
+      if (!subjects.some(x => x.name === s.name)) {
+        const n = app.addSubject({ name: s.name, color: s.color });
+        subjects.push(n);
+      }
+    });
+
+    // 학교급 기본 시간표 자동 적용 — 생성은 utils/scheduleTemplate.js가 담당한다
+    // (설정탭 학교급 변경 제안 · 플래너 '기본으로 초기화'와 같은 함수. 예전엔 여기에 따로 구현돼 있어
+    //  온보딩만 과목을 연결하고 나머지 두 경로는 연결하지 않았다 — 2026-08-05 통합)
+    if (hasScheduleTemplate(schoolLevel)) {
+      app.setWeeklySchedule?.(buildDefaultSchedule(schoolLevel, subjects));
     }
   };
 
   return (
     <SafeAreaView style={[styles.onboarding, { backgroundColor: T.bg }]}>
       <StatusBar barStyle="dark-content" />
-      {/* 진행 표시 (6단계) */}
+      {/* 진행 표시 (5단계) */}
       <View style={styles.obProgress}>
-        {[0,1,2,3,4,5].map(i => (
+        {[0,1,2,3,4].map(i => (
           <View key={i} style={[styles.obDot, { backgroundColor: i <= step ? T.accent : T.border }]} />
         ))}
       </View>
@@ -430,38 +413,27 @@ function OnboardingScreen() {
       {step === 4 && (
         <View style={styles.obStep}>
           <Ionicons name="library-outline" size={36} color={T.accent} />
-          <Text style={[styles.obTitle, { color: T.text }]}>공부할 과목을 추가해!</Text>
-          <Text style={[styles.obSub, { color: T.sub }]}>탭하면 바로 추가돼. 나중에 수정 가능!</Text>
-          <View style={styles.obSubjGrid}>
-            {SUBJ_PRESETS.map(s => {
-              const added = app.subjects.some(x => x.name === s.name);
-              return (
-                <TouchableOpacity key={s.name}
-                  style={[styles.obSubjBtn, { backgroundColor: added ? s.color + '20' : T.card, borderColor: added ? s.color : T.border }]}
-                  onPress={() => { if (!added) app.addSubject({ name: s.name, color: s.color }); }}>
-                  <Ionicons name={added ? 'checkmark-circle' : 'add-circle-outline'} size={22} color={added ? s.color : T.sub} style={{ marginBottom: 2 }} />
-                  <Text style={[styles.obSubjName, { color: added ? s.color : T.text }]}>{s.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <Text style={[styles.obTitle, { color: T.text }]}>이 과목으로 시작할게!</Text>
+          <Text style={[styles.obSub, { color: T.sub }]}>학교급에 맞는 과목을 준비했어. 과목탭에서 언제든 수정할 수 있어!</Text>
+          <View style={styles.obSubjList}>
+            {previewSubjects.map(s => (
+              <View key={s.name} style={[styles.obSubjChip, { backgroundColor: s.color + '15', borderColor: s.color + '40' }]}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: s.color }}>{s.name}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.obSubjInputRow}>
-            <TextInput value={subjName} onChangeText={setSubjName} placeholder="직접 입력 (예: 한국사)" placeholderTextColor={T.sub}
-              style={[styles.obInput, { borderColor: T.border, backgroundColor: T.card, color: T.text, flex: 1 }]} />
-            <TouchableOpacity style={[styles.obSubjAddBtn, { backgroundColor: T.accent }]}
-              onPress={() => { if (subjName.trim()) { app.addSubject({ name: subjName.trim(), color: T.accent }); setSubjName(''); } }}>
-              <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>추가</Text>
-            </TouchableOpacity>
-          </View>
-          {app.subjects.length > 0 && (
-            <View style={styles.obSubjList}>
-              {app.subjects.map(s => (
-                <View key={s.id} style={[styles.obSubjChip, { backgroundColor: s.color + '15', borderColor: s.color + '40' }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: s.color }}>{s.name}</Text>
-                </View>
-              ))}
+          {isCustomSubjects && (
+            <View style={{ marginHorizontal: 4, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: '#FDCB6E20', borderWidth: 1, borderColor: '#FDCB6E55' }}>
+              <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
+                {selectedSchool === 'university'
+                  ? '대학생은 전공 과목이 사람마다 달라요. 과목탭에서 실제 수강 과목명으로 바꿔주세요.'
+                  : '공무원·자격증은 직렬마다 과목이 달라요. 과목탭에서 본인 시험 과목으로 바꿔주세요.'}
+              </Text>
             </View>
           )}
+          <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center', marginTop: 12, marginBottom: 4, lineHeight: 18 }}>
+            해야 할 일과 오늘의 계획이 이 과목으로 연결돼요.
+          </Text>
           {/* 알림 안내 */}
           <View style={{ marginHorizontal: 4, marginBottom: 14, padding: 14, borderRadius: 14, backgroundColor: T.accent + '12', borderWidth: 1, borderColor: T.accent + '30' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
@@ -476,278 +448,15 @@ function OnboardingScreen() {
             <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={() => setStep(3)}>
               <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>← 이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={() => setStep(5)}>
-              <Text style={styles.obBtnT}>다음 →</Text>
+            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, flex: 1 }]} onPress={handleFinish}>
+              <Text style={styles.obBtnT}>시작하기!</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-
-      {/* ═══ Step 5: 15초 집중 체험 ═══ */}
-      {step === 5 && <OnboardingTrial T={T} selected={selected} handleFinish={handleFinish} goBack={() => setStep(4)} />}
 
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-// ── 온보딩 15초 체험 컴포넌트 ──
-function OnboardingTrial({ T, selected, handleFinish, goBack }) {
-  const app = useApp();
-  const TRIAL_SEC = 15;
-  const [phase, setPhase] = useState('ready'); // ready → running → done
-  const [remain, setRemain] = useState(TRIAL_SEC);
-  const [elapsed, setElapsed] = useState(0);
-  const [viewMode, setViewMode] = useState('default'); // mini | default | full
-  const intervalRef = useRef(null);
-  const startedAtRef = useRef(null);
-
-  const startTrial = () => {
-    setPhase('running');
-    setRemain(TRIAL_SEC);
-    setElapsed(0);
-    startedAtRef.current = Date.now();
-    intervalRef.current = setInterval(() => {
-      const el = Math.floor((Date.now() - startedAtRef.current) / 1000);
-      const r = Math.max(0, TRIAL_SEC - el);
-      setElapsed(el);
-      setRemain(r);
-      if (r <= 0) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        setPhase('done');
-      }
-    }, 200);
-  };
-
-  const skipTrial = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    handleFinish();
-  };
-
-  const finishWithSession = () => {
-    const firstSubject = app.subjects.length > 0 ? app.subjects[0] : null;
-    app.recordSession({
-      subjectId: firstSubject?.id || null,
-      label: firstSubject?.name || '체험',
-      startedAt: startedAtRef.current,
-      durationSec: TRIAL_SEC,
-      mode: 'countdown',
-      timerType: 'countdown',
-      completionRatio: 1,
-      focusMode: 'screen_on',
-      densityOverride: 95,
-    });
-    handleFinish();
-  };
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
-  const progress = elapsed / TRIAL_SEC;
-  const timeStr = `0:${String(remain).padStart(2, '0')}`;
-
-  const Svg = require('react-native-svg').default;
-  const { Circle } = require('react-native-svg');
-
-  const screenW = Dimensions.get('window').width;
-  const onbTablet = screenW >= 600;
-  // 실제 FocusScreen과 동일한 링 크기 (태블릿 대응)
-  const RING_DEF = onbTablet ? Math.min(screenW * 0.38, 340) : Math.min(screenW - 72, 248);
-  const STROKE_DEF = onbTablet ? 16 : 14;
-  const R_DEF = (RING_DEF - STROKE_DEF) / 2;
-  const C_DEF = 2 * Math.PI * R_DEF;
-
-  const RING_FULL = onbTablet ? Math.min(screenW * 0.5, 460) : Math.min(screenW - 40, 300);
-  const STROKE_FULL = onbTablet ? 20 : 16;
-  const R_FULL = (RING_FULL - STROKE_FULL) / 2;
-  const C_FULL = 2 * Math.PI * R_FULL;
-
-  // 뷰 모드 전환 탭
-  const ViewModeTab = () => (
-    <View style={{ flexDirection: 'row', backgroundColor: T.surface2, borderRadius: 8, padding: 2, gap: 1 }}>
-      {[{ id: 'mini', label: '미니' }, { id: 'default', label: '기본' }, { id: 'full', label: '전체' }].map(opt => (
-        <TouchableOpacity key={opt.id} onPress={() => setViewMode(opt.id)}
-          style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: viewMode === opt.id ? T.accent : 'transparent' }}>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: viewMode === opt.id ? 'white' : T.sub }}>{opt.label}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  return (
-    <View style={[styles.obStep, phase === 'running' && { paddingHorizontal: 0 }]}>
-      {phase === 'ready' && (
-        <>
-          <CharacterAvatar characterId={selected} size={72} mood="happy" />
-          <Text style={[styles.obTitle, { color: T.text, marginTop: 12 }]}>15초 집중 체험</Text>
-          <Text style={[styles.obSub, { color: T.sub, lineHeight: 20 }]}>
-            타이머가 어떻게 동작하는지{'\n'}잠깐 체험해 볼까?
-          </Text>
-          <View style={{ marginTop: 20, gap: 10, width: '100%', paddingHorizontal: 20 }}>
-            <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent }]} onPress={startTrial}>
-              <Text style={styles.obBtnT}>15초 집중 시작</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.obBtnSec, { borderColor: T.border }]} onPress={skipTrial}>
-              <Text style={{ color: T.sub, fontWeight: '700', fontSize: 14 }}>건너뛰기</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }}>
-            <Text style={{ color: T.sub, fontSize: 13 }}>← 이전</Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {phase === 'running' && (
-        <View style={{ flex: 1, width: '100%' }}>
-          {/* ── 미니 모드: 상단 1줄 바 ── */}
-          {viewMode === 'mini' && (
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 8,
-                backgroundColor: T.card, borderBottomWidth: 1, borderBottomColor: T.border }}>
-                <Ionicons name="alarm-outline" size={16} color={T.accent} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: '800', color: T.text }} numberOfLines={1}>15초 체험</Text>
-                <Text style={{ fontSize: 22, fontWeight: '900', color: T.accent, fontVariant: ['tabular-nums'], minWidth: 70, textAlign: 'right' }}>
-                  {timeStr}
-                </Text>
-                <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#E8404720' }}>
-                  <Text style={{ fontSize: 15, color: '#E84047' }}>||</Text>
-                </View>
-                <ViewModeTab />
-              </View>
-              {/* 미니 모드 아래 빈 공간 — 실제 앱에서는 과목 카드 등이 보이는 영역 */}
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 }}>
-                <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', lineHeight: 20 }}>
-                  미니 모드에서는 상단에 타이머가{'\n'}작게 표시되고 아래에 과목 카드가 보여요
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ── 기본 모드: 카드 + 링 타이머 ── */}
-          {viewMode === 'default' && (
-            <View style={{ flex: 1 }}>
-              <View style={{ backgroundColor: T.card, borderWidth: 1.5, borderColor: T.accent, borderRadius: T.cardRadius, margin: 10, padding: 16, paddingBottom: 14 }}>
-                {/* 상단 행 */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Ionicons name="alarm-outline" size={15} color={T.accent} />
-                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '800', color: T.text }}>15초 체험</Text>
-                  <ViewModeTab />
-                </View>
-                {/* 원형 타이머 링 */}
-                <View style={{ alignItems: 'center', marginBottom: 14 }}>
-                  <View style={{ width: RING_DEF, height: RING_DEF, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width={RING_DEF} height={RING_DEF} style={{ position: 'absolute' }}>
-                      <Circle cx={RING_DEF / 2} cy={RING_DEF / 2} r={R_DEF}
-                        stroke={T.surface2} strokeWidth={STROKE_DEF} fill="transparent" />
-                      <Circle cx={RING_DEF / 2} cy={RING_DEF / 2} r={R_DEF}
-                        stroke={T.accent} strokeWidth={STROKE_DEF} fill="transparent"
-                        strokeDasharray={C_DEF} strokeDashoffset={C_DEF * (1 - progress)}
-                        strokeLinecap="round"
-                        transform={`rotate(-90, ${RING_DEF / 2}, ${RING_DEF / 2})`} />
-                    </Svg>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 50, fontWeight: T.timerFontWeight, color: T.accent, fontVariant: ['tabular-nums'], letterSpacing: 1 }}>
-                        {timeStr}
-                      </Text>
-                      <Text style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>집중 중</Text>
-                    </View>
-                  </View>
-                </View>
-                {/* 컨트롤 버튼 */}
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
-                  </View>
-                  <View style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-                  </View>
-                  <View style={{ flex: 2, paddingVertical: 11, borderRadius: 10, backgroundColor: '#E8404720', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#E84047' }}>|| 일시정지</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* ── 전체 모드: 화면 가득 채우는 큰 링 ── */}
-          {viewMode === 'full' && (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 24 }}>
-              {/* 라벨 + 모드 전환 */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8, width: '100%' }}>
-                <Ionicons name="alarm-outline" size={18} color={T.accent} />
-                <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, flex: 1, textAlign: 'center' }}>15초 체험</Text>
-                <ViewModeTab />
-              </View>
-              {/* 큰 링 */}
-              <View style={{ width: RING_FULL, height: RING_FULL, alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
-                <Svg width={RING_FULL} height={RING_FULL} style={{ position: 'absolute' }}>
-                  <Circle cx={RING_FULL / 2} cy={RING_FULL / 2} r={R_FULL}
-                    stroke={T.surface2} strokeWidth={STROKE_FULL} fill="transparent" />
-                  <Circle cx={RING_FULL / 2} cy={RING_FULL / 2} r={R_FULL}
-                    stroke={T.accent} strokeWidth={STROKE_FULL} fill="transparent"
-                    strokeDasharray={C_FULL} strokeDashoffset={C_FULL * (1 - progress)}
-                    strokeLinecap="round"
-                    transform={`rotate(-90, ${RING_FULL / 2}, ${RING_FULL / 2})`} />
-                </Svg>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 60, fontWeight: T.timerFontWeight, color: T.accent, fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
-                    {timeStr}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>집중 중</Text>
-                </View>
-              </View>
-              {/* 컨트롤 */}
-              <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
-                <View style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>↺ 리셋</Text>
-                </View>
-                <View style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: T.sub }}>■ 종료</Text>
-                </View>
-                <View style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: '#E8404720', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#E84047' }}>|| 일시정지</Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* 건너뛰기 */}
-          <TouchableOpacity onPress={skipTrial} style={{ alignSelf: 'center', paddingVertical: 12 }}>
-            <Text style={{ color: T.sub, fontSize: 13 }}>건너뛰기 →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {phase === 'done' && (
-        <>
-          <Ionicons name="trophy" size={44} color={T.accent} style={{ marginBottom: 6 }} />
-          <CharacterAvatar characterId={selected} size={64} mood="happy" />
-          <Text style={[styles.obTitle, { color: T.text, marginTop: 10 }]}>첫 집중 완료!</Text>
-          <Text style={[styles.obSub, { color: T.sub, lineHeight: 20 }]}>
-            이렇게 매일 기록이 쌓이면{'\n'}잔디도 채워지고 실력도 올라가!
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 20, marginTop: 16, marginBottom: 20 }}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: T.accent }}>30초</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>공부시간</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: '#4CAF50' }}>95점</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>집중밀도</Text>
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 22, fontWeight: '900', color: '#FF7F50' }}>1일</Text>
-              <Text style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>연속 공부</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.obBtn, { backgroundColor: T.accent, width: '100%', marginHorizontal: 20 }]} onPress={finishWithSession}>
-            <Text style={styles.obBtnT}>시작하기!</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
   );
 }
 
@@ -918,7 +627,11 @@ function LockOverlay() {
   const CONTENT_MAX_WIDTH = isTabletLock ? 520 : undefined;
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View
+      // 마지막 터치 시각 기록 — iOS에서 '화면 꺼짐'과 '앱 나감'을 가르는 단서.
+      // capture 단계에서 훔쳐보기만 하고 false를 돌려줘 슬라이드 해제 PanResponder를 방해하지 않는다
+      onStartShouldSetResponderCapture={() => { try { app.noteUserTouch?.(); } catch {} return false; }}
+      style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* 컨텐츠 래퍼 — 태블릿에서 maxWidth로 중앙 정렬 */}
       <View style={{ width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignItems: 'center' }}>
         {/* 첫 사용 한 줄 가이드 */}
@@ -927,7 +640,7 @@ function LockOverlay() {
             style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="lock-closed" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.8)" />
-              <Text style={{ fontSize: isTabletLock ? 15 : 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요</Text>
+              <Text style={{ flexShrink: 1, fontSize: isTabletLock ? 15 : 13, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textAlign: 'center' }}>화면을 덮어두고 공부하세요! 옆으로 밀면 해제돼요{'\n'}화면이 꺼져도 기록은 계속돼요</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -954,6 +667,14 @@ function LockOverlay() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20 }}>
             <Ionicons name="alert-circle" size={isTabletLock ? 18 : 14} color="#FF6B6B" />
             <Text style={{ fontSize: subFontSize, fontWeight: '700', color: '#FF6B6B' }}>Verified 놓침 · 이탈 {app.ultraFocus?.exitCount}회 · 밀도 감점 중</Text>
+          </View>
+        )}
+
+        {/* 우리 방 집중 인원 — 잠금 상태(공부 중)에서도 '같이 있는 느낌'. 비탭 표시 */}
+        {app.roomStudyingCount > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 20, marginTop: -4 }}>
+            <Ionicons name="people" size={isTabletLock ? 16 : 13} color="rgba(255,255,255,0.6)" />
+            <Text style={{ fontSize: subFontSize, fontWeight: '700', color: 'rgba(255,255,255,0.6)' }}>우리 방에서 {app.roomStudyingCount}명이 함께 집중 중</Text>
           </View>
         )}
 
@@ -986,23 +707,56 @@ function LockOverlay() {
 }
 
 // ── 위젯 딥링크 ──
-// 위젯 탭 → 집중탭 이동 + 타이머 시작
-//  yeolgong://start?subjectId=... : 해당 과목 자유 타이머 시작
-//  yeolgong://start?planId=...    : 오늘 계획 블록에서 남은 시간 카운트다운 시작
+// 위젯 탭 → 탭 이동 (+ 타이머 시작)
+//  yeolgong://start?subjectId=...           : 해당 과목 자유 타이머 시작
+//  yeolgong://start?planId=...              : 오늘 계획 블록에서 남은 시간 카운트다운 시작
+//  yeolgong://open?tab=planner&view=monthly : 플래너탭 특정 뷰로 이동 (D-Day 위젯)
+//  yeolgong://open?tab=focus&section=plans|todos : 집중탭 해당 카드로 스크롤 (오늘계획/오늘할일 위젯)
 const navigationRef = createNavigationContainerRef();
 
 function parseDeepLink(url) {
   if (!url || typeof url !== 'string') return null;
-  const isStart = /:\/\/start(\b|\/|\?|$)/.test(url);
-  if (!isStart) return null;
-  const subj = url.match(/[?&]subjectId=([^&]+)/);
-  if (subj) return { action: 'start', subjectId: decodeURIComponent(subj[1]) };
-  const plan = url.match(/[?&]planId=([^&]+)/);
-  if (plan) return { action: 'startPlan', planId: decodeURIComponent(plan[1]) };
+  const q = (name) => {
+    const m = url.match(new RegExp(`[?&]${name}=([^&]+)`));
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+  if (/:\/\/start(\b|\/|\?|$)/.test(url)) {
+    const subjectId = q('subjectId');
+    if (subjectId) return { action: 'start', subjectId };
+    const planId = q('planId');
+    if (planId) return { action: 'startPlan', planId };
+    return null;
+  }
+  if (/:\/\/open(\b|\/|\?|$)/.test(url)) {
+    const tab = q('tab');
+    if (!tab) return null; // 순수 yeolgong://open은 앱만 열기 (기존 iOS 위젯 호환)
+    return { action: 'open', tab, view: q('view'), section: q('section') };
+  }
+  // 스터디룸 초대: yeolgong://join?code=ABC123 (웹 랜딩의 '앱에서 열기' 버튼 대상)
+  if (/:\/\/join(\b|\/|\?|$)/.test(url)) {
+    const code = normalizeRoomCode(q('code'));
+    if (isValidRoomCode(code)) return { action: 'joinRoom', code };
+    return null;
+  }
   return null;
 }
 
 // ── 메인 ──
+// 타이머 시작 시 뜨는 3지 선택 — 공부 모드(settings.ultraFocusLevel)와 집중모드를 한 번에 정한다.
+// 보너스 숫자는 집중밀도 공식의 '선언 보너스'(src/utils/density.js, 이탈 0회 기준)와 같은 값이다.
+// 공식을 바꾸면 여기 숫자도 함께 고칠 것 — 안 맞으면 사용자가 약속받은 점수를 못 받는다.
+const MODE_CHOICES = [
+  { id: 'normal', label: '일반모드', icon: 'book-outline', color: '#4CAF50', bonus: 5,
+    desc: '이탈 감지 없음 · 일시정지 자유' },
+  { id: 'focus', label: '집중모드', icon: 'flash', color: '#FFB74D', bonus: 10,
+    desc: '폰 내려놓기 · 1분 이탈 시 챌린지 문구 입력' },
+  { id: 'exam', label: '울트라모드', icon: 'flame', color: '#FF6B6B', bonus: 15,
+    // ※숫자를 쓰지 않는다 — 실제 하한이 플랫폼별로 다르다(focusAway.awayMinMs: 안드 15초 / iOS 30초).
+    //   예전엔 '10초'라고 적혀 있었는데 어느 플랫폼과도 맞지 않았다(2026-08-01 일소)
+    desc: '일시정지 불가 · 잠깐만 다른 앱을 써도 타이머 정지'
+      + (Platform.OS === 'android' ? ' · 화면 고정' : '') },
+];
+
 function MainApp() {
   const app = useApp();
   const insets = useSafeAreaInsets();
@@ -1011,6 +765,49 @@ function MainApp() {
   // 위젯 딥링크 처리 (콜드스타트 + 실행 중 수신)
   const appRef = useRef(app);
   appRef.current = app;
+
+  // 팝업의 '다음부터 묻지 않기' 체크 — 팝업이 열릴 때마다 꺼진 상태로 시작한다
+  const [rememberMode, setRememberMode] = useState(false);
+  const rememberModeRef = useRef(false);
+  rememberModeRef.current = rememberMode;
+  useEffect(() => { if (app.pendingModeAction) setRememberMode(false); }, [app.pendingModeAction]);
+
+  // 자동 시작: 팝업을 띄우지 않고 저장된 모드로 바로 진행한다.
+  // ★렌더 쪽에서도 modeAutoStart면 오버레이를 그리지 않는다★ — 여기서만 막으면 한 프레임 깜빡인다
+  useEffect(() => {
+    const a = appRef.current;
+    if (!app.pendingModeAction || !a.settings.modeAutoStart) return;
+    a.resolveModeSelect(a.settings.ultraFocusLevel || 'focus');
+    // 팝업이 안 뜨면 끄는 길을 찾기 어렵다 → 처음 한 번은 어디서 바꾸는지 알려준다
+    if (!a.settings.guideAutoStart) {
+      a.updateSettings({ guideAutoStart: true });
+      const label = (MODE_CHOICES.find(c => c.id === (a.settings.ultraFocusLevel || 'focus')) || {}).label || '';
+      setTimeout(() => a.showToastCustom?.(`${label}로 바로 시작했어요 · 설정 > 공부 모드에서 바꿀 수 있어요`, 'toru'), 600);
+    }
+  }, [app.pendingModeAction]);
+
+  // 모드 선택 — 울트라모드는 처음 고를 때만 1회 확인 (일시정지가 막히는 걸 모르고 골랐다가 당황하는 것 방지)
+  const pickMode = useCallback((id) => {
+    const a = appRef.current;
+    if (!a.settings.guideMode) a.updateSettings({ guideMode: true }); // 첫 1회 안내 배너 소비
+    if (id === 'exam' && !a.settings.guideUltraPick) {
+      Alert.alert(
+        '울트라모드로 시작할까요?',
+        '가장 강한 모드예요.\n· 일시정지와 잠깐 쉬기가 막혀요\n· 잠깐만 다른 앱을 써도 타이머가 멈춰요'
+          + (Platform.OS === 'android' ? '\n· 화면이 고정돼 홈 버튼이 막혀요' : ''),
+        // 안내를 소비하는 건 '실제로 시작한' 경우만 — 물러섰는데 다음에 안 뜨면 안내가 아니다
+        [{ text: '다시 고르기', style: 'cancel' },
+         { text: '시작하기', onPress: () => {
+           a.updateSettings({ guideUltraPick: true, ...(rememberModeRef.current ? { modeAutoStart: true } : {}) });
+           a.resolveModeSelect('exam');
+         } }],
+      );
+      return;
+    }
+    // '다음부터 묻지 않기'는 실제로 시작한 경우에만 저장한다 (물러섰는데 굳어버리면 안 됨)
+    if (rememberModeRef.current) a.updateSettings({ modeAutoStart: true });
+    a.resolveModeSelect(id);
+  }, []);
   useEffect(() => {
     const handleUrl = (url) => {
       const link = parseDeepLink(url);
@@ -1032,6 +829,23 @@ function MainApp() {
           if (navigationRef.isReady()) navigationRef.navigate('Focus');
           a.startFromPlan?.(plan);
         };
+      } else if (link.action === 'open') {
+        // 위젯 탭 → 특정 탭/카드로 이동 (타이머 시작 없음)
+        go = () => {
+          if (!navigationRef.isReady()) return;
+          if (link.tab === 'planner') {
+            navigationRef.navigate('Planner', link.view ? { tab: link.view } : undefined);
+          } else if (link.tab === 'focus') {
+            navigationRef.navigate('Focus', link.section ? { section: link.section } : undefined);
+          }
+        };
+      } else if (link.action === 'joinRoom') {
+        // 스터디룸 초대 링크: 통계탭으로 이동 후 코드를 전역 신호로 전달 →
+        // StatsScreen이 모달을 열고 StudyRoomScreen이 입장 제안 (클립보드 감지와 같은 경로)
+        go = () => {
+          if (navigationRef.isReady()) navigationRef.navigate('Stats');
+          a.setPendingStudyRoomCode?.(link.code);
+        };
       }
       if (!go) return;
       // 네비게이터가 아직 준비 전일 수 있어 약간 지연
@@ -1043,7 +857,12 @@ function MainApp() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: T.bg }}>
+    <View
+      // 앱 어디를 만져도 마지막 터치 시각 기록 — 🔥모드에서 '화면이 꺼진 것'과 '사람이 나간 것'을
+      // 가르는 단서(useAppState의 wasIdleBeforeBackground). capture에서 false를 돌려주므로
+      // 터치 처리 자체에는 관여하지 않는다
+      onStartShouldSetResponderCapture={() => { try { app.noteUserTouch?.(); } catch {} return false; }}
+      style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar barStyle={app.settings.darkMode ? 'light-content' : 'dark-content'} backgroundColor={T.bg} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <NavigationContainer ref={navigationRef}>
@@ -1102,36 +921,67 @@ function MainApp() {
         </View>
       </Modal>
 
-      {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지) */}
-      {!!app.pendingModeAction && (
+      {/* 전역 집중모드 선택 오버레이 (Modal 대신 absolute View — iOS Modal 중첩 freeze 방지)
+          modeAutoStart면 아예 그리지 않는다 — 위 effect가 바로 해소하므로 그리면 한 프레임 깜빡인다 */}
+      {!!app.pendingModeAction && !app.settings.modeAutoStart && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 9999 }}>
-          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' }}>
-            <CharacterAvatar characterId={app.settings.mainCharacter} size={54} mood="happy" />
-            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 12, marginBottom: 4 }}>어떤 공부할래?</Text>
-            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 20, textAlign: 'center' }}>집중 방식을 선택하면 타이머가 시작돼요</Text>
+          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 22, width: '100%', maxWidth: 380, alignItems: 'center' }}>
+            <CharacterAvatar characterId={app.settings.mainCharacter} size={50} mood="happy" />
+            <Text style={{ fontSize: 18, fontWeight: '900', color: T.text, marginTop: 10, marginBottom: 3 }}>어떻게 공부할래?</Text>
+            <Text style={{ fontSize: 12, color: T.sub, marginBottom: 16, textAlign: 'center' }}>고른 모드에 따라 집중 점수 보너스가 달라져요</Text>
 
-            <TouchableOpacity
-              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#FF6B6B15', borderWidth: 1.5, borderColor: '#FF6B6B60', marginBottom: 10 }}
-              onPress={() => app.resolveModeSelect('screen_on')}
-              activeOpacity={0.8}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Ionicons name="flash" size={15} color="#FF6B6B" />
-                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FF6B6B' }}>화면 켜두고 집중 도전!</Text>
+            {/* 첫 1회 안내 — guideMode는 원래 이 설명용으로 만들어 두고 쓰지 않던 플래그 */}
+            {!app.settings.guideMode && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.surface2, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12 }}>
+                <Ionicons name="sparkles-outline" size={13} color={T.accent} />
+                <Text style={{ flexShrink: 1, fontSize: 11.5, color: T.sub, fontWeight: '600' }}>이제 시작할 때마다 모드를 고를 수 있어요</Text>
               </View>
-              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 보너스에 도전해요</Text>
-              <Text style={{ fontSize: 10, color: '#FF6B6B99', marginTop: 2 }}>이탈 0회 시 +15점! · 다크모드 자동 전환</Text>
-            </TouchableOpacity>
+            )}
 
+            {MODE_CHOICES.map(c => {
+              const isLast = (app.settings.ultraFocusLevel || 'focus') === c.id;
+              const streak = c.id === 'exam' ? (app.settings.ultraStreak || 0) : 0;
+              return (
+                <TouchableOpacity key={c.id}
+                  style={{ width: '100%', padding: 14, borderRadius: 14, backgroundColor: c.color + (isLast ? '20' : '10'), borderWidth: isLast ? 2 : 1.5, borderColor: c.color + (isLast ? 'AA' : '40'), marginBottom: 10 }}
+                  onPress={() => pickMode(c.id)}
+                  activeOpacity={0.8}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name={c.icon} size={16} color={c.color} />
+                    {/* OS 글꼴 크기를 키운 기기에서 오른쪽 '+N점'이 밀려나지 않도록 라벨만 줄인다 */}
+                    <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 15, fontWeight: '900', color: c.color }}>{c.label}</Text>
+                    {isLast && (
+                      <View style={{ backgroundColor: c.color + '30', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: c.color }}>지난번 선택</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: c.color }}>+{c.bonus}점</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>{c.desc}</Text>
+                  {streak > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <Ionicons name="flame" size={12} color={c.color} />
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: c.color }}>{streak}일 연속 중 · 오늘도 이어가기</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            <Text style={{ fontSize: 10.5, color: T.sub, marginTop: 2, marginBottom: 10, textAlign: 'center' }}>보너스는 이탈 0회 기준이에요 · 설정 탭에서도 바꿀 수 있어요</Text>
+
+            {/* 매번 고르는 게 기본이고, 이건 그걸 끄는 선택지다 → 기본 해제 상태로 시작한다 */}
             <TouchableOpacity
-              style={{ width: '100%', padding: 16, borderRadius: 14, backgroundColor: '#4CAF5015', borderWidth: 1.5, borderColor: '#4CAF5060', marginBottom: 16 }}
-              onPress={() => app.resolveModeSelect('screen_off')}
-              activeOpacity={0.8}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <Ionicons name="book-outline" size={15} color="#4CAF50" />
-                <Text style={{ fontSize: 15, fontWeight: '900', color: '#4CAF50' }}>화면 끄고 편하게 공부</Text>
-              </View>
-              <Text style={{ fontSize: 11, color: T.sub }}>집중 점수 없이 편하게 공부해요</Text>
-              <Text style={{ fontSize: 10, color: '#4CAF5099', marginTop: 2 }}>화면 꺼도 OK · 알림 없음 · 기본 점수</Text>
+              onPress={() => setRememberMode(v => !v)}
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'stretch', justifyContent: 'center',
+                paddingVertical: 9, paddingHorizontal: 12, marginBottom: 12, borderRadius: 10,
+                backgroundColor: rememberMode ? T.accent + '18' : T.surface2 }}>
+              <Ionicons name={rememberMode ? 'checkbox' : 'square-outline'} size={17} color={rememberMode ? T.accent : T.sub} />
+              <Text style={{ flexShrink: 1, fontSize: 12, fontWeight: '700', color: rememberMode ? T.accent : T.sub }}>
+                다음부터 묻지 않고 이 모드로 시작
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={app.cancelModeSelect}>
@@ -1198,6 +1048,9 @@ function Root() {
       <MainApp key={loadedFont} />
       {/* LockOverlay는 MainApp 밖에 배치 — 폰트 변경으로 MainApp이 리마운트되어도 잠금화면 유지 */}
       <LockOverlay />
+      {/* 완료 결과 모달도 루트에 배치 — FocusScreen 안에 있으면 다른 탭에서 앱을 열었을 때
+          비활성 탭이 뷰 계층에서 떨어져 있어 모달이 뜨지 않는다 (탭 무관하게 결과 표시) */}
+      <ResultModal />
       <WidgetIntroOverlay />
       {!fontsLoaded && (
         <View style={[StyleSheet.absoluteFill, styles.loading]}>

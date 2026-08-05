@@ -18,16 +18,29 @@ const SOUND_FILES = {
   space:   require('../../assets/sounds/space.mp3'),
   writing: require('../../assets/sounds/writing.mp3'),
 };
-import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty } from '../utils/storage';
-import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId } from '../utils/format';
-import { isTodayVisible, applyReorder, applyDailyTodoReset } from '../utils/todoUtils';
+import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty, saveReviewNotes, loadReviewNotes } from '../utils/storage';
+import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId, formatDuration } from '../utils/format';
+import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
+import { makeNoteFromTodo } from '../utils/reviewNotes';
+import { deleteFiles as deleteAttachmentFiles } from '../utils/attachments';
+import { shouldNudgeBackup } from '../utils/backupNudge';
 import { updateAllWidgets } from '../widgets/updateStudyWidget';
 import { pomoPhaseTargetSec } from '../utils/pomo';
 import { initLiveActivity, syncLiveActivity, setLiveActivityAway } from '../utils/liveActivity';
-import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh } from '../utils/screenPin';
-import { setShield, shieldSupported } from '../utils/focusShield';
-import { realRemainingSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } from '../utils/timerCore';
+import { syncOngoingNotif } from '../utils/ongoingNotif';
+import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAlarm, scheduleWidgetRefresh, cancelWidgetRefresh, isScreenOff, awayMsSinceScreenOn, screenWentOffAround, screenStateSupported, armAwayWatch, disarmAwayWatch, isInCall, msSinceCall } from '../utils/screenPin';
+import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, awayMsAfterBreak, iosAwayBeforeLockMs } from '../utils/focusAway';
+import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
+import { realRemainingSec, wallElapsedSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
+import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
+import { spanMinutes } from '../screens/planner/helpers';
+
+// 이탈 인정 최소 시간 — 플랫폼의 첫 알림 시각에서 파생된다(focusAway.awayMinMs 주석 참조).
+// 안드 15초 / iOS 30초. ★숫자를 여기에 다시 박지 말 것★ — 예전에 그렇게 해서
+// 경로마다 기준이 갈렸고(2026-07-30), iOS는 알림과 판정의 순서가 뒤집혀 있었다(2026-08-01)
+const AWAY_MIN_MS = awayMinMs(Platform.OS);
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -71,15 +84,32 @@ if (Platform.OS === 'android') {
 // (JS 컨텍스트당 1회 — 액티비티 재생성 리마운트에서는 재실행하지 않음).
 let staleNotifCleanupDone = false;
 
+// 완료 결과(자기평가) 모달을 띄우는 최소 공부시간.
+// 세션 기록 기준(불변식 7)과 일부러 다르다 — 계획·할일 연결 세션은 30초부터 기록해서
+// 짧은 할일도 누적 시간에 반영되지만, 1분 공부에 밀도 점수·자기평가 모달까지 뜨면
+// 사용자가 의아해한다(2026-07-25 사용자 판단). 기록은 조용히 남기고 모달만 5분부터.
+const RESULT_MODAL_MIN_SEC = 300;
+
 const DEFAULT_SETTINGS = {
   mainCharacter: 'toru', dailyGoalMin: 360, pomodoroWorkMin: 25, pomodoroBreakMin: 5,
   activeSounds: [], soundVolume: 70, darkMode: false, notifEnabled: true,
-  appBlockEnabled: false, // iOS 울트라집중 앱 차단 (Screen Time) — 설정탭에서 켬
-  ultraFocusLevel: 'normal', // 'normal' | 'focus' | 'exam' (🔥모드 잠금 강도)
-  ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라집중 연속 기록
+  timerOngoingNotif: true, // 안드: 타이머 실행 중 상단바/잠금화면 상시 알림 (iOS Live Activity 대응물)
+  appBlockEnabled: false, // iOS 울트라모드 앱 차단 (Screen Time) — 설정탭에서 켬
+  // 'normal' | 'focus' | 'exam' (🔥모드 공부 모드) — 타이머 시작 팝업의 기본 선택값이자 마지막 선택.
+  // 기본을 'focus'로 두는 이유: 온보딩에 선택 단계가 없어 기본값에 머무르는 사용자가 대부분인데,
+  // 'normal'이면 집중모드를 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
+  ultraFocusLevel: 'focus',
+  modeAskIntro: true,   // 위 1회 이관을 이미 마쳤다는 표시 (신규 설치는 처음부터 true — 재이관 방지)
+  // 시작 팝업을 건너뛰고 위 ultraFocusLevel로 바로 시작한다 (팝업의 '다음부터 묻지 않기').
+  // ★기본은 false — 매번 고르는 게 기본 동작이다★ 켜면 팝업이 아예 안 뜨므로,
+  // 끄는 길은 설정탭 '공부 모드' 섹션의 토글 하나뿐이다(첫 자동 시작 때 토스트로 안내)
+  modeAutoStart: false,
+  guideAutoStart: false, // 자동 시작이 처음 걸릴 때 1회 안내 토스트
+  guideUltraPick: false, // 울트라모드를 처음 고를 때 1회 확인 안내
+  ultraStreak: 0, ultraStreakBest: 0, ultraStreakDate: '', // 울트라모드 연속 기록
   challengeText: '', // 커스텀 챌린지 문구 (빈 값이면 기본 문구 사용)
   streak: 0, lastStudyDate: '', onboardingDone: false,
-  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'cute',
+  schoolLevel: 'high', elemGrade: 'upper', accentColor: 'pink', fontScale: 'medium', fontFamily: 'default', stylePreset: 'minimal',
   // 가이드 플래그 (한 번 보면 다시 안 뜸)
   guideMode: false,     // 🔥/📖 모드 선택 설명
   guideDensity: false,  // 집중밀도 설명
@@ -126,6 +156,7 @@ export function AppProvider({ children }) {
   const [ddays, setDDays] = useState([]);
   const [todos, setTodos] = useState([]);
   const [todoLog, setTodoLog] = useState([]); // 완료 이력 (통계용 — 리셋 삭제와 무관하게 보존)
+  const [reviewNotes, setReviewNotes] = useState([]); // 오답노트 (영구 학습 노트 — 일일 리셋과 독립)
   // 즐겨찾기 설정 (FocusScreen에서 사용)
   const [favs, setFavs] = useState([]);
   const [countupFavs, setCountupFavs] = useState(DEFAULT_COUNTUP_FAVS);
@@ -145,10 +176,25 @@ export function AppProvider({ children }) {
   const [pendingModeAction, setPendingModeAction] = useState(null);
   const [showExactAlarmModal, setShowExactAlarmModal] = useState(false);
   const [pendingReportTab, setPendingReportTab] = useState(null);
+  // 스터디룸 초대 딥링크(yeolgong://join?code=)로 받은 코드 — StatsScreen이 모달을 열고
+  // StudyRoomScreen이 소비(입장 제안)한 뒤 클리어. 클립보드 감지와 같은 joinByCode 경로 사용
+  const [pendingStudyRoomCode, setPendingStudyRoomCode] = useState(null);
+  // '우리 방 N명 집중 중' — 나 말고 방에서 지금 공부 중인 인원 (집중 화면/잠금 오버레이 표시용)
+  const [roomStudyingCount, setRoomStudyingCount] = useState(0);
+  // 집중탭 pill 등에서 '스터디룸 바로 열기' 요청 (타임스탬프 — StatsScreen이 감지해 모달 오픈)
+  const [openStudyRoomAt, setOpenStudyRoomAt] = useState(0);
+  // 방에서 '다같이 집중' 세션이 진행 중인지 (방 화면 밖에서도 인지 — pill 문구 확장)
+  const [roomFocusActive, setRoomFocusActive] = useState(false);
+  const lastFsToastRef = useRef(0);  // 이미 알린 세션의 startedAt (중복 토스트 방지)
+  const lastCheerAtRef = useRef(0);  // 마지막으로 알린 응원 시각
+  const cheerReadyRef = useRef(false); // 기준값 확보 여부 (첫 스냅샷 침묵용 — 응원 0건 방과 구분)
 
   // 100ms 틱 (anyChanged 최적화로 실제 렌더는 ~1000ms마다만 발생, 단 1초 경계 감지가 100ms 이내로 정확해져 연속 이중 렌더 방지)
-  // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면
-  // (안드는 백그라운드에서도 JS가 돌므로) 대기 상태 배터리를 하루 종일 소모한다
+  // 실행 중 타이머가 있을 때만 인터벌 가동 — 없을 때도 10Hz로 JS를 깨우면 대기 배터리를 소모한다
+  // ※**백그라운드에서는 이 인터벌이 아예 안 돈다** (RN 안드로이드는 액티비티 onPause에서 JS
+  //   타이머를 멈춘다 — `JavaTimerManager.onHostPause`). 그래서 경과 시간은 틱 누적이 아니라
+  //   벽시계로 재고(불변식 1), 배경에서 시간이 걸린 판단이 필요하면 네이티브로만 가능하다
+  //   (focusAway.js 하단 주석 참조 — JS 폴링으로 시도했다가 실패한 기록)
   const hasRunningTimer = timers.some(t => t.status === 'running');
   useEffect(() => {
     if (!hasRunningTimer) return undefined;
@@ -169,8 +215,14 @@ export function AppProvider({ children }) {
           if (newElapsed === t.elapsedSec) return t;
           anyChanged = true;
           const next = { ...t, elapsedSec: newElapsed };
-          // 랩 스톱워치는 무한
-          if (t.type === 'lap') return next;
+          // 랩 스톱워치: 상한(5시간)까지만 — 세션은 원래 기록하지 않으므로 조용히 종료
+          if (t.type === 'lap') {
+            if (next.elapsedSec >= COUNTUP_MAX_SEC) {
+              const capped = { ...next, elapsedSec: COUNTUP_MAX_SEC };
+              return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC) };
+            }
+            return next;
+          }
           if (t.type === 'countdown' && next.elapsedSec >= t.totalSec) {
             // overshoot > 2초: bg 복귀 직후 stale 상태 → OS 예약 알림이 이미 발송됨 → skipNotif (sequence와 동일 가드)
             const sessId = fireComplete(next, next.elapsedSec - t.totalSec > 2);
@@ -178,14 +230,21 @@ export function AppProvider({ children }) {
           }
           if (t.type === 'pomodoro') {
             const target = pomoPhaseTargetSec(t); // 긴 휴식(4세트마다)은 15분
-            if (next.elapsedSec >= target) return pomoFlip(next);
+            // overshoot > 2초: bg 복귀/복원 직후 stale 상태 → OS 예약 알림이 이미 발송됨 → 진동 스킵 (countdown/sequence와 동일 가드)
+            if (next.elapsedSec >= target) return pomoFlip(next, next.elapsedSec - target > 2);
           }
           if (t.type === 'sequence') {
             const target = t.seqPhase === 'work' ? t.totalSec : t.seqBreakSec;
             // overshoot > 2초: bg 복귀 직후 stale 상태 (ticker 100ms 기준 정상은 ≤1초) → OS가 이미 알림 발송 → skipNotif
             if (next.elapsedSec >= target) return seqFlip(next, next.elapsedSec - target > 2);
           }
-          if (t.type === 'free') return next;
+          if (t.type === 'free' && next.elapsedSec >= COUNTUP_MAX_SEC) {
+            // 카운트업 상한(5시간) 도달 → 카운트다운 완료와 동일하게 자동 종료 + 세션 기록.
+            // overshoot > 2초: bg 복귀 직후 stale 상태 → OS 예약 상한 알림이 이미 발송됨 → skipNotif
+            const capped = { ...next, elapsedSec: COUNTUP_MAX_SEC };
+            const sessId = fireComplete(capped, next.elapsedSec - COUNTUP_MAX_SEC > 2);
+            return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC), ...(sessId ? { memoSessionId: sessId } : {}) };
+          }
           return next;
         });
         return anyChanged ? mapped : prev;
@@ -224,39 +283,39 @@ export function AppProvider({ children }) {
       scheduleAllPhaseNotifs(timer);
       showToast('start');
     };
-    // 모드 미선택 시 잠금강도별 자동 진입
-    if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'normal';
-      if (level === 'exam') {
-        activateScreenOnMode();
-        setTimeout(startAction, 50);
-      } else if (level === 'normal') {
-        activateScreenOffMode();
-        setTimeout(startAction, 50);
-      } else {
-        setPendingModeAction(() => startAction);
-      }
-    } else {
-      startAction();
-    }
+    // 모드 미선택이면 3지 선택 팝업 (requestModeSelect와 같은 규칙 — 세션당 1회)
+    if (!focusModeRef.current) setPendingModeAction(() => startAction);
+    else startAction();
     return true;
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
+  // 연속모드 중도 종료 — 완주(seqFlip)·stopTimer와 같은 대접을 한다.
+  // 예전엔 세션만 기록하고 결과 모달을 안 띄워, 5분 넘게 공부해도 자기평가를 못 해
+  // 밀도 보너스(최대 +3)를 놓쳤다 (계획 타이머 80% 게이트를 없앤 2026-08-01과 같은 문제)
   const cancelSequence = useCallback(() => {
+    // 모달이 안 뜨는 종료(5분 미만·휴식 중)에 아무 피드백이 없던 문제 — stopTimer와 같은 처리
+    stopFeedbackToast(timersRef.current.find(t => t.type === 'sequence' && t.status !== 'completed'));
     setTimers(prev => prev.map(t => {
       if (t.type !== 'sequence' || t.status === 'completed') return t;
       cancelTimerNotif(t.id);
+      const result = calcResult(t, t.elapsedSec, { seqPartial: true });
+      // 휴식 페이즈 중 종료는 기록하지 않는다 (불변식 5 — 직전 work는 seqFlip이 이미 기록)
       if (t.seqPhase === 'work' && t.elapsedSec >= 300) {
         const mode = focusModeRef.current || 'screen_off';
         const ufState = ultraRef.current;
-        recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)), dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: 'countdown', pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: 'countdown', completionRatio: Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)), dedupeKey: `complete|${t.id}|${t.startedAt}` });
+        // 기록 기준 300초 = RESULT_MODAL_MIN_SEC이라 추가 게이트 불필요.
+        // 완주 모달과 달리 대상은 방금 끝낸 항목 하나 — isSeq:false여야 문구가 맞고 시간 수정도 열린다
+        setCompletedResultData({ timerId: t.id, result, isSeq: false, sessionId: sessId });
+        return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
-      return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec) };
+      return { ...t, status: 'completed', result };
     }));
   }, []);
 
-  // ═══ 집중 모드 (🔥 화면 켜두고 집중 도전 / 📖 화면 끄고 편하게 공부) ═══
-  // 'screen_on' = 🔥모드: keep-awake + 이탈감지 + 다크 + 최소밝기
+  // ═══ 집중 모드 (🔥 폰 내려놓고 집중모드 / 📖 일반모드) ═══
+  // 'screen_on' = 🔥모드: 잠금 오버레이 + 이탈감지 + 다크 + 최소밝기
+  //   (이름은 남아 있지만 2026-07-29부터 화면을 계속 켜 두지 않는다 — 시스템 화면 꺼짐에 맡김)
   // 'screen_off' = 📖모드: 조용히 타이머만
   // null = 모드 미선택 (타이머 안 돌아가는 상태)
   const [focusMode, setFocusMode] = useState(null);
@@ -268,6 +327,30 @@ export function AppProvider({ children }) {
   // FocusScreen 잠금화면 상태 — Context에서 관리해 MainApp 리마운트 시에도 유지 (iOS Modal 투명 버그 방지)
   const [screenLocked, setScreenLockedState] = useState(false);
   const screenLockedRef = useRef(false);
+
+  // ── 🔥모드 화면 꺼짐은 시스템에 맡긴다 (2026-07-29) ──────────────────────
+  // 예전에는 🔥모드가 keep-awake로 화면을 계속 켜 뒀지만, 잠금화면을 덮어놓고 공부하는 동안
+  // 화면이 안 꺼져 배터리 부담이 컸다(사용자 요청). 이제 keep-awake를 잡지 않고 무동작 감지·
+  // 터치 리셋을 전부 OS에 맡긴다 — 시스템의 화면 시간 초과가 그대로 적용된다.
+  // 화면이 꺼져 백그라운드로 내려가도 이탈이 아니다 (2026-07-28 규칙, focusAway.js 참조).
+  // 단, 안드 구빌드(네이티브 screenState 없음)는 그 규칙이 없어 화면 끄기가 아직 이탈로 잡히므로
+  // 예전처럼 화면을 계속 켜 둔다 — 안 그러면 화면이 꺼질 때마다 스스로 이탈을 만들어낸다.
+  const keepScreenAwake = () => Platform.OS === 'android' && !screenStateSupported();
+  const keepAwakeOn = useRef(false);
+  const setKeepAwake = async (on) => {
+    if (keepAwakeOn.current === on) return;
+    keepAwakeOn.current = on;
+    try {
+      if (on) await activateKeepAwakeAsync('focus');
+      else deactivateKeepAwake('focus');
+    } catch {}
+  };
+
+  // 마지막으로 화면을 만진 시각 — iOS에서 '화면이 꺼진 것'과 '사람이 나간 것'을 가르는 유일한 단서
+  // (App.js 루트/잠금 오버레이의 터치 capture가 갱신)
+  const lastTouchAt = useRef(0);
+  const noteUserTouch = useCallback(() => { lastTouchAt.current = Date.now(); }, []);
+
   const setScreenLocked = useCallback((locked) => {
     screenLockedRef.current = locked;
     setScreenLockedState(locked);
@@ -296,6 +379,14 @@ export function AppProvider({ children }) {
   const phaseNotifRunId = useRef(new Map()); // timerId → 마지막 scheduleAllPhaseNotifs runId (race condition 방지)
   const seqRescheduleQueue = useRef([]); // seqFlip 페이즈 전환 후 알림 재예약 큐
   const bgTime = useRef(null);
+  // 안드: 직전 백그라운드 전환이 '화면 끄기' 때문이었는가 (이탈로 치지 않고, 복귀 시 화면 켠 시점부터만 이탈 계산)
+  // iOS도 화면 잠금이 감지되면 같은 플래그를 세운다 (판별이 약 10초 늦게 나올 뿐 처리는 동일)
+  const screenOffBg = useRef(false);
+  // iOS: 이탈 판정을 복귀 시점으로 미뤘음 (백그라운드에선 잠금/앱전환 구분이 안 됨)
+  const iosDeferAway = useRef(false);
+  // 배경 진입 시점이 뽀모/연속 휴식 페이즈였다면 그 휴식의 종료 시각(ms), 아니면 null.
+  // 복귀 시 '휴식이 끝난 뒤'만 이탈로 센다 (focusAway.awayMsAfterBreak)
+  const breakEndsAtBg = useRef(null);
   const plannerNotifIds = useRef([]); // 플래너 리마인더 알림 id 목록
   // 공부 리마인더/리포트 알림은 고정 identifier('reminder-*'/'report-*')로 예약·취소 — id 보관 불필요
 
@@ -306,21 +397,26 @@ export function AppProvider({ children }) {
   sessionsRef.current = sessions;
 
   // 🔥모드 활성화
-  const activateScreenOnMode = useCallback(async () => {
+  // levelOverride: 모드 선택 팝업이 방금 고른 잠금강도. updateSettings는 다음 렌더에 반영되므로
+  // 여기서 settingsRef를 읽으면 아직 이전 값이다 → 고른 값을 인자로 직접 받는다
+  const activateScreenOnMode = useCallback(async (levelOverride) => {
+    const level = levelOverride || settingsRef.current.ultraFocusLevel || 'normal';
     try {
       // 이미 어두운 값(≤0.06)을 원본으로 캡처하면 복원해도 계속 어두움 → 0.4 폴백
       try {
         const b = await Brightness.getBrightnessAsync();
         originalBrightness.current = b > 0.06 ? b : 0.4;
       } catch { originalBrightness.current = 0.4; }
-      await activateKeepAwakeAsync('focus');
+      // 화면 꺼짐은 시스템에 맡긴다 (구빌드 안드만 예전처럼 켜 둠 — keepScreenAwake 주석 참조)
+      lastTouchAt.current = Date.now();
+      await setKeepAwake(keepScreenAwake());
       try { await Brightness.setBrightnessAsync(0.05); } catch {}
     } catch {}
     setFocusMode('screen_on');
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
     // 시험 강도(안드로이드): OS 화면 고정 — 홈/최근앱 버튼 차단으로 무의식적 이탈 방지
     // (첫 호출 시 OS가 자체 확인 다이얼로그를 띄움. iOS/Expo Go는 no-op)
-    if (Platform.OS === 'android' && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam') {
+    if (Platform.OS === 'android' && level === 'exam') {
       pinScreen().then(ok => {
         if (ok && !settingsRef.current.guidePin) {
           updateSettings({ guidePin: true });
@@ -328,21 +424,20 @@ export function AppProvider({ children }) {
         }
       });
     }
-    // iOS: 집중 도전(🔥) 세션 동안 Screen Time 앱 차단 — 잠금 강도와 무관하게
+    // iOS: 집중모드(🔥) 세션 동안 Screen Time 앱 차단 — 공부 모드와 무관하게
     // 설정에서 켠 경우 항상 적용 (미지원/entitlement 미포함 빌드에서는 no-op)
     // 시험 강도 + 전체 차단 옵션이 켜져 있으면 허용 앱 빼고 모두 차단(allowAll)
     if (Platform.OS === 'ios') {
       if (settingsRef.current.appBlockEnabled) {
-        const allowAll = !!settingsRef.current.appBlockExamAll
-          && (settingsRef.current.ultraFocusLevel || 'normal') === 'exam';
+        const allowAll = !!settingsRef.current.appBlockExamAll && level === 'exam';
         setShield(true, allowAll ? 'allowAll' : 'block');
       } else if (!settingsRef.current.guideAppBlock && shieldSupported()) {
-        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중 도전 시작 때 1회 안내
+        // 발견성: 설정 깊숙이 있는 앱 차단 기능을 첫 집중모드 시작 때 1회 안내
         updateSettings({ guideAppBlock: true });
         setTimeout(() => {
           Alert.alert(
             '앱 차단',
-            '집중 도전 중에 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 집중 도전 모드 > 앱 차단에서 켜보세요.',
+            '집중모드로 공부하는 동안 유튜브 등 선택한 앱을 실제로 잠글 수 있어요.\n설정 탭 > 공부 모드 > 앱 차단에서 켜보세요.',
           );
         }, 800);
       }
@@ -360,7 +455,7 @@ export function AppProvider({ children }) {
     const wasScreenOn = focusModeRef.current === 'screen_on';
     const brightnessToRestore = wasScreenOn ? originalBrightness.current : null;
     if (wasScreenOn) {
-      try { deactivateKeepAwake('focus'); } catch {}
+      setKeepAwake(false);
       originalBrightness.current = null;
       unpinScreen(); // 시험 강도 화면 고정 해제 (미고정 상태면 no-op)
       setShield(false); // iOS 앱 차단 방패 해제 (미적용 상태면 no-op)
@@ -368,32 +463,40 @@ export function AppProvider({ children }) {
     // setFocusMode는 await 전에 호출 — focusModeRef가 빨리 null이 되도록 (race condition 방지)
     setFocusMode(null);
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
-    if (brightnessToRestore !== null) { try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {} }
+    if (wasScreenOn) {
+      // 안드: 앱 창의 밝기 오버라이드를 걷어 시스템(자동밝기)에 제어권 반환.
+      // 캡처값을 절대값으로 다시 쓰면 종료 후에도 고정 밝기로 남는다 (백그라운드를
+      // 다녀와야만 풀리던 문제 — 2026-07-19 제보). iOS는 시스템 복원 API가 없어 캡처값 복원 유지
+      if (Platform.OS === 'android') {
+        try { await Brightness.restoreSystemBrightnessAsync(); } catch {
+          if (brightnessToRestore !== null) { try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {} }
+        }
+      } else if (brightnessToRestore !== null) {
+        try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {}
+      }
+    }
   }, []);
 
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
+  // 2026-07-29~ 잠금강도별 자동 진입을 없애고 **항상 3지 선택 팝업**을 띄운다.
+  // 이유: 온보딩에 강도 선택 단계가 없어 기본값 normal에 머무른 사용자는 팝업을 볼 일이 없었고,
+  // 결과적으로 3가지 모드(와 밀도 보너스 +5/+10/+15)의 존재 자체를 모른 채 쓰고 있었다.
+  // 세션이 이미 시작된 뒤(focusMode 있음)에는 묻지 않으므로 '타이머마다'가 아니라 '세션마다'다.
   const requestModeSelect = useCallback((action) => {
     if (focusModeRef.current) { action(); return; }
-    const level = settingsRef.current.ultraFocusLevel || 'normal';
-    // 울트라집중: 자동 집중모드(screen_on)
-    if (level === 'exam') {
-      activateScreenOnMode();
-      setTimeout(action, 50);
-      return;
-    }
-    // 일반: 자동 편한모드(screen_off)
-    if (level === 'normal') {
-      activateScreenOffMode();
-      setTimeout(action, 50);
-      return;
-    }
-    // 집중: 모드 선택 팝업
     setPendingModeAction(() => action);
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
-  const resolveModeSelect = useCallback((mode) => {
-    if (mode === 'screen_on') activateScreenOnMode();
-    else activateScreenOffMode();
+  // 팝업 선택 결과 — 잠금강도(normal|focus|exam)와 집중모드를 한 번에 정한다.
+  //   일반(normal)=📖편하게 / 집중(focus)=🔥 / 울트라모드(exam)=🔥+엄격
+  // 고른 강도는 설정에도 저장한다 — 잠금·화면고정·챌린지 판정이 전부 settings를 읽으므로
+  // 세션 전용 상태를 따로 만들면 읽는 곳마다 분기가 생겨 어긋난다.
+  const resolveModeSelect = useCallback((level) => {
+    const lv = level === 'exam' || level === 'focus' ? level : 'normal';
+    updateSettings({ ultraFocusLevel: lv });
+    // setSettings는 다음 렌더에 반영되므로 즉시 쓰는 경로에는 값을 직접 넘긴다
+    if (lv === 'normal') activateScreenOffMode();
+    else activateScreenOnMode(lv);
     setPendingModeAction(prev => { if (prev) { setTimeout(prev, 50); } return null; });
   }, [activateScreenOnMode, activateScreenOffMode]);
 
@@ -404,6 +507,12 @@ export function AppProvider({ children }) {
   // 🔥모드 이탈 시 밝기 복원 / 복귀 시 다시 적용
   // 다크모드는 FocusScreen의 screenLocked 로컬 상태로만 처리 — 전역 settings.darkMode는 건드리지 않음
   const restoreBrightness = async () => {
+    // 안드: 시스템(자동밝기)에 제어권 반환 — 캡처값 복원은 자동밝기 상태에서
+    // getBrightnessAsync가 시스템의 '수동 밝기 설정값'(최대치일 수 있음)을 읽어와
+    // 잠금 해제 시 최대 밝기처럼 튀는 문제가 있었음 (2026-07-19 제보)
+    if (Platform.OS === 'android') {
+      try { await Brightness.restoreSystemBrightnessAsync(); return; } catch {}
+    }
     if (originalBrightness.current !== null) { try { await Brightness.setBrightnessAsync(originalBrightness.current); } catch {} }
   };
   const applyFocusBrightness = async () => {
@@ -463,6 +572,15 @@ export function AppProvider({ children }) {
 
   // AppState 핸들링
   useEffect(() => {
+    // 콜드스타트: 프로세스가 죽었다 살아난 경우 'active' 이벤트가 안 오므로 여기서 한 번 정리
+    // (네이티브 armed 플래그는 프로세스와 함께 사라지지만, 이미 뜬 알림은 트레이에 남는다)
+    if (Platform.OS === 'android') disarmAwayWatch();
+    // 위 disarm은 **네이티브가 게시한** 알림만 지운다. JS가 직접 쏜 이탈 알림(fireNotif —
+    // 안드 즉시 경로·iOS)은 프로세스가 죽어도 트레이에 남는데, 콜드스타트 sweep은
+    // cancelAllScheduledNotificationsAsync라 **'예약분'만** 지운다(이미 뜬 것은 대상 아님).
+    // 그래서 재실행 후에도 '돌아와' 알림이 유령으로 남아 있었다 → 이탈 알림 id만 골라 내린다
+    // (전체 dismiss는 안드 상시 타이머 알림까지 지운다)
+    AWAY_NOTIF_IDS.forEach(id => { Notifications.dismissNotificationAsync(id).catch(() => {}); });
     const sub = AppState.addEventListener('change', (state) => {
       const hasRunning = timersRef.current.some(t => t.status === 'running');
       const mode = focusModeRef.current;
@@ -487,22 +605,93 @@ export function AppProvider({ children }) {
           saveTimerSnapshot({ savedAt: Date.now(), timers: timersRef.current });
         }
 
-        // 🔥모드에서만 이탈 감지 (keep-awake라서 background = 진짜 이탈)
+        // 🔥모드에서만 이탈 감지 (background = 다른 앱으로 나갔거나 화면이 꺼진 것 — 아래에서 가른다)
         // 단, 안드 화면 고정 중의 배경 전환은 화면 끄기/전화 수신 등 OS 이벤트뿐이고
         // 다른 앱 사용이 불가능하므로 이탈로 치지 않는다 (고정 해제 후 나간 경우만 이탈)
-        const pinnedNow = Platform.OS === 'android' && isScreenPinned();
-        if (mode === 'screen_on' && hasRunning && !pinnedNow && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed) {
+        const awayCandidate = mode === 'screen_on' && hasRunning
+          && !ultraRef.current.gaveUp && !ultraRef.current.pauseAllowed;
+        // 전화(벨 울림·통화·보이스톡)도 이탈이 아니다 — 화면 고정과 같이 판정을 통째로 건너뛴다.
+        // 예전엔 여기에 아무 처리가 없어 **통화 중에 '돌아와' 넛지가 울리고 끊고 나면 이탈 1회**가
+        // 찍혔다(2026-07-30). 울트라모드가 멀쩡해 보였던 건 화면 고정이 이 경로를 막고 있어서다
+        // iOS도 같은 규칙 (2026-08-01): CallKit 관측자로 셀룰러·인터넷 통화를 모두 본다.
+        // iOS엔 화면 고정이 없어 이 경로를 막아주는 것이 아무것도 없었다 — 안드보다 오히려 잘 드러났다
+        const inCallNow = awayCandidate
+          && (Platform.OS === 'android' ? isInCall() : isInCallIOS());
+        const awayExempt = (awayCandidate && Platform.OS === 'android' && isScreenPinned()) || inCallNow;
+        // 고정을 거부한 경우에도 '화면 끄기'는 이탈이 아니다 — 다른 앱을 쓴 게 아니라 화면만 끈 것.
+        // 화면을 다시 켠 뒤에도 앱으로 안 돌아오면 그때부터 이탈로 계산한다 (active 복귀 처리 참조).
+        // iOS: 한동안 화면을 만지지 않은 상태에서 백그라운드로 내려갔다면 사람이 나간 게 아니라
+        // 화면이 꺼진 것이다 — 다른 앱으로 나가려면 반드시 화면을 만져야 하기 때문(focusAway.js).
+        // iOS는 안드처럼 화면 상태를 물어볼 수단이 없고 네이티브 잠금 감지는 암호 미설정 기기에서
+        // 실패하므로, 이 판정이 없으면 화면이 꺼질 때마다 이탈로 잡힌다.
+        // 안드는 네이티브 screenState()가 정확하므로 쓰지 않는다(우회 방지 10초 규칙 유지).
+        // 휴식 페이즈였다면 그 종료 시각을 남긴다 — 복귀 시 그 이후만 이탈로 센다.
+        // 여기서 통째로 면제하지 않는 이유: 판정이 배경 진입 시점에만 있어서,
+        // 휴식에 나가 작업 페이즈까지 안 돌아오는 우회가 열린다(awayMsAfterBreak 주석)
+        breakEndsAtBg.current = awayCandidate
+          ? breakEndsAtMs(timersRef.current.find(t => t.status === 'running'), Date.now())
+          : null;
+        // ★알림도 이탈 카운트와 같은 기준을 쓴다★ — 휴식이 끝난 뒤부터 울린다.
+        // 카운트만 면제하고 알림을 그대로 뒀더니 **쉬는 중에 '돌아와'가 계속 울리는데
+        // 정작 이탈은 0회**가 됐다(실기기 제보 2026-08-03). 이건 07-30에 결함으로 분류해
+        // 고쳤던 '알림만 오고 카운트 없음'과 같은 어긋남이다 — 알림은 벌점 통보가 아니라
+        // **돌아올 기회**여야 하므로, 이탈이 될 수 없는 구간엔 울리지 않는 게 맞다.
+        const breakOffsetSec = breakEndsAtBg.current
+          ? Math.max(0, Math.ceil((breakEndsAtBg.current - Date.now()) / 1000))
+          : 0;
+        const iosIdleOffNow = Platform.OS === 'ios' && wasIdleBeforeBackground(lastTouchAt.current);
+        const screenOffNow = awayCandidate && !awayExempt && (iosIdleOffNow || isScreenOff());
+        screenOffBg.current = screenOffNow;
+        const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
+        // confirmed: 이미 이탈이 확정된 시점(배경 폴링)이라 알림을 지연시킬 필요가 없다
+        const markAway = ({ confirmed = false } = {}) => {
           setUltraFocus(prev => ({ ...prev, isAway: true, awayAt: Date.now() }));
-          const charName = { toru: '토루', paengi: '팽이', taco: '타코', totoru: '토토루' }[uf.mainCharacter] || '토루';
-          fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~');
+          // 안드는 background 진입 시점엔 아직 이탈인지 모른다(10초 규칙) — 첫 알림도 넛지 목록의
+          // 맨 앞 항목으로 12초 뒤에 예약해 두고 복귀 시 함께 취소한다. 즉시 쏘면 알림창을
+          // 내렸다 올리는 몇 초짜리 배경 전환에도 '돌아와' 알림만 울리고 이탈은 안 잡힌다.
+          // 첫 알림까지의 지연 = 플랫폼 기본 지연 + 남은 휴식. 0이면 즉시 띄운다
+          const firstDelaySec = (Platform.OS === 'android' && !confirmed ? ANDROID_AWAY_NOTIF_DELAY_SEC : 0)
+            + breakOffsetSec;
+          // identifier를 붙여야 복귀 시 트레이에서 지울 수 있다 (안 붙이면 유령 알림으로 남음)
+          if (firstDelaySec === 0) fireNotif(`${charName}랑 같이 열공하자!`, '타이머가 돌아가고 있어~', AWAY_NOW_ID);
           // 이탈이 길어지면 30초/1분/3분/5분 단계별 복귀 유도 (복귀 시 취소)
-          scheduleAwayNudges(charName);
-          // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거)
-          presentAwaySticky();
+          scheduleAwayNudges(charName, { firstDelaySec, offsetSec: breakOffsetSec });
+          // 안드: 이탈 중 상시 상태 알림 (복귀 시 제거) — 첫 알림과 같은 이유로 지연 게시
+          presentAwaySticky(firstDelaySec);
           // Live Activity 부제를 '이탈 중' 문구로 전환 (아래 laTimerBg 동기화에서 반영)
           setLiveActivityAway(true);
           // 밝기/다크 복원 (다른 앱에서 어두우면 불편)
           restoreBrightness();
+        };
+        // 안드 '화면 끄기'로 내려간 경우: 여기서부터는 앱이 'active'를 한 번도 못 받을 수 있고
+        // (잠금화면 알림창 → 다른 앱), 배경에선 JS 타이머도 멈춰 시간을 잴 수 없다.
+        // 그래서 '화면 켜짐 + 잠금 해제가 10초 이어지면 이탈'이라는 판단만 네이티브에 맡긴다.
+        // 이탈 카운트는 기존대로 복귀 시점에 JS가 확정한다 — 여기서 넘기는 건 알림뿐이다
+        if (screenOffNow && Platform.OS === 'android' && settingsRef.current.notifEnabled) {
+          const limitSec = awayNotifLimitSec();
+          armAwayWatch(
+            // 유예는 JS 예약 경로와 같은 값 — 어느 경로로 나가든 이탈 알림이 같은 체감으로 온다.
+            // 휴식 중이면 남은 휴식만큼 더 민다. 네이티브의 후속 넛지는 **첫 알림 시점 기준
+            // 상대 시각**이라(AwayWatch.onCheck) 유예만 늘리면 목록 전체가 함께 밀린다
+            (ANDROID_AWAY_NOTIF_DELAY_SEC + breakOffsetSec) * 1000,
+            Number.isFinite(limitSec) ? Date.now() + limitSec * 1000 : 0,
+            [{ sec: 0, ...awayFirstNotif(charName) }, ...awayNudgeSteps(charName)],
+          );
+        }
+        if (awayCandidate && !awayExempt && !screenOffNow) {
+          if (Platform.OS === 'ios' && lockDetectSupported()) {
+            // iOS: 화면 잠금과 앱 전환이 앱 입장에서 같은 이벤트라 지금은 구분할 수 없고,
+            // 백그라운드에서는 JS 타이머도 멈춰 '10초 뒤에 판단'을 JS로 할 수 없다. 그래서
+            //  · 이탈 알림을 즉시 띄우지 않고 20초 뒤로 예약 (네이티브가 잠금 감지 시 취소)
+            //  · isAway/Live Activity '이탈 중'은 세우지 않음 (잠금화면 오표시 방지)
+            //  · 이탈 여부는 복귀 시점에 확정 (아래 active 핸들러의 iosDeferAway)
+            iosDeferAway.current = true;
+            scheduleAwayNudges(charName, {
+              firstDelaySec: IOS_AWAY_NOTIF_DELAY_SEC + breakOffsetSec, offsetSec: breakOffsetSec,
+            });
+          } else {
+            markAway();
+          }
         }
         // 📖모드는 아무것도 안 함
 
@@ -516,17 +705,110 @@ export function AppProvider({ children }) {
         // bg 진입 시점엔 timers 상태가 안 바뀌어 동기화 effect가 안 돌므로 명시적으로 호출
         const laTimerBg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
         if (laTimerBg) syncLiveActivity(laTimerBg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
+        // 안드 상시 알림도 백그라운드 표시 모드로 갱신 (연속모드 → 전체 남은 시간 카운트다운)
+        if (laTimerBg) syncOngoingNotif(laTimerBg, { enabled: ongoingNotifEnabled() });
       }
       else if (state === 'active') {
+        // 네이티브 이탈 감시 해제 — 예약된 확인·넛지 알람과 이미 뜬 알림을 함께 정리
+        if (Platform.OS === 'android') disarmAwayWatch();
         const gap = bgTime.current ? Math.floor((Date.now() - bgTime.current) / 1000) : 0;
-        const awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
+        const bgAt = bgTime.current;
+        let awayMs = bgTime.current ? Date.now() - bgTime.current : 0;
         bgTime.current = null;
-        const wasAway = ultraRef.current.isAway;
+        let wasAway = ultraRef.current.isAway;
+
+        // iOS: 네이티브가 백그라운드에서 기록해 둔 화면 잠금 감지 결과 소비 (0이면 앱 전환)
+        const iosLockedAt = Platform.OS === 'ios' ? consumeScreenLock() : 0;
+        // iOS: 관측이 끊길 때 통화 중이었는가 — 아래 통화 보정에서 쓴다.
+        // ★wasAway와 무관하게 항상 소비한다★ (안 그러면 다음 배경 전환까지 남아 엉뚱한 구간을 면제한다)
+        const iosCallHeld = Platform.OS === 'ios' ? consumeCallHeldIOS() : false;
+        // iOS: 잠금이 감지됐어도 **배경 진입 ~ 잠금 사이는 다른 앱을 쓴 시간**이다.
+        // 예전엔 잠금이면 그 구간을 통째로 면제해서, 다른 앱으로 나갔다가 알림이 오기 전에
+        // 화면을 꺼 버리면 이탈이 아예 안 잡혔다(실기기 제보 2026-08-01).
+        const iosAwayBeforeLock = Platform.OS === 'ios'
+          ? iosAwayBeforeLockMs(bgAt, iosLockedAt) : 0;
+        if (iosDeferAway.current) {
+          // 미뤄둔 판정을 여기서 확정 — 잠금이었으면 잠금 전까지만, 아니면 배경 체류 전체
+          iosDeferAway.current = false;
+          const effective = iosLockedAt > 0 ? iosAwayBeforeLock : awayMs;
+          if (effective >= AWAY_MIN_MS) { wasAway = true; awayMs = effective; }
+        }
+        // 잠금 전 구간이 이탈로 셀 만큼 길면 '화면 끄기 배경'으로 취급하지 않는다
+        // (취급하면 아래 wasScreenOffBg 블록이 iOS에서 wasAway를 되돌린다 —
+        //  awayMsSinceScreenOn은 안드 전용이라 iOS에선 항상 0을 준다)
+        if (iosLockedAt > 0 && iosAwayBeforeLock < AWAY_MIN_MS) screenOffBg.current = true;
+
+        // 안드 '화면 끄기'로 내려갔던 경우: 화면 끄고 있던 시간은 이탈이 아니다.
+        // 다만 화면을 다시 켠 뒤(잠금화면에서 바로 다른 앱을 열었을 수 있다) 한참 만에
+        // 돌아왔다면 그 구간만 이탈로 친다.
+        // screenWentOffAround: 기기에 따라 SCREEN_OFF 신호가 AppState보다 늦게 와 이미
+        // 이탈로 표시된 경우를 복귀 시점에 되돌리는 안전망
+        const wasScreenOffBg = screenOffBg.current || (wasAway && screenWentOffAround(bgAt));
+        screenOffBg.current = false;
+        if (wasScreenOffBg) {
+          const sinceOn = awayMsSinceScreenOn(bgAt);
+          if (isRealAwayAfterScreenOn(sinceOn)) {
+            awayMs = sinceOn;
+            wasAway = true;
+          } else {
+            // 화면만 껐다 켠 것 → 이탈 아님 (레이스로 켜진 isAway를 되돌린다)
+            if (wasAway) {
+              setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+              // 레이스 경로에서는 배경 진입 때 밝기를 복원했으므로 잠금화면이면 다시 어둡게
+              if (screenLockedRef.current) applyFocusBrightness();
+            }
+            wasAway = false;
+          }
+        }
+
+        // 통화 중이거나 방금 통화가 끝난 구간은 이탈이 아니다 (양 플랫폼).
+        // 배경에 있는 동안 JS는 통화를 볼 수 없으므로(타이머가 멈춘다) 네이티브가 관측해 둔
+        // '마지막 통화 시각'으로 되짚는다. 통화 자체는 배경 진입 시 awayExempt로 이미 걸러지고,
+        // 여기서 거르는 건 **전화를 끊고 통화 종료 화면을 닫고 돌아오는 시간**이다
+        // (실기기 확인 2026-07-30: 통화 87초는 면제됐는데 끊은 뒤 20초가 이탈로 찍혔다).
+        //
+        // iOS도 같은 규칙 (2026-08-01). 다만 iOS는 백그라운드에서 앱이 정지되면 관측이 끊겨
+        // '통화가 언제 끝났는지'를 못 볼 수 있다. 끊길 때 통화 중이었으면(iosCallHeld) 그
+        // 배경 구간을 통째로 면제한다 — 잠금 감지가 이미 하고 있는 것과 같은 양보다.
+        // ※그래서 iOS는 '통화 후 다른 앱을 오래 쓰는 우회'를 안드만큼 막지 못한다(수용).
+        const callAware = Platform.OS === 'android' || (Platform.OS === 'ios' && callDetectSupported());
+        if (callAware && wasAway) {
+          // 복귀 순간에도 한 번 관측 — 통화 중에 돌아온 경우 기준점을 최신으로
+          if (Platform.OS === 'android') isInCall(); else isInCallIOS();
+          const sinceCall = Platform.OS === 'android' ? msSinceCall() : msSinceCallIOS();
+          const adjusted = iosCallHeld ? 0 : awayMsAfterCall(awayMs, sinceCall);
+          if (adjusted < AWAY_MIN_MS) {
+            setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+            if (screenLockedRef.current) applyFocusBrightness();
+            wasAway = false;
+          } else {
+            awayMs = adjusted;
+          }
+        }
+
+        // 휴식 페이즈에 나갔던 구간은 이탈이 아니다 — '휴식이 끝난 뒤'만 센다.
+        // 세션 기록이 이미 하고 있는 양보(불변식 5)를 이탈 카운트에도 맞춘 것.
+        // ※알림·넛지는 그대로 둔다 — 넛지 예약은 세대 가드가 얽혀 있어 함께 손대면 위험하다.
+        //   여기서 고치는 건 **영구히 기록되는 exitCount(=밀도 점수)** 쪽이다(체크리스트 4.12절)
+        if (wasAway && breakEndsAtBg.current) {
+          const adjusted = awayMsAfterBreak(awayMs, Date.now() - breakEndsAtBg.current);
+          if (adjusted < AWAY_MIN_MS) {
+            setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
+            if (screenLockedRef.current) applyFocusBrightness();
+            wasAway = false;
+          } else {
+            awayMs = adjusted;
+          }
+        }
+        breakEndsAtBg.current = null;
 
         // 이탈 넛지/상태 알림 정리 + Live Activity '이탈 중' 해제 (laTimerFg 동기화/틱에서 원래 부제로 복원)
         cancelAwayNudges();
         dismissAwaySticky();
         setLiveActivityAway(false);
+
+        // 복귀 자체가 사용자 조작 — 다음 백그라운드 전환을 '무동작 화면 꺼짐'으로 오인하지 않도록 갱신
+        lastTouchAt.current = Date.now();
 
         // 시험 강도(안드): 고정을 풀고 나갔다 돌아오면 자동 재고정 (세션이 살아있는 동안)
         if (Platform.OS === 'android'
@@ -570,13 +852,16 @@ export function AppProvider({ children }) {
 
         // 🔥모드 복귀 처리
         if (mode === 'screen_on' && wasAway && !ultraRef.current.gaveUp) {
-          // 10초 이내 복귀 → 시스템 알림/전화 등으로 간주 → 이탈 아님
-          if (awayMs < 10000) {
+          // 기준 시간 이내 복귀 → 시스템 알림/전화, 또는 이탈 알림 보고 바로 온 것 → 이탈 아님
+          // ※예전엔 여기에 10000이 하드코딩돼 있어 화면 끄기 경로와 따로 놀았다.
+          //   이탈 기준은 위 모듈 상수 AWAY_MIN_MS 하나뿐이고, 그건 **첫 알림에서 파생**된다
+          //   (focusAway.awayMinMs — 안드 5+10=15초 / iOS 20+10=30초). 다시 숫자를 박지 말 것
+          if (awayMs < AWAY_MIN_MS) {
             setUltraFocus(prev => ({ ...prev, isAway: false, awayAt: null }));
             // 잠금화면이 표시 중일 때만 밝기/다크 재적용 (해제 상태에서는 집중탭 그대로 유지)
             if (screenLockedRef.current) applyFocusBrightness();
           } else {
-            // 10초 이상 → 진짜 이탈
+            // 기준 시간 이상 → 진짜 이탈
             const challenge = needsChallenge(level, awayMs);
             setUltraFocus(prev => ({
               ...prev, isAway: false, awayAt: null,
@@ -610,12 +895,13 @@ export function AppProvider({ children }) {
           if (screenLockedRef.current) applyFocusBrightness();
         }
 
-        // 백그라운드 복귀 시 countdown 알림 재예약 (elapsedSec 보정 후 기존 알림이 부정확할 수 있음)
+        // 백그라운드 복귀 시 countdown/자유(상한) 알림 재예약 (elapsedSec 보정 후 기존 알림이 부정확할 수 있음)
         if (gap > 1) {
           timersRef.current.filter(t => t.status === 'running' && t.type === 'countdown').forEach(t => {
             const remain = getRealRemainingSec(t);
             if (remain > 0) scheduleTimerNotif(t.id, t.label, remain);
           });
+          timersRef.current.filter(t => t.status === 'running' && t.type === 'free').forEach(t => scheduleCapNotif(t));
         }
 
         // 백그라운드 시간 보정 (모드 상관없이)
@@ -631,30 +917,14 @@ export function AppProvider({ children }) {
               const sessId = fireComplete(completedT, true);
               return { ...completedT, status: 'completed', result: calcResult(completedT, t.totalSec), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
-            if (t.type === 'pomodoro') {
-              let tt = { ...t, elapsedSec: e };
-              while (true) {
-                const target = pomoPhaseTargetSec(tt);
-                if (tt.elapsedSec >= target) {
-                  const leftover = tt.elapsedSec - target;
-                  tt = pomoFlip({ ...tt, elapsedSec: target }, true);
-                  tt = { ...tt, elapsedSec: leftover };
-                } else break;
-              }
-              return tt;
+            if (t.type === 'pomodoro' || t.type === 'sequence') {
+              return fastForwardPhases({ ...t, elapsedSec: e });
             }
-            if (t.type === 'sequence') {
-              let tt = { ...t, elapsedSec: e };
-              while (tt.status !== 'completed') {
-                const target = tt.seqPhase === 'work' ? tt.totalSec : tt.seqBreakSec;
-                if (tt.elapsedSec >= target) {
-                  const leftover = tt.elapsedSec - target;
-                  tt = seqFlip({ ...tt, elapsedSec: target }, true);
-                  if (tt.status === 'completed') break;
-                  tt = { ...tt, elapsedSec: leftover };
-                } else break;
-              }
-              return tt;
+            // 카운트업 상한(5시간): bg 중 도달 → 자유는 세션 기록(OS 알림은 상한 시각에 이미 발송), 랩은 조용히 종료
+            if ((t.type === 'free' || t.type === 'lap') && e >= COUNTUP_MAX_SEC) {
+              const capped = { ...t, elapsedSec: COUNTUP_MAX_SEC };
+              const sessId = t.type === 'free' ? fireComplete(capped, true) : null;
+              return { ...capped, status: 'completed', result: calcResult(capped, COUNTUP_MAX_SEC), ...(sessId ? { memoSessionId: sessId } : {}) };
             }
             return { ...t, elapsedSec: e };
           }));
@@ -664,10 +934,26 @@ export function AppProvider({ children }) {
         // (페이즈 전환 보정은 위 setTimers 이후 동기화 effect가 마저 갱신)
         const laTimerFg = timersRef.current.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
         if (laTimerFg) syncLiveActivity(laTimerFg, { darkMode: settingsRef.current.darkMode, accentColor: settingsRef.current.accentColor });
+        // 안드 상시 알림: 포그라운드 복귀 시 강제 재게시 — 사용자가 지웠거나(안드 14+)
+        // timeout으로 사라진 알림을 복구 (시그니처가 같아도 다시 게시)
+        if (laTimerFg) syncOngoingNotif(laTimerFg, { enabled: ongoingNotifEnabled(), force: true });
 
         // 포그라운드 복귀 시 리포트 알림 재예약 (최신 공부 데이터 반영)
         scheduleWeeklyReport();
         scheduleMonthlyReport();
+
+        // 스터디룸: bg 진입 시 onDisconnect가 서버에 'bg'(자리비움 가능)를 남김 —
+        // 복귀 즉시 시그니처 캐시를 비우고 현재 상태를 재전송해 표시를 되돌린다
+        if (settingsRef.current.studyRoomEnabled) {
+          forcePresenceResync();
+          const activeT = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+          const todayStr2 = getToday();
+          syncStudyRoomPresence(buildStudyPresence(activeT, {
+            todaySec: studyRoomTodaySec(sessionsRef.current, todayStr2), today: todayStr2,
+            focusMode: focusModeRef.current,
+            ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
+          }));
+        }
       }
     });
     return () => sub.remove();
@@ -697,6 +983,14 @@ export function AppProvider({ children }) {
     }
   }, [timers]);
 
+  // iOS 화면 잠금 감지 감시 on/off — 🔥모드 + 실행 중일 때만 (백그라운드 태스크를 세션 밖에서 안 쓰도록).
+  // 불리언이라 100ms 틱으로는 다시 실행되지 않는다.
+  const lockWatchOn = focusMode === 'screen_on' && timers.some(t => t.status === 'running');
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    setLockWatch(lockWatchOn);
+  }, [lockWatchOn]);
+
   // 챌린지 성공
   const dismissChallenge = useCallback(() => {
     setUltraFocus(prev => ({ ...prev, showChallenge: false, challengeAwayMs: 0 }));
@@ -707,6 +1001,8 @@ export function AppProvider({ children }) {
           scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
         } else if (t.type === 'pomodoro' || t.type === 'sequence') {
           scheduleAllPhaseNotifs(t);
+        } else if (t.type === 'free') {
+          scheduleCapNotif(t);
         }
       });
       setTimers(prev => prev.map(t => t.pausedByUltra && t.status === 'paused' ? { ...t, status: 'running', pausedByUltra: false, resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
@@ -727,7 +1023,7 @@ export function AppProvider({ children }) {
     setTimers(prev => prev.map(t => {
       if (t.status === 'running' || t.status === 'paused') {
         const sessId = fireComplete(t);
-        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec), gaveUp: true, ...(sessId ? { memoSessionId: sessId } : {}) };
+        return { ...t, status: 'completed', result: calcResult(t, t.elapsedSec, { seqPartial: true }), gaveUp: true, ...(sessId ? { memoSessionId: sessId } : {}) };
       }
       return t;
     }));
@@ -735,14 +1031,47 @@ export function AppProvider({ children }) {
   }, []);
 
   // 타이머 결과 계산 — 순수 계산은 timerCore.calcTimerResult, 여기서는 현재 모드/이탈 상태만 주입
-  const calcResult = (t, dur) => {
+  // opts.seqPartial: 연속모드를 완주 전에 끝낸 경우 — 진행 중이던 항목 하나만 결과에 반영
+  const calcResult = (t, dur, opts = {}) => {
     const mode = focusModeRef.current || 'screen_off';
     return calcTimerResult(t, dur, {
+      ...opts,
       focusMode: mode,
       exitCount: mode === 'screen_on' ? (ultraRef.current.exitCount || 0) : 0,
       schoolLevel: settingsRef.current?.schoolLevel || 'high',
       ultraFocusLevel: mode === 'screen_on' ? (settingsRef.current?.ultraFocusLevel || 'normal') : 'normal',
     });
+  };
+
+  // 계획 타이머의 결과 모달에 얹을 것 — 라벨(계획 이름)과 '계획 달성' 여부.
+  //
+  // ★2026-08-01 변경: 계획 타이머도 다른 타이머와 똑같이 5분 이상이면 항상 모달을 띄운다★
+  // 예전에는 **계획 목표의 80%에 도달했을 때만** 띄우고 그 계획의 오늘 세션 전부를
+  // `planSessionIds`로 묶어 자기평가를 일괄 적용했다. '계획 단위 평가'라는 나름의 설계였지만
+  // 실제로는 손해가 있었다(사용자 지적):
+  //  · 목표 60분 계획에서 40분(66%)을 공부하면 **모달이 아예 안 뜬다** → 자기평가를 못 해
+  //    밀도 보너스(최대 +3)를 못 받고 점수가 낮게 굳는다. 같은 40분을 계획 없이 돌리면 뜬다
+  //  · 계획을 절반만 하고 끝낸 날은 그 계획의 어떤 세션도 영영 평가받지 못한다
+  //  · 묶음이라 시간 수정도 막혀 있었다(ResultModal의 canEditTime은 sessionId가 있을 때만)
+  // 이제 세션 단위(sessionId 단일)로 넘기므로 시간 수정·개별 삭제도 된다.
+  // 80%는 '계획 달성' **축하 문구**에만 쓴다 — 집중탭 계획 카드·위젯의 완료 기준과 같은 값이다.
+  // ※묶음 일괄 평가를 버린 이유: 쪼개 돌리면 이미 평가한 세션을 매번 덮어쓰고,
+  //   '기록 삭제'가 이전 세션까지 지운다. 각 세션이 자기 평가를 갖는 게 밀도 계산과도 맞다
+  const PLAN_ACHIEVED_RATIO = 0.8;
+  const planResultExtras = (t, durationSec) => {
+    if (!t.planId || t.todoId) return { label: t.label };
+    const ws = weeklyScheduleRef.current;
+    const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+    const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
+    if (!plan) return { label: t.label };
+    const today = getToday();
+    const prevDoneSec = sessionsRef.current
+      .filter(s => s.date === today && s.planId === t.planId)
+      .reduce((sum, s) => sum + s.durationSec, 0);
+    return {
+      label: plan.label || t.label,
+      planAchieved: prevDoneSec + durationSec >= plan.targetMin * 60 * PLAN_ACHIEVED_RATIO,
+    };
   };
 
   // 뽀모도로 페이즈 전환 — 순수 계산은 timerCore.pomoFlipCore, 여기서는 부수효과(세션 기록/진동)만
@@ -822,14 +1151,46 @@ export function AppProvider({ children }) {
     return core.next;
   };
 
+  // bg 복귀·콜드스타트 복원 공용: 경과가 페이즈 목표를 넘긴 running 뽀모/연속을
+  // 지난 페이즈만큼 전진 (중간 세션 기록 포함, 진동/즉시알림 스킵 — OS 예약분이 이미 발송됨).
+  // 호출 전 elapsedSec에 벽시계 보정값을 넣을 것. 그 외 타입은 그대로 반환
+  const fastForwardPhases = (t) => {
+    if (t.type === 'pomodoro') {
+      let tt = t;
+      while (true) {
+        const target = pomoPhaseTargetSec(tt);
+        if (tt.elapsedSec < target) break;
+        const leftover = tt.elapsedSec - target;
+        tt = pomoFlip({ ...tt, elapsedSec: target }, true);
+        tt = { ...tt, elapsedSec: leftover };
+      }
+      return tt;
+    }
+    if (t.type === 'sequence') {
+      let tt = t;
+      while (tt.status !== 'completed') {
+        const target = tt.seqPhase === 'work' ? tt.totalSec : tt.seqBreakSec;
+        if (tt.elapsedSec < target) break;
+        const leftover = tt.elapsedSec - target;
+        tt = seqFlip({ ...tt, elapsedSec: target }, true);
+        if (tt.status === 'completed') break;
+        tt = { ...tt, elapsedSec: leftover };
+      }
+      return tt;
+    }
+    return t;
+  };
+
   const fireComplete = (t, skipNotif = false) => {
     // 자연 완료(카운트다운 목표 도달): 시작 시 예약한 OS 완료 알림·시험모드 진동 알람·위젯
     // 갱신 알람이 정확히 이 시각에 발화하도록 설계돼 있고, 취소/즉시발송은 발화와의 레이스를
     // 이길 수 없어 중복 알림이 떴다(같은 identifier 교체도 실기기에서 미동작 재현).
     // → 자연 완료는 아무것도 취소하지 않고 즉시 알림도 쏘지 않는다.
     //   완료 알림은 예약분이 단일 소스(뽀모도로 페이즈 알림과 동일 설계).
-    // 중도 종료(포기 등)·자유/랩 타이머는 기존대로: 예약분 취소(알람이 멀어 확실히 취소됨) + 즉시 알림.
-    const naturalEnd = t.type === 'countdown' && t.totalSec > 0 && t.elapsedSec >= t.totalSec;
+    // 중도 종료(포기 등)·상한 전 자유/랩 타이머는 기존대로: 예약분 취소(알람이 멀어 확실히 취소됨) + 즉시 알림.
+    // 자유 타이머 상한(5시간) 도달도 자연 완료 — 시작/재개 시 상한 시각에 예약해 둔 알림이 단일 소스.
+    const naturalEnd = (t.type === 'countdown' && t.totalSec > 0 && t.elapsedSec >= t.totalSec)
+      || (t.type === 'free' && t.elapsedSec >= COUNTUP_MAX_SEC);
     if (!naturalEnd) cancelTimerNotif(t.id);
     const mode = focusModeRef.current || 'screen_off';
     const ufState = ultraRef.current;
@@ -875,24 +1236,13 @@ export function AppProvider({ children }) {
       if (t.type !== 'sequence') {
         const result = calcResult(t, realDurationSec);
         const durationSec = realDurationSec;
-        if (t.planId) {
-          const ws = weeklyScheduleRef.current;
-          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
-          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
-          if (plan) {
-            const today = getToday();
-            const prevDoneSec = sessionsRef.current
-              .filter(s => s.date === today && s.planId === t.planId)
-              .reduce((sum, s) => sum + s.durationSec, 0);
-            if (prevDoneSec + durationSec >= plan.targetMin * 60 * 0.8) {
-              const prevSessIds = sessionsRef.current
-                .filter(s => s.date === today && s.planId === t.planId)
-                .map(s => s.id);
-              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
-            }
-          }
-        } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
+        // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 80% 게이트를 건너뛰고 할일 결과 모달을 띄운다
+        // — 세션은 이미 planId로 계획 진행에 반영되지만, 자기평가·완료토글·시간수정 UX는 할일 것을 유지.
+        if (durationSec >= RESULT_MODAL_MIN_SEC) {
+          setCompletedResultData({
+            timerId: t.id, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null,
+            ...planResultExtras(t, durationSec),
+          });
         }
       }
       return sessId;
@@ -920,19 +1270,37 @@ export function AppProvider({ children }) {
   // 취소 세대 카운터 — 예약(await) 진행 중에 복귀(취소)가 끼어들면, 그 뒤에 완료된 예약을
   // 즉시 취소한다 (안 그러면 취소를 비껴간 넛지가 복귀 후 앱 사용 중에 발송됨)
   const awayNudgeCancelGen = useRef(0);
-  const scheduleAwayNudges = async (charName) => {
-    if (!settingsRef.current.notifEnabled) return;
-    const gen = awayNudgeCancelGen.current;
-    // countdown이 곧 끝나면 그 이후 넛지는 예약하지 않음 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
+  // 이탈 알림 문구 — JS 예약(scheduleAwayNudges)과 네이티브 감시(armAwayWatch)가 같은 문구를
+  // 쓰도록 단일 출처로 둔다. 한쪽만 고치면 경로에 따라 다른 말이 나온다
+  const awayFirstNotif = (charName) => ({ title: `${charName}랑 같이 열공하자!`, body: '타이머가 돌아가고 있어~' });
+  const awayNudgeSteps = (charName) => ([
+    { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
+    { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
+    { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
+    { sec: 300, title: '이탈 5분째', body: '오늘 목표를 잊지 않았죠? 지금 돌아오면 충분해요!' },
+  ]);
+  // countdown이 곧 끝나면 그 이후 알림은 보내지 않는다 (완료 알림 뒤 '타이머 진행 중' 거짓 문구 방지)
+  const awayNotifLimitSec = () => {
     const cdRemains = timersRef.current
       .filter(t => t.status === 'running' && t.type === 'countdown')
       .map(t => getRealRemainingSec(t));
-    const limitSec = cdRemains.length ? Math.min(...cdRemains) : Infinity;
+    return cdRemains.length ? Math.min(...cdRemains) : Infinity;
+  };
+  // firstDelaySec: 즉시 띄우던 첫 이탈 알림을 이만큼 뒤 예약으로 돌린다
+  // (iOS는 잠금 판별 대기 20초, 안드는 순간 전환을 걸러낼 최소값 5초).
+  // 별도 예약이 아니라 이 목록의 맨 앞 항목으로 넣어야 countdown 잔여시간 가드와
+  // 취소 세대 가드를 똑같이 받는다
+  // offsetSec: 목록 전체를 뒤로 민다 (휴식 페이즈 — 이탈이 될 수 없는 구간엔 울리지 않는다).
+  //   ★identifier는 원래 초를 유지해야 한다★ — `away-nudge-${sec}`는 focusAway.AWAY_NOTIF_IDS와
+  //   Swift 쪽 취소 목록의 단일 출처라, 밀린 초로 id를 만들면 복귀 시 취소도 iOS 네이티브
+  //   취소도 빗나가 유령 알림이 남는다
+  const scheduleAwayNudges = async (charName, { firstDelaySec = 0, offsetSec = 0 } = {}) => {
+    if (!settingsRef.current.notifEnabled) return;
+    const gen = awayNudgeCancelGen.current;
+    const limitSec = awayNotifLimitSec();
     const NUDGES = [
-      { sec: 30, title: '아직 집중 시간이에요', body: `${charName}가 기다리고 있어요. 타이머는 계속 가는 중!` },
-      { sec: 60, title: '이탈 1분째', body: '집중이 끊기고 있어요. 얼른 돌아와요!' },
-      { sec: 180, title: '이탈 3분째', body: '집중밀도가 떨어지고 있어요. 다시 시작해요!' },
-      { sec: 300, title: '이탈 5분째', body: '오늘 목표를 잊지 않았죠? 지금 돌아오면 충분해요!' },
+      ...(firstDelaySec > 0 ? [{ sec: firstDelaySec, id: AWAY_NOW_ID, ...awayFirstNotif(charName) }] : []),
+      ...awayNudgeSteps(charName).map(n => ({ ...n, id: `away-nudge-${n.sec}`, sec: n.sec + offsetSec })),
     ];
     for (const n of NUDGES) {
       if (n.sec >= limitSec) break;
@@ -942,7 +1310,7 @@ export function AppProvider({ children }) {
           : { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: n.sec };
         const id = await Notifications.scheduleNotificationAsync({
           // 고정 identifier: 리마운트로 id 목록이 유실돼도 재이탈 시 대체 + 복귀 시 항상 취소 가능
-          identifier: `away-nudge-${n.sec}`,
+          identifier: n.id || `away-nudge-${n.sec}`,
           content: {
             title: n.title, body: n.body, sound: 'default',
             // iOS: 방해금지/집중모드도 뚫는 Time Sensitive (entitlement 필요 — app.config.js)
@@ -962,13 +1330,20 @@ export function AppProvider({ children }) {
   const cancelAwayNudges = () => {
     awayNudgeCancelGen.current++;
     // 고정 identifier 전체를 취소 — 리마운트로 세션이 바뀌어도 이전 세션의 넛지까지 정리됨
-    [30, 60, 180, 300].forEach(sec => { Notifications.cancelScheduledNotificationAsync(`away-nudge-${sec}`).catch(() => {}); });
+    // (iOS 지연 이탈 알림 away-now 포함 — 발송 전에 돌아왔으면 취소)
+    // 이미 발송된 건 예약 취소로 안 사라지므로 트레이에서도 함께 내린다
+    AWAY_NOTIF_IDS.forEach(id => {
+      Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      Notifications.dismissNotificationAsync(id).catch(() => {});
+    });
   };
 
   // 안드로이드: 이탈 중 상시(sticky) 상태 알림 — iOS Live Activity '이탈 중' 표시의 안드 대응물.
   // 스와이프로 지울 수 없고, 복귀하면 코드로 제거한다. 탭하면 앱이 열린다.
   const awayStickyCancelGen = useRef(0);
-  const presentAwaySticky = async () => {
+  // delaySec > 0: 아직 이탈로 확정되지 않은 배경 전환 — 첫 이탈 알림과 같은 시점으로 미뤄 둔다
+  // (몇 초 만에 돌아오는 전환에 '집중 이탈 중'이 잠깐 떴다 사라지는 것 방지)
+  const presentAwaySticky = async (delaySec = 0) => {
     if (Platform.OS !== 'android' || !settingsRef.current.notifEnabled) return;
     const gen = awayStickyCancelGen.current;
     try {
@@ -980,7 +1355,9 @@ export function AppProvider({ children }) {
           sticky: true,
           channelId: 'focus-status',
         },
-        trigger: null,
+        trigger: delaySec > 0
+          ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + delaySec * 1000), channelId: 'focus-status' }
+          : null,
       });
       if (awayStickyCancelGen.current !== gen) {
         // 게시 도중 복귀함 → sticky가 영구히 남지 않도록 즉시 제거
@@ -991,6 +1368,8 @@ export function AppProvider({ children }) {
   const dismissAwaySticky = () => {
     awayStickyCancelGen.current++;
     // 고정 identifier로 제거 — 리마운트로 세션이 바뀌어도 sticky가 영구히 남지 않음
+    // (지연 게시분은 아직 예약 상태일 수 있어 예약 취소도 함께)
+    Notifications.cancelScheduledNotificationAsync('away-sticky').catch(() => {});
     Notifications.dismissNotificationAsync('away-sticky').catch(() => {});
   };
 
@@ -1044,6 +1423,14 @@ export function AppProvider({ children }) {
         if (!prev.includes(aid)) lockAlarmIds.current.set(timerId, [...prev, aid]);
       }
     } catch {}
+  };
+
+  // 자유(카운트업) 타이머 상한(5시간) 도달 알림 — 카운트다운 완료 예약과 같은 identifier
+  // 체계(complete-{id})라 취소/교체/위젯 갱신 알람을 그대로 탄다. 랩은 세션을 기록하지
+  // 않으므로 알림 없이 틱/복귀 경로에서 조용히 종료된다.
+  const scheduleCapNotif = (t) => {
+    const remain = getRealRemainingSec(t);
+    if (remain > 0) scheduleTimerNotif(t.id, t.label, remain, `${t.label} 자동 종료`, '5시간 연속 기록! 여기까지 저장하고 타이머를 종료했어요');
   };
 
   // OS 예약 저장소에서 이 타이머의 알림을 태그(content.data)로 찾아 일괄 취소.
@@ -1521,27 +1908,16 @@ export function AppProvider({ children }) {
       };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, t.totalSec);
       else if (t.type === 'pomodoro') scheduleAllPhaseNotifs(t);
+      else if (t.type === 'free') scheduleCapNotif(t);
       setTimers(prev => [...prev, t]);
       showToast('start');
     };
 
-    // 모드 미선택 시 잠금강도별 자동 진입
-    if (!focusModeRef.current) {
-      const level = settingsRef.current.ultraFocusLevel || 'normal';
-      if (level === 'exam') {
-        activateScreenOnMode();
-        setTimeout(doStart, 50);
-      } else if (level === 'normal') {
-        activateScreenOffMode();
-        setTimeout(doStart, 50);
-      } else {
-        setPendingModeAction(() => doStart);
-      }
-    } else {
-      doStart();
-    }
+    // 모드 미선택이면 3지 선택 팝업 (requestModeSelect와 같은 규칙 — 세션당 1회)
+    if (!focusModeRef.current) setPendingModeAction(() => doStart);
+    else doStart();
     return null;
-  }, [activateScreenOnMode, activateScreenOffMode]);
+  }, []);
 
   const startFromPlan = useCallback((plan) => {
     const today = getToday();
@@ -1565,9 +1941,9 @@ export function AppProvider({ children }) {
   }, [addTimer]);
 
   const pauseTimer = useCallback((id) => {
-    // 울트라집중: 일시정지 차단
+    // 울트라모드: 일시정지 차단
     if (settingsRef.current.ultraFocusLevel === 'exam' && focusModeRef.current === 'screen_on') {
-      showToastCustom('울트라집중 모드에서는 일시정지할 수 없어요!', 'toru');
+      showToastCustom('울트라모드에서는 일시정지할 수 없어요!', 'toru');
       return;
     }
     cancelTimerNotif(id); // 예약 알림 취소
@@ -1581,13 +1957,32 @@ export function AppProvider({ children }) {
         scheduleTimerNotif(id, t.label, getRealRemainingSec(t));
       } else if (t.type === 'pomodoro' || t.type === 'sequence') {
         scheduleAllPhaseNotifs(t);
+      } else if (t.type === 'free') {
+        scheduleCapNotif(t);
       }
     }
     setTimers(prev => prev.map(t => t.id === id && t.status === 'paused' ? { ...t, status: 'running', resumedAt: Date.now(), elapsedSecAtResume: t.elapsedSec } : t));
   }, []);
 
+  // 결과 모달이 뜨지 않는 종료(5분 미만·휴식 페이즈)에는 아무 피드백도 없었다 (2026-08-04 제보).
+  // 완료 카드('5분 미만 · 통계에 저장되지 않아요')를 그리던 `FocusScreen.renderTimer`가
+  // 타이머 뷰 개편 때 호출부를 잃어 지금은 미사용이라, 화면에서 타이머만 조용히 사라진다.
+  // 카드를 되살리는 건 별도 판단이고, 최소한 '왜 기록이 안 됐는지'는 알려준다.
+  // ※판정은 timersRef(틱 캐시 ≤100ms)의 벽시계 경과 — 아래 setTimers 업데이터가 쓰는 값보다
+  //   같거나 크므로, '미기록' 안내가 실제로는 기록된 세션에 뜨는 일은 없다
+  const stopFeedbackToast = (t) => {
+    if (!t || t.type === 'lap' || t.status === 'completed') return;
+    const inBreak = (t.type === 'pomodoro' && t.pomoPhase !== 'work') || (t.type === 'sequence' && t.seqPhase !== 'work');
+    if (inBreak) { showToastCustom('휴식을 끝냈어요 · 휴식 시간은 기록하지 않아요', 'toru'); return; }
+    const el = wallElapsedSec(t, Date.now());
+    const minRec = (t.planId || t.todoId) ? 30 : 300; // 불변식 7
+    if (el < minRec) showToastCustom(`${formatDuration(el)} · ${minRec === 30 ? '30초' : '5분'} 미만이라 기록되지 않았어요`, 'paengi');
+    else if (el < RESULT_MODAL_MIN_SEC) showToastCustom(`${formatDuration(el)} 기록했어요`, 'toru');
+  };
+
   const stopTimer = useCallback((id) => {
     cancelTimerNotif(id);
+    stopFeedbackToast(timersRef.current.find(t => t.id === id));
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
       // 휴식 페이즈 중 중지 → 휴식 시간을 공부 세션으로 기록하지 않음 (work 페이즈는 flip 시 이미 기록됨)
@@ -1598,32 +1993,18 @@ export function AppProvider({ children }) {
         // 연속모드는 항목 기준 카운트다운으로 기록 (seqFlip/cancelSequence와 동일 규칙 — 밀도 공식·통계 라벨 일관)
         const recType = t.type === 'sequence' ? 'countdown' : t.type;
         const sessId = recordSessionInternal({ subjectId: t.subjectId, label: t.label, startedAt: t.startedAt, durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount, focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0, timerType: recType, completionRatio: recType === 'countdown' ? Math.min(1, t.elapsedSec / Math.max(1, t.totalSec)) : 1, pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null, dedupeKey: `complete|${t.id}|${t.startedAt}` });
-        const result = calcResult(t, t.elapsedSec);
+        const result = calcResult(t, t.elapsedSec, { seqPartial: true });
         // 완료 결과 모달 트리거 (랩 제외)
-        if (t.planId) {
-          const ws = weeklyScheduleRef.current;
-          const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
-          const plan = ws?.[dayKey]?.plans?.find(p => p.id === t.planId);
-          if (plan) {
-            const today = getToday();
-            const prevDoneSec = sessionsRef.current
-              .filter(s => s.date === today && s.planId === t.planId)
-              .reduce((sum, s) => sum + s.durationSec, 0);
-            if (prevDoneSec + t.elapsedSec >= plan.targetMin * 60 * 0.8) {
-              const prevSessIds = sessionsRef.current
-                .filter(s => s.date === today && s.planId === t.planId)
-                .map(s => s.id);
-              setCompletedResultData({ timerId: t.id, label: plan.label || t.label, result, isSeq: false, planSessionIds: [...prevSessIds, sessId] });
-            }
-          } else {
-            setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
-          }
-        } else {
-          setCompletedResultData({ timerId: t.id, label: t.label, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null });
+        // 할일 타이머(todoId)는 planId가 주입돼 있어도 계획 게이트를 건너뛰고 할일 결과 모달을 띄운다 (위 stop 경로와 동일 규칙)
+        if (t.elapsedSec >= RESULT_MODAL_MIN_SEC) {
+          setCompletedResultData({
+            timerId: t.id, result, isSeq: false, sessionId: sessId, todoId: t.todoId || null,
+            ...planResultExtras(t, t.elapsedSec),
+          });
         }
         return { ...t, status: 'completed', result, memoSessionId: sessId };
       }
-      return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec) };
+      return { ...t, status: 'completed', result: t.result || calcResult(t, t.elapsedSec, { seqPartial: true }) };
     }));
   }, []);
 
@@ -1641,6 +2022,7 @@ export function AppProvider({ children }) {
       const restarted = { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) };
       if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(id, t.label, t.totalSec);
       else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(restarted);
+      else if (t.type === 'free') scheduleCapNotif(restarted);
     }
     setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsedSec: 0, status: 'running', pauseCount: 0, pomoPhase: 'work', pomoSet: 0, result: null, laps: [], startedAt: now, resumedAt: now, elapsedSecAtResume: 0, ...seqResetFields(t) } : t));
     showToast('start');
@@ -1696,6 +2078,17 @@ export function AppProvider({ children }) {
       try { s.remove(); } catch {}
     }
   };
+
+  // 녹음 중 집중 사운드 잠시 멈추기 (오답노트 음성 메모).
+  // iOS는 녹음을 시작하면 오디오 세션 카테고리가 바뀌어 재생이 죽거나 녹음에 백색소음이
+  // 섞여 들어간다. settings.activeSounds는 건드리지 않는다 — 사용자의 선택을 지워버리면
+  // 녹음이 끝난 뒤 되돌릴 수가 없다(저장까지 되어 영구 손실)
+  const suspendSounds = useCallback(() => {
+    Object.values(soundRefsMap.current).forEach(s => { try { s.pause(); } catch {} });
+  }, []);
+  const resumeSounds = useCallback(() => {
+    Object.values(soundRefsMap.current).forEach(s => { try { s.play(); } catch {} });
+  }, []);
 
   // activeSounds 변경 시 — 추가/제거 diff 처리
   useEffect(() => {
@@ -1771,7 +2164,7 @@ export function AppProvider({ children }) {
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
-      let [s, subj, sess, dd, td, cuf, fv, tl] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog()]);
+      let [s, subj, sess, dd, td, cuf, fv, tl, rn] = await Promise.all([loadSettings(), loadSubjects(), loadSessions(), loadDDays(), loadTodos(), loadCountupFavs(), loadFavs(), loadTodoLog(), loadReviewNotes()]);
       // 형태 방어: 손상된 저장값(비배열 등)이 있으면 그 키만 무시 — .filter/.map 크래시로 앱이 먹통되는 것 방지
       if (s && (typeof s !== 'object' || Array.isArray(s))) s = null;
       if (!Array.isArray(subj)) subj = null;
@@ -1781,6 +2174,7 @@ export function AppProvider({ children }) {
       if (cuf && !Array.isArray(cuf)) cuf = null;
       if (!Array.isArray(fv)) fv = null;
       if (Array.isArray(tl)) setTodoLog(tl);
+      if (Array.isArray(rn)) setReviewNotes(rn);
       if (s) {
         // 마이그레이션
         if (s.ultraFocusStrict !== undefined && !s.ultraFocusLevel) {
@@ -1788,6 +2182,13 @@ export function AppProvider({ children }) {
           delete s.ultraFocusStrict;
         }
         if (s.ultraFocusEnabled !== undefined) delete s.ultraFocusEnabled;
+        // 모드 선택 팝업 도입(2026-07-29): 기존 사용자는 온보딩에 선택 단계가 없어 저장값이
+        // 'normal'인 사람이 대부분인데, 이는 의도적 선택이 아니라 손대지 않은 기본값이다.
+        // 1회만 'focus'로 올려 팝업의 기본 선택이 '집중'이 되게 한다 (exam은 의도적 선택이라 유지).
+        if (!s.modeAskIntro) {
+          if (!s.ultraFocusLevel || s.ultraFocusLevel === 'normal') s.ultraFocusLevel = 'focus';
+          s.modeAskIntro = true;
+        }
         // schoolLevel 마이그레이션: 'elementary' → 'elementary_upper'
         if (s.schoolLevel === 'elementary') s.schoolLevel = 'elementary_upper';
         // soundId → activeSounds 마이그레이션
@@ -1831,6 +2232,11 @@ export function AppProvider({ children }) {
           migrated = [...migrated].sort((a, b) => (pOrd[a.priority] ?? 1) - (pOrd[b.priority] ?? 1));
           setSettings(prev => ({ ...prev, todoOrderMigrated: true }));
         }
+        // 고아 시험 할일 청소 (자가 치유): 과거 removeDDay가 exam 할일을 안 지워
+        // 삭제된 시험의 할일이 잔존 — 기한 지난 것은 오늘 목록에 유령으로 계속 표시됐음
+        const sweep = sweepOrphanExamTodos(migrated, dd);
+        migrated = sweep.todos;
+        const orphanSwept = sweep.swept;
         // 일일 리셋 파이프라인 (규칙/구현: todoUtils.applyDailyTodoReset, 테스트 有)
         // — 지난날 반복 인스턴스 정리 + (날 바뀌었으면) 완료 항목 리셋 + 오늘 반복 인스턴스 생성
         const needsReset = mergedSettings.lastTodoResetDate !== today;
@@ -1839,7 +2245,7 @@ export function AppProvider({ children }) {
         if (needsReset) {
           await saveTodos(finalTodos); // 크래시 대비 즉시 저장
           setSettings(prev => ({ ...prev, lastTodoResetDate: today }));
-        } else if (changed) {
+        } else if (changed || orphanSwept) {
           // 같은 날 재실행의 자가 치유(지난날 중복 정리 등)도 즉시 저장
           await saveTodos(finalTodos);
         }
@@ -1880,30 +2286,29 @@ export function AppProvider({ children }) {
         const activeTimers = snapshot.timers.filter(t => t.status === 'running' || t.status === 'paused');
         if (activeTimers.length > 0) {
           const now = Date.now();
+          // 분기 결정은 timerCore.restoreTimerCore(순수, 테스트 有) — 여기선 부수효과만 수행
           const restored = activeTimers.map(t => {
-            const addedSec = t.status === 'running' ? gap : 0;
-            const newElapsed = t.elapsedSec + addedSec;
-            if (t.type === 'countdown') {
-              const e = Math.min(newElapsed, t.totalSec);
-              // 앱이 꺼져 있는 동안 완료된 카운트다운: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실)
-              if (e >= t.totalSec) {
-                if (t.totalSec >= 300 || ((t.planId || t.todoId) && t.totalSec >= 30)) {
-                  recordSessionInternal({
-                    subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
-                    durationSec: t.totalSec, mode: 'countdown', pauseCount: t.pauseCount || 0,
-                    focusMode: 'screen_off', exitCount: 0, timerType: 'countdown',
-                    completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
-                  });
-                  showToastCustom(`${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
-                }
-                return null;
+            const plan = restoreTimerCore(t, gap, now);
+            if (plan.kind === 'complete') {
+              // 앱이 꺼져 있는 동안 목표/상한 도달: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실).
+              // 완료 직후~스냅샷 정리 사이에 죽은 경우는 영속 dedupe로 재기록 방지 (불변식 3)
+              if (plan.record) {
+                recordSessionInternal({
+                  subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
+                  durationSec: plan.durationSec, mode: plan.timerType, pauseCount: t.pauseCount || 0,
+                  focusMode: 'screen_off', exitCount: 0, timerType: plan.timerType,
+                  completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
+                  dedupeKey: `complete|${t.id}|${t.startedAt}`,
+                });
+                showToastCustom(plan.capped
+                  ? `${t.label} 5시간 자동 종료! 공부 기록을 저장했어요`
+                  : `${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
               }
-              // 실행 중이었으면 running 유지 (resumedAt 갱신)
-              if (t.status === 'running') return { ...t, elapsedSec: e, status: 'running', resumedAt: now, elapsedSecAtResume: e };
-              return { ...t, elapsedSec: e, status: 'paused', resumedAt: null, elapsedSecAtResume: e };
+              return null;
             }
-            if (t.status === 'running') return { ...t, elapsedSec: newElapsed, status: 'running', resumedAt: now, elapsedSecAtResume: newElapsed };
-            return { ...t, elapsedSec: newElapsed, status: 'paused', resumedAt: null, elapsedSecAtResume: newElapsed };
+            // 뽀모/연속: 죽어 있던 동안 지난 페이즈를 전진 (중간 세트 세션 기록 포함)
+            if (plan.kind === 'fastforward') return fastForwardPhases(plan.timer);
+            return plan.timer; // 'resume' | 'pause'
           }).filter(Boolean);
           setTimers(restored);
           // running으로 복원된 타이머 알림 재예약
@@ -1911,6 +2316,7 @@ export function AppProvider({ children }) {
             if (t.status !== 'running') return;
             if (t.type === 'countdown' && t.totalSec > 0) scheduleTimerNotif(t.id, t.label, getRealRemainingSec(t));
             else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(t);
+            else if (t.type === 'free') scheduleCapNotif(t);
           });
         }
         await clearTimerSnapshot();
@@ -1939,8 +2345,21 @@ export function AppProvider({ children }) {
         saveTodos(todos); saveTodoLog(todoLog);
       }
       saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
+      saveReviewNotes(reviewNotes);
     }, 500);
-  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, loading]);
+  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, reviewNotes, loading]);
+
+  // 백업 넛지 — 로드 완료 후 1회 판정 (기록 20세션+, 마지막 백업/넛지에서 30일 경과 시 토스트)
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      if (shouldNudgeBackup(sessions.length, settings)) {
+        showToastCustom('공부 기록이 오래 백업되지 않았어요. 설정 > 데이터 백업 추천!', settings.mainCharacter || 'toru');
+        setSettings(prev => ({ ...prev, lastBackupNudgeAt: Date.now() }));
+      }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   // 홈 화면 위젯 갱신(Android/iOS 공통) — 위젯이 읽는 데이터(세션/과목/D-Day/설정) 변경 시.
   // Android는 AsyncStorage를 직접 읽고, iOS는 App Group에 스냅샷을 기록하므로
@@ -1963,13 +2382,135 @@ export function AppProvider({ children }) {
     }, 900);
   }, [sessions, subjects, ddays, settings, todos, widgetTimerSig, loading]);
 
+  // 안드 상시 타이머 알림 사용 여부 — 알림 전체 허용 + 상시 알림 토글(기본 켬)
+  const ongoingNotifEnabled = () => !!settingsRef.current.notifEnabled && settingsRef.current.timerOngoingNotif !== false;
+
   // Live Activity 동기화 (iOS 잠금화면/Dynamic Island) — 활성 타이머 1개 기준
   // elapsedSec 틱은 시그니처에서 제외되므로 상태 변화 시에만 네이티브 호출 발생
+  // 안드: 같은 트리거로 상시 알림(chronometer) 동기화 — 상단바/잠금화면에서 흐르는 시간 확인
   useEffect(() => {
     if (loading) return;
     const active = timers.find(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused')) || null;
     syncLiveActivity(active, { darkMode: settings.darkMode, accentColor: settings.accentColor });
-  }, [timers, loading, settings.darkMode, settings.accentColor]);
+    syncOngoingNotif(active, { enabled: ongoingNotifEnabled() });
+  }, [timers, loading, settings.darkMode, settings.accentColor, settings.notifEnabled, settings.timerOngoingNotif]);
+
+  // 스터디룸 presence 동기화 — 타이머 상태 시그니처/세션(오늘 누적) 변화 시에만.
+  // 초당 쓰기 금지(설계 8): elapsed 틱 제외, 모듈 내부 presenceSig 중복 가드가 재전송도 차단.
+  // studyRoomEnabled를 켠 유저만 네트워크 사용 — 미사용자는 완전 로컬 유지
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) return;
+    const h = setTimeout(() => {
+      const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+      const today = getToday();
+      syncStudyRoomPresence(buildStudyPresence(active, {
+        todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
+        focusMode: focusModeRef.current,
+        ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
+      }));
+    }, 1000);
+    return () => clearTimeout(h);
+  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, focusMode, loading]);
+
+  // 스터디룸 하트비트 — 자유/뽀모처럼 끝이 정해지지 않은 타이머의 장시간 공부 유지.
+  // 안드는 타이머 실행 중 포그라운드 서비스가 JS를 살려둬 백그라운드에서도 동작 (10분 간격 소량 쓰기)
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) return;
+    const iv = setInterval(() => {
+      const running = timersRef.current.some(t => t.type !== 'lap' && t.status === 'running');
+      if (running) heartbeatPresence();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [settings.studyRoomEnabled, loading]);
+
+  // '우리 방 N명 집중 중' 구독 — 방 화면을 닫아도 방의 집중 인원을 집중탭/잠금 오버레이에 표시.
+  // 켠 유저만 리스너 1개. 스테일(60분 신뢰창) 판정이 시간에 따라 바뀌므로 30초마다 재계산.
+  useEffect(() => {
+    if (loading || !settings.studyRoomEnabled) { setRoomStudyingCount(0); setRoomFocusActive(false); return; }
+    let unsub = null;
+    let unsubFs = null;    // 다같이 집중 세션 (방 밖 인지)
+    let unsubCheer = null; // 내가 받은 응원 (토스트)
+    let lastStatus = null;
+    let lastFs = null;
+    let alive = true;
+    const recompute = () => {
+      const myUid = getMyStudyRoomUid();
+      const now = Date.now();
+      const today = getToday();
+      let n = 0;
+      Object.entries(lastStatus || {}).forEach(([uid, st]) => {
+        if (uid === myUid) return; // 나는 제외 — '나 말고 함께 집중 중인 사람'
+        if (studyRoomDisplayStatus(st, { nowMs: now, today }).studying) n += 1;
+      });
+      if (alive) setRoomStudyingCount(n);
+      // 진행 중 판정은 시간이 지나면 스스로 바뀌므로 15초 재계산에 함께 태운다
+      // (pill은 '진행 중' 정적 표기 — 남은 시간 라이브 카운트는 방 화면 몫, 초당 리렌더 회피)
+      if (alive) setRoomFocusActive(!!studyFocusSessionView(lastFs, now).active);
+    };
+    // 콜드스타트 레이스(auth/네트워크 준비 전 roomId null)나 이 세션 뒤늦은 입장에도 붙도록
+    // 구독될 때까지 재시도. 캐시(cachedRoomId) 우선 — 무방 유저가 15초마다 서버 get 하지 않게.
+    let subRoomId = null; // 현재 구독 중인 방
+    const trySubscribe = async () => {
+      if (!alive || unsub) return;
+      const cached = getCachedStudyRoomId();
+      const roomId = cached !== undefined ? cached : await fetchMyStudyRoomId();
+      if (!alive || unsub || !roomId) return;
+      subRoomId = roomId;
+      unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
+      // 다같이 집중 — 방 밖에서도 인지 (라운지는 B 자체가 미노출이라 구독하지 않음)
+      if (!isStudyLoungeCode(roomId)) {
+        unsubFs = subscribeStudyFocusSession(roomId, (fs) => {
+          lastFs = fs;
+          // 새 세션 시작 알림 — 남이 시작했고 2분 이내인 것만 1회 (재구독/재시작 시 중복 방지)
+          const startedAt = fs?.startedAt || 0;
+          if (startedAt && startedAt !== lastFsToastRef.current
+              && fs.by !== getMyStudyRoomUid() && (Date.now() - startedAt) < 2 * 60 * 1000) {
+            lastFsToastRef.current = startedAt;
+            showToastCustom(`${fs.byNick || '누군가'}님이 다같이 집중 ${fs.durationMin}분을 시작했어요`, 'toru');
+          }
+          recompute();
+        });
+      }
+      // 받은 응원 토스트 — 공부 중(방 화면 밖)에 받아야 의미가 있다
+      unsubCheer = subscribeStudyMyCheers(roomId, (node) => {
+        const v = studyCheerView(node, Date.now());
+        // 첫 스냅샷은 기준값만 잡고 침묵 (앱 켤 때마다 옛 응원이 다시 뜨는 것 방지).
+        // '기준 잡힘'은 별도 플래그로 — latestAt만 보면 응원 0건으로 시작한 방에서
+        // 정작 받은 첫 응원이 침묵 처리된다
+        if (!cheerReadyRef.current) {
+          cheerReadyRef.current = true;
+          lastCheerAtRef.current = v.latestAt || 0;
+          return;
+        }
+        if (v.latestAt > lastCheerAtRef.current) {
+          lastCheerAtRef.current = v.latestAt;
+          // 익명 — 보낸 사람을 밝히지 않는다 (누군지 남으면 아는 사이끼리만 주고받게 됨)
+          showToastCustom('같은 방 누군가가 응원을 보냈어요!', 'paengi');
+        }
+      });
+    };
+    const dropSubs = () => {
+      if (unsub) { unsub(); unsub = null; }
+      if (unsubFs) { unsubFs(); unsubFs = null; }
+      if (unsubCheer) { unsubCheer(); unsubCheer = null; }
+    };
+    trySubscribe();
+    const iv = setInterval(() => {
+      // 방 이동/나가기 감지 — leave/join은 studyRoomEnabled를 안 바꿔 effect가 재실행되지 않으므로
+      // 캐시와 대조해 옛 방 구독을 접고 재구독 (안 하면 옛 방 인원이 최대 60분 pill에 잔존)
+      const cur = getCachedStudyRoomId();
+      if (unsub && cur !== undefined && cur !== subRoomId) {
+        dropSubs();
+        subRoomId = null; lastStatus = null; lastFs = null;
+        // 새 방에선 기준값 재설정 (옛 방 응원 시각과 섞이지 않게)
+        lastCheerAtRef.current = 0; cheerReadyRef.current = false;
+        lastFsToastRef.current = 0;
+        recompute();
+      }
+      if (unsub) recompute(); else trySubscribe();
+    }, 15 * 1000);
+    return () => { alive = false; clearInterval(iv); dropSubs(); };
+  }, [settings.studyRoomEnabled, loading, showToastCustom]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용
@@ -2033,6 +2574,27 @@ export function AppProvider({ children }) {
       .reduce((sum, s) => sum + (s.durationSec || 0), 0);
   }, [sessions]);
 
+  // 할일→계획 연동(정방향 전용): 할일 타이머 시작 시 같은 과목의 오늘 계획 블록을 찾아 planId를 반환.
+  // 매칭: (1) subjectId 일치 — 과목을 '선택'해 만든 계획, (2) 과목명 일치 — 계획을 과목명으로 직접 입력해
+  //       subjectId가 비어 있는 경우 폴백(PlannerScreen.js:226 — 과목 미선택 시 label 자유입력).
+  // 규칙: 매칭 블록 중 아직 목표 80% 미달인 첫 블록(order순). 없으면 null → 계획 미반영.
+  // ※역방향(계획→할일)은 계획 타이머에 todoId를 넣지 않으므로 구조적으로 차단됨.
+  const findTodayPlanIdForSubject = useCallback((subjectId, subjectLabel) => {
+    if (!subjectId && !subjectLabel) return null;
+    const dayData = getTodaySchedule();
+    if (!dayData?.plans?.length) return null;
+    const name = (subjectLabel || '').trim();
+    const candidates = dayData.plans.filter(p => {
+      if (subjectId && p.subjectId === subjectId) return true;
+      if (!p.subjectId && name && (p.label || '').trim() === name) return true;
+      return false;
+    }).sort((a, b) => (a.order || 0) - (b.order || 0));
+    for (const p of candidates) {
+      if (getPlanCompletedSec(p.id) < (p.targetMin || 0) * 60 * 0.8) return p.id;
+    }
+    return null;
+  }, [getTodaySchedule, getPlanCompletedSec]);
+
   const getTodayPlanRate = useCallback(() => {
     const todaySched = getTodaySchedule();
     if (!todaySched || !todaySched.plans || todaySched.plans.length === 0) return null;
@@ -2046,15 +2608,8 @@ export function AppProvider({ children }) {
     if (!weeklySchedule) return 24 * 60;
     const dayData = weeklySchedule[dayKey];
     if (!dayData || !dayData.fixed || dayData.fixed.length === 0) return 24 * 60;
-    const fixedMin = dayData.fixed.reduce((sum, f) => {
-      const [sh, sm] = f.start.split(':').map(Number);
-      const [eh, em] = f.end.split(':').map(Number);
-      const startMin = sh * 60 + sm;
-      const endMin = eh * 60 + em;
-      // 자정을 넘어가는 일정 처리 (ex: 23:00~07:00)
-      const dur = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
-      return sum + dur;
-    }, 0);
+    // 자정을 넘어가는 일정(ex: 23:00~07:00)은 하루를 돌아서 계산 — spanMinutes(테스트 有)
+    const fixedMin = dayData.fixed.reduce((sum, f) => sum + spanMinutes(f.start, f.end), 0);
     return Math.max(0, 24 * 60 - fixedMin);
   }, [weeklySchedule]);
 
@@ -2070,6 +2625,13 @@ export function AppProvider({ children }) {
     if (dedupeKey) {
       const cached = sessionDedupeRef.current.get(dedupeKey);
       if (cached) return cached;
+      // 인메모리 맵은 재시작에 유실 — 스냅샷 스로틀(5초)로 뒤처진 상태에서 강제종료되면
+      // 복원 캐치업이 종료 직전 이미 기록된 세트/항목을 재기록할 수 있어 영속 레코드도 확인
+      const persisted = sessionsRef.current.find(s => s.dedupeKey === dedupeKey);
+      if (persisted) {
+        sessionDedupeRef.current.set(dedupeKey, persisted.id);
+        return persisted.id;
+      }
     }
     const ultraLevel = settingsRef.current?.ultraFocusLevel || 'normal';
     const newSess = buildSessionRecord(spec, {
@@ -2080,7 +2642,7 @@ export function AppProvider({ children }) {
     if (subjectId) setSubjects(prev => prev.map(s => s.id === subjectId ? { ...s, totalElapsedSec: (s.totalElapsedSec || 0) + durationSec } : s));
     updateStreak();
     // 위젯 갱신은 아래 데이터 변경 감지 effect(디바운스)가 일괄 처리 — 여기선 호출 불필요
-    // 울트라집중 스트릭 갱신
+    // 울트라모드 스트릭 갱신
     if (ultraLevel === 'exam' && fm === 'screen_on') updateUltraStreak();
     if (dedupeKey) {
       const m = sessionDedupeRef.current;
@@ -2111,9 +2673,36 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
-  // 타이머 메모 업데이트 (완료 카드 표시용)
-  const updateTimerMemo = useCallback((timerId, memo) => {
-    setTimers(prev => prev.map(t => t.id === timerId ? { ...t, memoText: memo } : t));
+  // 세션 삭제 (결과 모달의 '기록 폐기'). subject 누적시간도 감산. 나머지 통계는 sessions 파생이라 자동 반영.
+  // ※streak(연속일)는 '그날 공부했는지' 기준이라 금액 변화와 무관 — 건드리지 않음(방금 만든 기록 폐기 시 미세 오차는 감수).
+  const deleteSessions = useCallback((ids) => {
+    const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
+    const removed = sessionsRef.current.filter(s => idSet.has(s.id));
+    if (removed.length === 0) return;
+    setSessions(prev => prev.filter(s => !idSet.has(s.id)));
+    const bySubj = {};
+    removed.forEach(s => { if (s.subjectId) bySubj[s.subjectId] = (bySubj[s.subjectId] || 0) + (s.durationSec || 0); });
+    if (Object.keys(bySubj).length > 0) {
+      setSubjects(prev => prev.map(s => bySubj[s.id]
+        ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) - bySubj[s.id]) } : s));
+    }
+  }, []);
+
+  // 세션 공부시간 수정 (결과 모달의 '시간 수정'). 잊은 타이머 등 잘못 기록된 세션을 실제 시간으로 정정.
+  // subject 누적시간을 차액만큼 조정. 나머지 통계는 sessions 파생이라 자동 반영.
+  // ※밀도(focusDensity)/tier는 유지 — 시간만 정정하는 것이지 집중 행동을 바꾸는 게 아니므로.
+  // edited 플래그로 '사용자 수정본'임을 기록(데이터 정직성). 결과 모달은 세션당 한 번만 떠서 구조적으로 재수정 불가.
+  const updateSessionDuration = useCallback((sessionId, newSec) => {
+    const target = sessionsRef.current.find(s => s.id === sessionId);
+    if (!target) return;
+    const oldSec = target.durationSec || 0;
+    const delta = newSec - oldSec;
+    if (delta === 0) return;
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, durationSec: newSec, edited: true } : s));
+    if (target.subjectId) {
+      setSubjects(prev => prev.map(s => s.id === target.subjectId
+        ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) + delta) } : s));
+    }
   }, []);
 
   const updateStreak = useCallback(() => {
@@ -2123,7 +2712,7 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  // 울트라집중 스트릭 갱신
+  // 울트라모드 스트릭 갱신
   const updateUltraStreak = useCallback(() => {
     setSettings(prev => {
       const today = getToday();
@@ -2145,6 +2734,8 @@ export function AppProvider({ children }) {
     const color = changes.color ?? before.color;
     if (name === before.name && color === before.color) return;
     setTodos(prev => prev.map(t => t.subjectId === id ? { ...t, subjectLabel: name, subjectColor: color } : t));
+    // 오답노트의 과목 비정규화 라벨/색도 동기화 (todos와 동일 패턴 — 과목 삭제 시엔 노트를 두어 '삭제된 과목' 그룹으로 표시)
+    setReviewNotes(prev => prev.map(n => n.subjectId === id ? { ...n, subjectLabel: name, subjectColor: color } : n));
     // 과목형 플래너 블록은 생성 시 과목 이름/색을 복사해 저장 (ScheduleEditorScreen) — 함께 갱신
     setWeeklySchedule(prev => {
       if (!prev) return prev;
@@ -2164,7 +2755,16 @@ export function AppProvider({ children }) {
   // 드래그 정렬 커밋: 표시 순서(orderedIds)대로 subjects 배열 재배치 — 배열 순서가 곧 수동 순서
   const reorderSubjects = useCallback((orderedIds) => setSubjects(prev => applyReorder(prev, orderedIds)), []);
   const addDDay = useCallback((dd) => { const n = { id: generateId('dd_'), isPrimary: ddays.length === 0, ...dd }; setDDays(prev => [...prev, n]); return n; }, [ddays]);
-  const removeDDay = useCallback((id) => { setDDays(prev => { const f = prev.filter(d => d.id !== id); if (f.length > 0 && !f.some(d => d.isPrimary)) f[0].isPrimary = true; return f; }); }, []);
+  const removeDDay = useCallback((id) => {
+    setDDays(prev => {
+      const f = prev.filter(d => d.id !== id);
+      // 대표 승계는 새 객체로 (f[0] 직접 변이는 이전 상태와 공유된 객체를 바꿔 memo 비교를 깨뜨림)
+      if (f.length > 0 && !f.some(d => d.isPrimary)) return f.map((d, i) => i === 0 ? { ...d, isPrimary: true } : d);
+      return f;
+    });
+    // 시험 준비 할일 동반 삭제 — 남기면 기한 지난 고아가 오늘 목록에 매일 유령으로 표시됨 (isTodayVisible)
+    setTodos(prev => prev.filter(t => !(t.scope === 'exam' && t.ddayId === id)));
+  }, []);
   const updateDDay = useCallback((id, changes) => { setDDays(prev => prev.map(d => d.id === id ? { ...d, ...changes } : d)); }, []);
   const setPrimaryDDay = useCallback((id) => setDDays(prev => {
     const target = prev.find(d => d.id === id);
@@ -2182,20 +2782,27 @@ export function AppProvider({ children }) {
     const o = isStr ? {} : (textOrObj || {});
     const isTemplate = o.isTemplate ?? false;
     const repeatDays = o.repeatDays ?? null;
+    const replaceId = o.replaceId ?? null; // 수정 저장: 이 id 자리에 교체 삽입 (맨 뒤로 밀리면 드래그 순서가 깨짐)
     const tmplId = generateId('todo_');
     setTodos(prev => {
+      const replaceIdx = replaceId ? prev.findIndex(t => t.id === replaceId) : -1;
+      const base = replaceIdx !== -1 ? prev.filter(t => t.id !== replaceId) : prev;
+      // 수정 저장 시 id를 보존한다 — 세션(todoId)/누적시간 칩·계획 연동이 id로 걸려 있어
+      // 새 id를 발급하면 링크가 끊겨 기록된 학습시간이 사라져 보인다 (김진 제보, 메모 수정 후 시간 증발)
+      const newId = replaceIdx !== -1 ? replaceId : tmplId;
       // 중복 방지: 같은 목록(scope+ddayId) 안에 같은 텍스트+과목의 미완료 할일이 이미 있으면 건너뜀 (템플릿 제외)
       // scope/ddayId를 비교하지 않으면 오늘 할일이나 다른 시험에 같은 텍스트가 있을 때 추가가 조용히 무시됨
+      // 교체 대상 자신은 base에서 이미 빠져 있어 자기 자신과의 중복으로 오탐하지 않음
       if (!isTemplate) {
         const trimmed = text.trim();
-        const dup = prev.some(t => !t.isTemplate && !t.done && t.text === trimmed
+        const dup = base.some(t => !t.isTemplate && !t.done && t.text === trimmed
           && t.subjectId === (o.subjectId ?? null)
           && (t.scope ?? 'today') === (o.scope ?? 'today')
           && (t.ddayId ?? null) === (o.ddayId ?? null));
         if (dup) return prev;
       }
       const newTmpl = {
-        id:           tmplId,
+        id:           newId,
         text:         text.trim(),
         done:         false,
         completedAt:  null,
@@ -2214,23 +2821,24 @@ export function AppProvider({ children }) {
         createdDate:  o.createdDate  ?? null,
         dueDate:      o.dueDate      ?? null,
       };
+      const items = [newTmpl];
       // 반복 템플릿이면 오늘 요일에 해당할 경우 인스턴스도 즉시 생성
       if (isTemplate && repeatDays && repeatDays.length > 0) {
         const todayDay = new Date().getDay();
         const todayStr = getToday();
         if (repeatDays.includes(todayDay)) {
-          const todayInst = {
+          items.push({
             id: generateId('todo_'), text: text.trim(), done: false, completedAt: null,
             repeat: false, subjectId: o.subjectId ?? null, subjectLabel: o.subjectLabel ?? null,
             subjectColor: o.subjectColor ?? null, subjectIcon: o.subjectIcon ?? null,
             priority: o.priority ?? 'normal', scope: 'today', ddayId: null,
             memo: o.memo ?? '', isTemplate: false, repeatDays: null,
-            templateId: tmplId, createdDate: todayStr,
-          };
-          return [...prev, newTmpl, todayInst];
+            templateId: newId, createdDate: todayStr,
+          });
         }
       }
-      return [...prev, newTmpl];
+      const insertAt = replaceIdx !== -1 ? replaceIdx : base.length;
+      return [...base.slice(0, insertAt), ...items, ...base.slice(insertAt)];
     });
   }, []);
   const toggleTodo = useCallback((id) => {
@@ -2340,6 +2948,67 @@ export function AppProvider({ children }) {
     showToastCustom('즐겨찾기에서 제거됐어요', 'paengi');
   }, []);
 
+  // ═══ 오답노트 (영구 학습 노트) ═══
+  const addReviewNote = useCallback((partial) => {
+    const now = Date.now();
+    const n = {
+      id: generateId('rn_'), subjectId: null, subjectLabel: null, subjectColor: null, subjectIcon: null,
+      chapter: '', title: '', body: '', color: null, sourceTodoId: null,
+      reviewCount: 0, lastReviewedAt: null, mastered: false,  // 복습 루프
+      attachments: [],                                        // 사진 첨부 [{ file }] — 파일명(상대경로)만 저장
+      ...partial, createdAt: now, updatedAt: now,
+    };
+    setReviewNotes(prev => [n, ...prev]);
+    return n;
+  }, []);
+  const updateReviewNote = useCallback((id, patch) => {
+    setReviewNotes(prev => prev.map(n => {
+      if (n.id !== id) return n;
+      // 첨부가 바뀌면(사진 삭제) 더 이상 참조 안 되는 파일은 디스크에서 정리
+      if (Array.isArray(patch.attachments)) {
+        const keep = new Set(patch.attachments.map(a => a.file));
+        const removed = (n.attachments || []).map(a => a.file).filter(f => f && !keep.has(f));
+        if (removed.length) deleteAttachmentFiles(removed);
+      }
+      return { ...n, ...patch, updatedAt: Date.now() };
+    }));
+  }, []);
+  const deleteReviewNotes = useCallback((ids) => {
+    const set = new Set(Array.isArray(ids) ? ids : [ids]);
+    setReviewNotes(prev => {
+      // 삭제되는 노트의 사진 파일도 함께 정리 (고아 파일 방지)
+      const files = prev.filter(n => set.has(n.id))
+        .flatMap(n => (n.attachments || []).map(a => a.file).filter(Boolean));
+      if (files.length) deleteAttachmentFiles(files);
+      return prev.filter(n => !set.has(n.id));
+    });
+  }, []);
+  // 복습 완료 1회 — updatedAt은 건드리지 않음(복습은 내용 수정이 아니므로 '최신순'을 흔들지 않게)
+  const markReviewed = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => n.id === id
+      ? { ...n, reviewCount: (n.reviewCount || 0) + 1, lastReviewedAt: Date.now() } : n));
+  }, []);
+  // 복습 취소 1회 — 실수로 올라간 카운트 보정. 0이 되면 마지막 복습일도 지움.
+  const unmarkReviewed = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => {
+      if (n.id !== id) return n;
+      const c = Math.max(0, (n.reviewCount || 0) - 1);
+      return { ...n, reviewCount: c, lastReviewedAt: c === 0 ? null : n.lastReviewedAt };
+    }));
+  }, []);
+  const toggleMastered = useCallback((id) => {
+    setReviewNotes(prev => prev.map(n => n.id === id ? { ...n, mastered: !n.mastered } : n));
+  }, []);
+  // 할일 → 오답노트 이관 (콘텐츠 스냅샷 복사). overrides로 과목/챕터 확정. 원본 할일 처리는 호출부(toggleTodo/removeTodo)에서.
+  const archiveTodoToNote = useCallback((todoId, overrides = {}) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) return null;
+    // 같은 할일을 두 번 저장하면 동일 노트가 중복 생성됨 → sourceTodoId로 가드.
+    // 반복 인스턴스는 날마다 id가 달라 각각 저장 가능(의도).
+    if (reviewNotes.some(n => n.sourceTodoId === todoId)) return { duplicate: true };
+    return addReviewNote({ ...makeNoteFromTodo(todo), ...overrides });
+  }, [todos, reviewNotes, addReviewNote]);
+
   // 백업 복원 후 전체 상태 다시 로드
   const reloadAllData = useCallback(async () => {
     const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([
@@ -2356,31 +3025,39 @@ export function AppProvider({ children }) {
     if (fv && fv.length > 0) setFavs(fv);
     const ws = await loadWeeklySchedule();
     if (ws) setWeeklySchedule(ws);
+    const rn = await loadReviewNotes();
+    if (Array.isArray(rn)) setReviewNotes(rn);
   }, []);
 
   return (
     <AppContext.Provider value={{
       loading, settings, updateSettings,
       subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
-      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateTimerMemo, updateSessionSelfRating,
+      sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateSessionSelfRating, deleteSessions, updateSessionDuration,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
       todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
+      reviewNotes, addReviewNote, updateReviewNote, deleteReviewNotes, archiveTodoToNote, markReviewed, unmarkReviewed, toggleMastered,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,
       startSequence, cancelSequence,
       completedResultData, setCompletedResultData,
       pendingModeAction, requestModeSelect, resolveModeSelect, cancelModeSelect,
       showExactAlarmModal, dismissExactAlarmModal: () => setShowExactAlarmModal(false),
       pendingReportTab, clearPendingReportTab: () => setPendingReportTab(null),
+      pendingStudyRoomCode, setPendingStudyRoomCode,
+      roomStudyingCount, roomFocusActive,
+      openStudyRoomAt, requestOpenStudyRoom: () => setOpenStudyRoomAt(Date.now()),
+      clearOpenStudyRoom: () => setOpenStudyRoomAt(0),
       toast, showToast, showToastCustom,
+      suspendSounds, resumeSounds,   // 오답노트 녹음 중 집중 사운드 일시정지
       focusMode, activateScreenOnMode, activateScreenOffMode, deactivateFocusMode,
       applyFocusBrightness, restoreBrightness, notifyScreenLocked,
-      screenLocked, setScreenLocked,
+      screenLocked, setScreenLocked, noteUserTouch,
       favs, setFavs, addFav, removeFav,
       countupFavs, setCountupFavs, addCountupFav, removeCountupFav,
       ultraFocus, setUltraFocus, dismissChallenge, giveUpFocus, getChallengeText, allowPause,
       weeklySchedule, setWeeklySchedule,
-      getTodaySchedule, getPlanCompletedSec, getTodayPlanRate,
+      getTodaySchedule, getPlanCompletedSec, getTodayPlanRate, findTodayPlanIdForSubject,
       startFromPlan, getAvailableMin, getDayKey, schedulePlannerReminders,
       reloadAllData,
     }}>

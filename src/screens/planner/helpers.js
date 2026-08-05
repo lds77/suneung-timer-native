@@ -42,6 +42,14 @@ export const isPlanInWeek = (p, weekStartStr) =>
 // 자정 넘는 일정 여부 (end <= start)
 export const isMidnightCrossing = (start, end) => parseTimeToMin(end) <= parseTimeToMin(start);
 
+// 일정의 실제 지속시간(분) — 자정을 넘으면 하루를 돌아서 계산 (23:00~07:00 = 480분).
+// 같은 공식이 useAppState의 가용시간 계산과 블록 저장 두 곳에 흩어져 있던 것을 모은 것
+export const spanMinutes = (start, end) => {
+  const s = parseTimeToMin(start);
+  const e = parseTimeToMin(end);
+  return e > s ? e - s : (24 * 60 - s) + e;
+};
+
 // 특정 날짜(요일+주시작)에 이미 점유된 시간대(분 단위 구간) 목록
 // excludeId: 옮기는 계획 자신은 점유에서 제외 (같은 요일 다른 주로 옮길 때 자기충돌 방지)
 export const occupiedIntervalsForDay = (ws, dayKey, weekStartStr, excludeId) => {
@@ -49,9 +57,13 @@ export const occupiedIntervalsForDay = (ws, dayKey, weekStartStr, excludeId) => 
   const prevKey = DAY_KEYS[(DAY_KEYS.indexOf(dayKey) - 1 + 7) % 7];
   const prevDd = ws[prevKey] || { fixed: [], plans: [] };
   const toIv = (it) => ({ start: parseTimeToMin(it.start), end: isMidnightCrossing(it.start, it.end) ? 24 * 60 : parseTimeToMin(it.end) });
-  // 전날 자정 넘어온 일정 → 이 날 오전 점유
+  // 전날 자정 넘어온 일정 → 이 날 오전 점유.
+  // 일요일의 전날(토)은 '이전 주' 소속이므로 onlyWeek/skipWeeks 판정도 이전 주 기준으로
+  const carryWeekStart = dayKey === 'sun'
+    ? toDateStr((() => { const d = new Date(weekStartStr + 'T00:00:00'); d.setDate(d.getDate() - 7); return d; })())
+    : weekStartStr;
   const carry = [...(prevDd.fixed || []), ...(prevDd.plans || [])]
-    .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, weekStartStr))
+    .filter(it => it.start && it.end && isMidnightCrossing(it.start, it.end) && isPlanInWeek(it, carryWeekStart))
     .map(it => ({ start: 0, end: parseTimeToMin(it.end) }));
   return [
     ...carry,

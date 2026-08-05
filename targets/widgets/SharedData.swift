@@ -248,8 +248,11 @@ struct WidgetData {
             // 오늘 계획은 요일이 바뀌면 목록 자체가 달라지므로 비움 (앱 열면 갱신)
             data.plans = []
             data.planPct = -1
-            // 오늘 할 일은 유지 — 미완료 항목은 다음날에도 이월되므로(앱의 일일 리셋 규칙)
-            // 어제 스냅샷이라도 대체로 유효하고, 빈 목록보다 낫다 (앱 열면 정확히 갱신)
+            // 오늘 할 일: 미완료는 이월되므로 유지, 어제 '완료'는 오늘 목록에서 사라지거나
+            // 미완료로 리셋되는 항목이라 제거 (앱의 일일 리셋 규칙과 정합 — 안드 widgetData와 동일)
+            data.todos = data.todos.filter { !$0.done }
+            data.todoDone = 0
+            data.todoTotal = data.todos.count
             if data.runningAnchor == nil {
                 data.totalSec = 0
                 data.goalPct = 0

@@ -13,6 +13,16 @@ export const diffDays = (fromStr, toStr) => {
   return Math.round((b - a) / 86400000);
 };
 
+// 고아 시험 할일 청소 — 삭제된 D-Day에 매달린 exam 할일 제거 (기한 지난 고아는
+// isTodayVisible 규칙상 오늘 목록에 매일 표시되는 유령이 됨). ddays가 배열이 아니면
+// (로드 실패 등) 오판 방지를 위해 원본 그대로 반환
+export const sweepOrphanExamTodos = (todos, ddays) => {
+  if (!Array.isArray(ddays)) return { todos, swept: false };
+  const ids = new Set(ddays.map(d => d.id));
+  const kept = (todos || []).filter(t => !(t.scope === 'exam' && !ids.has(t.ddayId)));
+  return kept.length === (todos || []).length ? { todos, swept: false } : { todos: kept, swept: true };
+};
+
 // '오늘' 탭 표시 판정 (My Day 모델):
 // - 오늘 목록 소속(scope today/null)은 기한이 없거나 도래했을 때 표시 (미래 기한은 '예정' 섹션으로 분리)
 // - 다른 목록 소속은 기한이 도래(지남 포함)하면 오늘 탭에도 등장.
@@ -56,6 +66,20 @@ export const dateChipLabel = (dateStr, todayStr) => {
   if (diffDays(todayStr, dateStr) === 1) return '내일';
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getMonth() + 1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`;
+};
+
+// 같은 목록(scope+ddayId)·과목 안에 같은 텍스트의 미완료 할일이 이미 있는지 (자기 자신 selfId 제외).
+// addTodo 내부 중복 가드와 동일 기준 — 저장 전 사전 판정으로 "왜 안 되는지" 안내 + 시트 유지에 사용.
+// 반복 템플릿(isTemplate)은 addTodo가 중복 검사를 건너뛰므로 여기서도 항상 false.
+export const isTodoDuplicate = (todos, fields, selfId = null) => {
+  if (!fields || fields.isTemplate) return false;
+  const trimmed = (fields.text || '').trim();
+  if (!trimmed) return false;
+  return (todos || []).some(t => t.id !== selfId && !t.isTemplate && !t.done
+    && t.text === trimmed
+    && (t.subjectId ?? null) === (fields.subjectId ?? null)
+    && (t.scope ?? 'today') === (fields.scope ?? 'today')
+    && (t.ddayId ?? null) === (fields.ddayId ?? null));
 };
 
 // 드래그 정렬 커밋: orderedIds에 해당하는 항목들을 배열 내 기존 자리(슬롯)에 새 순서로 재배치.

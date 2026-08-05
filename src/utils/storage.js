@@ -15,6 +15,7 @@ const KEYS = {
   COUNTUP_FAVS: '@yeolgong/countupFavs',
   FAVS: '@yeolgong/favs',
   WEEKLY_SCHEDULE: '@yeolgong/weeklySchedule',
+  REVIEW_NOTES: '@yeolgong/reviewNotes',
 };
 
 /**
@@ -65,6 +66,10 @@ export const loadTodos = () => loadJSON(KEYS.TODOS, []);
 // ── 할 일 완료 로그 (통계용 — 리셋으로 삭제돼도 완료 이력 보존) ──
 export const saveTodoLog = (log) => saveJSON(KEYS.TODO_LOG, log);
 export const loadTodoLog = () => loadJSON(KEYS.TODO_LOG, []);
+
+// ── 오답노트 (영구 학습 노트 — 일일 리셋과 독립, 삭제 전까지 보존) ──
+export const saveReviewNotes = (notes) => saveJSON(KEYS.REVIEW_NOTES, notes);
+export const loadReviewNotes = () => loadJSON(KEYS.REVIEW_NOTES, []);
 
 // ── 위젯 할일 체크 dirty 플래그 ──
 // 오늘할일 위젯의 체크는 헤드리스 핸들러가 storage에 직접 쓴다(widgetTaskHandler).
@@ -118,7 +123,7 @@ export const clearAllData = async () => {
 // ── 백업/복원 ──
 const BACKUP_KEYS = [
   'SETTINGS', 'SUBJECTS', 'SESSIONS', 'DDAYS', 'TODOS', 'TODO_LOG',
-  'DAILY_RECORDS', 'COUNTUP_FAVS', 'FAVS', 'WEEKLY_SCHEDULE',
+  'DAILY_RECORDS', 'COUNTUP_FAVS', 'FAVS', 'WEEKLY_SCHEDULE', 'REVIEW_NOTES',
 ];
 
 // 키별 기대 타입 — 잘못된 형태를 복원하면 로드 경로(.filter/.map)가 매 실행마다
@@ -126,7 +131,7 @@ const BACKUP_KEYS = [
 const BACKUP_KEY_SHAPES = {
   SETTINGS: 'object', SUBJECTS: 'array', SESSIONS: 'array', DDAYS: 'array',
   TODOS: 'array', TODO_LOG: 'array', DAILY_RECORDS: 'object', COUNTUP_FAVS: 'array', FAVS: 'array',
-  WEEKLY_SCHEDULE: 'object',
+  WEEKLY_SCHEDULE: 'object', REVIEW_NOTES: 'array',
 };
 
 const matchesShape = (value, shape) => shape === 'array'

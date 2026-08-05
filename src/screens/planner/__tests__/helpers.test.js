@@ -2,7 +2,7 @@
 // 미루기·자동배치 실사용 버그가 나왔던 영역의 회귀 안전망.
 import {
   parseTimeToMin, minToStr, makeTKey, tkeyWeek, tkeyPlan,
-  weekStartOf, isPlanInWeek, isMidnightCrossing,
+  weekStartOf, isPlanInWeek, isMidnightCrossing, spanMinutes,
   occupiedIntervalsForDay, intervalsOverlap, findFreeStartMin,
 } from '../helpers';
 
@@ -19,6 +19,13 @@ describe('시간 변환', () => {
     expect(isMidnightCrossing('23:00', '07:00')).toBe(true);
     expect(isMidnightCrossing('09:00', '10:00')).toBe(false);
     expect(isMidnightCrossing('10:00', '10:00')).toBe(true);
+  });
+
+  test('spanMinutes: 자정을 넘으면 하루를 돌아서 계산', () => {
+    expect(spanMinutes('09:00', '10:30')).toBe(90);
+    expect(spanMinutes('23:00', '07:00')).toBe(480);   // 취침 8시간
+    expect(spanMinutes('22:00', '00:00')).toBe(120);   // 00:00은 다음 날 자정
+    expect(spanMinutes('08:00', '24:00')).toBe(960);   // 24:00은 당일 끝 (하루 안)
   });
 });
 
@@ -81,6 +88,24 @@ describe('occupiedIntervalsForDay — 점유 구간', () => {
     const ws2 = { tue: { fixed: [{ id: 'x', start: '22:00', end: '02:00' }], plans: [] } };
     const ivs = occupiedIntervalsForDay(ws2, 'tue', W);
     expect(ivs).toContainEqual({ start: 1320, end: 1440 });
+  });
+
+  test('일요일의 전날(토) 캐리는 이전 주 기준으로 onlyWeek/skipWeeks 판정', () => {
+    const prevW = '2026-06-21'; // W(06-28)의 이전 주
+    const ws3 = {
+      sat: {
+        fixed: [],
+        plans: [
+          { id: 'a', start: '23:00', end: '01:00', onlyWeek: prevW },  // 지난주 토 일회성 → 이번주 일 오전 점유
+          { id: 'b', start: '22:00', end: '02:00', onlyWeek: W },      // 이번주 토 일회성 → 캐리 아님
+          { id: 'c', start: '21:00', end: '03:00', skipWeeks: [prevW] }, // 지난주 휴무 반복 → 캐리 아님
+        ],
+      },
+      sun: { fixed: [], plans: [] },
+    };
+    const ivs = occupiedIntervalsForDay(ws3, 'sun', W);
+    expect(ivs).toContainEqual({ start: 0, end: 60 });  // a만 캐리 (0~01:00)
+    expect(ivs).toHaveLength(1);
   });
 });
 

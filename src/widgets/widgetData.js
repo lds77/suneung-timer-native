@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isTodayVisible } from '../utils/todoUtils'; // 순수 함수 — 헤드리스 안전
+import { COUNTUP_MAX_SEC } from '../utils/timerCore'; // 상수만 사용 (순수 모듈)
 
 const K = {
   SETTINGS: '@yeolgong/settings',
@@ -31,7 +32,8 @@ export const activeRunningInfo = (t, nowMs = Date.now()) => {
   // 끝난 타이머가 '집중 중'으로 계속 표시된다. (연속/뽀모는 실제로는 다음 항목이 진행 중일 수
   // 있지만 죽은 스냅샷으로는 알 수 없으므로 표시하지 않는 쪽이 안전)
   const targetSec = (t.type === 'countdown' || t.type === 'sequence') ? (t.totalSec || 0)
-    : t.type === 'pomodoro' ? (t.pomoWorkMin || 25) * 60 : 0;
+    : t.type === 'pomodoro' ? (t.pomoWorkMin || 25) * 60
+    : t.type === 'free' ? COUNTUP_MAX_SEC : 0; // 자유도 상한(5시간)에서 '집중 중' 해제
   if (targetSec > 0 && sec >= targetSec) return null;
   return { sec, label: t.label || '' };
 };

@@ -1,0 +1,301 @@
+package expo.modules.screenpin
+
+import android.app.AlarmManager
+import android.app.KeyguardManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.media.AudioManager
+import android.os.Build
+import android.os.PowerManager
+import androidx.core.app.NotificationCompat
+
+// 🔥모드 이탈 알림 중 **JS가 못 하는 구간**만 담당한다.
+//
+// 배경: 화면을 끄면 앱이 background로 내려가는데, 그 뒤 잠금화면 알림창에서 곧장 다른 앱으로
+// 가버리면 앱은 'active'를 한 번도 못 받는다. 그 구간에서 "10초 뒤에 판단해서 알린다"를 JS로
+// 할 수 없다 — RN 안드로이드는 액티비티 onPause에서 JS 타이머를 통째로 멈추기 때문
+// (JavaTimerManager.onHostPause). 실제로 JS 폴링을 구현했다가 한 번도 안 도는 걸 확인했다.
+// 반면 **동적 등록한 BroadcastReceiver와 AlarmManager는 배경에서도 정상 동작**하므로,
+// 그 둘로 같은 판단을 네이티브에서 한다.
+//
+// 흐름 (arm은 '화면 끄기로 배경에 내려간' 경우에만 JS가 건다):
+//   SCREEN_ON → 화면이 켜져 있는 동안 확인 알람을 짧게 반복 예약(폴링 시작)
+//   SCREEN_OFF → 예약 취소 (알림만 확인하고 다시 끈 것). **단 통화 중이면 계속 폴링**
+//   확인 알람 → AudioManager/KeyguardManager/PowerManager 직접 조회
+//     · 통화 중이면 기준점을 비우고 계속 관측 — 전화를 받는 건 이탈이 아니다
+//     · 잠겨 있으면 기준점을 비우고 다시 예약 — 잠금화면에선 다른 앱을 쓸 수 없으므로 이탈이 아니다
+//     · 쓸 수 있는 상태면 그 시각부터 재고(통화 직후면 유예를 얹어 미래 시각부터),
+//       graceMs 동안 이어지면 이탈 확정 → 알림 + 후속 넛지 예약
+//   앱 복귀(JS의 disarm) → 알람·알림 전부 정리
+//
+// ★잠금해제를 `ACTION_USER_PRESENT`로 알아내지 않는다★ (2026-07-30 실기기 확인).
+// **잠금화면 알림을 눌러 다른 앱을 여는 경로에서는 USER_PRESENT가 오지 않는 경우가 있어**,
+// 그 이벤트로만 확인 알람을 걸면 **첫 시도에서 알림이 통째로 안 나갔다**(재현: 3번 중 1번꼴).
+// 그래서 화면이 켜져 있는 동안은 짧게 폴링하며 **키가드를 직접 조회**한다 —
+// 이 판단이 브로드캐스트에 의존하면 안 된다는 건 이 파일 계열에서 세 번째로 확인된 교훈이다.
+// (JS 타이머와 달리 AlarmManager는 배경에서도 정상 동작하므로 폴링이 가능하다.
+//  화면이 꺼져 있는 동안에는 폴링하지 않으므로 대기 배터리 부담도 없다.)
+//
+// ※JS가 이탈 카운트를 확정하는 방식(복귀 시 keyguard/화면 켬 역산)은 건드리지 않는다.
+//   여기는 '알림'만 담당하고, 카운트는 기존대로 복귀 시점에 계산된다.
+object AwayWatch {
+  const val CHECK_ACTION = "expo.modules.screenpin.AWAY_CHECK"
+  const val NUDGE_ACTION = "expo.modules.screenpin.AWAY_NUDGE"
+  private const val CHANNEL_ID = "timer-complete" // expo-notifications가 만든 채널을 그대로 쓴다
+  private const val BASE_NOTIF_ID = 7301
+  private const val MAX_STEPS = 8
+  // 화면이 켜져 있는 동안의 폴링 간격. 화면이 켜진 상태에서만 돌고 확정되면 멈춘다
+  private const val POLL_MS = 2_000L
+  // 통화 중 폴링 간격 — '통화가 끝난 시각'만 알면 되므로 더 느려도 된다
+  private const val CALL_POLL_MS = 5_000L
+  // 통화가 끝난 뒤 이만큼은 이탈 시계를 돌리지 않는다 — 통화 종료 화면을 닫고 앱으로
+  // 돌아오는 시간이다. ★JS의 focusAway.POST_CALL_GRACE_MS와 같은 값을 유지할 것★
+  // (알림은 네이티브가, 카운트는 JS가 판단하므로 둘이 어긋나면 "알림은 왔는데 이탈은 없음"이 된다)
+  private const val POST_CALL_GRACE_MS = 60_000L
+  // 폴링 상한 — 잠금화면에 아주 오래 머무는 등 확정이 안 나는 경우의 안전장치.
+  // 여기서 멈춰도 다음 SCREEN_ON이 오면 다시 시작된다
+  private const val MAX_CHECKS = 200
+
+  data class Step(val sec: Long, val title: String, val body: String)
+
+  // 프로세스 스코프 — JS 리로드로 모듈이 재생성돼도 유지. 프로세스가 죽으면 armed=false로
+  // 초기화되므로, 살아남은 알람이 나중에 발화해도 아무 일도 하지 않는다(유령 알림 방지)
+  @Volatile private var armed = false
+  @Volatile private var graceMs = 10_000L
+  @Volatile private var limitAtMs = 0L // 이 시각 이후로는 알림 금지(카운트다운 종료 시각). 0이면 무제한
+  @Volatile private var steps: List<Step> = emptyList()
+  // 이탈 시계의 시작 시각(0이면 아직 안 시작). 통화 직후에는 유예만큼 **미래 시각**이 들어간다
+  @Volatile private var usableSince = 0L
+  @Volatile private var checks = 0
+  // 직전에 통화를 관측했는가 (다음에 '쓸 수 있는 상태'가 될 때 유예를 얹는다)
+  @Volatile private var postCall = false
+
+  // 마지막으로 통화를 '관측한' 시각. inCall()이 true를 돌려줄 때마다 갱신된다(JS 질의·폴링 공용).
+  // ★배경에 있는 동안은 JS가 아무것도 볼 수 없으므로, 이 기록이 통화 여부를 아는 유일한 수단이다★
+  // arm/disarm으로 지우지 않는다 — 세션 경계와 무관한 '기기에 마지막으로 전화가 있었던 시각'이다.
+  @Volatile private var lastCallAt = 0L
+
+  // 마지막 통화 관측 이후 경과(ms). 관측 기록이 없으면 -1
+  fun msSinceCall(): Long = if (lastCallAt > 0L) System.currentTimeMillis() - lastCallAt else -1L
+
+  fun isArmed() = armed
+
+  fun arm(ctx: Context, graceMsIn: Long, limitAtMsIn: Long, stepsIn: List<Step>) {
+    armed = true
+    graceMs = if (graceMsIn > 0) graceMsIn else 10_000L
+    limitAtMs = limitAtMsIn
+    steps = stepsIn.take(MAX_STEPS)
+    usableSince = 0L
+    checks = 0
+    postCall = false
+    // 무장 시점에 이미 화면이 켜져 있을 수도 있다(화면 끄기 판정이 레이스로 어긋난 경우) → 즉시 평가
+    onScreenEvent(ctx)
+  }
+
+  fun disarm(ctx: Context) {
+    armed = false
+    usableSince = 0L
+    checks = 0
+    postCall = false
+    cancelCheck(ctx)
+    for (i in 0 until MAX_STEPS) cancelAlarm(ctx, nudgeIntent(ctx, i))
+    val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+    for (i in 0 until MAX_STEPS) nm?.cancel(BASE_NOTIF_ID + i)
+    steps = emptyList()
+  }
+
+  // SCREEN_ON / SCREEN_OFF / USER_PRESENT가 올 때마다 호출된다 (ScreenPinModule의 리시버).
+  // 화면이 켜져 있으면 폴링을 (재)시작하고, 꺼져 있으면 멈춘다 — 잠금 해제 여부는 폴링이 직접 본다
+  fun onScreenEvent(ctx: Context) {
+    if (!armed) return
+    // ★통화 중이면 화면이 꺼져도 폴링을 끊지 않는다★ (2026-07-30 실기기 수정)
+    // 전화를 받아 귀에 대면 근접센서로 화면이 꺼지고, 그때 SCREEN_OFF가 와서 여기서
+    // cancelCheck()를 하면 **통화 내내 관측이 멈춘다**. 그러면 '마지막 통화 관측 시각'이
+    // 통화 시작에 머물러 통화 직후 유예가 '60초 − 통화 시간'으로 쪼그라든다.
+    // (onCheck 안에서만 고쳐서는 안 된다 — onCheck 자체가 다시 불리지 않기 때문)
+    if (inCall(ctx)) {
+      usableSince = 0L
+      postCall = true // onCheck의 통화 분기와 같아야 한다 — 여기만 빠뜨리면 5초 안에 끝난
+                      // 통화 직후에 유예가 안 붙어 '알림은 오는데 이탈은 없는' 어긋남이 생긴다
+      scheduleAt(ctx, System.currentTimeMillis() + CALL_POLL_MS, checkIntent(ctx))
+      return
+    }
+    if (interactive(ctx)) {
+      checks = 0 // 새로 켜졌으니 상한 초기화
+      scheduleAt(ctx, System.currentTimeMillis() + POLL_MS, checkIntent(ctx))
+    } else {
+      usableSince = 0L
+      cancelCheck(ctx)
+    }
+  }
+
+  fun onCheck(ctx: Context) {
+    if (!armed) return
+    val now = System.currentTimeMillis()
+
+    // ★통화 검사가 limitAt 검사보다 **먼저** 와야 한다★ (2026-08-03 버그헌트)
+    // 통화 중에 카운트다운이 끝나면 여기서 armed=false로 폴링이 끊겨 '마지막 통화 관측 시각'이
+    // 그 자리에 굳는다 → 통화가 3분이면 JS의 통화 직후 유예(POST_CALL_GRACE_MS)가 이미 지난
+    // 것으로 계산돼, 통화 때문에 못 돌아온 시간이 이탈로 찍힌다.
+    // '기준점이 굳는다'는 07-30에 두 번 밟은 함정의 세 번째 변형이다.
+    // ※통화 분기는 알림을 게시하지 않고 곧바로 return하므로, 타이머가 끝난 뒤에도
+    //   폴링만 이어질 뿐 '돌아와' 알림이 새로 울지는 않는다. 통화가 끝나면 다음 onCheck에서
+    //   아래 limitAt 검사에 걸려 정상 종료된다.
+    // ★통화 중에는 화면이 꺼져 있어도 계속 관측한다★ (2026-07-30 실기기 수정)
+    // 통화 직후 유예(JS의 awayMsAfterCall)는 '마지막으로 통화를 관측한 시각'을 기준으로 잡는다.
+    // 그런데 통화 중엔 근접센서로 화면이 꺼져, 아래 interactive 검사에 걸려 폴링이 멈춰버리면
+    // 기준점이 **통화 시작 시각에 멈춘 채로 굳는다** → 실제 유예가 '60초 − 통화 시간'으로
+    // 줄어들어, 30초 통화면 30초만 남고 2분 통화면 유예가 아예 0이 된다(사용자 제보).
+    // 그래서 통화 중에는 화면 상태와 무관하게 계속 폴링해 '통화가 끝난 시각'을 잡는다.
+    // 상한(checks)도 세지 않는다 — 통화 길이는 사용자가 정하는 것이고, 복귀 시 disarm된다.
+    if (inCall(ctx)) { // 이 호출이 lastCallAt을 갱신한다
+      usableSince = 0L
+      postCall = true // 통화가 끝나면 유예를 얹어서 시계를 시작한다
+      scheduleAt(ctx, now + CALL_POLL_MS, checkIntent(ctx))
+      return
+    }
+
+    if (limitAtMs > 0 && now >= limitAtMs) { armed = false; return } // 타이머가 끝났으면 알리지 않는다
+
+    // 화면이 꺼졌으면 폴링 종료 (SCREEN_ON이 오면 다시 시작된다)
+    if (!interactive(ctx)) { usableSince = 0L; return }
+
+    if (!unlocked(ctx)) {
+      // 잠금화면 체류 — 다른 앱을 쓸 수 없으므로 이탈 아님. 기준점을 비우고 계속 지켜본다
+      usableSince = 0L
+      if (++checks < MAX_CHECKS) scheduleAt(ctx, now + POLL_MS, checkIntent(ctx))
+      return
+    }
+
+    if (usableSince == 0L) {
+      // 통화 직후라면 시계 시작점을 유예만큼 미래로 잡는다 — 전화를 끊고 통화 종료 화면을
+      // 닫고 앱으로 돌아오는 시간에 '돌아와' 알림이 울리면 안 된다.
+      // JS의 이탈 카운트도 같은 유예를 쓴다(awayMsAfterCall) — 둘이 어긋나면
+      // "알림은 왔는데 이탈은 안 잡힘"이 된다
+      usableSince = now + (if (postCall) POST_CALL_GRACE_MS else 0L)
+      postCall = false
+    }
+    val heldMs = now - usableSince
+    if (heldMs < graceMs) {
+      // 잠금은 풀렸지만 아직 유예 중 — 남은 시간과 폴링 간격 중 짧은 쪽으로 다시 확인
+      val next = minOf(POLL_MS, graceMs - heldMs)
+      if (++checks < MAX_CHECKS) scheduleAt(ctx, now + next, checkIntent(ctx))
+      return
+    }
+
+    // 잠금이 풀린 채 graceMs가 지나도록 앱으로 안 돌아왔다 = 진짜 이탈
+    val first = steps.firstOrNull() ?: return
+    notify(ctx, 0, first.title, first.body)
+    // 후속 넛지 — 확정 시점 기준 상대 시각. 카운트다운이 먼저 끝나면 그 뒤는 예약하지 않는다
+    for (i in 1 until steps.size) {
+      val at = now + steps[i].sec * 1000L
+      if (limitAtMs > 0 && at >= limitAtMs) break
+      scheduleAt(ctx, at, nudgeIntent(ctx, i))
+    }
+  }
+
+  fun onNudge(ctx: Context, index: Int) {
+    if (!armed) return
+    val s = steps.getOrNull(index) ?: return
+    if (limitAtMs > 0 && System.currentTimeMillis() >= limitAtMs) return
+    notify(ctx, index, s.title, s.body)
+  }
+
+  // 통화 중인가 — **권한 없이** 알 수 있는 방법으로 오디오 모드를 본다.
+  // (TelephonyManager.getCallState는 API 31+에서 READ_PHONE_STATE가 필요하고, 그 권한은
+  //  Play 정책상 정당화가 까다롭고 지원 기기까지 줄일 수 있다 — CAMERA 때 겪은 그 문제.)
+  // 벨 울림(RINGTONE) / 통화 중(IN_CALL) / 인터넷 통화(IN_COMMUNICATION, 보이스톡 등) /
+  // 통화 선별(CALL_SCREENING)을 모두 통화로 본다. 전화를 받는 건 이탈이 아니다.
+  // ※실기기 확인(2026-07-30): 통화 중 네이티브 폴링에서 mode=2(IN_CALL)가 관측됐다 —
+  //   이 방식이 실제로 통화를 잡는다는 근거. 권한 없이 되는 유일한 수단이라 대안도 없다.
+  fun inCall(ctx: Context): Boolean {
+    val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+    val mode = try { am.mode } catch (_: Throwable) { AudioManager.MODE_NORMAL }
+    val calling = mode == AudioManager.MODE_RINGTONE ||
+        mode == AudioManager.MODE_IN_CALL ||
+        mode == AudioManager.MODE_IN_COMMUNICATION ||
+        (Build.VERSION.SDK_INT >= 30 && mode == AudioManager.MODE_CALL_SCREENING)
+    // 관측 시각을 남긴다 — 누가 물어보든(JS 질의/폴링) 이 한 곳에서 갱신되게 한다
+    if (calling) lastCallAt = System.currentTimeMillis()
+    return calling
+  }
+
+  // 아래 둘 다 브로드캐스트 시각이 아니라 지금 이 순간의 직접 조회라 지연·누락이 없다
+  private fun interactive(ctx: Context): Boolean {
+    val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    return try { pm?.isInteractive ?: false } catch (_: Throwable) { false }
+  }
+
+  private fun unlocked(ctx: Context): Boolean {
+    val km = ctx.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+    return try { !(km?.isKeyguardLocked ?: false) } catch (_: Throwable) { true }
+  }
+
+  private fun checkIntent(ctx: Context): PendingIntent =
+    PendingIntent.getBroadcast(
+      ctx, 9100,
+      Intent(ctx, AlarmReceiver::class.java).setAction(CHECK_ACTION),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+  private fun nudgeIntent(ctx: Context, index: Int): PendingIntent =
+    PendingIntent.getBroadcast(
+      ctx, 9110 + index,
+      Intent(ctx, AlarmReceiver::class.java).setAction(NUDGE_ACTION).putExtra("index", index),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+  private fun cancelCheck(ctx: Context) = cancelAlarm(ctx, checkIntent(ctx))
+
+  private fun cancelAlarm(ctx: Context, pi: PendingIntent) {
+    try { (ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi) } catch (_: Throwable) {}
+  }
+
+  private fun scheduleAt(ctx: Context, atMs: Long, pi: PendingIntent) {
+    try {
+      val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      val canExact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+      if (canExact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+      else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pi)
+    } catch (_: Throwable) {}
+  }
+
+  private fun smallIconRes(ctx: Context): Int {
+    val res = ctx.resources.getIdentifier("notification_icon", "drawable", ctx.packageName)
+    return if (res != 0) res else ctx.applicationInfo.icon
+  }
+
+  private fun notify(ctx: Context, index: Int, title: String, body: String) {
+    try {
+      val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+      // 채널은 expo-notifications가 앱 시작 시 만들어 둔다. 혹시 없으면(순서 문제) 같은 설정으로 생성
+      if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL_ID) == null) {
+        nm.createNotificationChannel(
+          NotificationChannel(CHANNEL_ID, "타이머 알림", NotificationManager.IMPORTANCE_HIGH)
+        )
+      }
+      val launch = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
+        .setSmallIcon(smallIconRes(ctx))
+        .setContentTitle(title)
+        .setContentText(body)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setCategory(NotificationCompat.CATEGORY_REMINDER)
+        .setDefaults(NotificationCompat.DEFAULT_ALL)
+        .setAutoCancel(true)
+      if (launch != null) {
+        builder.setContentIntent(
+          PendingIntent.getActivity(
+            ctx, BASE_NOTIF_ID + index, launch,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+          )
+        )
+      }
+      nm.notify(BASE_NOTIF_ID + index, builder.build())
+    } catch (_: Throwable) {}
+  }
+}

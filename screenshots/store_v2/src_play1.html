@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Bold.ttf'); font-weight: 700; }
+  @font-face { font-family: 'P'; src: url('file:///C:/suneung-timer-native/assets/fonts/Pretendard-Medium.ttf'); font-weight: 500; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 2160px; overflow: hidden; }
+  body { font-family: 'P', sans-serif; background: linear-gradient(175deg, #EFEAFB 0%, #F7F5FC 45%, #E7E0F8 100%);
+    display: flex; flex-direction: column; align-items: center; position: relative; }
+  .brand { margin-top: 58px; background: #FFFFFF; color: #6C4DC4; font-size: 34px; font-weight: 700;
+    padding: 14px 38px; border-radius: 999px; box-shadow: 0 5px 20px rgba(108,77,196,0.18); }
+  h1 { margin-top: 40px; font-size: 96px; line-height: 1.22; letter-spacing: -2px; color: #241A47; text-align: center; font-weight: 700; }
+  h1 .accent { color: #6C4DC4; }
+  .sub { margin-top: 30px; font-size: 41px; font-weight: 500; color: #5B5477; text-align: center; line-height: 1.5; }
+  .stage { position: relative; width: 1080px; flex: 1; }
+  .phone { position: absolute; border-radius: 84px; background: #14112B; padding: 17px; box-shadow: 0 42px 120px rgba(40,25,100,0.38); }
+  .screen { border-radius: 68px; overflow: hidden; background: #eef1fb; }
+  .p-run { right: 70px; top: 40px; transform: rotate(5deg); }
+  .p-run .screen { width: 496px; height: 965px; }
+  .p-run img { width: 100%; display: block; }
+  .p-result { left: 78px; top: 250px; transform: rotate(-4deg); }
+  .p-result .screen { width: 620px; height: 1207px; }
+  .p-result img { width: 100%; display: block; }
+  .badge { position: absolute; right: 118px; top: 1120px; background: #ED5E86; color: #fff; font-size: 35px; font-weight: 700;
+    padding: 16px 40px; border-radius: 999px; box-shadow: 0 12px 34px rgba(237,94,134,0.4); transform: rotate(3deg); z-index: 2; }
+</style>
+</head>
+<body>
+  <div class="brand">열공메이트</div>
+  <h1>얼마나 오래 말고,<br><span class="accent">얼마나 집중했는지</span></h1>
+  <div class="sub">타이머가 끝나면 집중밀도 점수로 알려줘요</div>
+  <div class="stage">
+    <div class="phone p-run"><div class="screen"><img src="file:///C:/suneung-timer-native/screenshots/cap-focus-run.png"></div></div>
+    <div class="phone p-result"><div class="screen"><img src="file:///C:/suneung-timer-native/screenshots/cap-density-result.jpg"></div></div>
+    <div class="badge">집중밀도 점수</div>
+  </div>
+</body>
+</html>

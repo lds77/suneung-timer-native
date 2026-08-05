@@ -1,0 +1,766 @@
+// src/screens/ReviewNotesScreen.js
+// 오답노트 — 영구 학습 노트(과목·챕터별). 과목 탭/할일 양쪽에서 { visible, onClose }로 재사용.
+// 설계: docs/review-notes-design.md. 순수 로직: utils/reviewNotes.js
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform, KeyboardAvoidingView, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  useAudioRecorder, useAudioRecorderState, useAudioPlayer, useAudioPlayerStatus,
+  requestRecordingPermissionsAsync, setAudioModeAsync,
+} from 'expo-audio';
+import { useApp } from '../hooks/useAppState';
+import Toast from '../components/Toast';
+import { getTheme } from '../constants/colors';
+import { groupBySubjectChapter, chapterSuggestions, UNCATEGORIZED } from '../utils/reviewNotes';
+import { saveImage, deleteFiles, resolveUri, canAddMore, MAX_ATTACH } from '../utils/attachments';
+import {
+  VOICE_RECORDING_OPTIONS, MAX_AUDIO, MAX_AUDIO_MS,
+  photoAttachments, audioAttachments, canAddAudio, normalizeAttachments, photoSlotsLeft,
+  reachedLimit, fmtClock, isTooShort, saveRecording,
+  checkAudioPick, saveAudioFile,
+} from '../utils/audioNotes';
+
+// 강조 색 라벨 팔레트 (요청#3 흡수 — 항목 전체 색 강조)
+const NOTE_COLORS = ['#E8575A', '#F5A623', '#4A90D9', '#5CB85C', '#9B6FC3'];
+const DANGER = '#E8575A';
+const MASTERED = '#00B894'; // 마스터 완료 표시(성공 녹색)
+
+// ── 음성 메모 한 줄: 재생/정지 + 진행바(탭해서 구간 이동) + 삭제 ──
+// 행마다 플레이어를 따로 둔다(노트당 최대 2개라 부담 없음) — 진행 상태를 훅으로 받으려면
+// 소스별 인스턴스가 필요하고, 부모가 imperative 하나로 돌리면 진행바를 그릴 수 없다.
+// 동시에 두 개가 울리지 않도록 재생 주도권은 부모의 activeFile이 갖는다.
+function AudioMemoRow({ file, durationMs, active, onActivate, onStop, onDelete, T }) {
+  const player = useAudioPlayer({ uri: resolveUri(file) });
+  const status = useAudioPlayerStatus(player);
+  const [barW, setBarW] = useState(0);
+
+  // 파일에서 붙인 클립은 durationMs를 모른 채 저장된다(0) — 로드되면 실제 길이로 채워진다
+  const totalSec = status?.duration > 0 ? status.duration : (durationMs || 0) / 1000;
+  const curSec = Math.min(status?.currentTime || 0, totalSec || Infinity);
+  const pct = totalSec > 0 ? Math.max(0, Math.min(1, curSec / totalSec)) : 0;
+  const playing = !!status?.playing;
+
+  // 다른 줄이 재생을 시작하면 이 줄은 멈춘다
+  useEffect(() => {
+    if (!active && playing) { try { player.pause(); } catch {} }
+  }, [active, playing]);
+
+  // 끝까지 들으면 처음으로 되감아 둔다 — 다시 누를 때 끝에서 시작하면 안 눌린 것처럼 보인다
+  useEffect(() => {
+    if (status?.didJustFinish) {
+      try { player.pause(); } catch {}
+      try { player.seekTo(0); } catch {}
+      onStop?.();
+    }
+  }, [status?.didJustFinish]);
+
+  const toggle = () => {
+    if (playing) { try { player.pause(); } catch {} onStop?.(); return; }
+    onActivate?.();
+    try { player.play(); } catch {}
+  };
+
+  // 진행바 탭 → 그 지점으로 이동. 듣고 싶은 구간만 다시 듣기 위한 것
+  const seekTo = (e) => {
+    if (!barW || !totalSec) return;
+    const ratio = Math.max(0, Math.min(1, e.nativeEvent.locationX / barW));
+    try { player.seekTo(ratio * totalSec); } catch {}
+  };
+
+  return (
+    <View style={[S.audioRow, { borderColor: T.border, backgroundColor: T.card }]}>
+      <TouchableOpacity onPress={toggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name={playing ? 'pause-circle' : 'play-circle'} size={32} color={T.accent} />
+      </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        {/* 얇은 막대는 누르기 어려우므로 터치 영역을 세로로 넉넉히 잡는다 */}
+        <TouchableOpacity activeOpacity={1} onPress={seekTo}
+          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+          style={{ height: 20, justifyContent: 'center' }}>
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: T.surface2 || T.surface }}>
+            <View style={{ width: `${pct * 100}%`, height: 4, borderRadius: 2, backgroundColor: T.accent }} />
+          </View>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>
+          {fmtClock(curSec * 1000)} / {totalSec > 0 ? fmtClock(totalSec * 1000) : '--:--'}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="trash-outline" size={17} color={DANGER} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function ReviewNotesScreen({ visible, onClose, initialSubjectId = null }) {
+  const app = useApp();
+  const T = getTheme(app.settings.darkMode, app.settings.accentColor, app.settings.fontScale, app.settings.stylePreset);
+  const notes = app.reviewNotes || [];
+  const subjects = app.subjects || [];
+
+  const [filterSubject, setFilterSubject] = useState('all'); // 'all' | subjectId | 'null'
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState([]); // id 배열 (Set 대신 배열 — 리렌더 단순)
+  const [editor, setEditor] = useState(null);   // null | { id, subjectId, chapter, title, body, color }
+  const [collapsed, setCollapsed] = useState({}); // 챕터 접기: key `${sid}|${chapterRaw}` → true
+  const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'review'(안 본 순)
+  const [reviewOnly, setReviewOnly] = useState(false); // 마스터 안 한 것만 (복습 필요)
+  const [viewer, setViewer] = useState(null);   // 전체보기 이미지 uri (null=닫힘)
+
+  useEffect(() => {
+    if (!visible) return;
+    setFilterSubject(initialSubjectId || 'all');
+    setSelectMode(false); setSelected([]); setEditor(null); setCollapsed({});
+    setSortMode('recent'); setReviewOnly(false);
+  }, [visible, initialSubjectId]);
+
+  const filtered = useMemo(() => {
+    let list = notes;
+    if (filterSubject === 'null') list = list.filter(n => n.subjectId == null);
+    else if (filterSubject !== 'all') list = list.filter(n => n.subjectId === filterSubject);
+    if (reviewOnly) list = list.filter(n => !n.mastered);
+    return list;
+  }, [notes, filterSubject, reviewOnly]);
+
+  const groups = useMemo(() => groupBySubjectChapter(filtered, subjects, { sort: sortMode }), [filtered, subjects, sortMode]);
+
+  // 마지막 복습 상대 시각 ('오늘' / '어제' / 'N일 전')
+  const reviewedAgo = (ts) => {
+    if (!ts) return null;
+    const days = Math.floor((Date.now() - ts) / 86400000);
+    return days <= 0 ? '오늘' : days === 1 ? '어제' : `${days}일 전`;
+  };
+
+  const subjectChips = useMemo(() => {
+    const has = new Set(notes.map(n => n.subjectId ?? 'null'));
+    const chips = [{ key: 'all', label: '전체', color: null }];
+    subjects.forEach(s => { if (has.has(s.id)) chips.push({ key: s.id, label: s.name, color: s.color }); });
+    if (has.has('null')) chips.push({ key: 'null', label: UNCATEGORIZED, color: null });
+    return chips;
+  }, [notes, subjects]);
+
+  const isSel = (id) => selected.includes(id);
+  const toggleSelect = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const startSelect = (id) => { setSelectMode(true); setSelected(id ? [id] : []); };
+  const exitSelect = () => { setSelectMode(false); setSelected([]); };
+  const selectAllVisible = () => setSelected(filtered.map(n => n.id));
+  const deleteSelected = () => {
+    if (selected.length === 0) return;
+    Alert.alert('오답 삭제', `${selected.length}개를 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => { app.deleteReviewNotes(selected); exitSelect(); } },
+    ]);
+  };
+
+  const openNew = () => setEditor({
+    id: null,
+    subjectId: (filterSubject !== 'all' && filterSubject !== 'null') ? filterSubject : null,
+    chapter: '', title: '', body: '', color: null,
+    attachments: [], origFiles: [],
+  });
+  const openEdit = (note) => {
+    // ★{ file }만 뽑으면 음성의 type·durationMs가 날아간다 — normalizeAttachments가 지킨다★
+    const atts = normalizeAttachments(note.attachments);
+    setEditor({
+      id: note.id, subjectId: note.subjectId ?? null, chapter: note.chapter ?? '',
+      title: note.title ?? '', body: note.body ?? '', color: note.color ?? null,
+      attachments: atts, origFiles: atts.map(a => a.file),
+    });
+  };
+  // 저장 없이 닫을 때: 이번에 새로 추가했다가 남은 사진 파일을 정리(고아 방지)
+  const discardAddedFiles = (e) => {
+    if (!e) return;
+    const added = (e.attachments || []).map(a => a.file).filter(f => f && !e.origFiles.includes(f));
+    if (added.length) deleteFiles(added);
+  };
+  // ★녹음 중에는 닫기·저장을 막는다★ — 예전엔 그대로 진행돼 편집기가 사라진 뒤 정리 effect가
+  // finishRecording을 부르는 바람에 **녹음이 통째로 사라졌다**(닫기 경로에서는 discardAddedFiles가
+  // 먼저 돌아 고아 파일까지 남았다). 정지 버튼 경로만 검증해서는 안 밟히던 자리(4.9절).
+  const blockedByRecording = () => {
+    if (!recording) return false;
+    app.showToastCustom('녹음을 먼저 정지해주세요', 'paengi');
+    return true;
+  };
+  const closeEditor = () => { if (blockedByRecording()) return; discardAddedFiles(editor); setEditor(null); };
+  const saveEditor = () => {
+    const e = editor;
+    if (!e) return;
+    if (blockedByRecording()) return;
+    if (!e.title.trim() && !e.body.trim()) { app.showToastCustom('제목이나 내용을 입력하세요', 'paengi'); return; }
+    const subj = subjects.find(s => s.id === e.subjectId);
+    const patch = {
+      subjectId: e.subjectId ?? null,
+      subjectLabel: subj?.name ?? null, subjectColor: subj?.color ?? null, subjectIcon: subj?.character ?? null,
+      chapter: e.chapter.trim(), title: e.title.trim(), body: e.body.trim(), color: e.color ?? null,
+      attachments: normalizeAttachments(e.attachments),
+    };
+    if (e.id) app.updateReviewNote(e.id, patch);
+    else app.addReviewNote(patch);
+    setEditor(null); // 저장했으므로 discard 안 함 (추가한 사진 유지)
+  };
+  const deleteFromEditor = () => {
+    if (!editor?.id) { closeEditor(); return; }
+    Alert.alert('오답 삭제', '이 오답을 삭제할까요? 첨부한 사진도 함께 삭제돼요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => {
+        discardAddedFiles(editor);              // 저장 안 한 새 사진 정리
+        app.deleteReviewNotes(editor.id);       // 노트 + 저장된 사진 정리(useAppState)
+        setEditor(null);
+      } },
+    ]);
+  };
+  // 사진 추가 — 카메라(1장)/앨범(여러 장) → 리사이즈·압축 저장 → 파일명만 편집기에 추가
+  const pickFrom = async (source) => {
+    const remaining = photoSlotsLeft(editor?.attachments, MAX_ATTACH);
+    if (remaining <= 0) { app.showToastCustom(`사진은 최대 ${MAX_ATTACH}장까지예요`, 'paengi'); return; }
+    try {
+      let res;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('권한 필요', '카메라 권한을 허용하면 문제를 찍어 첨부할 수 있어요.'); return; }
+        res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+      } else {
+        res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'], quality: 1,
+          allowsMultipleSelection: true, selectionLimit: remaining, // 앨범은 남은 장수만큼 여러 장 선택
+        });
+      }
+      if (res.canceled) return;
+      const assets = (res.assets || []).slice(0, remaining);
+      const files = [];
+      for (const a of assets) {
+        if (!a?.uri) continue;
+        const file = await saveImage(a.uri);
+        if (file) files.push({ file });
+      }
+      if (files.length === 0) { app.showToastCustom('사진 저장에 실패했어요', 'paengi'); return; }
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), ...files] } : e));
+      if ((res.assets || []).length > remaining) app.showToastCustom(`최대 ${MAX_ATTACH}장까지만 담았어요`, 'paengi');
+    } catch {
+      app.showToastCustom('사진을 불러오지 못했어요', 'paengi');
+    }
+  };
+  const addPhoto = () => {
+    Alert.alert('사진 추가', '오답 문제를 사진으로 남겨보세요', [
+      { text: '카메라로 촬영', onPress: () => pickFrom('camera') },
+      { text: '앨범에서 선택', onPress: () => pickFrom('album') },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+  const removePhoto = (file) => {
+    setEditor(e => {
+      if (!e.origFiles.includes(file)) deleteFiles([file]); // 새로 추가했다 뺀 사진은 즉시 정리
+      return { ...e, attachments: (e.attachments || []).filter(a => a.file !== file) };
+    });
+  };
+  // 실수 삭제 방지 — × 탭 시 한 번 확인
+  const confirmRemovePhoto = (file) => {
+    Alert.alert('사진 삭제', '이 사진을 뺄까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => removePhoto(file) },
+    ]);
+  };
+
+  // ═══ 음성 메모 ═══
+  // 프리셋을 쓰지 않는 이유는 utils/audioNotes.js 주석 참고 (안드 .3gp/AMR → iOS 재생 불가)
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const recState = useAudioRecorderState(recorder, 250);
+  const [recording, setRecording] = useState(false);
+  // 재생 주도권 — 어느 줄이 울릴지 부모가 정한다(동시 재생 방지). 실제 플레이어는 각 줄이 갖는다
+  const [playingFile, setPlayingFile] = useState(null);
+  const stoppingRef = useRef(false);   // 자동 정지와 사용자 정지가 겹쳐 두 번 저장되는 것 방지
+  const stopPlayback = () => setPlayingFile(null);
+
+  // 파일에서 오디오 첨부 — 녹음과 같은 칸을 나눠 쓴다
+  const attachAudioFile = async () => {
+    if (!canAddAudio(editor?.attachments)) {
+      app.showToastCustom(`음성은 ${MAX_AUDIO}개까지예요`, 'paengi'); return;
+    }
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
+      if (res.canceled) return;
+      const asset = res.assets?.[0];
+      const check = checkAudioPick(asset);
+      if (!check.ok) { Alert.alert('첨부할 수 없어요', check.reason); return; }
+      const item = await saveAudioFile(asset.uri, check.ext);
+      if (!item) { app.showToastCustom('파일을 저장하지 못했어요', 'paengi'); return; }
+      // null 가드: 비동기(피커·저장) 사이에 편집기가 닫히면 e가 null이라 `e.attachments`에서 터진다
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), item] } : e));
+    } catch {
+      app.showToastCustom('파일을 불러오지 못했어요', 'paengi');
+    }
+  };
+
+  // discard: 편집기가 이미 사라진 정리 경로. 녹음을 멈추고 세션만 되돌리며 **파일을 만들지 않는다**
+  const finishRecording = async ({ discard = false } = {}) => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    try {
+      const ms = recState.durationMillis || 0;
+      await recorder.stop();
+      const uri = recorder.uri;
+      // 오디오 세션을 재생용으로 되돌린 뒤 집중 사운드 재개 (순서가 바뀌면 소리가 안 난다)
+      try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: true }); } catch {}
+      app.resumeSounds?.();
+
+      // ★붙일 편집기가 없으면 저장하지 않는다★ — 예전엔 그대로 saveRecording까지 가서
+      // ①어느 노트도 참조하지 않는 고아 m4a가 남고 ②아래 setEditor 업데이터가 null을 받아
+      // `e.attachments`에서 터졌다. finishRecording은 매 렌더 다시 만들어지므로
+      // 여기 `editor`는 정리 effect가 도는 시점(=null)의 값이 맞다.
+      if (discard || !editor) return;
+      if (!uri || isTooShort(ms)) { app.showToastCustom('너무 짧아서 저장하지 않았어요', 'paengi'); return; }
+      const item = await saveRecording(uri, ms);
+      if (!item) { app.showToastCustom('녹음 저장에 실패했어요', 'paengi'); return; }
+      // null 가드: 비동기(피커·저장) 사이에 편집기가 닫히면 e가 null이라 `e.attachments`에서 터진다
+      setEditor(e => (e ? { ...e, attachments: [...(e.attachments || []), item] } : e));
+    } catch {
+      app.showToastCustom('녹음을 마치지 못했어요', 'paengi');
+    } finally {
+      setRecording(false);
+      stoppingRef.current = false;
+    }
+  };
+
+  const startRecording = async () => {
+    if (!canAddAudio(editor?.attachments)) {
+      app.showToastCustom(`음성 메모는 ${MAX_AUDIO}개까지예요`, 'paengi'); return;
+    }
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('마이크 권한 필요', '마이크 권한을 허용하면 오답 이유를 음성으로 남길 수 있어요.');
+        return;
+      }
+      stopPlayback();
+      app.suspendSounds?.();   // 백색소음이 녹음에 섞이거나 세션이 충돌하는 것 방지
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
+      recorder.record();
+      stoppingRef.current = false;
+      setRecording(true);
+    } catch {
+      // ★세션을 먼저 되돌린 뒤 재개한다★ — 순서가 바뀌면 소리가 안 난다(finishRecording과 동일).
+      // 예전엔 실패 경로만 이 복구를 빼먹어, prepareToRecordAsync/record가 던지면
+      // 오디오 세션이 녹음 모드로 남아 iOS에서 백색소음이 무음이거나 이어피스로 나갔다
+      try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: true }); } catch {}
+      app.resumeSounds?.();
+      app.showToastCustom('녹음을 시작하지 못했어요', 'paengi');
+    }
+  };
+
+  // 상한(3분) 도달 시 자동 정지 — 잊고 켜둔 녹음이 파일을 키우는 것을 막는다
+  useEffect(() => {
+    if (recording && reachedLimit(recState.durationMillis)) finishRecording();
+  }, [recording, recState.durationMillis]);
+
+  // 편집기를 닫거나 화면을 벗어나면 재생·녹음을 정리한다 (백그라운드 재생 잔존 방지)
+  useEffect(() => {
+    if (!visible || !editor) {
+      stopPlayback();
+      // 붙일 편집기가 없으므로 파일을 만들지 않고 멈추기만 한다(고아 방지).
+      // 편집기를 통한 닫기·저장은 blockedByRecording이 먼저 막으므로, 여기는
+      // 오답노트 화면 자체를 벗어나는 경로다
+      if (recording) finishRecording({ discard: true });
+    }
+  }, [visible, !!editor]);
+  useEffect(() => () => { stopPlayback(); }, []);
+
+  const removeAudio = (file) => {
+    Alert.alert('음성 메모 삭제', '이 녹음을 지울까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => {
+        if (playingFile === file) stopPlayback();
+        setEditor(e => {
+          if (!e.origFiles.includes(file)) deleteFiles([file]);
+          return { ...e, attachments: (e.attachments || []).filter(a => a.file !== file) };
+        });
+      } },
+    ]);
+  };
+
+  // 편집기는 글자 한 자마다 리렌더되므로(setEditor) 노트 전체를 훑는 계산은 메모해 둔다
+  const chapterSug = useMemo(
+    () => (editor ? chapterSuggestions(notes, editor.subjectId) : []),
+    [editor?.subjectId, notes, !!editor],
+  );
+  const editorNote = editor?.id ? notes.find(n => n.id === editor.id) : null; // 복습 데이터 참조용(라이브)
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent={false}>
+      <View style={{ flex: 1, backgroundColor: T.bg }}>
+        {/* 헤더 */}
+        <View style={[S.header, { borderColor: T.border, paddingTop: Platform.OS === 'ios' ? 54 : 16 }]}>
+          {selectMode ? (
+            <>
+              <TouchableOpacity onPress={exitSelect} style={S.hBtn}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>취소</Text></TouchableOpacity>
+              <Text style={{ color: T.text, fontSize: 16, fontWeight: '800' }}>{selected.length}개 선택</Text>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                <TouchableOpacity onPress={selectAllVisible} style={S.hBtn}><Text style={{ color: T.accent, fontSize: 14, fontWeight: '700' }}>전체</Text></TouchableOpacity>
+                <TouchableOpacity onPress={deleteSelected} style={S.hBtn}><Text style={{ color: DANGER, fontSize: 14, fontWeight: '800' }}>삭제</Text></TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={onClose} style={S.hBtn}><Ionicons name="chevron-back" size={24} color={T.text} /></TouchableOpacity>
+              <Text style={{ color: T.text, fontSize: 17, fontWeight: '800' }}>오답노트</Text>
+              <View style={{ flexDirection: 'row', gap: 2 }}>
+                {notes.length > 0 && (
+                  <TouchableOpacity onPress={() => startSelect()} style={S.hBtn}><Ionicons name="checkmark-circle-outline" size={22} color={T.sub} /></TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={openNew} style={S.hBtn}><Ionicons name="add" size={26} color={T.accent} /></TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* 과목 필터 칩 */}
+        {notes.length > 0 && (
+          <View style={{ borderBottomWidth: 1, borderColor: T.border }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6 }}>
+              {subjectChips.map(c => {
+                const active = filterSubject === c.key;
+                return (
+                  <TouchableOpacity key={c.key} onPress={() => setFilterSubject(c.key)}
+                    style={[S.chip, { borderColor: active ? T.accent : T.border, backgroundColor: active ? T.accent + '18' : T.card }]}>
+                    {c.color && <View style={[S.chipDot, { backgroundColor: c.color }]} />}
+                    <Text style={{ fontSize: 13, fontWeight: active ? '800' : '600', color: active ? T.accent : T.sub }}>{c.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* 정렬 + 복습 필요 필터 */}
+        {notes.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderColor: T.border }}>
+            <TouchableOpacity onPress={() => setSortMode(m => m === 'recent' ? 'review' : 'recent')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Ionicons name="swap-vertical" size={14} color={T.sub} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>{sortMode === 'recent' ? '최신순' : '안 본 순'}</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity onPress={() => setReviewOnly(v => !v)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: reviewOnly ? T.accent : T.border, backgroundColor: reviewOnly ? T.accent + '18' : T.card }}>
+              <Ionicons name={reviewOnly ? 'checkbox' : 'square-outline'} size={13} color={reviewOnly ? T.accent : T.sub} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: reviewOnly ? T.accent : T.sub }}>복습 필요만</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 본문 */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 60 }}>
+          {notes.length === 0 && (
+            <View style={{ alignItems: 'center', paddingTop: 80 }}>
+              <Ionicons name="reader-outline" size={44} color={T.sub} />
+              <Text style={{ color: T.text, fontSize: 15, fontWeight: '700', marginTop: 12 }}>오답노트가 비어 있어요</Text>
+              <Text style={{ color: T.sub, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+                완료한 할 일의 '오답노트 저장'으로 옮기거나{'\n'}오른쪽 위 + 로 직접 기록해보세요.
+              </Text>
+            </View>
+          )}
+          {notes.length > 0 && groups.length === 0 && (
+            <Text style={{ color: T.sub, fontSize: 13, textAlign: 'center', paddingTop: 40 }}>이 과목에는 오답이 없어요.</Text>
+          )}
+          {groups.map(g => (
+            <View key={String(g.subjectId)} style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: g.subjectColor || T.border }} />
+                <Text style={{ fontSize: 15, fontWeight: '800', color: T.text }}>{g.subjectLabel}</Text>
+                {g.deletedSubject && <Text style={{ fontSize: 11, color: T.sub }}>(삭제된 과목)</Text>}
+                <Text style={{ fontSize: 12, color: T.sub }}>{g.count}</Text>
+              </View>
+              {g.chapters.map(ch => {
+                const ckey = `${g.subjectId}|${ch.raw}`;
+                const isCollapsed = collapsed[ckey];
+                return (
+                  <View key={ckey} style={{ marginBottom: 8 }}>
+                    <TouchableOpacity onPress={() => setCollapsed(p => ({ ...p, [ckey]: !p[ckey] }))}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4, marginLeft: 2 }}>
+                      <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={14} color={T.sub} />
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: T.sub }}>{ch.name}</Text>
+                      <Text style={{ fontSize: 11, color: T.sub }}>· {ch.notes.length}</Text>
+                    </TouchableOpacity>
+                    {!isCollapsed && ch.notes.map(n => {
+                      const bar = n.color || g.subjectColor || T.border;
+                      const sel = isSel(n.id);
+                      const mastered = !!n.mastered;
+                      return (
+                        <TouchableOpacity key={n.id} activeOpacity={0.7}
+                          onPress={() => selectMode ? toggleSelect(n.id) : openEdit(n)}
+                          onLongPress={() => !selectMode && startSelect(n.id)}
+                          style={[S.card, { backgroundColor: T.card, borderColor: sel ? T.accent : T.border }, mastered && { opacity: 0.6 }]}>
+                          <View style={[S.cardBar, { backgroundColor: bar }]} />
+                          <View style={{ flex: 1 }}>
+                            {!!n.title && <Text style={{ fontSize: 14, fontWeight: '700', color: T.text }} numberOfLines={2}>{n.title}</Text>}
+                            {!!n.body && <Text style={{ fontSize: 12.5, color: T.sub, marginTop: n.title ? 3 : 0, lineHeight: 18 }} numberOfLines={3}>{n.body}</Text>}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
+                              {mastered ? (
+                                <><Ionicons name="ribbon-outline" size={11} color={MASTERED} /><Text style={{ fontSize: 11, fontWeight: '700', color: MASTERED }}>마스터 완료</Text></>
+                              ) : n.lastReviewedAt ? (
+                                <Text style={{ fontSize: 11, color: T.sub }}>복습 {n.reviewCount || 0}회 · {reviewedAgo(n.lastReviewedAt)}</Text>
+                              ) : (
+                                <Text style={{ fontSize: 11, color: T.sub }}>복습 안 함</Text>
+                              )}
+                            </View>
+                          </View>
+                          {/* 썸네일은 '첫 사진'이어야 한다 — 첫 첨부를 그대로 쓰면 음성 파일을
+                              Image가 그리려다 빈 칸이 된다. 사진이 없고 음성만 있으면 마이크 아이콘 */}
+                          {!selectMode && n.attachments?.length > 0 && (() => {
+                            const photos = photoAttachments(n.attachments);
+                            const audios = audioAttachments(n.attachments);
+                            if (photos.length === 0 && audios.length === 0) return null;
+                            return (
+                              <View style={{ marginLeft: 8 }}>
+                                {photos.length > 0 ? (
+                                  <Image source={{ uri: resolveUri(photos[0].file) }} style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.bg }} />
+                                ) : (
+                                  <View style={{ width: 42, height: 42, borderRadius: 7, backgroundColor: T.surface2 || T.surface, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Ionicons name="mic" size={19} color={T.accent} />
+                                  </View>
+                                )}
+                                {photos.length + audios.length > 1 && (
+                                  <View style={S.thumbBadge}><Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>{photos.length + audios.length}</Text></View>
+                                )}
+                              </View>
+                            );
+                          })()}
+                          {selectMode ? (
+                            <Ionicons name={sel ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={sel ? T.accent : T.sub} style={{ marginLeft: 8 }} />
+                          ) : !mastered ? (
+                            <TouchableOpacity onPress={() => Alert.alert('복습 완료', '이 오답을 복습 1회로 기록할까요?', [
+                              { text: '취소', style: 'cancel' },
+                              { text: '복습 완료', onPress: () => { app.markReviewed(n.id); app.showToastCustom('복습 체크!', 'toru'); } },
+                            ])}
+                              style={{ alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, backgroundColor: T.accent + '12', marginLeft: 8 }}>
+                              <Ionicons name="checkmark-done" size={15} color={T.accent} />
+                              <Text style={{ fontSize: 10, fontWeight: '800', color: T.accent, marginTop: 1 }}>복습</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* 편집기 (전체화면 — 바텀시트 키보드 문제 회피) */}
+        <Modal visible={!!editor} animationType="slide" onRequestClose={closeEditor} transparent={false}>
+          <View style={{ flex: 1, backgroundColor: T.bg }}>
+            <View style={[S.header, { borderColor: T.border, paddingTop: Platform.OS === 'ios' ? 54 : 16 }]}>
+              <TouchableOpacity onPress={closeEditor} style={S.hBtn}><Text style={{ color: T.sub, fontSize: 15, fontWeight: '700' }}>닫기</Text></TouchableOpacity>
+              <Text style={{ color: T.text, fontSize: 17, fontWeight: '800' }}>{editor?.id ? '오답 수정' : '새 오답'}</Text>
+              <TouchableOpacity onPress={saveEditor} style={S.hBtn}><Text style={{ color: T.accent, fontSize: 15, fontWeight: '800' }}>저장</Text></TouchableOpacity>
+            </View>
+            {editor && (
+              /* 안드로이드는 창 자체가 pan으로 밀려 올라간다(app.config softwareKeyboardLayoutMode).
+                 거기에 behavior='height'까지 걸면 키보드 높이가 바뀔 때마다(한글 추천단어 줄이
+                 떴다 사라질 때) 컨테이너 높이도 같이 줄었다 늘어 화면 맨 아래 요소가 깜박인다.
+                 → 안드는 OS의 pan에만 맡긴다. iOS는 pan이 없으므로 padding 유지 */
+              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                {/* paddingBottom을 넉넉히 — pan 방식에서 맨 아래 버튼이 키보드에 가려도 스크롤로 닿게 */}
+                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator contentContainerStyle={{ padding: 18, paddingBottom: 140 }}>
+                  <TextInput value={editor.title} onChangeText={t => setEditor(e => ({ ...e, title: t }))}
+                    placeholder="제목 (예: 이차함수 판별식)" placeholderTextColor={T.sub}
+                    style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, fontWeight: '700' }]} />
+                  <TextInput value={editor.body} onChangeText={t => setEditor(e => ({ ...e, body: t }))}
+                    placeholder="내용 · 오답 이유 · 기억할 것" placeholderTextColor={T.sub} multiline
+                    style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card, minHeight: 100, textAlignVertical: 'top' }]} />
+
+                  <Text style={[S.lbl, { color: T.sub }]}>사진 (선택 · 최대 {MAX_ATTACH}장)</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                    {/* 음성 항목은 여기서 제외 — 안 그러면 Image가 m4a를 그리려다 빈 칸이 된다 */}
+                    {photoAttachments(editor.attachments).map(a => (
+                      <View key={a.file} style={{ position: 'relative' }}>
+                        <TouchableOpacity activeOpacity={0.8} onPress={() => setViewer(resolveUri(a.file))}>
+                          <Image source={{ uri: resolveUri(a.file) }} style={S.thumb} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => confirmRemovePhoto(a.file)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          style={S.thumbX}>
+                          <Ionicons name="close" size={13} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {photoAttachments(editor.attachments).length < MAX_ATTACH && (
+                      <TouchableOpacity onPress={addPhoto} style={[S.thumb, S.thumbAdd, { borderColor: T.border, backgroundColor: T.card }]}>
+                        <Ionicons name="camera-outline" size={22} color={T.sub} />
+                        <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>추가</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* ── 음성 메모 ── */}
+                  <Text style={[S.lbl, { color: T.sub, marginTop: 10 }]}>
+                    음성 (선택 · 최대 {MAX_AUDIO}개 · 녹음은 하나당 {Math.round(MAX_AUDIO_MS / 60000)}분)
+                  </Text>
+                  {audioAttachments(editor.attachments).map(a => (
+                    <AudioMemoRow key={a.file} file={a.file} durationMs={a.durationMs}
+                      active={playingFile === a.file}
+                      onActivate={() => setPlayingFile(a.file)}
+                      onStop={() => setPlayingFile(null)}
+                      onDelete={() => removeAudio(a.file)}
+                      T={T} />
+                  ))}
+                  {recording ? (
+                    <TouchableOpacity onPress={finishRecording}
+                      style={[S.audioRow, { borderColor: DANGER, backgroundColor: DANGER + '12' }]}>
+                      <Ionicons name="stop-circle" size={30} color={DANGER} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: DANGER }}>녹음 중 · 눌러서 완료</Text>
+                        <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>
+                          {fmtClock(recState.durationMillis)} / {fmtClock(MAX_AUDIO_MS)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : canAddAudio(editor.attachments) && (
+                    // 녹음과 파일 첨부를 한 번 탭으로 각각 — Alert로 묶으면 주 용도인 녹음이 한 단계 멀어진다
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={startRecording}
+                        style={[S.audioRow, { flex: 1, borderColor: T.accent + '66', backgroundColor: T.card, borderStyle: 'dashed' }]}>
+                        <Ionicons name="mic-outline" size={24} color={T.accent} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>녹음하기</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={attachAudioFile}
+                        style={[S.audioRow, { flex: 1, borderColor: T.border, backgroundColor: T.card, borderStyle: 'dashed' }]}>
+                        <Ionicons name="attach-outline" size={22} color={T.sub} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: T.sub }}>파일 첨부</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <Text style={{ fontSize: 11, color: T.sub, marginTop: 8, marginBottom: 10, lineHeight: 15 }}>
+                    사진과 녹음은 이 기기에만 저장돼요. 새 폰으로 옮기려면 설정 &gt; 데이터 백업에서 '사진·녹음'을 고르세요.
+                  </Text>
+
+                  <Text style={[S.lbl, { color: T.sub }]}>과목</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                    <TouchableOpacity onPress={() => setEditor(e => ({ ...e, subjectId: null }))}
+                      style={[S.chip, { borderColor: editor.subjectId == null ? T.accent : T.border, backgroundColor: editor.subjectId == null ? T.accent + '18' : T.card }]}>
+                      <Text style={{ fontSize: 13, color: editor.subjectId == null ? T.accent : T.sub, fontWeight: '700' }}>{UNCATEGORIZED}</Text>
+                    </TouchableOpacity>
+                    {subjects.map(s => {
+                      const a = editor.subjectId === s.id;
+                      return (
+                        <TouchableOpacity key={s.id} onPress={() => setEditor(e => ({ ...e, subjectId: s.id }))}
+                          style={[S.chip, { borderColor: a ? T.accent : T.border, backgroundColor: a ? T.accent + '18' : T.card }]}>
+                          <View style={[S.chipDot, { backgroundColor: s.color }]} />
+                          <Text style={{ fontSize: 13, color: a ? T.accent : T.sub, fontWeight: '700' }}>{s.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={[S.lbl, { color: T.sub }]}>챕터 (선택)</Text>
+                  <TextInput value={editor.chapter} onChangeText={t => setEditor(e => ({ ...e, chapter: t }))}
+                    placeholder="예: 3단원 · 문법 · 오답 유형" placeholderTextColor={T.sub}
+                    style={[S.input, { color: T.text, borderColor: T.border, backgroundColor: T.card }]} />
+                  {chapterSug.length > 0 && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                      {chapterSug.map(c => (
+                        <TouchableOpacity key={c} onPress={() => setEditor(e => ({ ...e, chapter: c }))}
+                          style={[S.chip, { borderColor: T.border, backgroundColor: T.surface2 }]}>
+                          <Text style={{ fontSize: 12, color: T.sub }}>{c}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  <Text style={[S.lbl, { color: T.sub }]}>강조 색 (선택)</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => setEditor(e => ({ ...e, color: null }))}
+                      style={[S.colorDot, { borderColor: editor.color == null ? T.accent : T.border, backgroundColor: T.card, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="ban-outline" size={16} color={T.sub} />
+                    </TouchableOpacity>
+                    {NOTE_COLORS.map(c => (
+                      <TouchableOpacity key={c} onPress={() => setEditor(e => ({ ...e, color: c }))}
+                        style={[S.colorDot, { backgroundColor: c, borderColor: editor.color === c ? T.text : 'transparent', borderWidth: editor.color === c ? 3 : 2 }]} />
+                    ))}
+                  </View>
+
+                  {editorNote && (
+                    <View style={{ marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderColor: T.border }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TouchableOpacity onPress={() => { app.markReviewed(editorNote.id); app.showToastCustom('복습 체크!', 'toru'); }}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 11, borderRadius: 10, backgroundColor: T.accent + '15', borderWidth: 1, borderColor: T.accent + '55' }}>
+                          <Ionicons name="checkmark-done" size={16} color={T.accent} />
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: T.accent }}>복습 완료</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => app.toggleMastered(editorNote.id)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: editorNote.mastered ? MASTERED : T.border, backgroundColor: editorNote.mastered ? MASTERED + '18' : T.card }}>
+                          <Ionicons name={editorNote.mastered ? 'ribbon' : 'ribbon-outline'} size={16} color={editorNote.mastered ? MASTERED : T.sub} />
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: editorNote.mastered ? MASTERED : T.sub }}>마스터</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8 }}>
+                        <Text style={{ fontSize: 11.5, color: T.sub }}>
+                          {editorNote.lastReviewedAt
+                            ? `복습 ${editorNote.reviewCount || 0}회 · 마지막 ${reviewedAgo(editorNote.lastReviewedAt)}`
+                            : '아직 복습하지 않았어요'}
+                        </Text>
+                        {(editorNote.reviewCount || 0) > 0 && (
+                          <TouchableOpacity onPress={() => app.unmarkReviewed(editorNote.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                            <Text style={{ fontSize: 11.5, color: DANGER, fontWeight: '700' }}>복습 취소 −1</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                  {editor.id && (
+                    <TouchableOpacity onPress={deleteFromEditor} style={{ alignSelf: 'center', paddingVertical: 10, marginTop: 4 }}>
+                      <Text style={{ color: DANGER, fontSize: 14, fontWeight: '700' }}>이 오답 삭제</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </KeyboardAvoidingView>
+            )}
+            {/* ★Modal 안에서는 App.js 루트의 Toast가 보이지 않는다★ — 안드 Modal은 별도 창이라
+                그 아래 렌더된 것이 통째로 가린다(스터디룸에서 먼저 밟은 함정, 2026-07-25).
+                같은 상태(app.toast)를 이 창에도 그려서 호출부는 그대로 두고 보이게만 만든다.
+                편집기는 목록 위의 **중첩** Modal이라 여기에도 따로 필요하다 */}
+            <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
+          </View>
+        </Modal>
+
+        {/* 사진 전체보기 */}
+        <Modal visible={!!viewer} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setViewer(null)}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }}>
+            {viewer && <Image source={{ uri: viewer }} style={{ width: '92%', height: '78%' }} resizeMode="contain" />}
+            <Text style={{ color: '#fff', position: 'absolute', bottom: 44, fontSize: 13, opacity: 0.8 }}>탭하여 닫기</Text>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* 목록 화면용 (편집기가 닫혀 있을 때) — 위 편집기 Modal 안의 것과 짝 */}
+        <Toast message={app.toast.message} characterId={app.toast.char} visible={app.toast.visible} colors={T} />
+      </View>
+    </Modal>
+  );
+}
+
+const S = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 12, borderBottomWidth: 1 },
+  hBtn: { padding: 8, minWidth: 40, alignItems: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  card: { flexDirection: 'row', alignItems: 'center', padding: 11, paddingLeft: 8, borderRadius: 12, borderWidth: 1, marginBottom: 6 },
+  cardBar: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginRight: 10 },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 32 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
+  lbl: { fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 4 },
+  colorDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2 },
+  thumb: { width: 72, height: 72, borderRadius: 8 },
+  thumbAdd: { borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  thumbX: { position: 'absolute', top: -6, right: -6, backgroundColor: DANGER, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  thumbBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#333', borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
+  audioRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6,
+  },
+});

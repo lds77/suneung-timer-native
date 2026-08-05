@@ -12,11 +12,12 @@ const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
-import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
+import { FIXED_TYPES } from '../constants/presets';
 import { generateId } from '../utils/format';
+import { buildDefaultSchedule, describeScheduleLoss } from '../utils/scheduleTemplate';
 import { useApp } from '../hooks/useAppState';
 import { Ionicons } from '@expo/vector-icons';
-import TimePickerGrid from '../components/TimePickerGrid';
+import TimeField from '../components/TimeField';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
@@ -121,32 +122,29 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const [planStart, setPlanStart] = useState('08:00');
   const [planEnd, setPlanEnd] = useState('09:00');
 
+  // 키보드가 시간 입력칸을 덮지 않도록 그 줄을 위로 끌어올린다 (KeyboardAvoidingView와 한 쌍).
+  // 키보드가 올라오고 KAV가 높이를 줄인 뒤라야 위치가 맞아 지연을 준다
+  const fixedScrollRef = useRef(null);
+  const fixedTimeY = useRef(0);
+  const planScrollRef = useRef(null);
+  const planTimeY = useRef(0);
+  const scrollToFixedTime = useCallback(() => {
+    setTimeout(() => fixedScrollRef.current?.scrollTo({ y: Math.max(0, fixedTimeY.current - 8), animated: true }), 250);
+  }, []);
+  const scrollToPlanTime = useCallback(() => {
+    setTimeout(() => planScrollRef.current?.scrollTo({ y: Math.max(0, planTimeY.current - 8), animated: true }), 250);
+  }, []);
+
   // 요일 복사
   const [copyDays, setCopyDays] = useState({});
 
   const ws = app.weeklySchedule;
 
   // ── 기본 템플릿 적용 ──
+  // 생성 로직은 utils/scheduleTemplate.js (설정탭의 학교급 변경 제안과 공용 — 결과가 갈리면 안 된다)
   const applyDefaultTemplate = useCallback(() => {
-    const level = app.settings.schoolLevel || 'high';
-    const template = DEFAULT_SCHEDULES[level];
-    if (!template) {
-      const empty = { enabled: true };
-      DAY_KEYS.forEach(k => { empty[k] = emptyDay(); });
-      app.setWeeklySchedule(empty);
-      return;
-    }
-    const newWs = { enabled: true };
-    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
-    DAY_KEYS.forEach(key => {
-      const src = weekdays.includes(key) ? template.weekday : template.weekend;
-      newWs[key] = {
-        fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
-        plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: null })),
-      };
-    });
-    app.setWeeklySchedule(newWs);
-  }, [app.settings.schoolLevel]);
+    app.setWeeklySchedule(buildDefaultSchedule(app.settings.schoolLevel || 'high', app.subjects));
+  }, [app.settings.schoolLevel, app.subjects]);
 
   // ── 플래너 ON/OFF ──
   const handleToggle = useCallback((val) => {
@@ -230,16 +228,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     setShowAddFixed(true);
   }, []);
 
-  const handleAddFixed = useCallback(() => {
-    if (!fixedLabel.trim()) {
-      Alert.alert('이름을 입력해주세요.'); return;
-    }
-    const [sh, sm] = fixedStart.split(':').map(Number);
-    const [eh, em] = fixedEnd.split(':').map(Number);
-    if (eh * 60 + em === sh * 60 + sm) {
-      Alert.alert('시간 오류', '시작과 종료 시간이 같아요.'); return;
-    }
-    // end < start 는 자정을 넘어가는 일정으로 허용 (ex: 23:00~07:00)
+  const saveFixed = useCallback(() => {
     if (editingFixedId) {
       updateDay(day => ({
         ...day,
@@ -261,6 +250,32 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
     setShowAddFixed(false);
     resetFixedForm();
   }, [fixedLabel, fixedStart, fixedEnd, fixedType, editingFixedId, updateDay, resetFixedForm]);
+
+  const handleAddFixed = useCallback(() => {
+    if (!fixedLabel.trim()) {
+      Alert.alert('이름을 입력해주세요.'); return;
+    }
+    const startMin = parseTimeToMin(fixedStart);
+    const endMin = parseTimeToMin(fixedEnd);
+    if (endMin === startMin) {
+      Alert.alert('시간 오류', '시작과 종료 시간이 같아요.'); return;
+    }
+    // end < start 는 자정을 넘어가는 일정으로 허용 (ex: 23:00~07:00).
+    // 다만 휠에서 타이핑으로 바뀐 뒤로는 오타(11:11 → 10:22)로도 쉽게 만들어지므로
+    // 정말 다음 날까지 가는 일정인지 한 번 확인한다 (2026-08-02 사용자 요청)
+    if (endMin < startMin) {
+      Alert.alert(
+        '자정을 넘는 일정인가요?',
+        `${fixedStart}에 시작해서 다음 날 ${fixedEnd}에 끝나는 일정으로 저장돼요.`,
+        [
+          { text: '시간 고치기', style: 'cancel' },
+          { text: '네, 맞아요', onPress: saveFixed },
+        ],
+      );
+      return;
+    }
+    saveFixed();
+  }, [fixedLabel, fixedStart, fixedEnd, saveFixed]);
 
   const handleDeleteFixed = useCallback((id) => {
     Alert.alert('고정 일정 삭제', '이 일정을 삭제할까요?', [
@@ -465,9 +480,13 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               <TouchableOpacity
                 onPress={() => {
                   const levelLabel = LEVEL_LABELS[app.settings.schoolLevel] || '고등학생';
+                  // 사라지는 것을 개수로 적는다 — "설정한 내용은 사라져요"는 흘려보내기 쉽다.
+                  // (안드에서는 destructive 빨간 글씨가 안 나오므로 문구가 유일한 신호다)
+                  const loss = describeScheduleLoss(ws);
                   Alert.alert(
                     '기본 시간표로 초기화',
-                    `「${levelLabel}」 기본 시간표로 전체 초기화할까요?\n\n학교·식사·취침 시간이 자동으로 채워져요.\n지금까지 설정한 내용은 모두 사라져요.`,
+                    `「${levelLabel}」 기본 시간표로 전체 초기화할까요?\n\n학교·식사·취침 시간이 자동으로 채워져요.`
+                    + (loss ? `\n지금까지 만든 ${loss}가 모두 지워져요. 되돌릴 수 없어요.` : ''),
                     [
                       { text: '취소', style: 'cancel' },
                       { text: '초기화', style: 'destructive', onPress: () => {
@@ -598,11 +617,14 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
         {/* ── 고정 일정 추가/수정 모달 ── */}
         <Modal visible={showAddFixed} transparent animationType="slide"
           onRequestClose={() => { setShowAddFixed(false); resetFixedForm(); }}>
+          {/* 안드 Modal은 별도 창이라 softwareKeyboardLayoutMode:'pan'이 안 먹어 키보드가
+              시간 입력칸을 덮는다 — 아래 계획 모달과 같은 방식으로 통일 (2026-08-02) */}
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <View style={[s.sheetBg, Platform.OS === 'android' && { justifyContent: 'center' }]}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingFixedId ? '고정 일정 수정' : '고정 일정 추가'}</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView ref={fixedScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={[s.fieldLabel, { color: T.sub }]}>유형</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} keyboardShouldPersistTaps="handled">
                   <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -629,16 +651,20 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   placeholder="일정 이름" placeholderTextColor={T.sub} />
 
                 <Text style={[s.fieldLabel, { color: T.sub }]}>시간</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                  <TimePickerGrid
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}
+                  onLayout={(e) => { fixedTimeY.current = e.nativeEvent.layout.y; }}>
+                  {/* 예전 휠은 값이 바뀔 때마다 Keyboard.dismiss()를 불러도 됐지만,
+                      지금은 타이핑이 입력 수단이라 글자마다 키보드가 닫히면 아예 칠 수 없다 */}
+                  <TimeField
                     label="시작 시간" value={fixedStart}
-                    onChange={(v) => { setFixedStart(v); Keyboard.dismiss(); }}
-                    T={T}
+                    onChange={setFixedStart}
+                    T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
-                  <TimePickerGrid
-                    label="종료 시간" value={fixedEnd}
-                    onChange={(v) => { setFixedEnd(v); Keyboard.dismiss(); }}
-                    T={T} minValue={fixedStart}
+                  {/* allowEndOfDay: 종료만 24('하루 끝')를 받는다 — 시작 칸은 23까지 */}
+                  <TimeField
+                    label="종료 시간" value={fixedEnd} allowEndOfDay
+                    onChange={setFixedEnd}
+                    T={T} onFocus={scrollToFixedTime} style={{ flex: 1 }}
                   />
                 </View>
               </ScrollView>
@@ -655,6 +681,7 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── 공부 계획 추가/수정 모달 ── */}
@@ -664,6 +691,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
           <View style={s.sheetBg}>
             <View style={[s.sheet, { backgroundColor: T.bg }, isTablet && { maxWidth: tabletMaxW, alignSelf: 'center', width: '100%' }]}>
               <Text style={[s.sheetTitle, { color: T.text }]}>{editingPlanId ? '과목 수정' : '과목 추가'}</Text>
+
+              {/* 세로 스크롤이 없어 키보드가 뜨면 아래 내용(목표 시간·시간 입력)이 잘려 접근 불가했다
+                  — 시트 높이가 92% 고정이라 넘치는 만큼 그냥 사라진다 (2026-08-02 실기기) */}
+              <ScrollView ref={planScrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 탭: 내 과목 / 직접 입력 */}
               <View style={[s.tabRow, { backgroundColor: T.card, borderColor: T.border }]}>
@@ -753,11 +784,15 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                 })}
               </View>
 
-              {/* 특정 시간 배치 토글 */}
+              {/* 특정 시간 배치 토글 — 켜면 시간 입력줄이 아래에 새로 생기는데,
+                  모달 맨 아래라 그냥 두면 잘린 채 나온다. 켤 때 그 줄까지 스크롤 (2026-08-02 제보) */}
               <TouchableOpacity onPress={() => {
                 const next = !planUseSchedule;
                 setPlanUseSchedule(next);
-                if (next) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                if (next) {
+                  setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                  scrollToPlanTime();
+                }
               }} style={{
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                 paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
@@ -773,7 +808,10 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
                   value={planUseSchedule}
                   onValueChange={(v) => {
                     setPlanUseSchedule(v);
-                    if (v) setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                    if (v) {
+                      setPlanEnd(minToStr(Math.min(parseTimeToMin(planStart) + planTargetMin, 24 * 60)));
+                      scrollToPlanTime();
+                    }
                   }}
                   trackColor={{ false: T.border, true: T.accent + '80' }}
                   thumbColor={planUseSchedule ? T.accent : '#ccc'}
@@ -781,21 +819,24 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
               </TouchableOpacity>
 
               {planUseSchedule && (
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  <TimePickerGrid label="시작 시간" value={planStart} onChange={(v) => {
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}
+                  onLayout={(e) => { planTimeY.current = e.nativeEvent.layout.y; }}>
+                  <TimeField label="시작 시간" value={planStart} onChange={(v) => {
                     setPlanStart(v);
                     const newStartMin = parseTimeToMin(v);
                     if (parseTimeToMin(planEnd) <= newStartMin) {
                       setPlanEnd(minToStr(Math.min(newStartMin + planTargetMin, 24 * 60)));
                     }
-                  }} T={T} />
-                  <TimePickerGrid label="종료 시간" value={planEnd} onChange={(v) => {
+                  }} T={T} onFocus={scrollToPlanTime} style={{ flex: 1 }} />
+                  <TimeField label="종료 시간" value={planEnd} allowEndOfDay onChange={(v) => {
                     setPlanEnd(v);
                     const diff = Math.round(parseTimeToMin(v) - parseTimeToMin(planStart));
                     if (diff > 0) setPlanTargetMin(diff);
-                  }} T={T} minValue={planStart} />
+                  }} T={T} onFocus={scrollToPlanTime} style={{ flex: 1 }} />
                 </View>
               )}
+
+              </ScrollView>
 
               <View style={s.sheetBtnRow}>
                 <TouchableOpacity onPress={() => { setShowAddPlan(false); resetPlanForm(); }}

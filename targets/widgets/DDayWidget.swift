@@ -38,7 +38,7 @@ struct DDayView: View {
         }
         // 잠금화면(accessory)은 시스템이 배경/색을 그리므로 투명 + 시스템 전경색 사용
         .containerBackground(isAccessory ? Color.clear : d.bg, for: .widget)
-        .widgetURL(URL(string: "yeolgong://open"))
+        .widgetURL(URL(string: "yeolgong://open?tab=planner&view=monthly")) // 탭 → 플래너 월간(시험 관리)
     }
 
     // 잠금화면 원형: 대표 시험 이름(축약) + D-숫자

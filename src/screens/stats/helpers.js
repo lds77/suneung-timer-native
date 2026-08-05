@@ -241,8 +241,8 @@ export function buildReportText({ weekTotal, weekPrev, topSubject, avgDensity, s
   const diff = weekTotal - weekPrev;
   const diffStr = diff === 0 ? '지난주와 동일' : diff > 0 ? `지난주보다 +${formatShort(diff)}` : `지난주보다 ${formatShort(Math.abs(diff))} 적음`;
   const fsl = focusStats || {};
-  const fsLine = fsl.screenOnSessions ? `집중 도전: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
-  const fsLine2 = fsl.screenOffSessions ? `편하게 공부: ${fsl.screenOffSessions}세션` : '';
+  const fsLine = fsl.screenOnSessions ? `집중모드: ${fsl.screenOnSessions}세션 (Verified: ${fsl.verifiedSessions})` : '';
+  const fsLine2 = fsl.screenOffSessions ? `일반모드: ${fsl.screenOffSessions}세션` : '';
   const todoLine = todoRate !== null && todoRate !== undefined ? `이번 주 할 일 완료율: ${todoRate}%` : '';
   return `열공메이트 주간 리포트
 

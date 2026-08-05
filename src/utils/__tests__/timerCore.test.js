@@ -1,7 +1,7 @@
 // timerCore — 벽시계 경과/남은시간/페이즈 전환 순수 로직 테스트
 // CLAUDE.md 타이머·세션 불변식 1(벽시계 경과), 2(resumedAt 기반 전환 시각), 3(dedupeKey) 검증
 
-const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord } = require('../timerCore');
+const { wallElapsedSec, realRemainingSec, phaseEndAtMs, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } = require('../timerCore');
 
 const NOW = 1_800_000_000_000;
 
@@ -34,9 +34,20 @@ describe('realRemainingSec', () => {
     expect(realRemainingSec(lb, NOW)).toBeCloseTo(15 * 60); // 긴 휴식은 최소 15분
   });
 
-  test('자유/랩은 0 (남은 시간 개념 없음)', () => {
-    expect(realRemainingSec({ type: 'free', resumedAt: NOW }, NOW)).toBe(0);
-    expect(realRemainingSec({ type: 'lap', resumedAt: NOW }, NOW)).toBe(0);
+  test('자유/랩: 카운트업 상한(5시간)까지 남은 시간', () => {
+    expect(COUNTUP_MAX_SEC).toBe(5 * 3600);
+    expect(realRemainingSec({ type: 'free', resumedAt: NOW, elapsedSecAtResume: 0 }, NOW)).toBe(COUNTUP_MAX_SEC);
+    const oneHourIn = { type: 'free', resumedAt: NOW - 3600_000, elapsedSecAtResume: 0 };
+    expect(realRemainingSec(oneHourIn, NOW)).toBeCloseTo(4 * 3600);
+    // 일시정지 누적 포함 (elapsedSecAtResume)
+    const resumed = { type: 'lap', resumedAt: NOW - 1000_000, elapsedSecAtResume: 7200 };
+    expect(realRemainingSec(resumed, NOW)).toBeCloseTo(COUNTUP_MAX_SEC - 7200 - 1000);
+  });
+
+  test('자유/랩 상한 오버슈트는 0으로 클램프 (311시간 방치 방어)', () => {
+    const zombie = { type: 'free', resumedAt: NOW - 311 * 3600_000, elapsedSecAtResume: 0 };
+    expect(realRemainingSec(zombie, NOW)).toBe(0);
+    expect(realRemainingSec({ type: 'lap', resumedAt: NOW - 6 * 3600_000, elapsedSecAtResume: 0 }, NOW)).toBe(0);
   });
 });
 
@@ -96,6 +107,18 @@ describe('pomoFlipCore', () => {
     const t = { ...base, pomoPhase: 'longbreak', pomoSet: 4, resumedAt: NOW - 900_000, elapsedSecAtResume: 0 };
     const { next } = pomoFlipCore(t, NOW);
     expect(next.resumedAt).toBe(t.resumedAt + 15 * 60 * 1000);
+  });
+
+  test('캐치업 플립(큰 오버슈트): 세션 시각은 실제 페이즈 구간 역산 — 호출 시점(nowMs)과 무관 (불변식 4 연계)', () => {
+    // bg 복귀/스냅샷 복원이 몇 시간 뒤에 지난 세트를 전진시켜도, 세션은 그 세트가
+    // 실제로 진행된 시각으로 기록돼야 한다 (nowMs 기준이면 전부 '지금'으로 뭉치고 날짜 귀속도 틀어짐)
+    const t = { ...base, pomoPhase: 'work', pomoSet: 0 };
+    const workEndAt = t.resumedAt + 25 * 60 * 1000;
+    const twoHoursLater = NOW + 2 * 3600 * 1000;
+    const { workSession, next } = pomoFlipCore(t, twoHoursLater);
+    expect(next.resumedAt).toBe(workEndAt); // 불변식 2: 전환 시각은 호출 시점 무관
+    expect(workSession.startedAt).toBe(workEndAt - 25 * 60 * 1000);
+    expect(workSession.startedAt + workSession.durationSec * 1000).toBe(workEndAt);
   });
 });
 
@@ -220,6 +243,30 @@ describe('buildPhaseNotifSpecs', () => {
     expect(buildPhaseNotifSpecs({ type: 'countdown', totalSec: 60, resumedAt: NOW }, NOW)).toEqual([]);
     expect(buildPhaseNotifSpecs({ type: 'free', resumedAt: NOW }, NOW)).toEqual([]);
   });
+
+  test('stale 상태(경과가 페이즈 목표 초과)는 스펙 0개 — 복원/복귀 시 반드시 페이즈 전진 후 예약해야 하는 이유', () => {
+    // 첫 경계가 과거면 루프가 즉시 종료돼 미래 페이즈까지 전부 무음이 된다.
+    // useAppState의 fastForwardPhases가 전진을 보장하는 전제를 문서화하는 테스트
+    const stale = {
+      type: 'pomodoro', label: '수학', pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5,
+      resumedAt: NOW - 30 * 60_000, elapsedSecAtResume: 0, // work 25분이 5분 전에 끝난 상태
+    };
+    expect(buildPhaseNotifSpecs(stale, NOW)).toEqual([]);
+  });
+
+  test('stale 상태를 pomoFlipCore로 전진시키면 미래 스펙이 정상 생성된다', () => {
+    let t = {
+      id: 'tmr_1', type: 'pomodoro', label: '수학', subjectId: null, pomoPhase: 'work', pomoSet: 0,
+      pomoWorkMin: 25, pomoBreakMin: 5, pauseCount: 0, startedAt: NOW - 3600_000,
+      resumedAt: NOW - 30 * 60_000, elapsedSecAtResume: 0, elapsedSec: 30 * 60,
+    };
+    let guard = 0;
+    while (buildPhaseNotifSpecs(t, NOW).length === 0 && guard++ < 10) t = pomoFlipCore(t, NOW).next;
+    const specs = buildPhaseNotifSpecs(t, NOW);
+    expect(specs.length).toBeGreaterThan(0);
+    expect(specs.every(s => s.absMs > NOW)).toBe(true);
+  });
 });
 
 describe('calcTimerResult', () => {
@@ -241,6 +288,36 @@ describe('calcTimerResult', () => {
     };
     const r = calcTimerResult(t, 1800, { focusMode: 'screen_off' });
     expect(r.durationSec).toBe(4200); // 합산
+  });
+
+  // 2026-08-04 실기기 제보: 울트라디안(집중 90 + 휴식 20)을 7분 하고 종료했더니
+  // 결과 모달이 '1시간 50분'(= 전 항목 합계)을 보여줬다. 통계엔 7분으로 남으므로 표시만
+  // 어긋난 게 아니라, 시간 수정 시트가 그 값을 기본값으로 채워 그대로 저장하면 통계가 부풀려진다
+  test('연속모드 중도 종료(seqPartial): 진행 중이던 항목 하나만 반영', () => {
+    const t = {
+      type: 'sequence', totalSec: 5400, pauseCount: 0,
+      seqItems: [{ totalSec: 5400 }, { totalSec: 1200 }], seqIndex: 0, seqTotal: 2,
+    };
+    const partial = calcTimerResult(t, 420, { focusMode: 'screen_off', seqPartial: true });
+    expect(partial.durationSec).toBe(420);                    // 합계(6600)가 아니라 실제 경과
+    expect(partial.densityInputs.completionRatio).toBeCloseTo(420 / 5400);
+    expect(partial.densityInputs.timerType).toBe('countdown'); // 불변식 6은 그대로
+    // 완주 기준(기본값)은 종전 그대로 — 합계 + 항목 진척도
+    expect(calcTimerResult(t, 420, { focusMode: 'screen_off' }).durationSec).toBe(6600);
+  });
+
+  test('연속모드 중도 종료: 밀도가 세션 기록과 일치 (모달 표시 = 저장 값)', () => {
+    const t = {
+      type: 'sequence', totalSec: 5400, pauseCount: 0,
+      seqItems: [{ totalSec: 5400 }, { totalSec: 1200 }], seqIndex: 0, seqTotal: 2,
+    };
+    const r = calcTimerResult(t, 420, { focusMode: 'screen_off', seqPartial: true });
+    // cancelSequence/stopTimer가 기록하는 세션과 같은 입력 (불변식 6: timerType countdown)
+    const sess = buildSessionRecord({
+      durationSec: 420, mode: 'countdown', timerType: 'countdown',
+      completionRatio: Math.min(1, 420 / 5400), pauseCount: 0, focusMode: 'screen_off',
+    });
+    expect(sess.focusDensity).toBe(r.density);
   });
 
   test('카운트다운 중도 종료: 밀도 입력에 완료율 반영 (완주 대비 낮거나 같음)', () => {
@@ -292,5 +369,102 @@ describe('buildSessionRecord', () => {
     expect(s.todoId).toBe('todo_1');
     const none = buildSessionRecord({ ...spec, startedAt: NOW });
     expect(none.todoId).toBeNull();
+  });
+
+  test('불변식 3 연계: dedupeKey를 레코드에 보존 — 인메모리 dedupe 맵은 재시작에 유실되므로 영속 키가 복원 캐치업의 재기록을 막는다', () => {
+    const s = buildSessionRecord({ ...spec, startedAt: NOW, dedupeKey: 'complete|tmr_1|123' });
+    expect(s.dedupeKey).toBe('complete|tmr_1|123');
+    expect(buildSessionRecord({ ...spec, startedAt: NOW }).dedupeKey).toBeNull();
+  });
+});
+
+describe('restoreTimerCore — 콜드스타트 스냅샷 복원 분기 (불변식 8·9)', () => {
+  const NOW = 1_700_000_000_000;
+  const base = { id: 'tm1', label: '수학', subjectId: 's1', startedAt: NOW - 3_600_000, pauseCount: 0 };
+
+  test('countdown running: 죽은 사이 완료 → complete + 기록 (durationSec=totalSec)', () => {
+    const t = { ...base, type: 'countdown', status: 'running', totalSec: 1500, elapsedSec: 1400 };
+    const r = restoreTimerCore(t, 200, NOW); // 1400+200 >= 1500
+    expect(r).toMatchObject({ kind: 'complete', record: true, durationSec: 1500, timerType: 'countdown', capped: false });
+  });
+
+  test('countdown 5분 미만은 미기록, 계획/할일 연결 시 30초부터 기록 (불변식 7)', () => {
+    const short = { ...base, type: 'countdown', status: 'running', totalSec: 120, elapsedSec: 100 };
+    expect(restoreTimerCore(short, 60, NOW).record).toBe(false);
+    expect(restoreTimerCore({ ...short, planId: 'p1' }, 60, NOW).record).toBe(true);
+    expect(restoreTimerCore({ ...short, todoId: 'td1' }, 60, NOW).record).toBe(true);
+  });
+
+  test('countdown running 미완료 → resume: 경과에 gap 가산 + 지금으로 재앵커', () => {
+    const t = { ...base, type: 'countdown', status: 'running', totalSec: 1500, elapsedSec: 600, resumedAt: NOW - 700_000 };
+    const r = restoreTimerCore(t, 100, NOW);
+    expect(r.kind).toBe('resume');
+    expect(r.timer).toMatchObject({ elapsedSec: 700, status: 'running', resumedAt: NOW, elapsedSecAtResume: 700 });
+  });
+
+  test('countdown paused: gap 미가산, 경과가 이미 목표 이상이면 완료 처리', () => {
+    const t = { ...base, type: 'countdown', status: 'paused', totalSec: 1500, elapsedSec: 600 };
+    const r = restoreTimerCore(t, 99999, NOW);
+    expect(r.kind).toBe('pause');
+    expect(r.timer).toMatchObject({ elapsedSec: 600, resumedAt: null, elapsedSecAtResume: 600 });
+    expect(restoreTimerCore({ ...t, elapsedSec: 1500 }, 0, NOW).kind).toBe('complete');
+  });
+
+  test('free running 상한 도달 → complete + 기록(5시간, capped), lap은 기록 없이 제거', () => {
+    const free = { ...base, type: 'free', status: 'running', elapsedSec: COUNTUP_MAX_SEC - 100 };
+    const r = restoreTimerCore(free, 200, NOW);
+    expect(r).toMatchObject({ kind: 'complete', record: true, durationSec: COUNTUP_MAX_SEC, timerType: 'free', capped: true });
+    const lap = { ...base, type: 'lap', status: 'running', elapsedSec: COUNTUP_MAX_SEC };
+    expect(restoreTimerCore(lap, 0, NOW)).toMatchObject({ kind: 'complete', record: false });
+  });
+
+  test('free paused는 상한 미적용 (경과 정지 상태) → pause 유지', () => {
+    const t = { ...base, type: 'free', status: 'paused', elapsedSec: COUNTUP_MAX_SEC + 999 };
+    expect(restoreTimerCore(t, 0, NOW).kind).toBe('pause');
+  });
+
+  test('pomodoro running(resumedAt 有) → fastforward: gap이 아니라 벽시계 경과 사용', () => {
+    const t = { ...base, type: 'pomodoro', status: 'running', elapsedSec: 100,
+      resumedAt: NOW - 2_000_000, elapsedSecAtResume: 50 };
+    const r = restoreTimerCore(t, 777, NOW);
+    expect(r.kind).toBe('fastforward');
+    expect(r.timer.elapsedSec).toBe(50 + 2000); // resumedAt 기준 (gap 777 무시)
+  });
+
+  test('pomodoro running인데 resumedAt 없으면(방어) 일반 resume 재앵커', () => {
+    const t = { ...base, type: 'pomodoro', status: 'running', elapsedSec: 100, resumedAt: null };
+    const r = restoreTimerCore(t, 60, NOW);
+    expect(r.kind).toBe('resume');
+    expect(r.timer).toMatchObject({ elapsedSec: 160, resumedAt: NOW });
+  });
+});
+
+// 휴식 페이즈 종료 시각 — 이탈 판정이 '휴식이 끝난 뒤'만 세기 위해 쓴다(focusAway.awayMsAfterBreak).
+describe('breakEndsAtMs', () => {
+  const now = 1_700_000_000_000;
+
+  test('뽀모 휴식: 남은 휴식만큼 뒤가 종료 시각', () => {
+    // 5분 휴식을 2분 진행한 상태 → 3분 뒤 종료
+    const t = { type: 'pomodoro', pomoPhase: 'break', pomoBreakMin: 5,
+                resumedAt: now, elapsedSecAtResume: 120 };
+    expect(breakEndsAtMs(t, now)).toBe(now + 180 * 1000);
+  });
+
+  test('연속모드 휴식: seqBreakSec 기준', () => {
+    const t = { type: 'sequence', seqPhase: 'break', seqBreakSec: 300,
+                resumedAt: now, elapsedSecAtResume: 60 };
+    expect(breakEndsAtMs(t, now)).toBe(now + 240 * 1000);
+  });
+
+  test('작업 페이즈면 null (면제 대상이 아니다)', () => {
+    expect(breakEndsAtMs({ type: 'pomodoro', pomoPhase: 'work', resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs({ type: 'sequence', seqPhase: 'work', resumedAt: now }, now)).toBeNull();
+  });
+
+  test('휴식 개념이 없는 타이머는 null', () => {
+    expect(breakEndsAtMs({ type: 'countdown', totalSec: 1500, resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs({ type: 'free', resumedAt: now }, now)).toBeNull();
+    expect(breakEndsAtMs(null, now)).toBeNull();
+    expect(breakEndsAtMs(undefined, now)).toBeNull();
   });
 });
