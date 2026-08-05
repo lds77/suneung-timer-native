@@ -24,6 +24,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { exportBackupData, importBackupData } from '../utils/storage';
 import { getToday } from '../utils/format';
 import { backupRowSub } from '../utils/backupNudge';
+import { buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent } from '../utils/scheduleTemplate';
 import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
 import { backupFileName, buildArchive, openArchive, restoreFiles, finishRestore, filesToRestore, isZipFile } from '../utils/backupArchive';
 import { openExactAlarmSettings } from '../utils/permissions';
@@ -398,6 +399,40 @@ export default function SettingsScreen() {
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
+
+  // ── 학교급 변경 ──
+  // 학교급을 바꿔도 **이미 만들어 둔 주간 시간표는 그대로 남는다**(공들여 짠 걸 앱이 지우지 않는 것).
+  // 그래서 고등→초등처럼 일과가 통째로 달라지면 예전 시간표가 남아 있는 걸 모른 채 쓰게 된다
+  // (테스터가 플래너 > 반복설정 > 기본으로 초기화를 매번 찾아 들어가야 했다 — 2026-08-05).
+  // 바꾼 그 자리에서 한 번 물어보고, 원치 않으면 취소하면 된다.
+  const pickSchoolLevel = useCallback((level) => {
+    const prev = app.settings.schoolLevel || 'high';
+    app.updateSettings({ schoolLevel: level.id });
+    setShowSchoolPicker(false);
+    if (level.id === prev) return;                          // 같은 걸 다시 고름
+    if (app.weeklySchedule?.enabled !== true) return;        // 플래너를 안 쓰면 물어볼 게 없다
+    if (!hasScheduleTemplate(level.id)) return;              // 기본 시간표가 없는 학교급
+    const hadContent = hasScheduleContent(app.weeklySchedule);
+    // ★피커 Modal이 닫히는 동안 Alert를 띄우면 안드에서 같이 사라진다★ — 애니메이션 뒤로 미룬다
+    setTimeout(() => {
+      Alert.alert(
+        '기본 시간표도 새로 불러올까요?',
+        `학교급을 「${level.label}」(으)로 바꿨어요.\n주간 시간표는 예전 학교급 그대로예요.\n\n「${level.label}」 기본 시간표(학교·식사·취침)로 새로 채울까요?`
+        + (hadContent ? '\n\n지금까지 만든 주간 시간표는 사라져요.\n공부 기록·통계·과목은 그대로예요.' : ''),
+        [
+          { text: '지금 그대로', style: 'cancel' },
+          {
+            text: '새로 불러오기',
+            style: hadContent ? 'destructive' : 'default',
+            onPress: () => {
+              app.setWeeklySchedule(buildDefaultSchedule(level.id));
+              app.showToastCustom(`${level.label} 기본 시간표로 채웠어요`, 'toru');
+            },
+          },
+        ]
+      );
+    }, 350);
+  }, [app.settings.schoolLevel, app.weeklySchedule]);
   const [photoUsage, setPhotoUsage] = useState(null); // 오답노트 사진 사용량 { count, bytes }
   // 기기 저장공간을 눈에 띄게 쓰기 시작하는 지점에서만 색으로 알린다.
   // ※안드 자동 백업 25MB 상한과는 무관해졌다 — plugins/withAttachmentsNotBackedUp이
@@ -1043,7 +1078,7 @@ export default function SettingsScreen() {
 
               {/* 플래너 탭 */}
               <GuideSection id="planner" title="플래너 탭" color="#00CEC9" T={T} openId={openGuideId} onOpen={setOpenGuideId} scrollRef={guideScrollRef}>
-                {'플래너 탭에서 오늘·주간·월간 일정을 한눈에 파악해요.\n\n오늘 뷰\n• 오늘 시간표 블록과 계획을 시각적으로 확인해요\n• 공부 계획 옆 재생 버튼으로 바로 타이머를 시작해요\n• 배치 버튼으로 빈 시간에 미배치 계획을 넣을 수 있어요\n• 빈 시간에 배치한 계획은 탭해서 "시간 변경"으로 다른 빈 시간으로 옮길 수 있어요\n\n주간 뷰\n• 요일별 시간표를 그리드로 확인해요\n• 블록을 탭하면 바로 타이머를 시작할 수 있어요\n• 계획 블록 아래 미니바로 계획 대비 실제 공부량을 비교해요\n\n이번 주만 vs 매주 반복\n• 계획을 추가할 때 "이번 주만"과 "매주 반복" 중 고를 수 있어요\n• 이번 주만 — 이번 주에만 표시되는 일회성 계획이에요\n• 매주 반복 — 매주 같은 요일에 반복되는 시간표 계획이에요\n\n이번 주만 바꾸기 (회차별 조정)\n• 반복 계획이나 고정 일정을 탭하면 "이번 주만"과 "매주 전체" 중 골라서 수정·삭제할 수 있어요\n• 이번 주 학원 휴강·학교 휴교 → "이번 주만 휴무"로 그 주만 빼고 다음 주는 그대로예요\n• "계획 다른 날로 미루기"로 계획을 다른 날짜·요일로 옮길 수 있어요 (이번 회차만 이동하고 반복은 유지돼요)\n• 옮긴 날 같은 시간에 다른 과목이 있으면 가장 가까운 빈 시간으로 자동 배치돼요 (빈 시간이 없으면 미배치로 이동, 오늘로 옮길 땐 지난 시간은 피해서 배치)\n\n월간 뷰 (D-Day·일정 관리)\n• 날짜를 탭하면 그날의 공부 기록과 일정을 확인해요\n• 날짜를 길게 누르면 새 일정을 바로 추가해요\n• 과거 날짜에는 공부량에 따라 색상 도트가 표시돼요\n• 시험·일정에 별(★)을 고정하면 집중탭에 상시 표시돼요\n\n⚙ 버튼\n• 주간 플래너 편집 화면이 열려요\n• 요일별 고정 일정(학교·식사 등)과 공부 계획을 설정해요\n• 기본 시간표 초기화로 학교급에 맞는 시간표를 불러올 수 있어요'}
+                {'플래너 탭에서 오늘·주간·월간 일정을 한눈에 파악해요.\n\n오늘 뷰\n• 오늘 시간표 블록과 계획을 시각적으로 확인해요\n• 공부 계획 옆 재생 버튼으로 바로 타이머를 시작해요\n• 배치 버튼으로 빈 시간에 미배치 계획을 넣을 수 있어요\n• 빈 시간에 배치한 계획은 탭해서 "시간 변경"으로 다른 빈 시간으로 옮길 수 있어요\n\n주간 뷰\n• 요일별 시간표를 그리드로 확인해요\n• 블록을 탭하면 바로 타이머를 시작할 수 있어요\n• 계획 블록 아래 미니바로 계획 대비 실제 공부량을 비교해요\n\n이번 주만 vs 매주 반복\n• 계획을 추가할 때 "이번 주만"과 "매주 반복" 중 고를 수 있어요\n• 이번 주만 — 이번 주에만 표시되는 일회성 계획이에요\n• 매주 반복 — 매주 같은 요일에 반복되는 시간표 계획이에요\n\n이번 주만 바꾸기 (회차별 조정)\n• 반복 계획이나 고정 일정을 탭하면 "이번 주만"과 "매주 전체" 중 골라서 수정·삭제할 수 있어요\n• 이번 주 학원 휴강·학교 휴교 → "이번 주만 휴무"로 그 주만 빼고 다음 주는 그대로예요\n• "계획 다른 날로 미루기"로 계획을 다른 날짜·요일로 옮길 수 있어요 (이번 회차만 이동하고 반복은 유지돼요)\n• 옮긴 날 같은 시간에 다른 과목이 있으면 가장 가까운 빈 시간으로 자동 배치돼요 (빈 시간이 없으면 미배치로 이동, 오늘로 옮길 땐 지난 시간은 피해서 배치)\n\n월간 뷰 (D-Day·일정 관리)\n• 날짜를 탭하면 그날의 공부 기록과 일정을 확인해요\n• 날짜를 길게 누르면 새 일정을 바로 추가해요\n• 과거 날짜에는 공부량에 따라 색상 도트가 표시돼요\n• 시험·일정에 별(★)을 고정하면 집중탭에 상시 표시돼요\n\n반복설정 버튼 (플래너 탭 맨 아래 오른쪽)\n• 매주 반복되는 주간 시간표를 편집하는 화면이 열려요\n• 요일별 고정 일정(학교·식사 등)과 공부 계획을 설정해요\n• 한 요일을 짠 뒤 "다른 요일에 복사"로 나머지를 빠르게 채워요\n• "기본으로 초기화"로 지금 학교급에 맞는 시간표를 불러올 수 있어요\n  (학교급을 바꿔도 시간표는 그대로 남아요 — 새로 채우려면 여기서 초기화해요)'}
               </GuideSection>
 
               {/* 스마트 할 일 */}
@@ -1273,7 +1308,7 @@ export default function SettingsScreen() {
           {SCHOOL_LEVELS.map(s => {
             const sel = (app.settings.schoolLevel || 'high') === s.id;
             return (
-              <TouchableOpacity key={s.id} onPress={() => { app.updateSettings({ schoolLevel: s.id }); setShowSchoolPicker(false); }}
+              <TouchableOpacity key={s.id} onPress={() => { pickSchoolLevel(s); }}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 24, backgroundColor: sel ? T.accent + '15' : 'transparent' }}>
                 <View>
                   <Text style={{ fontSize: 15, fontWeight: sel ? '900' : '600', color: sel ? T.accent : T.text }}>{s.label}</Text>

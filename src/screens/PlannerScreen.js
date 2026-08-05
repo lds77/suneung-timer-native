@@ -1938,7 +1938,7 @@ export default function PlannerScreen({ navigation, route }) {
                   학교급에 맞는 기본 시간표가 설정됐어요!
                 </Text>
                 <Text style={{ fontSize: 12, color: T.text, lineHeight: 18 }}>
-                  주간 탭에서 시간표를 확인하고, 하단 <Text style={{ fontWeight: '800' }}>⚙ 편집</Text> 버튼으로 내 일정에 맞게 수정해보세요.
+                  주간 탭에서 시간표를 확인하고, 화면 맨 아래 오른쪽 <Text style={{ fontWeight: '800' }}>반복설정</Text> 버튼으로 내 일정에 맞게 수정해보세요.
                 </Text>
                 <TouchableOpacity
                   onPress={() => { setShowScheduleEditor(true); app.updateSettings({ plannerGuideSeen: true }); }}
@@ -1947,7 +1947,7 @@ export default function PlannerScreen({ navigation, route }) {
                     backgroundColor: T.accent, borderRadius: 10,
                     alignSelf: 'flex-start',
                   }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>⚙ 지금 편집하기</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>지금 편집하기</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity

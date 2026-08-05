@@ -12,8 +12,9 @@ const isTablet = SW >= 600;
 const TABLET_MAX_W = 680;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTheme } from '../constants/colors';
-import { FIXED_TYPES, DEFAULT_SCHEDULES } from '../constants/presets';
+import { FIXED_TYPES } from '../constants/presets';
 import { generateId } from '../utils/format';
+import { buildDefaultSchedule } from '../utils/scheduleTemplate';
 import { useApp } from '../hooks/useAppState';
 import { Ionicons } from '@expo/vector-icons';
 import TimeField from '../components/TimeField';
@@ -140,25 +141,9 @@ export default function ScheduleEditorScreen({ visible, onClose }) {
   const ws = app.weeklySchedule;
 
   // ── 기본 템플릿 적용 ──
+  // 생성 로직은 utils/scheduleTemplate.js (설정탭의 학교급 변경 제안과 공용 — 결과가 갈리면 안 된다)
   const applyDefaultTemplate = useCallback(() => {
-    const level = app.settings.schoolLevel || 'high';
-    const template = DEFAULT_SCHEDULES[level];
-    if (!template) {
-      const empty = { enabled: true };
-      DAY_KEYS.forEach(k => { empty[k] = emptyDay(); });
-      app.setWeeklySchedule(empty);
-      return;
-    }
-    const newWs = { enabled: true };
-    const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
-    DAY_KEYS.forEach(key => {
-      const src = weekdays.includes(key) ? template.weekday : template.weekend;
-      newWs[key] = {
-        fixed: (src.fixed || []).map(f => ({ ...f, id: generateId('f_') })),
-        plans: (src.plans || []).map((p, idx) => ({ ...p, id: generateId('p_'), order: idx, subjectId: null })),
-      };
-    });
-    app.setWeeklySchedule(newWs);
+    app.setWeeklySchedule(buildDefaultSchedule(app.settings.schoolLevel || 'high'));
   }, [app.settings.schoolLevel]);
 
   // ── 플래너 ON/OFF ──
