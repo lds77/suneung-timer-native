@@ -120,6 +120,21 @@
       if (hClear) hClear.classList.toggle('on', !!q);
     };
 
+    // 목록이 바뀌면 결과의 **처음**이 보이게 올려준다.
+    // 아래쪽을 보다가 분류를 누르면 그 자리에 남아 결과의 중간·끝이 보였다(2026-08-05 제보).
+    // ★내려가는 방향으로는 움직이지 않는다★ — 맨 위에서 누른 사람을 억지로 끌어내리면 더 어수선하다.
+    var scrollToResultsTop = function () {
+      var tools = document.querySelector('.help-tools');
+      if (!tools) return;
+      var nav = document.querySelector('.nav');
+      var navH = nav ? nav.offsetHeight : 0;
+      // sticky라도 offsetTop은 '원래 자리'를 준다(레이아웃 값) — 붙어 있는 위치가 아니다
+      var y = Math.max(0, tools.offsetTop - navH - 8);
+      if (window.pageYOffset > y + 2) {
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    };
+
     var syncUrl = function (q) {
       if (!window.history || !history.replaceState) return;
       var url = location.pathname + (q ? '?q=' + encodeURIComponent(q) : '');
@@ -129,6 +144,7 @@
     hSearch.addEventListener('input', function () {
       apply(hSearch.value);
       syncUrl(hSearch.value);
+      scrollToResultsTop(); // 결과가 줄면 화면 밖으로 밀려나므로 한 번 올려준다
     });
     hSearch.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { hSearch.value = ''; apply(''); syncUrl(''); }
@@ -143,6 +159,7 @@
         curCat = btn.getAttribute('data-cat');
         hCats.forEach(function (b) { b.classList.toggle('on', b === btn); });
         apply(hSearch.value);
+        scrollToResultsTop(); // 고른 분류의 **첫 항목**부터 보이게
       });
     });
 
