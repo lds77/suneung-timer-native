@@ -122,8 +122,34 @@ runtime **1.0.40** · production 채널 · group `c0c4de1a-c26a-4b49-93aa-9a0c2c
 → **안드로이드 OTA는 없다. 계획 결과 모달 5분 통일은 vc72 스토어 출시로만 나간다.**
 
 ### 진행 (2026-08-05 저녁, 사용자 승인 후 순서대로 실행)
-- [x] **vc72(1.0.40) AAB 빌드 시작** — `ba4e47df-1835-47ac-8c25-408cb2fd2388`
-      (production 프로필, 런타임 1.0.40, versionCode 72, 20:12 시작)
+- [x] **vc72(1.0.40) AAB 빌드 완료** — `ba4e47df-1835-47ac-8c25-408cb2fd2388`
+      (production, 런타임 1.0.40, versionCode 72, 커밋 `25f4166`, 20:12→21:06 finished)
+      - AAB: `https://expo.dev/artifacts/eas/e6fwJ39KRLsFomzB3EmExGU1Q3856JRqJ0c5uzi3zeE.aab`
+- [ ] ★**Play 업로드는 수동이다 — `eas submit`이 안드로이드에선 안 된다**★
+      `Google Service Account Keys cannot be set up in --non-interactive mode` —
+      **EAS에 구글 서비스 계정 키가 등록돼 있지 않다**(iOS는 ASC API 키가 있어 자동 제출된다).
+      → 위 AAB를 받아 **Play Console에서 직접 업로드**한다.
+      ※자동화하려면 1회성 준비: Google Cloud에서 서비스 계정 JSON 키 발급 → Play Console에서
+      그 계정에 권한 부여 → `eas credentials`로 등록. 그 뒤로는 무인 제출 가능
+
+#### vc72 게시 전 확인 3가지
+1. ★**지원 기기가 18,998대에서 줄지 않았는지**★ (규칙 12 · vc70 기준값은 위 절).
+   로컬 APK로는 이미 확인했다(마이크 `not-required`, implied 없음)
+2. **AI 애셋 신고**: `Label assets as created or edited using AI` — 기준은 6.5-C절
+3. **등록정보의 울트라모드 '10초' 문구 제거** — 6.5-B절 숙제(등록정보 수정 시 함께)
+
+#### ★Play 릴리스 노트 (vc72 = 1.0.39 → 1.0.40) — 붙여넣기용 산문★
+안드는 vc70이 나가 있어 범위가 좁다. **사진 첨부·모드 이름·화면 끄기 면제는 이미
+1.0.38/1.0.39에 나갔으니 다시 쓰지 말 것**(같은 얘기를 두 번 하게 된다).
+```
+오답노트에 왜 틀렸는지 음성으로 설명을 남길 수 있어요. 백업할 때 사진과 녹음까지 함께 담겨서
+기기를 바꿔도 그대로 옮겨가요.
+
+계획과 타이머 시간은 휠 대신 숫자로 바로 입력해요. 5분 단위에 묶이지 않아요.
+
+학교급을 바꾸면 기본 시간표도 새로 채울지 물어봐요. 연속 모드를 중간에 끝내도 결과와 점수가
+나오고, 계획으로 시작한 공부도 5분부터 기록돼요.
+```
 - [x] **`sdk56` → `main` 릴리스 머지 완료** — `2a0328d`. 1.0.35 이후 처음.
       웹사이트 페이지는 무변경으로 유지됨(sdk56은 `store_v2/src_*`만 건드렸다). 테스트 577개 통과
 - [x] **iOS OTA 발행** — 런타임 1.0.40 / production / 그룹 `f299fe7a-7ed2-49ac-b457-441cf6c91528`
