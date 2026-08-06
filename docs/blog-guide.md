@@ -95,6 +95,9 @@
 글 끝에 몰아두면 독자는 그 기능을 궁금해한 자리에서 답을 못 받는다.
 
 - 위치는 **그 단락의 마지막 문장 뒤**, 한 줄 링크로.
+- ★**원고(.md)에는 반드시 마크다운 링크 `[항목 제목](URL)` 형태로 쓸 것**★ —
+  `_스크립트/발행패키지_생성.py`는 이 형태만 `<a href>`로 바꾼다. 맨 URL로 적으면
+  발행 HTML에 **링크가 아니라 글자로 박힌다**.
 - **한 단락에 1개**를 넘기지 말 것. 두 개를 걸고 싶으면 더 잘 맞는 하나만 남기고
   나머지는 글 끝 블록으로 내린다.
 - 개수 기준: 짧은 글(1,500자) 2~3개, 단계별 가이드 같은 긴 글 3~5개.
@@ -107,9 +110,9 @@
 
 ```
 ▸ 더 자세한 설정 방법
-· 시험 D-Day 등록하기 → https://lds77.github.io/suneung-timer-native/help.html#dday
-· 공부 잔디의 색깔은 무슨 뜻인가요 → https://lds77.github.io/suneung-timer-native/help.html#grass
-· 전체 기능 도움말 → https://lds77.github.io/suneung-timer-native/help.html
+- [시험 D-Day 등록하기](https://lds77.github.io/suneung-timer-native/help.html#dday)
+- [공부 잔디의 색깔은 무슨 뜻인가요](https://lds77.github.io/suneung-timer-native/help.html#grass)
+- [전체 기능 도움말](https://lds77.github.io/suneung-timer-native/help.html)
 ```
 
 > 예시(2026-08-06 발행분 2건에 적용): '공시생 플래너앱' 글은 주간 시간표 단락에 `#weekly-plan`,
