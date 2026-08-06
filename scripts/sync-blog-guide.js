@@ -16,6 +16,7 @@ const path = require('path');
 const os = require('os');
 
 const SRC = path.join(__dirname, '..', 'docs', 'blog-guide.md');
+const HELP = path.join(__dirname, '..', 'help.html');
 const DEST = path.join(
   os.homedir(),
   'OneDrive', '문서', '카카오톡 받은 파일', '구글열공', 'CLAUDE.md'
@@ -38,7 +39,57 @@ if (!fs.existsSync(DEST)) {
   process.exit(2);
 }
 
-const src = fs.readFileSync(SRC, 'utf8');
+// ── 1-A절 앵커 표를 help.html에서 다시 만든다 ──────────────────────────
+// 코워크가 60개 항목 전체에서 고를 수 있어야 하는데, 손으로 옮겨 적으면 도움말이
+// 늘어날 때마다 조용히 낡는다(표에 없는 항목은 코워크가 아예 못 쓴다).
+const CAT_LABEL = {
+  start: '시작', timer: '타이머', focus: '집중', record: '기록', plan: '계획',
+  subject: '과목', stats: '통계', room: '스터디룸', widget: '위젯·알림', data: '데이터',
+};
+
+function buildAnchorTable(helpHtml) {
+  const re = /<details[^>]*id="([a-z0-9-]+)"[^>]*data-cat="([a-z]+)"[^>]*>\s*<summary>([\s\S]*?)<\/summary>/g;
+  const rows = [];
+  let m;
+  while ((m = re.exec(helpHtml))) {
+    const [, id, cat, rawTitle] = m;
+    let mark = '';
+    if (/class="tag ios"/.test(rawTitle)) mark = ' ※iOS';
+    else if (/class="tag aos"/.test(rawTitle)) mark = ' ※안드';
+    // 플랫폼 배지는 ※표시로 옮겼으므로 제목에서 통째로 뺀다(안 그러면 "…앱 막기 iOS"가 된다)
+    const title = rawTitle
+      .replace(/<span class="tag[^"]*">[\s\S]*?<\/span>/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    rows.push(`| ${CAT_LABEL[cat] || cat} | \`#${id}\`${mark} | ${title} |`);
+  }
+  return { table: ['| 분류 | 앵커 | 항목 제목 |', '|------|------|-----------|', ...rows].join('\n'), count: rows.length };
+}
+
+function refreshGuide(text, helpHtml) {
+  const { table, count } = buildAnchorTable(helpHtml);
+  if (!count) throw new Error('help.html에서 항목을 하나도 못 읽었다 — 선택자를 확인할 것');
+  // 원본이 CRLF로 저장돼 있어 줄바꿈은 \r?\n 으로 받는다
+  const begin = /(<!-- HELP-ANCHORS:BEGIN[^>]*-->\r?\n)[\s\S]*?(\r?\n<!-- HELP-ANCHORS:END -->)/;
+  if (!begin.test(text)) throw new Error('HELP-ANCHORS 표식이 blog-guide.md에 없다');
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  return text
+    .replace(begin, (_, a, b) => a + table.split('\n').join(eol) + b)
+    .replace(/기능별 사용법 \d+개 항목/, `기능별 사용법 ${count}개 항목`)
+    .replace(/### 앵커 목록 \(\d+개 전체 — [^)]*\)/,
+      `### 앵커 목록 (${count}개 전체 — ${new Date().toISOString().slice(0, 10)} 기준)`);
+}
+
+let src = fs.readFileSync(SRC, 'utf8');
+if (fs.existsSync(HELP)) {
+  const refreshed = refreshGuide(src, fs.readFileSync(HELP, 'utf8'));
+  if (norm(refreshed) !== norm(src)) {
+    fs.writeFileSync(SRC, refreshed, 'utf8');
+    src = refreshed;
+    console.log('앵커 표를 help.html 기준으로 다시 만들었다 (docs/blog-guide.md).');
+  }
+}
 const dest = fs.readFileSync(DEST, 'utf8');
 
 if (norm(src) === norm(dest)) {
