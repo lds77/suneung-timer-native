@@ -62,8 +62,9 @@ if (onlyInDest.length) {
 }
 
 if (!write) {
+  // 차이가 있으면 무조건 1 — SessionStart 훅(--check)이 종료 코드로 판단한다
   console.log('\n덮어쓰려면: npm run sync:blog-guide -- --write');
-  process.exit(onlyInDest.length ? 1 : 0);
+  process.exit(1);
 }
 
 if (onlyInDest.length && !force) {
