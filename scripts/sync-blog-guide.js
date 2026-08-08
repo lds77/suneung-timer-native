@@ -67,6 +67,13 @@ function buildAnchorTable(helpHtml) {
   return { table: ['| 분류 | 앵커 | 항목 제목 |', '|------|------|-----------|', ...rows].join('\n'), count: rows.length };
 }
 
+// toISOString()은 UTC라 KST 새벽 0~9시에 하루 밀린다 (CLAUDE.md 규칙 7과 같은 부류)
+function localDateStr() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function refreshGuide(text, helpHtml) {
   const { table, count } = buildAnchorTable(helpHtml);
   if (!count) throw new Error('help.html에서 항목을 하나도 못 읽었다 — 선택자를 확인할 것');
@@ -78,7 +85,7 @@ function refreshGuide(text, helpHtml) {
     .replace(begin, (_, a, b) => a + table.split('\n').join(eol) + b)
     .replace(/기능별 사용법 \d+개 항목/, `기능별 사용법 ${count}개 항목`)
     .replace(/### 앵커 목록 \(\d+개 전체 — [^)]*\)/,
-      `### 앵커 목록 (${count}개 전체 — ${new Date().toISOString().slice(0, 10)} 기준)`);
+      `### 앵커 목록 (${count}개 전체 — ${localDateStr()} 기준)`);
 }
 
 let src = fs.readFileSync(SRC, 'utf8');
