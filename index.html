@@ -14,7 +14,7 @@
   <!-- <meta name="naver-site-verification" content="발급받은코드"> -->
 
   <link rel="canonical" href="https://lds77.github.io/suneung-timer-native/">
-  <link rel="stylesheet" href="css/site.css">
+  <link rel="stylesheet" href="css/site.css?v=20260806b">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="열공메이트">
@@ -28,12 +28,50 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://lds77.github.io/suneung-timer-native/screenshots/og-image.png">
 
+  <!-- 발행 주체(열공메이트)를 명시 — 이 사이트가 lds77.github.io 아래 경로에 있어서
+       검색·AI가 상위 사이트 이름을 출처로 잡는 걸 줄이기 위한 신호. @id로 서로 연결한다 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://lds77.github.io/suneung-timer-native/#publisher",
+    "name": "열공메이트",
+    "alternateName": ["열공메이트 공부타이머", "Yeolgong Mate"],
+    "url": "https://lds77.github.io/suneung-timer-native/",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://lds77.github.io/suneung-timer-native/screenshots/store-icon-512.png",
+      "width": 512,
+      "height": 512
+    },
+    "sameAs": [
+      "https://blog.naver.com/yeolgongmate",
+      "https://apps.apple.com/app/id6759892516",
+      "https://play.google.com/store/apps/details?id=com.yeolgong.timer"
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://lds77.github.io/suneung-timer-native/#website",
+    "name": "열공메이트",
+    "alternateName": "열공메이트 공부타이머·공부플래너",
+    "url": "https://lds77.github.io/suneung-timer-native/",
+    "inLanguage": "ko-KR",
+    "publisher": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" }
+  }
+  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "열공메이트",
     "alternateName": "공부타이머 열공메이트",
+    "publisher": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" },
+    "author": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" },
+    "isPartOf": { "@id": "https://lds77.github.io/suneung-timer-native/#website" },
     "description": "집중밀도 점수로 집중 습관까지 돌아보는 공부타이머앱·공부플래너. 포모도로, 집중 잠금, D-day 위젯, 잔디 통계, 친구와 같이 공부하는 스터디룸을 광고 없이 무료로 제공. iOS·Android 지원.",
     "operatingSystem": "iOS, Android",
     "applicationCategory": "EducationalApplication",
@@ -57,10 +95,11 @@
       { "@type": "Question", "name": "정말 무료인가요?", "acceptedAnswer": { "@type": "Answer", "text": "네. 모든 기능이 무료이며 광고가 없습니다. 인앱결제도 없습니다." } },
       { "@type": "Question", "name": "iOS와 Android 모두 되나요?", "acceptedAnswer": { "@type": "Answer", "text": "네, App Store와 Google Play 모두 출시되어 있습니다. 앱 안의 화면은 두 플랫폼이 동일하고, 홈·잠금화면 위젯만 플랫폼별로 구성이 조금 다릅니다." } },
       { "@type": "Question", "name": "집중밀도 점수는 어떻게 계산되나요?", "acceptedAnswer": { "@type": "Answer", "text": "타이머 완주 여부, 일시정지 횟수, 앱 이탈 횟수, 집중 모드, 자가평가 등을 종합해 점수로 계산하고 SS(전설)~C 티어로 보여줍니다. 정해진 공식으로 계산되며 AI가 아닙니다." } },
-      { "@type": "Question", "name": "공부 중에 다른 앱을 못 쓰게 막을 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "iOS는 스크린 타임 연동 앱 차단으로 집중 중 선택한 방해 앱 실행을 막고, Android는 울트라집중에서 화면 고정으로 앱 전환 자체를 차단합니다." } },
+      { "@type": "Question", "name": "공부 중에 다른 앱을 못 쓰게 막을 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "iOS는 스크린 타임 연동 앱 차단으로 집중 중 선택한 방해 앱 실행을 막고, Android는 울트라 모드에서 화면 고정으로 앱 전환 자체를 차단합니다." } },
       { "@type": "Question", "name": "친구와 같이 공부할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "네. 통계 탭의 스터디룸에서 방을 만들고 6자리 코드를 공유하면 친구와 같은 방에 모여 서로의 공부 현황을 실시간으로 볼 수 있습니다. 전국 유저와 함께하는 공개 라운지도 있으며, 별도 가입 없이 닉네임만으로 이용합니다." } },
       { "@type": "Question", "name": "오답노트도 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "네. 과목 탭의 오답노트에 틀린 문제를 과목·챕터별로 기록하고, 다시 볼 때마다 복습 체크를 쌓을 수 있습니다. 완전히 익힌 문제는 '마스터'로 넘기면 '복습 필요만' 목록에서 빠집니다." } },
-      { "@type": "Question", "name": "데이터를 백업할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "설정 탭에서 데이터를 JSON으로 내보내고 가져올 수 있습니다. 기기 교체나 재설치 전에 백업을 권장합니다." } }
+      { "@type": "Question", "name": "데이터를 백업할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "설정 탭에서 데이터를 내보내고 가져올 수 있습니다. 기기 교체나 재설치 전에 백업을 권장합니다." } },
+      { "@type": "Question", "name": "공부 시간을 잘못 기록했는데 수정할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "타이머를 종료하면 나오는 결과 화면 맨 아래의 '시간 수정'을 눌러 실제 공부한 시간(1분~5시간)으로 고칠 수 있습니다. 통계와 과목 누적 시간에 그대로 반영되며, 한 번 수정하면 되돌릴 수 없습니다. 결과 화면을 닫은 뒤에는 수정할 수 없으니 종료 직후에 정정해야 합니다." } }
     ]
   }
   </script>
@@ -80,7 +119,9 @@
       <a href="features/focus.html">집중·타이머</a>
       <a href="features/planner.html">플래너·과목</a>
       <a href="features/stats.html">통계·위젯</a>
-      <a href="guide.html">활용법·설정</a>
+      <a href="help.html">기능도움말</a>
+      <a href="guide.html">활용법</a>
+      <a class="nav-blog" href="https://blog.naver.com/yeolgongmate" target="_blank" rel="noopener">블로그</a>
       <a href="#download" class="nav-cta">다운로드</a>
     </div>
   </div>
@@ -127,7 +168,7 @@
       <img src="screenshots/cap-focus-lock2.png" alt="집중 잠금 오버레이 — 화면을 덮어 딴짓 차단" loading="lazy">
       <div class="step-num">2</div>
       <h3>몰입</h3>
-      <p>집중 잠금이 화면을 덮어 폰 만지는 걸 막고, 앱을 벗어나면 즉시 알림으로 다시 불러옵니다.</p>
+      <p>집중 잠금이 화면을 덮어 폰 만지는 걸 막고, 앱을 벗어나면 잠시 뒤 알림으로 다시 불러옵니다. 화면을 끄거나 전화를 받는 건 이탈이 아니에요.</p>
     </div>
     <div class="step reveal">
       <img src="screenshots/cap-density-result.jpg" alt="공부 종료 후 집중밀도 점수와 티어 결과 화면" loading="lazy">
@@ -233,7 +274,7 @@
     </div>
 
     <div data-panel="settings" class="tour-panel" hidden>
-      <div class="tour-media"><img class="shot" src="screenshots/cap-settings-me.png" alt="설정 탭 — 닉네임, 일일 목표 시간, 학교급, 집중 도전 모드 설정" loading="lazy"></div>
+      <div class="tour-media"><img class="shot" src="screenshots/cap-settings-me.png" alt="설정 탭 — 닉네임, 일일 목표 시간, 학교급, 공부 모드 설정" loading="lazy"></div>
       <div class="tour-text">
         <h3>설정 — 나에게 맞추기</h3>
         <p>학년과 목표 시간을 설정하면 앱의 기준이 나에게 맞춰집니다. 테마부터 백업까지 여기서 관리해요.</p>
@@ -336,9 +377,9 @@
   <div class="gallery-scroll" style="justify-content:safe center;scroll-snap-type:none;">
     <img src="screenshots/cap-studyroom-lobby.png" alt="스터디룸 로비 — 공개 라운지 입장, 방 만들기(스터디카페·독서실·교실 테마), 코드로 참여" loading="lazy">
     <img src="screenshots/cap-studyroom-lounge.png" alt="공개 라운지 — 스터디카페 좌석 도면에 친구들의 공부 중·휴식 상태가 실시간 표시" loading="lazy">
-    <img src="screenshots/cap-studyroom-class.png" alt="교실 테마 스터디룸 — 칠판과 책상 배치, 울트라집중 중인 친구의 자리 표시" loading="lazy">
+    <img src="screenshots/cap-studyroom-class.png" alt="교실 테마 스터디룸 — 칠판과 책상 배치, 울트라 모드로 공부 중인 친구의 자리 표시" loading="lazy">
   </div>
-  <p class="hint">공개 라운지 · 우리끼리 방(6자리 코드, 최대 30명) · 스터디카페/독서실/교실 테마 · 공부 모드가 자리 색으로 표시</p>
+  <p class="hint">공개 라운지 · 우리끼리 방(6자리 코드, 최대 30명) · 스터디카페/독서실/교실 테마 · 공부 모드가 자리 색으로 표시 · 다같이 집중(우리끼리 방 전용, 공유 카운트다운) · 익명 응원</p>
 </section>
 
 <!-- 화면 더 보기 -->
@@ -392,10 +433,33 @@
     <div class="faq-item"><h4>정말 무료인가요?</h4><p>네. 모든 기능이 무료이며 광고가 없습니다. 인앱결제도 없습니다.</p></div>
     <div class="faq-item"><h4>iOS와 Android 모두 되나요?</h4><p>네, App Store와 Google Play 모두 출시되어 있습니다. 앱 안의 화면은 두 플랫폼이 동일하고, 홈·잠금화면 위젯만 플랫폼별로 구성이 조금 다릅니다.</p></div>
     <div class="faq-item"><h4>집중밀도 점수는 어떻게 계산되나요?</h4><p>타이머 완주 여부, 일시정지 횟수, 앱 이탈 횟수, 집중 모드, 자가평가 등을 종합해 점수로 계산하고 SS(전설)~C 티어로 보여줍니다. 정해진 공식으로 계산되며 AI가 아닙니다.</p></div>
-    <div class="faq-item"><h4>공부 중에 다른 앱을 못 쓰게 막을 수 있나요?</h4><p>iOS는 스크린 타임 연동 앱 차단으로 집중 중 선택한 방해 앱 실행을 막고, Android는 울트라집중에서 화면 고정으로 앱 전환 자체를 차단합니다. 잠금 강도(일반·집중·울트라집중)의 차이와 상황별 추천은 <a class="textlink" href="guide.html#lock">활용법 페이지</a>에서 확인하세요.</p></div>
+    <div class="faq-item"><h4>공부 중에 다른 앱을 못 쓰게 막을 수 있나요?</h4><p>iOS는 스크린 타임 연동 앱 차단으로 집중 중 선택한 방해 앱 실행을 막고, Android는 울트라 모드에서 화면 고정으로 앱 전환 자체를 차단합니다. 공부 모드(일반·집중·울트라)의 차이와 상황별 추천은 <a class="textlink" href="guide.html#lock">활용법 페이지</a>에서 확인하세요.</p></div>
     <div class="faq-item"><h4>친구와 같이 공부할 수 있나요?</h4><p>네. 통계 탭의 스터디룸에서 방을 만들고 6자리 코드를 공유하면 친구와 같은 방에 모여 서로의 공부 현황(공부 중·휴식·공부 모드)을 실시간으로 볼 수 있습니다. 전국 유저와 함께하는 공개 라운지도 있으며, 별도 가입 없이 닉네임만으로 이용합니다.</p></div>
     <div class="faq-item"><h4>오답노트도 있나요?</h4><p>네. 과목 탭의 오답노트에 틀린 문제를 과목·챕터별로 기록하고, 다시 볼 때마다 복습 체크를 쌓을 수 있습니다. 완전히 익힌 문제는 '마스터'로 넘기면 '복습 필요만' 목록에서 빠져요. 자세한 내용은 <a class="textlink" href="features/planner.html#review-notes">플래너·과목 페이지</a>를 참고하세요.</p></div>
-    <div class="faq-item"><h4>데이터를 백업할 수 있나요?</h4><p>설정 탭에서 데이터를 JSON으로 내보내고 가져올 수 있습니다. 기기 교체나 재설치 전에 백업을 권장합니다.</p></div>
+    <div class="faq-item"><h4>데이터를 백업할 수 있나요?</h4><p>설정 탭에서 데이터를 내보내고 가져올 수 있습니다. 기기 교체나 재설치 전에 백업을 권장합니다. 옮기는 순서는 <a class="textlink" href="help.html#backup">기능도움말</a>에 정리돼 있어요.</p></div>
+    <div class="faq-item"><h4>공부 시간을 잘못 기록했어요. 고칠 수 있나요?</h4><p>타이머를 종료하면 나오는 결과 화면 맨 아래의 '시간 수정'으로 실제 공부한 시간으로 고칠 수 있습니다. 지나간 기록은 시간을 바꿀 수 없으니 종료 직후에 정정하세요. 자세한 순서는 <a class="textlink" href="help.html#time-edit">시간 수정 방법</a>에서 확인하세요.</p></div>
+  </div>
+  <p style="text-align:center;margin-top:32px;">찾는 답이 없다면 <a class="textlink" href="help.html">기능도움말에서 찾아보기</a>해 보세요.</p>
+</section>
+
+<!-- 사용법 · 블로그 -->
+<section class="section section-narrow">
+  <p class="eyebrow">Learn</p>
+  <h2>기능이 많아 헤맬 때</h2>
+  <p class="lead">기능별 사용법은 도움말에서 검색하고, 공부법 이야기는 블로그에서 읽어보세요.</p>
+  <div class="grid grid-2">
+    <div class="card">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+      <h3>기능도움말 (검색 가능)</h3>
+      <p>시간 수정, 집중 잠금, 플래너, 오답노트, 위젯, 백업까지 기능별로 정리했습니다. 궁금한 낱말을 검색하면 바로 나옵니다. 최신 버전 기준으로 관리하는 문서예요.</p>
+      <a class="card-more textlink" href="help.html">사용법 찾아보기 →</a>
+    </div>
+    <div class="card">
+      <span class="card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>
+      <h3>열공메이트 네이버 블로그</h3>
+      <p>공시생·수험생을 위한 공부법과 공부 습관 이야기를 올립니다. 지난 글은 그때 버전 기준이라, 기능 설명은 위의 도움말이 더 정확해요.</p>
+      <a class="card-more textlink" href="https://blog.naver.com/yeolgongmate" target="_blank" rel="noopener">블로그 보러 가기 →</a>
+    </div>
   </div>
 </section>
 
@@ -421,13 +485,14 @@
     <a href="features/focus.html">집중·타이머</a>
     <a href="features/planner.html">플래너·과목</a>
     <a href="features/stats.html">통계·위젯</a>
-    <a href="guide.html">활용법·설정</a>
+    <a href="help.html">기능도움말</a>
+    <a href="guide.html">활용법</a>
     <a href="https://blog.naver.com/yeolgongmate" target="_blank" rel="noopener">네이버 블로그</a>
     <a href="privacy-policy.html">개인정보처리방침</a>
   </div>
   <p>© <span data-year>2026</span> 열공메이트 · <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
 </footer>
 
-<script src="js/site.js"></script>
+<script src="js/site.js?v=20260806b"></script>
 </body>
 </html>

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="icon" type="image/png" href="screenshots/store-icon-512.png">
+  <link rel="apple-touch-icon" href="screenshots/store-icon-512.png">
+  <title>열공메이트 사용법 — 기능별 도움말 (검색 가능)</title>
+  <meta name="description" content="열공메이트 공부타이머 사용법을 기능별로 정리했습니다. 공부 시간 수정 방법, 타이머 5가지, 집중 잠금, 플래너·할 일, 오답노트, 통계·잔디, 스터디룸, 위젯, 백업까지 — 궁금한 기능을 검색해서 바로 찾아보세요.">
+  <meta name="keywords" content="열공메이트 사용법, 열공메이트 시간수정, 공부타이머 사용법, 공부타이머앱 사용법, 열공메이트 도움말, 열공메이트 백업, 열공메이트 위젯, 열공메이트 스터디룸, 집중밀도">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://lds77.github.io/suneung-timer-native/help.html">
+  <link rel="stylesheet" href="css/site.css?v=20260806b">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="열공메이트">
+  <meta property="og:url" content="https://lds77.github.io/suneung-timer-native/help.html">
+  <meta property="og:title" content="열공메이트 사용법 — 기능별 도움말">
+  <meta property="og:description" content="궁금한 기능을 검색해서 바로 찾는 열공메이트 사용 설명서. 시간 수정, 집중 잠금, 플래너, 오답노트, 위젯, 백업까지.">
+  <meta property="og:image" content="https://lds77.github.io/suneung-timer-native/screenshots/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://lds77.github.io/suneung-timer-native/screenshots/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "홈", "item": "https://lds77.github.io/suneung-timer-native/" },
+      { "@type": "ListItem", "position": 2, "name": "기능도움말", "item": "https://lds77.github.io/suneung-timer-native/help.html" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "열공메이트 사용법 — 기능별 도움말",
+    "description": "열공메이트 공부타이머의 기능별 사용법을 검색해서 찾아보는 도움말 페이지.",
+    "url": "https://lds77.github.io/suneung-timer-native/help.html",
+    "inLanguage": "ko-KR",
+    "isPartOf": { "@id": "https://lds77.github.io/suneung-timer-native/#website" },
+    "publisher": { "@id": "https://lds77.github.io/suneung-timer-native/#publisher" }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "열공메이트에서 공부 시간을 수정하는 방법은?", "acceptedAnswer": { "@type": "Answer", "text": "타이머를 종료하면 나오는 결과 화면 맨 아래의 '시간 수정'을 누르면 그 기록의 공부 시간을 실제 공부한 시간으로 고칠 수 있습니다. 1분부터 5시간까지 입력할 수 있고, 통계와 과목 누적 시간에 그대로 반영됩니다. 한 번 수정하면 되돌릴 수 없으며, 결과 화면을 닫은 뒤에는 수정할 수 없습니다." } },
+      { "@type": "Question", "name": "지난 기록의 공부 시간도 고칠 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "아니요. 공부 시간 수정은 타이머를 막 끝낸 결과 화면에서만 가능합니다. 이미 지나간 기록은 시간을 바꿀 수 없고, 통계 탭에서 세션을 눌러 메모만 수정할 수 있습니다. 기록을 정확하게 남기려면 타이머를 끄는 것을 잊었을 때 결과 화면에서 바로 정정하세요." } },
+      { "@type": "Question", "name": "5분 미만 공부는 왜 기록에 남지 않나요?", "acceptedAnswer": { "@type": "Answer", "text": "5분 미만 세션은 통계에 저장되지 않습니다. 잘못 눌러 시작한 타이머가 기록을 어지럽히지 않도록 한 기준입니다. 계획이나 할 일에 연결해 시작한 타이머는 30초부터 기록됩니다. 짧은 작업은 기록 대신 할 일 체크로 관리하세요." } },
+      { "@type": "Question", "name": "타이머를 종료했는데 결과 화면이 안 떠요.", "acceptedAnswer": { "@type": "Answer", "text": "결과 화면(자기평가·시간 수정)은 5분 이상 공부한 세션에만 나타납니다. 뽀모도로나 연속 모드의 휴식 시간에 종료한 경우에도 나타나지 않습니다." } },
+      { "@type": "Question", "name": "집중밀도 점수는 어떻게 올리나요?", "acceptedAnswer": { "@type": "Answer", "text": "집중밀도는 56~103점 범위의 참고 점수로, 타이머 완주율, 일시정지 횟수, 앱 이탈 횟수, 선택한 공부 모드, 세션 후 자가평가로 계산됩니다. 등급은 SS(100점 이상), S+(93), S(86), A(76), B(66), C(56)이며 낙제 등급은 없습니다." } },
+      { "@type": "Question", "name": "데이터를 백업하고 새 폰으로 옮기려면?", "acceptedAnswer": { "@type": "Answer", "text": "설정 탭의 데이터 백업에서 백업 파일을 만들어 메일이나 클라우드에 보관한 뒤, 새 기기에서 앱을 설치하고 설정의 데이터 복원으로 그 파일을 고르면 됩니다. 복원하면 현재 데이터는 백업 시점의 데이터로 덮어씌워집니다." } },
+      { "@type": "Question", "name": "타이머 완료 알림이 울리지 않아요.", "acceptedAnswer": { "@type": "Answer", "text": "먼저 기기 설정에서 열공메이트의 알림 권한을 확인하세요. Android 12 이상은 '알람 및 리마인더' 권한을, 일부 기기는 배터리 최적화 제외와 자동 실행 허용이 추가로 필요합니다." } },
+      { "@type": "Question", "name": "친구와 같이 공부하려면 어떻게 하나요?", "acceptedAnswer": { "@type": "Answer", "text": "통계 탭 위쪽 스터디룸 배너로 들어가 방을 만들고, 6자리 코드를 친구에게 보내면 같은 방에 모일 수 있습니다. 한 방에 최대 30명까지 들어올 수 있고, 아는 친구가 없으면 공개 라운지에서 다른 사용자들과 함께 공부할 수 있습니다." } },
+      { "@type": "Question", "name": "홈 화면 위젯은 어떻게 추가하나요?", "acceptedAnswer": { "@type": "Answer", "text": "iPhone은 홈 화면 빈 곳을 길게 누르고 왼쪽 위 + 버튼에서 열공메이트를 고르면 되고, Android는 홈 화면 빈 곳을 길게 눌러 위젯 목록에서 열공메이트를 찾아 끌어다 놓으면 됩니다. 오늘 공부, 시험 D-Day, 과목 바로 시작, 오늘 계획, 오늘 할 일 5종이 있습니다." } },
+      { "@type": "Question", "name": "회원가입이나 로그인이 필요한가요?", "acceptedAnswer": { "@type": "Answer", "text": "필요 없습니다. 공부 기록은 기기 안에만 저장되며 계정을 만들지 않습니다. 스터디룸만 익명으로 접속해 닉네임과 공부 상태를 공유하고, 공부 기록과 통계는 공유되지 않습니다." } },
+      { "@type": "Question", "name": "오답노트는 어떻게 쓰나요?", "acceptedAnswer": { "@type": "Answer", "text": "과목 탭의 오답노트에서 + 버튼으로 틀린 문제와 틀린 이유를 적고, 과목과 챕터를 달아두면 시험 범위대로 묶어 볼 수 있습니다. 다시 풀어봤으면 복습 완료를 눌러 횟수를 쌓고, 확실해진 문제는 마스터로 표시하면 '복습 필요만' 목록에서 빠집니다." } },
+      { "@type": "Question", "name": "공부 잔디의 색깔은 무슨 뜻인가요?", "acceptedAnswer": { "@type": "Answer", "text": "연한 색은 일반 모드로 공부한 날, 초록은 집중 모드로 공부한 날, 금색은 이탈 없이 Verified를 달성한 날, 빨강은 울트라 모드로 공부한 날입니다." } }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="index.html"><img src="screenshots/store-icon-512.png" alt="열공메이트"><span class="brand-full">열공메이트</span></a>
+    <button class="nav-toggle" aria-label="메뉴" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="nav-links">
+      <a href="index.html#tour">앱 둘러보기</a>
+      <a href="features/focus.html">집중·타이머</a>
+      <a href="features/planner.html">플래너·과목</a>
+      <a href="features/stats.html">통계·위젯</a>
+      <a href="help.html" class="active">기능도움말</a>
+      <a href="guide.html">활용법</a>
+      <a class="nav-blog" href="https://blog.naver.com/yeolgongmate" target="_blank" rel="noopener">블로그</a>
+      <a href="index.html#download" class="nav-cta">다운로드</a>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head">
+  <p class="eyebrow">Help</p>
+  <h1>열공메이트 사용법</h1>
+  <p>기능이 많아 못 쓰고 지나치는 것이 없도록, 궁금한 기능을 검색해서 바로 찾아볼 수 있게 정리했습니다.</p>
+</header>
+<div class="breadcrumb"><a href="index.html">홈</a> › 기능도움말</div>
+
+<section class="section" style="padding-top:28px;">
+
+  <div class="help-tools">
+    <div class="help-search">
+      <svg class="hs-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <label for="help-q" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">기능 검색</label>
+      <input id="help-q" type="search" data-help-search autocomplete="off" placeholder="궁금한 기능을 검색하세요 (예: 시간 수정, 위젯, 백업)">
+      <button class="hs-clear" data-help-clear type="button" aria-label="검색어 지우기">✕</button>
+    </div>
+    <div class="hcats" role="group" aria-label="분류">
+      <button class="hcat on" data-cat="all" type="button">전체</button>
+      <button class="hcat" data-cat="start" type="button">시작하기</button>
+      <button class="hcat" data-cat="timer" type="button">타이머</button>
+      <button class="hcat" data-cat="focus" type="button">집중·잠금</button>
+      <button class="hcat" data-cat="record" type="button">기록·수정</button>
+      <button class="hcat" data-cat="plan" type="button">계획·할 일</button>
+      <button class="hcat" data-cat="subject" type="button">과목·오답노트</button>
+      <button class="hcat" data-cat="stats" type="button">통계·잔디</button>
+      <button class="hcat" data-cat="room" type="button">스터디룸</button>
+      <button class="hcat" data-cat="widget" type="button">위젯·알림</button>
+      <button class="hcat" data-cat="data" type="button">설정·데이터</button>
+    </div>
+    <p class="hcount" data-help-count aria-live="polite"></p>
+  </div>
+
+  <!-- 검색 중에는 여기로 결과를 모아 관련도 순으로 보여준다 (검색어를 지우면 원래 자리로 돌아감) -->
+  <div class="hgroup" data-help-results hidden>
+    <h2>검색 결과</h2>
+  </div>
+
+  <!-- ── 시작하기 ── -->
+  <div class="hgroup" id="start">
+    <h2>시작하기</h2>
+
+    <details class="hitem" id="first-setup" data-cat="start" data-k="처음 설치 초기설정 온보딩 시작 세팅 뭐부터">
+      <summary>앱을 처음 설치했어요. 무엇부터 하면 되나요?</summary>
+      <div class="hbody">
+        <p>설치 직후 안내에 따라 학년(학교급)과 하루 목표 시간만 정하면 바로 쓸 수 있습니다. 여유가 있다면 아래 순서를 추천합니다.</p>
+        <ol>
+          <li><strong>과목 등록</strong> — <span class="path">과목</span> 탭에서 공부하는 과목을 추가하면 과목별로 시간이 쌓입니다.</li>
+          <li><strong>시험 D-Day 등록</strong> — <span class="path">플래너 &gt; 월간</span>에서 시험일을 등록하면 집중 탭과 위젯에 남은 날짜가 표시됩니다.</li>
+          <li><strong>주간 계획</strong> — <span class="path">플래너</span> 탭 맨 아래 '반복설정'에서 요일별 시간표를 만들면 계획과 실제 공부량이 자동으로 연결됩니다.</li>
+          <li><strong>즐겨찾기</strong> — 자주 쓰는 타이머를 저장해두면 다음부터 한 번에 시작할 수 있습니다.</li>
+        </ol>
+        <div class="note">앱 안에서도 같은 설명을 볼 수 있습니다. <span class="path">설정 &gt; 도움말 &gt; 사용 가이드</span></div>
+      </div>
+    </details>
+
+    <details class="hitem" id="school-level" data-cat="start" data-k="학년 학교급 초등 중등 고등 공시생 대학생 변경 바꾸기 진학 새학기">
+      <summary>학년(학교급)을 바꾸고 싶어요</summary>
+      <div class="hbody">
+        <p><span class="path">설정 &gt; 내 정보</span>에서 학교급을 바꿀 수 있습니다. 초등 저학년부터 중·고등학생, N수생, 대학생, 공시생·자격증까지 고를 수 있어요.</p>
+        <p>학교급을 고르면 집중밀도의 기준과 추천 학습법이 그에 맞게 조정됩니다. 초등학생에게 3시간 연속 집중을 기대하지 않도록 하기 위한 장치입니다.</p>
+        <div class="note"><strong>바뀌지 않는 것이 있습니다.</strong> 이미 만들어 둔 <strong>주간 시간표와 과목은 그대로 남습니다</strong>. 학교급만 바꾸면 시간표는 예전 학교급 그대로예요. 새 학교급 기준으로 갈아끼우려면 <a class="textlink" href="#reset-timetable">기본 시간표 다시 불러오기</a>와 <a class="textlink" href="#subject-manage">과목 정리</a>를 따로 해주세요.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="daily-goal" data-cat="start" data-k="목표시간 하루목표 일일목표 달성률 목표설정">
+      <summary>하루 목표 공부 시간 정하기</summary>
+      <div class="hbody">
+        <p><span class="path">설정 &gt; 내 정보</span>에서 하루 목표 시간을 정하면, 집중 탭과 통계의 달성률 링, 홈 화면 위젯이 모두 그 목표를 기준으로 표시됩니다.</p>
+        <p>처음에는 지금 실제로 하는 시간보다 조금만 높게 잡는 편이 좋습니다. 달성 경험이 쌓여야 계속 열게 됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="account" data-cat="start" data-k="회원가입 로그인 계정 아이디 가입 필요">
+      <summary>회원가입이나 로그인이 필요한가요?</summary>
+      <div class="hbody">
+        <p>필요 없습니다. 공부 기록은 <strong>기기 안에만</strong> 저장되고 계정을 만들지 않습니다.</p>
+        <p>스터디룸만 익명으로 접속해 닉네임·캐릭터·공부 상태를 공유하며, 공부 기록과 통계는 공유되지 않습니다.</p>
+        <div class="note">계정이 없으므로 기기를 바꾸거나 앱을 지우면 기록이 함께 사라집니다. 옮기기 전에 반드시 <a class="textlink" href="#backup">데이터 백업</a>을 해두세요.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="price" data-cat="start" data-k="가격 유료 무료 결제 광고 인앱결제 프리미엄">
+      <summary>유료인가요? 광고가 있나요?</summary>
+      <div class="hbody">
+        <p>모든 기능이 무료이고 광고가 없습니다. 인앱결제나 프리미엄 구독도 없습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 타이머 ── -->
+  <div class="hgroup" id="timer">
+    <h2>타이머</h2>
+
+    <details class="hitem" id="start-timer" data-cat="timer" data-k="타이머시작 시작하는법 어떻게시작 타이머만들기 추가">
+      <summary>타이머를 시작하는 여러 가지 방법</summary>
+      <div class="hbody">
+        <p>어느 쪽으로 시작해도 기록은 똑같이 쌓입니다. 상황에 맞는 것을 쓰세요.</p>
+        <ul>
+          <li><strong>집중 탭 아래 + 버튼</strong> — 타임어택(카운트다운)·뽀모도로·연속모드를 직접 만들어 시작합니다.</li>
+          <li><strong>과목 탭</strong> — 과목 카드의 시작 버튼으로 그 과목의 타이머를 바로 켭니다.</li>
+          <li><strong>즐겨찾기</strong> — 과목 탭 위쪽 즐겨찾기 셀을 누르면 저장해둔 설정 그대로 시작됩니다.</li>
+          <li><strong>오늘의 계획 / 해야 할 일</strong> — 집중 탭의 계획·할 일 항목에서 재생 버튼이나 '집중 시작'을 누르면 그 계획·할 일에 연결된 채로 시작됩니다.</li>
+          <li><strong>홈 화면 위젯</strong> — 과목 바로 시작 위젯이나 오늘 계획 위젯에서 앱을 열지 않고 시작합니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="timer-types" data-cat="timer" data-k="타이머종류 5가지 카운트다운 카운트업 스톱워치 뽀모도로 포모도로 연속모드 랩 차이">
+      <summary>타이머 5가지는 무엇이 다른가요?</summary>
+      <div class="hbody">
+        <ul>
+          <li><strong>타임어택(카운트다운)</strong> — 목표 시간을 정해두고 줄어드는 방식. 끝나면 완료 알림이 옵니다.</li>
+          <li><strong>자유(카운트업)</strong> — 시간이 올라가는 스톱워치. 원할 때 직접 종료합니다.</li>
+          <li><strong>뽀모도로</strong> — 집중(기본 25분)과 휴식(기본 5분)을 자동으로 번갈아 반복합니다.</li>
+          <li><strong>연속모드</strong> — 여러 과목을 순서대로 이어서 실행합니다. 예: 수학 40분 → 영어 30분 → 국어 20분.</li>
+          <li><strong>타임어택 스톱워치(랩)</strong> — 구간 기록을 남기는 스톱워치. 문제 풀이 속도를 잴 때 씁니다. 과목 탭 즐겨찾기 줄에 있습니다.</li>
+        </ul>
+        <div class="note">랩 스톱워치를 빼면 <strong>한 번에 하나</strong>만 실행됩니다. 다른 타이머를 시작하려면 실행 중인 타이머를 먼저 끝내야 합니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="pomodoro" data-cat="timer" data-k="뽀모도로 포모도로 25분 5분 집중시간 휴식시간 변경 설정">
+      <summary>뽀모도로 집중·휴식 시간 바꾸기</summary>
+      <div class="hbody">
+        <p>집중 탭 <strong>+ 버튼 &gt; 뽀모도로</strong>에서 타이머를 만들 때 집중 시간과 휴식 시간을 직접 정할 수 있습니다. 기본값은 25분 집중 + 5분 휴식입니다.</p>
+        <p>자주 쓰는 조합은 즐겨찾기에 저장해두면 매번 다시 입력하지 않아도 됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="sequence" data-cat="timer" data-k="연속모드 이어달리기 여러과목 시험시간표 수능시간표 자동전환">
+      <summary>여러 과목을 이어서 공부하기 (연속모드)</summary>
+      <div class="hbody">
+        <p>집중 탭 <strong>+ 버튼 &gt; 연속모드</strong>에서 과목과 시간을 순서대로 넣고, 과목 사이 쉬는 시간을 정하면 됩니다.</p>
+        <p>한 항목이 끝날 때마다 알림이 울리고 자동으로 다음 항목으로 넘어갑니다. 실제 시험 시간표를 그대로 넣으면 실전 감각 연습이 됩니다.</p>
+        <div class="note">연속모드는 항목마다 기록이 따로 남습니다. 그래서 중간에 종료했을 때 <strong>시간 수정은 되지 않고 삭제만</strong> 가능합니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="free-timer-5h" data-cat="timer" data-k="자유타이머 카운트업 5시간 자동종료 끄는거잊음 안껐어요 계속돌아감">
+      <summary>타이머 끄는 걸 잊었어요</summary>
+      <div class="hbody">
+        <p>자유(카운트업)·랩 타이머는 <strong>5시간</strong>이 되면 자동으로 멈춥니다. 잊고 둔 타이머가 수십 시간짜리 기록으로 남아 통계를 망가뜨리지 않게 하기 위한 상한입니다.</p>
+        <p>실제보다 길게 기록됐다면, 종료 직후 결과 화면에서 <a class="textlink" href="#time-edit">시간 수정</a>으로 실제 공부한 시간으로 고치세요.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="pause" data-cat="timer" data-k="일시정지 잠깐쉬기 화장실 멈춤 재개">
+      <summary>일시정지와 '잠깐 쉬기'의 차이</summary>
+      <div class="hbody">
+        <p><strong>일시정지</strong>는 타이머를 멈춥니다. 멈춘 시간은 공부 시간에 들어가지 않고, 횟수가 집중밀도 점수에 반영됩니다.</p>
+        <p><strong>잠깐 쉬기</strong>는 타이머를 돌린 채 60초간 앱을 벗어나도 이탈로 세지 않는 기능입니다. 화장실처럼 짧게 다녀올 때 쓰세요.</p>
+        <div class="note">울트라 모드에서는 일시정지와 잠깐 쉬기가 모두 막힙니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="app-killed" data-cat="timer" data-k="앱종료 강제종료 꺼짐 재부팅 백그라운드 기록유지 계속돌아가나요">
+      <summary>공부 중 앱을 나가거나 꺼도 타이머가 유지되나요?</summary>
+      <div class="hbody">
+        <p>네. 타이머는 <strong>실제 시각을 기준으로</strong> 계산하기 때문에 화면을 끄거나 다른 앱을 써도 시간이 정확하게 흐릅니다. 앱이 강제 종료돼도 다시 열면 실행 중이던 타이머가 복원됩니다.</p>
+        <p>다만 <span class="tag ios">iOS</span>는 잠금화면 표시, <span class="tag aos">Android</span>는 상단바 상시 알림으로 실행 중인 타이머를 계속 보여주므로, 이걸로 켜져 있는지 확인하는 편이 안전합니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="favorites" data-cat="timer" data-k="즐겨찾기 저장 자주쓰는 별표 삭제 편집">
+      <summary>자주 쓰는 타이머를 즐겨찾기에 저장하기</summary>
+      <div class="hbody">
+        <p>즐겨찾기는 <span class="path">과목</span> 탭 위쪽에 있습니다. 누르면 저장해둔 설정 그대로 시작되고 집중 탭으로 이동합니다.</p>
+        <ul>
+          <li><strong>추가</strong> — 실행 중인 타이머 이름 왼쪽의 별 아이콘을 누르거나, 즐겨찾기 카드의 편집 버튼에서 직접 만듭니다.</li>
+          <li><strong>삭제</strong> — 즐겨찾기 셀을 길게 누르면 삭제 메뉴가 나옵니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="analog" data-cat="timer" data-k="아날로그시계 벽시계 시험장 수능시계 전체화면 시계모드">
+      <summary>아날로그 시계(시험장 벽시계) 모드</summary>
+      <div class="hbody">
+        <p>타이머 카드 위쪽의 보기 전환에서 <strong>시계</strong>를 고르면 수능 시험장 벽시계 스타일의 아날로그 시계로 바뀝니다. 가로 전체화면으로도 볼 수 있어 실전 연습에 좋습니다.</p>
+        <p>같은 자리에서 미니·기본·전체 보기로도 바꿀 수 있습니다. 미니로 두면 타이머가 작게 접혀 계획·할 일이 더 많이 보입니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="sound" data-cat="timer" data-k="사운드 백색소음 빗소리 카페 음악 소리 집중사운드">
+      <summary>집중 사운드(백색소음) 켜기</summary>
+      <div class="hbody">
+        <p>집중 탭의 <strong>집중 사운드</strong>에서 빗소리·카페 등을 골라 겹쳐 재생할 수 있고, 볼륨도 조절됩니다. 타이머와 함께 돌아가며 다른 앱의 음악과 같이 틀어도 됩니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 집중·잠금 ── -->
+  <div class="hgroup" id="focus">
+    <h2>집중·잠금</h2>
+
+    <details class="hitem" id="modes" data-cat="focus" data-k="공부모드 잠금강도 일반 집중 울트라 집중도전 편하게공부 어디서 바꾸기 선택">
+      <summary>공부 모드(일반·집중·울트라)는 어디서 고르나요?</summary>
+      <div class="hbody">
+        <p>모드는 <strong>얼마나 강하게 딴짓을 막을지</strong>를 정합니다.</p>
+        <ul>
+          <li><strong>일반</strong> — 이탈을 감지하지 않고 자유롭게. 인강을 보거나 사전·계산기를 오갈 때.</li>
+          <li><strong>집중</strong> — 화면을 덮는 잠금이 뜨고, 앱을 벗어나면 이탈로 기록됩니다. 1분 넘게 벗어났다 돌아오면 챌린지 문구를 입력해야 풀립니다.</li>
+          <li><strong>울트라</strong> — 일시정지와 잠깐 쉬기까지 막는 가장 강한 모드. <span class="tag ios">iOS</span>는 방해 앱 차단, <span class="tag aos">Android</span>는 화면 고정이 함께 걸립니다.</li>
+        </ul>
+        <p><strong>타이머를 시작할 때마다</strong> 팝업에서 고릅니다. 오늘 공부에 맞춰 매번 다르게 골라도 됩니다.</p>
+        <ul>
+          <li>기본으로 뜰 모드는 <span class="path">설정 &gt; 공부 모드</span>에서 정합니다.</li>
+          <li>매번 고르기 번거로우면 팝업의 <strong>'다음부터 묻지 않고 이 모드로 시작'</strong>을 체크하세요. 그러면 팝업 없이 바로 시작합니다.</li>
+          <li>다시 묻게 하려면 <span class="path">설정 &gt; 공부 모드</span>의 토글을 끄면 됩니다. <strong>되돌리는 길은 이 토글 하나뿐</strong>이니 위치를 기억해 두세요.</li>
+        </ul>
+        <div class="note">타이머가 실행 중일 때는 모드를 바꿀 수 없습니다. 먼저 타이머를 종료하세요.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="away" data-cat="focus" data-k="이탈 딴짓 나갔을때 복귀알림 넛지 이탈횟수 챌린지">
+      <summary>'이탈'은 무엇이고, 이탈하면 어떻게 되나요?</summary>
+      <div class="hbody">
+        <p>집중·울트라 모드로 공부하는 동안 <strong>앱을 벗어나 다른 앱을 쓰는 것</strong>이 이탈입니다.</p>
+        <ul>
+          <li>앱을 벗어나면 돌아오라는 알림이 오고, 계속 돌아오지 않으면 30초·1분·3분·5분 간격으로 다시 알립니다. 돌아오면 멈춥니다.</li>
+          <li>이탈 횟수는 그 세션의 집중밀도 점수에 반영되고, 이탈 0회로 마치면 <strong>Verified</strong> 뱃지가 붙습니다.</li>
+          <li>집중 모드에서 1분 넘게 벗어났다 돌아오면 챌린지 문구를 입력해야 잠금이 풀립니다. 울트라 모드는 잠깐만 벗어나도 타이머가 멈추고 챌린지가 뜹니다.</li>
+        </ul>
+        <div class="note">알림은 벌점 통보가 아니라 <strong>돌아올 기회</strong>입니다. 알림을 보고 곧바로 돌아오면 이탈로 세지 않습니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="screen-off" data-cat="focus" data-k="화면끄기 화면꺼짐 잠금화면 폰잠금 이탈아님 종이책 문제집">
+      <summary>화면을 끄면 이탈로 기록되나요?</summary>
+      <div class="hbody">
+        <p><strong>아니요.</strong> 화면을 끄거나 기기를 잠근 것은 이탈이 아닙니다. 폰을 엎어두고 문제집·종이책을 보는 공부를 벌주지 않으려는 설계예요. 그동안에도 타이머는 계속 돌아갑니다.</p>
+        <p>앱이 화면을 계속 켜두지도 않습니다. 손대지 않으면 기기 설정의 화면 시간 초과대로 꺼집니다.</p>
+        <div class="note">이탈로 기록되는 것은 <strong>다른 앱을 쓸 때</strong>입니다. 화면을 끈 뒤 잠금을 풀고 다른 앱을 쓰면 그 시간은 이탈로 계산됩니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="call" data-cat="focus" data-k="전화 통화 전화왔을때 수신 보이스톡 이탈">
+      <summary>공부 중에 전화가 오면 이탈인가요?</summary>
+      <div class="hbody">
+        <p><strong>아니요.</strong> 벨이 울리는 중과 통화 중, 그리고 통화를 끊고 앱으로 돌아오는 잠깐 동안은 이탈로 세지 않습니다. 보이스톡 같은 인터넷 통화도 마찬가지입니다.</p>
+        <p>전화는 내가 고른 딴짓이 아니니까요. 다만 통화가 끝나고도 한참 다른 앱을 쓰면 그때부터는 이탈로 계산됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="challenge" data-cat="focus" data-k="챌린지문구 잠금해제 문구변경 해제문구 타이핑">
+      <summary>잠금 해제 챌린지 문구 바꾸기</summary>
+      <div class="hbody">
+        <p>집중·울트라 모드에서 이탈 후 돌아올 때 입력하는 문구는 <span class="path">설정 &gt; 공부 모드</span>에서 직접 바꿀 수 있습니다.</p>
+        <p>스스로에게 하는 다짐을 문구로 넣으면 효과가 좋습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="app-block" data-cat="focus" data-k="앱차단 유튜브차단 인스타차단 스크린타임 방해앱 전체차단">
+      <summary>공부 중 유튜브·SNS 앱 막기 <span class="tag ios">iOS</span></summary>
+      <div class="hbody">
+        <p>iOS 16 이상에서 스크린 타임을 연동해 실제로 앱 실행을 막을 수 있습니다.</p>
+        <ol>
+          <li><span class="path">설정 &gt; 공부 모드 &gt; 앱 차단</span>을 켭니다.</li>
+          <li>스크린 타임 접근을 허용합니다.</li>
+          <li>차단할 앱이나 카테고리를 고릅니다.</li>
+        </ol>
+        <p>집중·울트라 모드로 타이머가 도는 동안 그 앱들이 잠기고, 타이머가 끝나면 자동으로 풀립니다. 잠깐 쉬기나 뽀모도로 휴식 중에도 차단은 유지됩니다.</p>
+        <div class="note"><strong>울트라 전체 차단</strong>을 켜면 울트라 모드일 때 허용 목록에 넣은 앱만 빼고 전부 잠깁니다. 전화·메시지처럼 꼭 필요한 앱은 미리 허용 목록에 넣어두세요(허용 목록은 개별 앱만 적용됩니다).</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="screen-pin" data-cat="focus" data-k="화면고정 앱고정 홈버튼잠금 안드로이드 해제 푸는법">
+      <summary>화면 고정을 푸는 방법 <span class="tag aos">Android</span></summary>
+      <div class="hbody">
+        <p>울트라 모드에서는 안드로이드의 화면 고정이 걸려 홈·최근 앱 버튼이 잠깁니다. <strong>뒤로 버튼과 최근 앱 버튼을 동시에 길게</strong> 누르면 풀립니다.</p>
+        <p>고정을 풀어도 앱으로 돌아오면 다시 고정됩니다. 완전히 풀려면 타이머를 종료하세요.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="lock-screen-ui" data-cat="focus" data-k="잠금화면 오버레이 화면덮음 손잡이 밀기 나가기">
+      <summary>집중 잠금 화면에서 앱으로 돌아오려면</summary>
+      <div class="hbody">
+        <p>화면이 어두워진 상태가 집중 잠금입니다. 아래쪽 손잡이를 옆으로 밀면 앱 화면으로 돌아옵니다. <strong>잠금을 푸는 것 자체는 이탈이 아닙니다</strong> — 앱을 벗어나야 이탈입니다.</p>
+        <p>잠금 화면에는 지금까지의 Verified 진행 상태와 스터디룸 인원이 함께 표시됩니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 기록·수정 ── -->
+  <div class="hgroup" id="record">
+    <h2>기록·수정</h2>
+
+    <details class="hitem" id="time-edit" data-cat="record" data-k="시간수정 시간수정방법 공부시간수정 시간변경 시간고치기 잘못기록 기록수정 시간정정">
+      <summary>공부 시간을 잘못 기록했어요 — 시간 수정 방법</summary>
+      <div class="hbody">
+        <p>타이머를 종료하면 나오는 <strong>결과 화면 맨 아래</strong>에 <strong>시간 수정</strong>이 있습니다. 이걸 누르면 그 기록의 공부 시간을 실제 공부한 시간으로 고칠 수 있습니다.</p>
+        <ol>
+          <li>타이머를 종료합니다(결과 화면이 뜹니다).</li>
+          <li>화면 맨 아래 <strong>시간 수정</strong>을 누릅니다.</li>
+          <li>시간과 분을 입력합니다. <strong>1분 ~ 5시간</strong> 범위로 넣을 수 있습니다.</li>
+          <li><strong>수정하기</strong>를 누르고 확인하면 끝입니다. 통계와 과목 누적 시간에 그대로 반영됩니다.</li>
+        </ol>
+        <div class="note">한 번 수정하면 <strong>되돌릴 수 없고</strong>, 결과 화면을 닫은 뒤에는 다시 수정할 수 없습니다. 실제 공부한 시간을 정확히 넣어주세요.</div>
+        <p>다음 경우에는 시간 수정 버튼이 보이지 않습니다.</p>
+        <ul>
+          <li><strong>연속모드</strong>로 여러 항목을 한 번에 끝낸 경우 — 기록이 항목별로 나뉘어 있어 삭제만 됩니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="past-record" data-cat="record" data-k="지난기록수정 어제기록 과거기록 통계수정 시간수정안됨 나중에수정">
+      <summary>지난 기록의 공부 시간도 고칠 수 있나요?</summary>
+      <div class="hbody">
+        <p>아니요. 시간 수정은 <strong>타이머를 막 끝낸 결과 화면에서만</strong> 가능합니다. 이미 지나간 기록은 시간을 바꿀 수 없습니다.</p>
+        <p>지난 기록에서 바꿀 수 있는 것은 <strong>메모</strong>입니다. <span class="path">통계 &gt; 일간</span> 또는 <span class="path">통계 &gt; 잔디 &gt; 공부 일기</span>에서 세션을 누르면 메모를 수정할 수 있습니다.</p>
+        <p>기록을 정확히 남기려면, 타이머를 잘못 돌렸다는 걸 알았을 때 결과 화면에서 바로 정정하는 습관을 들이세요.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="delete-record" data-cat="record" data-k="기록삭제 세션삭제 잘못기록삭제 통계에서빼기 폐기">
+      <summary>방금 기록한 공부를 삭제하기</summary>
+      <div class="hbody">
+        <p>종료 직후 결과 화면 맨 아래의 <strong>기록 삭제</strong>를 누르면 그 기록이 통계에서 빠집니다. 과목 누적 시간에서도 함께 빠집니다.</p>
+        <p>연속모드는 그 회차에 기록된 항목들이 한꺼번에 삭제됩니다.</p>
+        <div class="note">결과 화면을 닫은 뒤에는 삭제할 수 없습니다. 전체 데이터를 지우려면 <a class="textlink" href="delete-data.html">데이터 삭제 안내</a>를 참고하세요.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="no-result-modal" data-cat="record" data-k="결과화면 안뜸 자기평가 안나옴 결과모달 점수안나옴 기록안됨">
+      <summary>타이머를 끝냈는데 결과 화면이 안 떠요</summary>
+      <div class="hbody">
+        <p>결과 화면(집중밀도·자기평가·시간 수정)은 <strong>5분 이상</strong> 공부한 세션에만 나타납니다. 1~2분 공부에 자기평가까지 물으면 번거롭기 때문입니다.</p>
+        <p>뽀모도로나 연속모드의 <strong>휴식 시간</strong>에 종료한 경우에도 나타나지 않습니다. 휴식은 공부 기록으로 남기지 않기 때문입니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="min-5" data-cat="record" data-k="5분미만 기록안됨 짧은공부 통계에없음 안쌓임 30초">
+      <summary>5분 미만 공부는 왜 기록에 남지 않나요?</summary>
+      <div class="hbody">
+        <p>잘못 눌러 시작한 타이머가 기록을 어지럽히지 않도록 <strong>5분 미만 세션은 저장하지 않습니다</strong>.</p>
+        <p>단, <strong>계획이나 할 일에 연결해</strong> 시작한 타이머는 30초부터 기록됩니다. 짧게 끝나는 작업은 기록 대신 할 일 체크로 관리하는 편이 편합니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="density" data-cat="record" data-k="집중밀도 점수 등급 티어 SS S+ A B C 점수올리기 계산">
+      <summary>집중밀도 점수는 어떻게 계산되고, 어떻게 올리나요?</summary>
+      <div class="hbody">
+        <p>집중밀도는 <strong>56~103점</strong> 범위의 참고 점수입니다. 같은 1시간이라도 얼마나 몰입했는지를 보여주려는 지표이고, 정해진 공식으로 계산합니다(AI 아님).</p>
+        <p>점수를 올리는 방법:</p>
+        <ul>
+          <li>타이머를 <strong>끝까지 완주</strong>할수록 완료 점수가 올라갑니다.</li>
+          <li><strong>일시정지 횟수</strong>를 줄입니다.</li>
+          <li><strong>이탈 0회</strong>로 마칩니다.</li>
+          <li>고른 <strong>공부 모드</strong>만큼 보너스가 붙습니다(일반보다 집중, 집중보다 울트라가 큽니다).</li>
+          <li>세션이 끝난 뒤 <strong>자가평가</strong>를 남기면 최대 +3점이 붙습니다.</li>
+        </ul>
+        <p>등급은 SS(100점 이상) &gt; S+(93) &gt; S(86) &gt; A(76) &gt; B(66) &gt; C(56)이고, <strong>낙제 등급은 없습니다</strong>. 어떤 세션이든 최소 C가 보장됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="badge" data-cat="record" data-k="Verified 인증 뱃지 배지 Ultra 울트라 금색">
+      <summary>Verified·Ultra 뱃지는 어떻게 받나요?</summary>
+      <div class="hbody">
+        <ul>
+          <li><strong>Verified</strong> — 집중 잠금을 쓰면서 <strong>이탈 0회</strong>로 세션을 마치면 붙습니다.</li>
+          <li><strong>Ultra</strong> — 울트라 모드로 완료한 세션에 붙고, 울트라 연속 기록이 따로 쌓입니다.</li>
+        </ul>
+        <p>뱃지는 통계의 세션 목록과 잔디 색(금색·빨강)에도 반영됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="midnight" data-cat="record" data-k="자정 날짜 새벽공부 어제 오늘 날짜기준 밤샘">
+      <summary>자정을 넘겨 공부하면 어느 날짜로 기록되나요?</summary>
+      <div class="hbody">
+        <p><strong>타이머를 시작한 날</strong>로 기록됩니다. 밤 11시에 시작해 새벽 1시에 끝낸 공부는 전부 시작한 날의 기록입니다.</p>
+        <p>하루를 마무리하는 감각과 맞추기 위한 기준입니다. 새벽 공부를 그날 기록으로 남기고 싶다면 자정 이후에 타이머를 새로 시작하세요.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 계획·할 일 ── -->
+  <div class="hgroup" id="plan">
+    <h2>계획·할 일</h2>
+
+    <details class="hitem" id="weekly-plan" data-cat="plan" data-k="주간계획 시간표 플래너 계획만들기 요일별 스터디플래너 반복설정 편집">
+      <summary>주간 공부 계획(시간표) 만들기</summary>
+      <div class="hbody">
+        <ol>
+          <li><span class="path">플래너</span> 탭으로 가서 <strong>화면 맨 아래 오른쪽 '반복설정'</strong> 버튼을 누릅니다. 여기가 주간 플래너 편집 화면입니다.</li>
+          <li>요일과 시간을 정해 과목·목표 시간을 넣습니다. 학교·학원·식사 같은 고정 일정도 함께 넣을 수 있습니다.</li>
+          <li>한 요일을 다 짰으면 <strong>다른 요일에 복사</strong>로 나머지 요일을 빠르게 채웁니다.</li>
+          <li>저장하면 매일 그 요일의 계획이 집중 탭 '오늘의 계획'에 자동으로 올라옵니다.</li>
+        </ol>
+        <div class="note">'반복설정'은 <strong>매주 반복되는 시간표</strong>를 만드는 곳입니다. 이번 주에만 있는 일정은 주간 뷰에서 바로 추가하세요(<a class="textlink" href="#plan-once">이번 주만 vs 매주 반복</a>).</div>
+        <p>처음부터 짜기 부담스러우면 학교급에 맞는 <a class="textlink" href="#reset-timetable">기본 시간표를 불러와서</a> 고쳐 쓰는 방법도 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="reset-timetable" data-cat="plan" data-k="기본시간표 초기화 시간표초기화 플래너초기화 리셋 다시불러오기 학교급변경 기본세팅 예전시간표 그대로 반복설정">
+      <summary>학교급을 바꿨는데 시간표가 그대로예요 (기본 시간표 다시 불러오기)</summary>
+      <div class="hbody">
+        <p>학교급을 바꾸면 앱이 <strong>"기본 시간표도 새로 불러올까요?"</strong>라고 한 번 물어봅니다. <strong>지우고 채우기</strong>를 고르면 바뀐 학교급에 맞는 시간표로 채워지고, <strong>시간표는 그대로</strong>를 고르면 학교급만 바뀝니다. 공들여 짠 시간표를 앱이 묻지도 않고 지우는 일은 없습니다.</p>
+        <div class="note">주간 플래너를 아직 켜지 않았다면 묻지 않습니다(플래너를 켤 때 같은 질문을 합니다). 그때 '시간표는 그대로'를 골랐다가 마음이 바뀌었다면 아래 순서로 언제든 다시 불러올 수 있습니다.</div>
+        <ol>
+          <li>먼저 <span class="path">설정 &gt; 내 정보</span>에서 학교급을 바꿉니다.</li>
+          <li><span class="path">플래너</span> 탭 &gt; <strong>화면 맨 아래 오른쪽 '반복설정'</strong>을 누릅니다.</li>
+          <li>위쪽 '주간 플래너' 스위치 아래의 빨간 <strong>기본으로 초기화</strong>를 누릅니다.</li>
+          <li>확인하면 지금 학교급에 맞는 학교·식사·취침 시간이 자동으로 채워집니다.</li>
+        </ol>
+        <div class="note"><strong>그동안 만든 주간 시간표(고정 일정·매주 반복 계획)는 모두 사라집니다.</strong> 대신 <strong>지난 공부 기록·통계·잔디는 그대로</strong>이고, 과목 목록도 지워지지 않습니다.</div>
+        <p>새로 채운 계획 블록은 <strong>이름이 같은 과목이 있으면 자동으로 연결됩니다</strong>. 없는 이름만 계획을 눌러 과목을 골라 주면 돼요. 예전 학교급 과목(예: 초등으로 바꿨는데 남아 있는 '모의고사')은 <a class="textlink" href="#subject-manage">과목 탭</a>에서 따로 정리하면 됩니다.</p>
+        <p>전부 갈아엎기가 부담스러우면 초기화 대신 요일별로 직접 고치거나, 한 요일만 고쳐 놓고 <strong>다른 요일에 복사</strong>를 쓰는 방법도 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="plan-once" data-cat="plan" data-k="이번주만 매주반복 일회성 반복계획 휴강 휴교 미루기 옮기기">
+      <summary>이번 주만 vs 매주 반복 — 휴강·일정 변경 처리</summary>
+      <div class="hbody">
+        <p>계획을 추가할 때 <strong>이번 주만</strong>과 <strong>매주 반복</strong> 중에서 고를 수 있습니다.</p>
+        <ul>
+          <li><strong>이번 주만</strong> — 이번 주에만 보이는 일회성 계획입니다. 지난 주 것은 자동으로 정리됩니다.</li>
+          <li><strong>매주 반복</strong> — 매주 같은 요일에 반복되는 시간표 계획입니다.</li>
+        </ul>
+        <p>반복 계획을 누르면 <strong>이번 주만</strong> 고칠지 <strong>매주 전체</strong>를 고칠지 물어봅니다. 학원 휴강처럼 이번 주만 빠지는 일은 '이번 주만 휴무'로 처리하면 다음 주는 그대로 유지됩니다.</p>
+        <p><strong>계획 다른 날로 미루기</strong>로 이번 회차만 다른 날짜로 옮길 수도 있습니다. 옮긴 날 같은 시간에 다른 일정이 있으면 가장 가까운 빈 시간으로 자동 배치됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="plan-progress" data-cat="plan" data-k="달성률 계획대비 실행량 자동반영 진행률 미니바">
+      <summary>계획 달성률은 어떻게 채워지나요?</summary>
+      <div class="hbody">
+        <p>계획 옆 <strong>재생 버튼</strong>으로 타이머를 시작하면, 그 공부 시간이 자동으로 해당 계획의 실행량이 됩니다. 따로 적을 필요가 없습니다.</p>
+        <p>주간 시간표의 계획 블록 아래 미니바와 <span class="path">통계 &gt; 주간</span>의 달성률에서 계획 대비 실제 공부량을 볼 수 있습니다. 목표의 80% 이상을 채우면 달성으로 표시됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="todo" data-cat="plan" data-k="할일 해야할일 투두 todo 추가 목록 반복 내일로 우선순위">
+      <summary>해야 할 일 쓰기 (목록·반복·미루기)</summary>
+      <div class="hbody">
+        <p>집중 탭 아래쪽 할 일 카드에서 관리합니다.</p>
+        <ul>
+          <li><strong>추가</strong> — 입력창에 적고 추가를 누르면 끝. 옆의 옵션 버튼에서 과목·목록·날짜·반복·우선순위·메모까지 정할 수 있습니다.</li>
+          <li><strong>목록</strong> — '오늘', 시험별 'D-Day' 목록이 기본이고, + 버튼으로 '기말'처럼 나만의 목록을 만들 수 있습니다.</li>
+          <li><strong>예정</strong> — 날짜를 미래로 정하면 예정에 있다가 그날 자동으로 오늘 할 일이 됩니다.</li>
+          <li><strong>반복</strong> — 매일·주중·주말·직접 선택으로 정하면 해당 요일에 자동으로 올라옵니다.</li>
+          <li><strong>미루기</strong> — 오늘 못 한 일은 '내일로'로 넘길 수 있습니다.</li>
+          <li><strong>순서</strong> — 오른쪽 핸들을 끌어 순서를 바꿉니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="todo-timer" data-cat="plan" data-k="할일 집중시작 타이머연동 완료체크 시간누적">
+      <summary>할 일에서 바로 타이머 시작하기</summary>
+      <div class="hbody">
+        <p>할 일을 눌러 펼치고 <strong>집중 시작</strong>을 누르면 그 할 일에 연결된 타이머가 시작됩니다. 공부를 마치면 결과 화면에서 <strong>완료 체크</strong>까지 한 번에 할 수 있고, 그 할 일에 공부한 시간이 누적돼 표시됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="dday" data-cat="plan" data-k="디데이 D-Day 시험등록 수능 날짜 일정추가 고정 별표">
+      <summary>시험 D-Day 등록하기</summary>
+      <div class="hbody">
+        <ol>
+          <li><span class="path">플래너 &gt; 월간</span>에서 날짜를 <strong>길게 눌러</strong> 일정을 추가합니다.</li>
+          <li>시험·모의고사·과제 마감 등 이름과 날짜를 넣습니다.</li>
+          <li>별(★)로 고정하면 집중 탭 위쪽에 항상 표시됩니다. 고정하지 않아도 <strong>D-14 이내</strong>로 다가오면 자동으로 뜹니다.</li>
+        </ol>
+        <p>등록한 D-Day는 홈 화면 D-Day 위젯에도 그대로 나오고, 그 시험에 연결된 준비 할 일과 진행률도 함께 관리할 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 과목·오답노트 ── -->
+  <div class="hgroup" id="subject">
+    <h2>과목·오답노트</h2>
+
+    <details class="hitem" id="subject-manage" data-cat="subject" data-k="과목추가 과목삭제 색상 과목편집 누적시간 즐겨찾기과목">
+      <summary>과목 추가·색상 변경·삭제</summary>
+      <div class="hbody">
+        <p><span class="path">과목</span> 탭의 + 버튼으로 과목을 추가하고 색을 정합니다. 이 색이 통계 그래프와 플래너 블록에 그대로 쓰입니다.</p>
+        <p>과목별 누적 공부 시간은 자동으로 쌓이고, 즐겨찾기로 지정한 과목은 위쪽에 고정됩니다.</p>
+        <div class="note">과목을 지워도 <strong>오답노트는 지워지지 않고</strong> '미분류'로 남습니다. 오답 기록은 사용자 자산이라 함께 지우지 않습니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="study-methods" data-cat="subject" data-k="학습법 공부법 프리셋 추천루틴 인터리빙 미션스프린트 52-17">
+      <summary>학년별 학습법 프리셋 쓰기</summary>
+      <div class="hbody">
+        <p>과목 탭의 학습법에서 미션 스프린트(15분×3), 소리+묵독, 인터리빙, 52-17 법칙, 울트라디안 90, 하드 스타트 같은 방법을 골라 연속모드 타이머로 바로 실행할 수 있습니다.</p>
+        <p>학습·심리 연구에서 소개된 방법들을 참고해 만들었고 출처를 함께 표시합니다. 효과는 사람과 과목마다 다르니 몇 가지 써보고 맞는 것을 고르세요.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="review-notes" data-cat="subject" data-k="오답노트 틀린문제 오답 챕터 사진첨부 복습 마스터">
+      <summary>오답노트 쓰는 방법</summary>
+      <div class="hbody">
+        <p><span class="path">과목 &gt; 오답노트</span>에서 + 버튼으로 추가합니다. 할 일 메모는 하루가 지나면 정리되지만 오답노트는 계속 남습니다.</p>
+        <ul>
+          <li>제목보다 <strong>왜 틀렸는지</strong>를 한 줄 적으세요. "계산 실수"와 "판별식 조건을 안 봤음"은 나중에 완전히 다른 정보가 됩니다.</li>
+          <li><strong>챕터</strong>(예: 3단원, 문법)를 달아두면 시험 범위대로 묶어서 볼 수 있습니다.</li>
+          <li><strong>사진</strong>을 찍거나 앨범에서 골라 한 문제당 <strong>5장</strong>까지 붙일 수 있습니다.</li>
+          <li>완료한 할 일을 펼치면 <strong>오답노트 저장</strong> 버튼이 있어 메모를 그대로 옮길 수 있습니다.</li>
+        </ul>
+        <div class="note">사진은 <strong>이 기기 안에만</strong> 저장되고 서버로 올라가지 않습니다. 사용 중인 용량은 <span class="path">설정 &gt; 오답노트 저장공간</span>에서 확인할 수 있습니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="review-loop" data-cat="subject" data-k="복습 복습완료 마스터 복습필요만 필터 반복학습">
+      <summary>오답 복습하기 (복습 완료·마스터)</summary>
+      <div class="hbody">
+        <ul>
+          <li>다시 풀어봤으면 <strong>복습 완료</strong>를 누릅니다. 복습 횟수가 쌓입니다.</li>
+          <li>이제 확실하다면 <strong>마스터</strong>로 표시합니다.</li>
+          <li><strong>복습 필요만</strong> 필터를 켜면 아직 마스터하지 않은 문제만 남습니다.</li>
+        </ul>
+        <p>다시 볼 날짜를 예약하거나 할 일을 자동 생성하지는 않습니다. 시험 전에 '복습 필요만'을 펼쳐 훑는 식으로 쓰면 됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="voice-memo" data-cat="subject" data-k="음성메모 녹음 오디오 목소리 음성첨부">
+      <summary>오답노트에 음성 메모 남기기</summary>
+      <div class="hbody">
+        <p>왜 틀렸는지 직접 녹음하거나(하나당 3분), 가지고 있는 오디오 파일을 노트당 2개까지 붙일 수 있습니다. 손으로 적기 번거로운 풀이 과정을 말로 남길 때 좋습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 통계·잔디 ── -->
+  <div class="hgroup" id="stats">
+    <h2>통계·잔디</h2>
+
+    <details class="hitem" id="stats-tabs" data-cat="stats" data-k="통계 일간 주간 월간 보는법 간트차트 타임라인 지난주">
+      <summary>통계 탭 보는 법 (일간·주간·월간)</summary>
+      <div class="hbody">
+        <ul>
+          <li><strong>일간</strong> — 오늘 공부 시간, 목표 달성률, 시간대별 공부 블록. 세션을 누르면 메모를 고칠 수 있습니다.</li>
+          <li><strong>주간</strong> — 이번 주 공부량 그래프와 시간대별 집중 패턴. ← → 버튼으로 지난 주도 볼 수 있고 계획 달성률이 함께 나옵니다.</li>
+          <li><strong>월간</strong> — 달력 형식으로 한 달을 봅니다. 날짜를 누르면 그날 상세 기록이 열립니다.</li>
+          <li><strong>과목</strong> — 과목별 공부 시간을 7일·30일·전체 기간으로 비교합니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="grass" data-cat="stats" data-k="잔디 히트맵 색깔 의미 연속일수 스트릭 공부일기">
+      <summary>공부 잔디의 색깔은 무슨 뜻인가요?</summary>
+      <div class="hbody">
+        <ul>
+          <li><strong>연한 색</strong> — 일반 모드로 공부한 날</li>
+          <li><strong>초록</strong> — 집중 모드로 공부한 날</li>
+          <li><strong>금색</strong> — 이탈 없이 Verified를 달성한 날</li>
+          <li><strong>빨강</strong> — 울트라 모드로 공부한 날</li>
+        </ul>
+        <p>최근 4개월치가 보이고, 위쪽 카드에 올해 총 공부 시간·현재 연속 공부 일수·역대 최장 기록이 표시됩니다. 아래 <strong>공부 일기</strong>에는 메모를 남긴 세션이 날짜별로 모입니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="report" data-cat="stats" data-k="리포트 주간리포트 월간리포트 알림 자동정리">
+      <summary>주간·월간 공부 리포트 받기</summary>
+      <div class="hbody">
+        <p>한 주와 한 달이 끝나면 공부 리포트가 자동으로 정리되고 알림으로 옵니다. <span class="path">설정 &gt; 알림</span>에서 켜고 끌 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 스터디룸 ── -->
+  <div class="hgroup" id="room">
+    <h2>스터디룸</h2>
+
+    <details class="hitem" id="room-join" data-cat="room" data-k="스터디룸 같이공부 친구 방만들기 코드 참여 입장 라운지">
+      <summary>친구와 같이 공부하기 (방 만들기·코드 참여)</summary>
+      <div class="hbody">
+        <p><span class="path">통계</span> 탭 위쪽의 스터디룸 배너로 들어갑니다.</p>
+        <ul>
+          <li><strong>공개 라운지</strong> — 전국의 다른 사용자들과 바로 같이 공부합니다.</li>
+          <li><strong>새 방 만들기</strong> — 방 이름과 분위기(스터디카페·독서실·교실)를 고르고, 위쪽 공유 버튼으로 <strong>6자리 코드</strong>를 친구에게 보냅니다.</li>
+          <li><strong>코드로 참여</strong> — 친구가 준 6자리 코드를 넣습니다. 한 방에 최대 30명까지 들어올 수 있습니다.</li>
+        </ul>
+        <p>방을 나가도 코드가 있으면 다시 들어올 수 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="room-seat" data-cat="room" data-k="자리 좌석 색깔 공부중 몰입 자리이동 응원 다같이집중">
+      <summary>방 안에서 보이는 것들 (자리 색·응원·다같이 집중)</summary>
+      <div class="hbody">
+        <ul>
+          <li>타이머를 시작하면 내 자리에 과목과 경과 시간이 실시간으로 표시됩니다.</li>
+          <li>자리 색은 공부 모드에 따라 다릅니다 — 일반(초록)·집중(주황)·울트라(빨강).</li>
+          <li>화면을 끄고 공부해도 '몰입 중'으로 표시됩니다.</li>
+          <li>빈 책상을 누르면 그 자리로 옮길 수 있습니다.</li>
+          <li>열심히 하는 사람에게 <strong>응원</strong>을 보낼 수 있습니다. 누가 보냈는지는 표시되지 않습니다.</li>
+          <li><strong>다같이 집중</strong> — 방장이 시작하면 모두 같은 카운트다운으로 함께 달립니다(우리끼리 방 전용).</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="room-privacy" data-cat="room" data-k="개인정보 공유 뭐가보이나 기록공유 익명 신고 숨기기 차단">
+      <summary>스터디룸에서 내 정보는 어디까지 공유되나요?</summary>
+      <div class="hbody">
+        <p><strong>닉네임·캐릭터·공부 상태(공부 중/휴식/모드)</strong>만 공유됩니다. 공부 기록과 통계, 과목별 시간은 공유되지 않습니다. 별도 가입 없이 익명으로 이용합니다.</p>
+        <p>불편한 사용자가 있으면 상대를 <strong>길게 눌러</strong> 숨기기·신고할 수 있습니다. 숨긴 사용자는 내 화면에서 익명으로 바뀝니다.</p>
+        <p>방 화면 오른쪽 위 설정에서 스터디룸 데이터를 삭제할 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 위젯·알림 ── -->
+  <div class="hgroup" id="widget">
+    <h2>위젯·알림</h2>
+
+    <details class="hitem" id="widget-add" data-cat="widget" data-k="위젯 홈화면 추가 설치 위젯추가 잠금화면위젯 바탕화면">
+      <summary>홈 화면 위젯 추가하는 방법</summary>
+      <div class="hbody">
+        <ul>
+          <li><span class="tag ios">iOS</span> 홈 화면 빈 곳을 길게 누른 뒤 왼쪽 위 <strong>+</strong> 버튼 → 목록에서 <strong>열공메이트</strong>를 골라 추가합니다. 잠금화면 위젯은 잠금화면을 길게 눌러 '사용자화'에서 추가합니다.</li>
+          <li><span class="tag aos">Android</span> 홈 화면 빈 곳을 길게 눌러 <strong>위젯</strong>을 열고, <strong>열공메이트</strong>를 찾아 끌어다 놓습니다.</li>
+        </ul>
+        <p>앱 안에서도 안내를 볼 수 있습니다. <span class="path">설정 &gt; 홈 화면 위젯</span></p>
+      </div>
+    </details>
+
+    <details class="hitem" id="widget-kinds" data-cat="widget" data-k="위젯종류 5종 오늘공부 디데이 과목바로시작 오늘계획 오늘할일 체크">
+      <summary>위젯 5종은 각각 무엇인가요?</summary>
+      <div class="hbody">
+        <ul>
+          <li><strong>오늘 공부</strong> — 오늘 누적 공부 시간과 목표 달성률. 공부 중에는 실시간으로 올라갑니다.</li>
+          <li><strong>시험 D-Day</strong> — 등록한 시험까지 남은 날짜. 누르면 플래너 월간으로 갑니다.</li>
+          <li><strong>과목 바로 시작</strong> — 누르면 그 과목 타이머가 바로 켜집니다.</li>
+          <li><strong>오늘 계획</strong> — 오늘의 계획과 진행 상황.</li>
+          <li><strong>오늘 할 일</strong> — 오늘 할 일 목록. <span class="tag aos">Android</span>는 위젯에서 바로 체크할 수 있고, <span class="tag ios">iOS</span>는 보기 전용입니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="lockscreen-timer" data-cat="widget" data-k="잠금화면 타이머표시 라이브액티비티 다이나믹아일랜드 상시알림 상단바">
+      <summary>잠금화면·상단바에서 타이머 보기</summary>
+      <div class="hbody">
+        <ul>
+          <li><span class="tag ios">iOS</span> 실행 중인 타이머가 잠금화면과 Dynamic Island에 실시간으로 표시됩니다(Live Activity).</li>
+          <li><span class="tag aos">Android</span> 상단바에 상시 알림으로 표시됩니다. <span class="path">설정</span>에서 끌 수 있습니다.</li>
+        </ul>
+        <p>앱을 열지 않아도 남은 시간을 확인할 수 있고, 눌러서 앱으로 바로 들어올 수 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="notif-fix" data-cat="widget" data-k="알림안옴 알림안울림 소리안남 완료알림 권한 배터리최적화 정확한알람 삼성 샤오미">
+      <summary>타이머 완료 알림이 울리지 않아요</summary>
+      <div class="hbody">
+        <p>아래를 순서대로 확인해 주세요.</p>
+        <ol>
+          <li><strong>알림 권한</strong> — 기기 설정 &gt; 앱 &gt; 열공메이트 &gt; 알림을 허용합니다.</li>
+          <li><strong>정확한 알람 권한</strong> <span class="tag aos">Android 12+</span> — 설정 &gt; 앱 &gt; 특별한 앱 권한 &gt; 알람 및 리마인더에서 허용합니다.</li>
+          <li><strong>배터리 최적화</strong> — 설정 &gt; 앱 &gt; 열공메이트 &gt; 배터리에서 '제한 없음'을 고릅니다.</li>
+          <li><strong>일부 제조사</strong>(Xiaomi·Huawei 등) — '자동 실행'이나 '백그라운드 활동'을 추가로 허용해야 할 수 있습니다.</li>
+          <li><span class="tag ios">iOS</span> — 설정 &gt; 알림 &gt; 열공메이트에서 알림 허용과 집중 모드 방해 예외를 확인합니다.</li>
+        </ol>
+        <p>대부분은 1~2번만으로 해결됩니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="reminder" data-cat="widget" data-k="리마인더 공부알림 매일알림 연속끊김 알림설정">
+      <summary>매일 공부 리마인더 설정하기</summary>
+      <div class="hbody">
+        <p><span class="path">설정 &gt; 알림</span>에서 매일 정해진 시각에 오는 공부 리마인더, 연속 기록이 끊길 위기일 때 오는 알림, 주간·월간 리포트 알림을 각각 켜고 끌 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ── 설정·데이터 ── -->
+  <div class="hgroup" id="data">
+    <h2>설정·데이터</h2>
+
+    <details class="hitem" id="backup" data-cat="data" data-k="백업 내보내기 저장 json 파일 데이터백업 기기변경 폰바꿈 이전">
+      <summary>데이터 백업하고 새 폰으로 옮기기</summary>
+      <div class="hbody">
+        <ol>
+          <li>기존 기기에서 <span class="path">설정 &gt; 데이터 백업</span>을 누릅니다.</li>
+          <li>만들어진 백업 파일을 메일·메신저·클라우드 등 안전한 곳에 보냅니다.</li>
+          <li>새 기기에 앱을 설치하고 <span class="path">설정 &gt; 데이터 복원</span>에서 그 파일을 고릅니다.</li>
+        </ol>
+        <div class="note">복원하면 현재 데이터가 <strong>백업 시점의 데이터로 덮어씌워집니다</strong>. 새 기기에서 이미 공부한 기록이 있다면 사라지니 순서에 주의하세요.</div>
+        <p>오답노트 사진·녹음이 있으면 백업할 때 함께 담을지 물어봅니다. 함께 담으면 새 폰에서 사진과 녹음까지 복원되지만 파일이 그만큼 커집니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="restore-fail" data-cat="data" data-k="복원실패 백업파일아님 불러오기 오류 가져오기">
+      <summary>복원이 안 될 때</summary>
+      <div class="hbody">
+        <ul>
+          <li>"열공메이트 백업 파일이 아닙니다"가 뜨면 다른 파일을 고른 것입니다. 백업할 때 만들어진 파일을 그대로 고르세요.</li>
+          <li>메신저나 클라우드를 거치며 파일 이름이 바뀌어도 상관없습니다. 내용으로 판별합니다.</li>
+          <li>예전 버전에서 만든 백업 파일도 그대로 복원됩니다.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="hitem" id="theme" data-cat="data" data-k="다크모드 테마 색상 글꼴 폰트 쿠키런 메이플 타이머스타일 꾸미기">
+      <summary>다크 모드·테마 색·글꼴 바꾸기</summary>
+      <div class="hbody">
+        <p><span class="path">설정</span>에서 다크 모드, 테마 컬러 7종, 글꼴 6종(쿠키런·메이플스토리·나눔스퀘어 등), 타이머 스타일, 글자 크기를 바꿀 수 있습니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="character" data-cat="data" data-k="캐릭터 토루 팽이 닉네임 좌우명 응원">
+      <summary>캐릭터·닉네임 바꾸기</summary>
+      <div class="hbody">
+        <p><span class="path">설정 &gt; 내 정보</span>에서 응원 캐릭터와 닉네임, 좌우명을 정할 수 있습니다. 닉네임은 스터디룸에서 다른 사람에게 보이는 이름이기도 합니다.</p>
+      </div>
+    </details>
+
+    <details class="hitem" id="delete-data" data-cat="data" data-k="데이터삭제 초기화 전체삭제 탈퇴 기록지우기">
+      <summary>공부 기록을 전부 지우고 싶어요</summary>
+      <div class="hbody">
+        <p>기록은 기기 안에만 있으므로 앱을 삭제하면 함께 지워집니다. 앱을 지우지 않고 데이터만 정리하는 방법과 스터디룸 데이터 삭제는 <a class="textlink" href="delete-data.html">데이터 삭제 안내</a>에 정리돼 있습니다.</p>
+        <div class="note">지우기 전에 <a class="textlink" href="#backup">백업</a>을 해두면 나중에 되살릴 수 있습니다.</div>
+      </div>
+    </details>
+
+    <details class="hitem" id="contact" data-cat="data" data-k="문의 버그 오류 제보 건의 기능요청 메일 연락">
+      <summary>버그를 발견했거나 건의할 것이 있어요</summary>
+      <div class="hbody">
+        <p><a class="textlink" href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a>으로 보내주세요. 어떤 기기(iPhone/Android 모델)에서 어떤 순서로 했을 때 생겼는지 적어주시면 훨씬 빨리 고칠 수 있습니다.</p>
+        <p>실제로 사용자 제보로 고쳐진 것이 많습니다. 사소해 보여도 알려주세요.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="hempty" data-help-empty hidden>
+    <p><strong>검색 결과가 없습니다.</strong></p>
+    <p>다른 낱말로 찾아보시거나, 위의 분류에서 골라보세요.<br>찾는 내용이 없다면 <a class="textlink" href="mailto:dongsikl51@gmail.com">메일로 문의</a>해 주세요.</p>
+  </div>
+
+</section>
+
+<div class="divider"></div>
+
+<section class="section section-narrow" style="text-align:center;">
+  <p class="eyebrow">More</p>
+  <h2>더 깊게 쓰고 싶다면</h2>
+  <p class="lead" style="margin:0 auto 28px;">기능 사용법을 넘어, 공부의 질을 끌어올리는 활용법도 정리해 두었습니다.</p>
+  <p>
+    <a class="textlink" href="guide.html">공부타이머 200% 활용법 →</a><br><br>
+    <a class="textlink" href="features/focus.html">집중·타이머 자세히</a> ·
+    <a class="textlink" href="features/planner.html">플래너·과목 자세히</a> ·
+    <a class="textlink" href="features/stats.html">통계·위젯 자세히</a>
+  </p>
+</section>
+
+<section class="cta" id="download">
+  <h2>지금 무료로 시작하세요</h2>
+  <p>광고 없이, 모든 기능을 무료로.</p>
+  <div class="store-buttons">
+    <a href="https://apps.apple.com/app/id6759892516" class="store-btn" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <div class="store-btn-text"><span class="store-btn-sub">Download on the</span><span class="store-btn-name">App Store</span></div>
+    </a>
+    <a href="https://play.google.com/store/apps/details?id=com.yeolgong.timer&referrer=utm_source%3Dyeolgong_site%26utm_medium%3Dweb" class="store-btn dark" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.3.17.64.24.99.2l12.69-12.7-3.54-3.54L3.18 23.76zm16.4-12.25l-2.43-1.4-3.89 3.89 3.89 3.89 2.46-1.42c.7-.4.7-1.55-.03-1.96zM.75 1.05C.45 1.38.3 1.84.3 2.41v19.18c0 .57.16 1.03.46 1.36l.07.07 10.75-10.75v-.26L.82.98.75 1.05zm11.49 11.56l3.56-3.56-12.7-7.33 9.14 10.89z"/></svg>
+      <div class="store-btn-text"><span class="store-btn-sub">GET IT ON</span><span class="store-btn-name">Google Play</span></div>
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-links">
+    <a href="index.html">홈</a>
+    <a href="features/focus.html">집중·타이머</a>
+    <a href="features/planner.html">플래너·과목</a>
+    <a href="features/stats.html">통계·위젯</a>
+    <a href="guide.html">활용법</a>
+    <a href="https://blog.naver.com/yeolgongmate" target="_blank" rel="noopener">네이버 블로그</a>
+    <a href="privacy-policy.html">개인정보처리방침</a>
+  </div>
+  <p>© <span data-year>2026</span> 열공메이트 · <a href="mailto:dongsikl51@gmail.com">dongsikl51@gmail.com</a></p>
+</footer>
+
+<script src="js/site.js?v=20260806b"></script>
+</body>
+</html>

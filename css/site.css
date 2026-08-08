@@ -408,6 +408,139 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   font-size: 0.94rem; color: var(--muted);
 }
 
+/* ── Help center (help.html) ─────────────────── */
+.help-tools {
+  position: sticky;
+  top: 54px;
+  z-index: 30;
+  background: rgba(15, 15, 26, 0.94);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  margin: 0 -20px;
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.help-search { position: relative; }
+.help-search input {
+  width: 100%;
+  padding: 15px 46px 15px 46px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1rem;
+}
+.help-search input::placeholder { color: var(--muted-2); }
+.help-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--card-hover);
+}
+.help-search .hs-ico {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; color: var(--muted-2); pointer-events: none;
+}
+.help-search .hs-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; border-radius: 8px;
+  display: none; align-items: center; justify-content: center;
+  font-size: 1.1rem; line-height: 1; font-family: inherit;
+}
+.help-search .hs-clear.on { display: flex; }
+.help-search .hs-clear:hover { background: var(--card-hover); color: var(--text); }
+
+.hcats {
+  display: flex; gap: 8px; flex-wrap: wrap; overflow-x: auto;
+  padding: 12px 0 2px; scrollbar-width: none;
+}
+.hcats::-webkit-scrollbar { display: none; }
+.hcat {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 100px;
+  padding: 7px 14px;
+  font-family: inherit; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.hcat:hover { color: var(--text); }
+.hcat.on {
+  background: rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.4);
+  color: var(--accent);
+}
+.hcount { font-size: 0.84rem; color: var(--muted-2); padding: 12px 0 0; }
+
+/* 항목이 숨겨질 때 브라우저가 '보던 자리 유지'하려고 스크롤을 되돌리지 않게 한다
+   (분류를 눌렀을 때 결과 맨 위로 올리는 동작과 부딪힌다) */
+.hgroup, .hitem { overflow-anchor: none; }
+.hgroup { margin-top: 34px; }
+.hgroup[hidden] { display: none; }
+.hgroup > h2 {
+  font-size: 1.12rem; font-weight: 800; margin-bottom: 12px; color: #e9e4ff;
+}
+.hitem {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+.hitem[hidden] { display: none; }
+.hitem > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 15px 18px;
+  font-weight: 700;
+  font-size: 0.99rem;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.hitem > summary::-webkit-details-marker { display: none; }
+.hitem > summary::after {
+  content: '';
+  margin-left: auto; flex: 0 0 auto;
+  width: 8px; height: 8px; margin-top: 6px;
+  border-right: 2px solid var(--muted-2);
+  border-bottom: 2px solid var(--muted-2);
+  transform: rotate(45deg);
+  transition: transform .18s;
+}
+.hitem[open] > summary { color: var(--accent); }
+.hitem[open] > summary::after { transform: rotate(-135deg); margin-top: 9px; }
+.hitem:target { border-color: rgba(167, 139, 250, 0.5); }
+/* JS가 죽어도 앵커로 들어온 항목은 펼쳐 보이게 (details는 앵커만으로 안 열린다) */
+.hitem:target > .hbody { display: block; }
+.hbody { padding: 0 18px 18px; color: rgba(255, 255, 255, 0.78); font-size: 0.94rem; }
+.hbody p { margin-bottom: 10px; }
+.hbody p:last-child, .hbody ul:last-child, .hbody ol:last-child { margin-bottom: 0; }
+.hbody ol, .hbody ul { margin: 0 0 12px 20px; }
+.hbody li { margin-bottom: 6px; }
+.hbody strong { color: #fff; }
+.path {
+  display: inline-block;
+  background: rgba(167, 139, 250, 0.13);
+  border: 1px solid rgba(167, 139, 250, 0.26);
+  color: #d9ccff;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.88rem; font-weight: 700;
+}
+.hbody .note {
+  border-left: 3px solid var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.hempty { text-align: center; padding: 52px 20px; color: var(--muted); }
+.hempty[hidden] { display: none; }
+.hempty strong { color: var(--text); }
+
 /* ── Contact ─────────────────────────────────── */
 .contact-box {
   display: inline-flex; align-items: center; gap: 10px;
@@ -542,6 +675,11 @@ footer a:hover { color: var(--text); }
   .nav-links.open { display: flex; }
   .nav-links a { padding: 13px 14px; font-size: 0.98rem; border-radius: 10px; }
   .nav-links a.nav-cta { text-align: center; margin-top: 4px; }
+
+  /* 모바일 네비가 더 높다 (햄버거 42px) */
+  .help-tools { top: 66px; }
+  /* 좁은 화면에서는 분류 칩이 줄바꿈으로 쌓이면 검색창이 밀려나므로 옆으로 스크롤 */
+  .hcats { flex-wrap: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

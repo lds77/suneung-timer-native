@@ -1,119 +1,135 @@
 #!/usr/bin/env node
-// 블로그 지침서 동기화 — 저장소 원본 → 코워크 폴더 사본
-//
-// 왜 있나: 지침서가 두 곳에 있고 세션도 둘(앱 작업/블로그 작성)이라 조용히 갈라진다.
-// 2026-08-04·08-05 이틀 연속으로 갈라져 있었고, 그때마다 사본에만 있는 내용이 있어
-// 그냥 덮어쓰면 잃을 뻔했다. 그래서 이 스크립트는 **다르면 먼저 멈춘다**.
-//
-// 소유권(2026-08-05 정리):
-//   CLAUDE.md   ← 앱 저장소가 주인. 코워크는 읽기만  → 이 스크립트가 덮어쓴다
-//   발행대장.md ← 코워크가 주인. 앱 세션은 읽기만    → 저장소로 스냅샷만 복사(백업)
-//
-// 사용법:
-//   node scripts/sync-blog-guide.js            원본 → 사본 (다르면 내용 보여주고 확인 요구)
-//   node scripts/sync-blog-guide.js --check    비교만 (갈라졌으면 exit 1) — 세션 시작 훅용
-//   node scripts/sync-blog-guide.js --force    묻지 않고 덮어쓴다
-
+/**
+ * 블로그 지침서 동기화 — 원본(docs/blog-guide.md) → 코워크 사본(구글열공/CLAUDE.md)
+ *
+ * 두 벌이 갈라지면 틀린 글이 나간다(08-04·08-05 이틀 연속으로 갈라진 전례).
+ * 원본이 주인이므로 항상 원본 → 사본 방향으로만 덮어쓴다.
+ *
+ *   npm run sync:blog-guide            차이만 보여준다(쓰지 않음)
+ *   npm run sync:blog-guide -- --write 사본을 덮어쓴다
+ *
+ * ★사본에만 있는 줄이 있으면 --write를 거부한다★ — 코워크가 사본에 적어둔 것을
+ * 원본에 먼저 반영하지 않으면 그대로 사라지기 때문이다. 확인 후에도 버릴 것이면 --force.
+ */
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const REPO_GUIDE = path.join(__dirname, '..', 'docs', 'blog-guide.md');
-const COWORK_DIR = path.join(
-  os.homedir(), 'OneDrive', '문서', '카카오톡 받은 파일', '구글열공'
+const SRC = path.join(__dirname, '..', 'docs', 'blog-guide.md');
+const HELP = path.join(__dirname, '..', 'help.html');
+const DEST = path.join(
+  os.homedir(),
+  'OneDrive', '문서', '카카오톡 받은 파일', '구글열공', 'CLAUDE.md'
 );
-const COPY_GUIDE = path.join(COWORK_DIR, 'CLAUDE.md');
-const COWORK_LOG = path.join(COWORK_DIR, '발행대장.md');
-const LOG_SNAPSHOT = path.join(__dirname, '..', 'docs', 'blog-log-snapshot.md');
 
 const args = process.argv.slice(2);
-const checkOnly = args.includes('--check');
+const write = args.includes('--write');
 const force = args.includes('--force');
 
-// 줄바꿈(CRLF/LF)만 다른 것은 갈라진 게 아니다 — Windows 편집기가 자동으로 바꾼다
-const norm = (s) => s.replace(/\r\n/g, '\n').trimEnd();
+const norm = (s) => s.replace(/\r\n/g, '\n');
+const lines = (s) => norm(s).split('\n');
 
-function readOrNull(p) {
-  try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
+if (!fs.existsSync(SRC)) {
+  console.error('원본이 없다: ' + SRC);
+  process.exit(2);
 }
-
-/** 사본에만 있는 줄 — 코워크가 지침서에 직접 적었다는 뜻이라 잃으면 안 된다 */
-function linesOnlyInCopy(repo, copy) {
-  const repoLines = new Set(norm(repo).split('\n').map(l => l.trim()));
-  return norm(copy).split('\n')
-    .map(l => l.trim())
-    .filter(l => l && !repoLines.has(l));
-}
-
-const repo = readOrNull(REPO_GUIDE);
-if (repo === null) {
-  console.error(`[blog-guide] 원본이 없다: ${REPO_GUIDE}`);
+if (!fs.existsSync(DEST)) {
+  console.error('사본 경로가 없다: ' + DEST);
+  console.error('(OneDrive 폴더가 이 PC에 동기화돼 있는지 확인할 것)');
   process.exit(2);
 }
 
-const copy = readOrNull(COPY_GUIDE);
+// ── 1-A절 앵커 표를 help.html에서 다시 만든다 ──────────────────────────
+// 코워크가 60개 항목 전체에서 고를 수 있어야 하는데, 손으로 옮겨 적으면 도움말이
+// 늘어날 때마다 조용히 낡는다(표에 없는 항목은 코워크가 아예 못 쓴다).
+const CAT_LABEL = {
+  start: '시작', timer: '타이머', focus: '집중', record: '기록', plan: '계획',
+  subject: '과목', stats: '통계', room: '스터디룸', widget: '위젯·알림', data: '데이터',
+};
 
-// 코워크 폴더 자체가 없으면(다른 PC 등) 조용히 넘어간다 — 훅에서 매번 시끄러우면 안 된다
-if (copy === null) {
-  if (!fs.existsSync(COWORK_DIR)) {
-    if (!checkOnly) console.log('[blog-guide] 코워크 폴더가 없어 건너뜀');
-    process.exit(0);
+function buildAnchorTable(helpHtml) {
+  const re = /<details[^>]*id="([a-z0-9-]+)"[^>]*data-cat="([a-z]+)"[^>]*>\s*<summary>([\s\S]*?)<\/summary>/g;
+  const rows = [];
+  let m;
+  while ((m = re.exec(helpHtml))) {
+    const [, id, cat, rawTitle] = m;
+    let mark = '';
+    if (/class="tag ios"/.test(rawTitle)) mark = ' ※iOS';
+    else if (/class="tag aos"/.test(rawTitle)) mark = ' ※안드';
+    // 플랫폼 배지는 ※표시로 옮겼으므로 제목에서 통째로 뺀다(안 그러면 "…앱 막기 iOS"가 된다)
+    const title = rawTitle
+      .replace(/<span class="tag[^"]*">[\s\S]*?<\/span>/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    rows.push(`| ${CAT_LABEL[cat] || cat} | \`#${id}\`${mark} | ${title} |`);
   }
+  return { table: ['| 분류 | 앵커 | 항목 제목 |', '|------|------|-----------|', ...rows].join('\n'), count: rows.length };
 }
 
-const same = copy !== null && norm(repo) === norm(copy);
+// toISOString()은 UTC라 KST 새벽 0~9시에 하루 밀린다 (CLAUDE.md 규칙 7과 같은 부류)
+function localDateStr() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
-if (same) {
-  if (!checkOnly) console.log('[blog-guide] 이미 같음 — 할 일 없음');
-  syncLogSnapshot(true);
+function refreshGuide(text, helpHtml) {
+  const { table, count } = buildAnchorTable(helpHtml);
+  if (!count) throw new Error('help.html에서 항목을 하나도 못 읽었다 — 선택자를 확인할 것');
+  // 원본이 CRLF로 저장돼 있어 줄바꿈은 \r?\n 으로 받는다
+  const begin = /(<!-- HELP-ANCHORS:BEGIN[^>]*-->\r?\n)[\s\S]*?(\r?\n<!-- HELP-ANCHORS:END -->)/;
+  if (!begin.test(text)) throw new Error('HELP-ANCHORS 표식이 blog-guide.md에 없다');
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  return text
+    .replace(begin, (_, a, b) => a + table.split('\n').join(eol) + b)
+    .replace(/기능별 사용법 \d+개 항목/, `기능별 사용법 ${count}개 항목`)
+    .replace(/### 앵커 목록 \(\d+개 전체 — [^)]*\)/,
+      `### 앵커 목록 (${count}개 전체 — ${localDateStr()} 기준)`);
+}
+
+let src = fs.readFileSync(SRC, 'utf8');
+if (fs.existsSync(HELP)) {
+  const refreshed = refreshGuide(src, fs.readFileSync(HELP, 'utf8'));
+  if (norm(refreshed) !== norm(src)) {
+    fs.writeFileSync(SRC, refreshed, 'utf8');
+    src = refreshed;
+    console.log('앵커 표를 help.html 기준으로 다시 만들었다 (docs/blog-guide.md).');
+  }
+}
+const dest = fs.readFileSync(DEST, 'utf8');
+
+if (norm(src) === norm(dest)) {
+  console.log('동일하다 — 할 일 없음.');
   process.exit(0);
 }
 
-// ── 여기부터는 갈라진 상태 ──
-const uniqueInCopy = copy === null ? [] : linesOnlyInCopy(repo, copy);
+// 줄 단위 집합 비교(순서는 무시) — 어느 쪽에만 있는 내용인지만 알면 된다
+const meaningful = (l) => l.trim() !== '' && l.trim() !== '---';
+const srcSet = new Set(lines(src).filter(meaningful));
+const destSet = new Set(lines(dest).filter(meaningful));
+const onlyInDest = [...destSet].filter((l) => !srcSet.has(l));
+const onlyInSrc = [...srcSet].filter((l) => !destSet.has(l));
 
-console.log('');
-console.log('[blog-guide] ★사본이 원본과 다르다★');
-console.log(`  원본: ${REPO_GUIDE}`);
-console.log(`  사본: ${COPY_GUIDE}`);
+console.log('원본에만 있는 줄: ' + onlyInSrc.length + ' / 사본에만 있는 줄: ' + onlyInDest.length);
 
-if (uniqueInCopy.length) {
-  console.log('');
-  console.log(`  ⚠ 사본에만 있는 줄 ${uniqueInCopy.length}개 — 덮어쓰면 사라진다:`);
-  uniqueInCopy.slice(0, 20).forEach(l => console.log(`    | ${l.slice(0, 110)}`));
-  if (uniqueInCopy.length > 20) console.log(`    | … 외 ${uniqueInCopy.length - 20}줄`);
-  console.log('');
-  console.log('  → 먼저 원본(docs/blog-guide.md)에 반영한 뒤 다시 실행할 것.');
-  console.log('  → 코워크가 남긴 발행 기록이라면 발행대장.md로 옮겨야 한다(지침서에 적으면 안 된다).');
-} else {
-  console.log('  (사본에만 있는 줄은 없다 — 원본이 앞서 있을 뿐이니 그대로 덮어쓰면 된다)');
+if (onlyInDest.length) {
+  console.log('\n★사본에만 있는 줄 (덮어쓰면 사라진다 — 원본에 먼저 반영할 것)');
+  onlyInDest.slice(0, 40).forEach((l) => console.log('  | ' + l));
+  if (onlyInDest.length > 40) console.log('  … 외 ' + (onlyInDest.length - 40) + '줄');
 }
 
-if (checkOnly) {
-  console.log('');
-  console.log('  덮어쓰려면: npm run sync:blog-guide');
+if (!write) {
+  // 차이가 있으면 무조건 1 — SessionStart 훅(--check)이 종료 코드로 판단한다
+  console.log('\n덮어쓰려면: npm run sync:blog-guide -- --write');
   process.exit(1);
 }
 
-if (uniqueInCopy.length && !force) {
-  console.log('');
-  console.log('  중단했다. 확인 후 --force 로 다시 실행하면 덮어쓴다.');
+if (onlyInDest.length && !force) {
+  console.error('\n중단했다 — 사본에만 있는 줄이 있다. 원본에 반영한 뒤 다시 실행할 것.');
+  console.error('(버려도 되는 내용이라면 --force)');
   process.exit(1);
 }
 
-fs.writeFileSync(COPY_GUIDE, repo);
-console.log('');
-console.log('[blog-guide] 사본을 원본으로 덮어썼다.');
-syncLogSnapshot(false);
-
-/** 코워크가 쓰는 발행대장을 저장소에 백업(읽기 전용 스냅샷) — 이력이 git에 남는다 */
-function syncLogSnapshot(quiet) {
-  const log = readOrNull(COWORK_LOG);
-  if (log === null) return;
-  const prev = readOrNull(LOG_SNAPSHOT);
-  const header = '<!-- 코워크 폴더 발행대장.md의 스냅샷(백업). 원본은 그쪽이고 여기서 고치지 말 것. -->\n\n';
-  const next = header + log;
-  if (prev !== null && norm(prev) === norm(next)) return;
-  fs.writeFileSync(LOG_SNAPSHOT, next);
-  if (!quiet) console.log('[blog-guide] 발행대장 스냅샷 갱신 → docs/blog-log-snapshot.md');
-}
+fs.writeFileSync(DEST, src, 'utf8');
+console.log('\n사본을 덮어썼다: ' + DEST);
