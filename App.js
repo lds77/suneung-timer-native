@@ -86,7 +86,10 @@ React.createElement = function (type, props, ...children) {
 // ── 온보딩 (5단계) ──
 function OnboardingScreen() {
   const app = useApp();
-  const [step, setStep] = useState(0); // 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목, 5=15초체험
+  // 5단계다 — 0=캐릭터, 1=테마, 2=학교급, 3=D-Day, 4=과목. 과목 단계의 '시작하기!'가
+  // 곧바로 handleFinish()를 부른다(진행 점도 5개). 예전 주석엔 '5=15초체험'이 남아 있었는데
+  // 그런 단계는 없다 — 홍보 영상 대본을 그 주석대로 썼다가 잡았다(2026-08-09)
+  const [step, setStep] = useState(0);
   const [selected, setSelected] = useState('toru');
   const [selectedAccent, setSelectedAccent] = useState('pink');
   const [selectedSchool, setSelectedSchool] = useState('high');
