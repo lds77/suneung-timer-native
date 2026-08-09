@@ -21,6 +21,7 @@ import { SCHOOL_DEFAULT_SUBJECTS } from './src/constants/presets';
 import { buildDefaultSchedule, hasScheduleTemplate } from './src/utils/scheduleTemplate';
 import { normalizeRoomCode, isValidRoomCode } from './src/utils/studyRoomCore';
 import { openExactAlarmSettings } from './src/utils/permissions';
+import { getToday } from './src/utils/format';
 import { FONT_MAP, FONT_FAMILY_MAP } from './src/constants/fonts';
 import CharacterAvatar from './src/components/CharacterAvatar';
 import Toast from './src/components/Toast';
@@ -123,7 +124,7 @@ function OnboardingScreen() {
   const [ddLabel, setDdLabel] = useState('');
   const [ddSelectedDates, setDdSelectedDates] = useState(new Set());
   const [pickerMonth, setPickerMonth] = useState(new Date());
-  const today = new Date().toISOString().split('T')[0];
+  const today = getToday(); // ★toISOString() 금지 — UTC라 KST 새벽 0~9시에 어제로 밀린다 (CLAUDE.md 규칙 7)
   const toggleDdDate = (dateStr) => {
     setDdSelectedDates(prev => { const next = new Set(prev); if (next.has(dateStr)) next.delete(dateStr); else next.add(dateStr); return next; });
   };
