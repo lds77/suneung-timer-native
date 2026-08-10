@@ -120,6 +120,10 @@ const DEFAULT_SETTINGS = {
   exactAlarmGuideShown: false, // Android 12+ 정확한 알람 권한 안내 표시 여부
   giveUpCount: 0, giveUpDate: '', // 오늘 그만하기 횟수 추적
   lastTodoResetDate: '', // 할일 자동 초기화 날짜 추적
+  // 집중탭 '반복 할 일 템플릿' 목록 접기 (사용자 요청 2026-08-10 — 개수가 늘면 메인이 어수선하다).
+  // ★설정에 두는 이유★: 계획 카드 접기(planCardCollapsed)처럼 로컬 state로 두면 앱을 껐다 켤
+  // 때마다 다시 펼쳐진다. 접어둔 사람은 계속 접혀 있길 원하므로 기기에 남긴다. 기본은 펼침(기존 동작)
+  todoTemplatesCollapsed: false,
   // 공부 리마인더
   dailyReminderEnabled: false, // 매일 공부 리마인더 (기본 OFF — 공부 안 했을 때 잔소리성, 필요시 켜기)
   dailyReminderHour: 20,       // 리마인더 시각 (시)

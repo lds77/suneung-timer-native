@@ -762,14 +762,21 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                 if (templates.length === 0) return null;
                 const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
                 const dayOrder = [1,2,3,4,5,6,0]; // 월~토, 일 순 (토·일 표시용)
+                const collapsed = !!app.settings.todoTemplatesCollapsed;
                 return (
                   <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: T.border }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                    {/* 제목줄 전체가 접기 토글 — 개수가 많으면 메인이 어수선하다는 요청(2026-08-10) */}
+                    <TouchableOpacity activeOpacity={0.7} accessibilityRole="button"
+                      accessibilityLabel={`반복 할 일 템플릿 ${templates.length}개 ${collapsed ? '펼치기' : '접기'}`}
+                      onPress={() => app.updateSettings({ todoTemplatesCollapsed: !collapsed })}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: collapsed ? 2 : 6, paddingVertical: 2 }}>
                       <Ionicons name="repeat-outline" size={12} color={T.sub} />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>반복 할 일 템플릿</Text>
-                      <Text style={{ fontSize: 11, color: T.border }}>탭:수정</Text>
-                    </View>
-                    {templates.map(t => (
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub }}>반복 할 일 템플릿 {templates.length}</Text>
+                      {!collapsed && <Text style={{ fontSize: 11, color: T.border, flexShrink: 1 }} numberOfLines={1}>탭:수정</Text>}
+                      <View style={{ flex: 1 }} />
+                      <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={14} color={T.sub} />
+                    </TouchableOpacity>
+                    {!collapsed && templates.map(t => (
                       <TouchableOpacity key={t.id} onPress={() => openEditTodo(t)} activeOpacity={0.7}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         {t.subjectColor && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.subjectColor }} />}
