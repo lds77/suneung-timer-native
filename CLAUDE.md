@@ -489,7 +489,8 @@ eas build --profile preview --platform android
 6. **알림 테스트**: 실기기 + EAS 빌드로만 검증 가능
 7. **날짜 코드는 반드시 `format.js`의 `getToday()`/`toDateStr()` 사용** — `toISOString()`은 UTC라
    KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
-8. **로직 변경 후 `npm test`** (Jest 441개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기)
+8. **로직 변경 후 `npm test`** (Jest 577개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기).
+   ★**레이아웃은 테스트가 없다**★ — 태블릿/가로/글자크기 관련 변경은 통과해도 검증된 게 아니다
 9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
 10. **월 이동은 `new Date(y, m ± n, 1)`로 1일 정규화** — `new Date()`에 그대로 `setMonth(±n)`
     하면 29~31일에 짧은 달로 넘칠 때 달이 건너뛰거나 제자리 (2026-07-19 감사에서 3곳 일소)
