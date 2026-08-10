@@ -35,9 +35,11 @@ export default function FocusScreen() {
   const isTablet = winW >= 600; // 동적 판별 — 회전 시 재계산 (모듈레벨 정적값 덮어쓰기)
   const tabletModalW = Math.min(640, Math.round(winW * 0.8));
   const fs = T.fontScale * (isTablet ? 1.1 : 1.0);
-  const S = useMemo(() => createStyles(fs), [fs]);
   const isLandscape = isTablet && winW > winH;
   const contentMaxW = isTablet ? Math.round(winW * 0.83) : winW;
+  // 스타일의 고정폭(tabletBlock·ddayCell)은 반드시 이 화면의 실제 블록 폭에서 파생시킨다 —
+  // styles.js의 정적 680dp를 쓰면 좁은 태블릿에서 카드가 컨테이너 밖으로 나간다
+  const S = useMemo(() => createStyles(fs, contentMaxW), [fs, contentMaxW]);
 
   // 동적 링/카드 크기 (회전 시 재계산)
   const RING_SIZE = isTablet ? Math.min(winW * 0.38, 340) : Math.min(winW - 72, 340);

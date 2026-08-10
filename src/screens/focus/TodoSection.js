@@ -519,18 +519,20 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
             <View style={[S.todoCard, { backgroundColor: T.card, borderColor: T.border }, isTablet && !isLandscape && S.tabletBlock]}>
               {/* 헤더 */}
               <View style={S.todoH}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 }}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={T.accent} />
-                  <Text style={[S.todoTitle, { color: T.text }]}>해야 할 일</Text>
+                  <Text style={[S.todoTitle, { color: T.text, flexShrink: 1 }]} numberOfLines={1}>해야 할 일</Text>
                   <TouchableOpacity onPress={() => setShowReviewNotes(true)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: T.accent + '15', borderWidth: 1, borderColor: T.accent + '55', marginLeft: 2 }}>
                     <Ionicons name="reader-outline" size={13} color={T.accent} />
                     <Text style={{ fontSize: 11, fontWeight: '800', color: T.accent }}>오답노트</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <Text style={{ fontSize: 11, color: T.border }} numberOfLines={1}>탭:펼치기 · 꾹:수정</Text>
-                  <Text style={[S.todoCnt, { color: T.sub }]}>{doneCount}/{todayTodos.length}</Text>
+                {/* 이 묶음이 flexShrink:0이면 글자가 커졌을 때(태블릿 ×1.15 × fs ×1.1 × 사용자
+                    글자크기) 카드 밖으로 통째로 밀려나 잘린다 — 힌트 문구부터 줄어들게 둔다 */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 11, color: T.border, flexShrink: 1 }} numberOfLines={1}>탭:펼치기 · 꾹:수정</Text>
+                  <Text style={[S.todoCnt, { color: T.sub, flexShrink: 0 }]}>{doneCount}/{todayTodos.length}</Text>
                 </View>
               </View>
               {/* scope 필터 탭 — 꾹 누르면 이름변경(오늘/시험대비) 또는 이름변경·삭제(커스텀), +로 목록 추가 */}

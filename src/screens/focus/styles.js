@@ -6,17 +6,21 @@ const isTablet = SW >= 600;
 export const GAP = 8;
 export const CONTENT_MAX_W_STATIC = isTablet ? 680 : SW;
 
-export function createStyles(fs) { return StyleSheet.create({
+// blockW = 이 화면 콘텐츠 블록의 실제 폭(dp). FocusScreen이 자기 contentMaxW(태블릿이면
+// winW*0.83)를 넘겨준다. ★고정 680dp로 두지 말 것★ — 감싸는 컨테이너는 winW*0.83인데
+// 카드만 680이면 화면 폭 819dp 미만(7~11인치 태블릿 세로 대부분)에서 카드가 컨테이너
+// 밖으로 삐져나온다(2026-08-10 갤럭시탭 제보). 폰은 blockW = winW라 기존과 동일.
+export function createStyles(fs, blockW = CONTENT_MAX_W_STATIC) { return StyleSheet.create({
   container: { flex: 1 }, scrollCol: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
   scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
-  tabletBlock: { width: CONTENT_MAX_W_STATIC },
+  tabletBlock: { width: blockW },
   headerCard: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 },
   title: { fontSize: Math.round(15 * fs), fontWeight: '800' }, headerSub: { fontSize: Math.round(11 * fs), marginTop: 1 },
   darkBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   ddayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 6 },
-  ddayCell: { width: (CONTENT_MAX_W_STATIC - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
+  ddayCell: { width: (blockW - 32 - 12) / 4, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center' },
   ddayCellLabel: { fontSize: Math.round(11 * fs), fontWeight: '700' }, ddayCellVal: { fontSize: Math.round(11 * fs), fontWeight: '900', marginTop: 1 },
   planCard: { borderRadius: 14, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   planCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
