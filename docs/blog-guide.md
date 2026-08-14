@@ -74,6 +74,8 @@
 - App Store: `https://apps.apple.com/app/apple-store/id6759892516?pt=128607938&ct=naver_blog&mt=8`
 - 공식 웹사이트: `https://lds77.github.io/suneung-timer-native/`
 - **사용법 도움말**: `https://lds77.github.io/suneung-timer-native/help.html` (2026-08-05 신설, 아래 1-A절)
+- **유튜브 채널**: `https://www.youtube.com/@yeolgongmate` (2026-08-09 앱 공식 채널로 전환. 추적 링크가
+  아니므로 CTA에 넣지 말고, 쇼츠 내용과 겹치는 글에서만 본문에 1회. 원고 ↔ 쇼츠 상호 링크는 코워크 담당)
 
 **티스토리 글에는** Play 링크의 `naver_blog`를 `tistory`로 바꿔 사용:
 - Google Play: `https://play.google.com/store/apps/details?id=com.yeolgong.timer&referrer=utm_source%3Dtistory%26utm_medium%3Dblog`
