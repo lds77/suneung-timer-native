@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, Switch, Modal, Alert, StyleSheet, Platform, Linking, Share, KeyboardAvoidingView, useWindowDimensions,
-  Keyboard, Dimensions,
+  Keyboard, Dimensions, AppState,
 } from 'react-native';
 import { useApp } from '../hooks/useAppState';
 import { shieldSupported, requestShieldAuth, presentShieldPicker, getShieldBlockedCount, presentAllowPicker, getShieldAllowedCount, allowAllSupported } from '../utils/focusShield';
@@ -27,7 +27,9 @@ import { backupRowSub } from '../utils/backupNudge';
 import { buildDefaultSchedule, hasScheduleTemplate, hasScheduleContent, describeScheduleLoss } from '../utils/scheduleTemplate';
 import { usageStats, cleanupOrphans, formatBytes } from '../utils/attachments';
 import { backupFileName, buildArchive, openArchive, restoreFiles, finishRestore, filesToRestore, isZipFile } from '../utils/backupArchive';
-import { openExactAlarmSettings } from '../utils/permissions';
+import { openExactAlarmSettings, openAppNotifSettings, openChannelSettings } from '../utils/permissions';
+import { ONGOING_CHANNEL_ID } from '../utils/ongoingNotif';
+import * as Notifications from 'expo-notifications';
 // 폰트 미리보기용 맵
 import { FONT_FAMILY_MAP } from '../constants/fonts';
 import { Ionicons } from '@expo/vector-icons';
@@ -225,6 +227,43 @@ function Section({ title, icon, children, T }) {
   );
 }
 
+// 잠금화면 타이머 알림이 왜 안 보이는지 짚어 주는 배너 (안드 전용).
+// 앱 토글이 켜져 있어도 OS가 막으면 알림이 조용히 안 뜬다 — 원인별로 바로가기를 준다.
+// diag가 null이면(조회 전/실패) 단정하지 않고 일반 안내만 보여준다.
+function OngoingNotifDiag({ T, diag }) {
+  const blocked = diag && (!diag.granted || diag.channelOff);
+  const msg = !diag ? null
+    : !diag.granted ? '휴대폰 알림 권한이 꺼져 있어 표시되지 않아요'
+    : diag.channelOff ? "'집중 진행 상황' 알림이 꺼져 있어 표시되지 않아요"
+    : null;
+  const onPress = !diag ? null
+    : !diag.granted ? openAppNotifSettings
+    : diag.channelOff ? () => openChannelSettings(ONGOING_CHANNEL_ID)
+    : null;
+  if (!blocked) {
+    // 정상인데도 안 보인다면 대부분 기기의 잠금화면 알림 설정 — 앱은 이 값을 조회할 수 없다
+    return (
+      <View style={{ paddingHorizontal: 16, paddingBottom: 10, marginTop: -4 }}>
+        <Text style={{ fontSize: 11, color: T.sub, lineHeight: 16 }}>
+          잠금화면에 안 보이면 휴대폰 설정 &gt; 알림 &gt; 잠금화면에서 알림 내용 표시를 확인해 주세요
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ paddingHorizontal: 16, paddingBottom: 10, marginTop: -4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.red + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: T.red + '33' }}>
+        <Ionicons name="alert-circle-outline" size={18} color={T.red} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 12, fontWeight: '800', color: T.red }}>{msg}</Text>
+          <Text style={{ fontSize: 11, color: T.sub, marginTop: 1 }}>눌러서 휴대폰 설정에서 켜기</Text>
+        </View>
+        <Text style={{ fontSize: 16, color: T.sub }}>›</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function Row({ label, sub, right, onPress, T }) {
   return (
     <TouchableOpacity
@@ -399,6 +438,29 @@ export default function SettingsScreen() {
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTime, setReminderTime] = useState('21:00');
+
+  // ── 잠금화면 타이머 알림 진단 (안드) ──
+  // 앱 토글이 켜져 있어도 OS 쪽(알림 권한 거부 / 채널 끔)에서 막히면 TimerNotif.show()가
+  // 조용히 false를 반환할 뿐이라 앱 안에 아무 단서가 없었다 — "잠금화면에 안 뜬다"는
+  // 문의가 그래서 나온다(2026-08-22 Play 리뷰). 실제 상태를 읽어 원인과 바로가기를 준다.
+  // ※기기 설정의 "잠금화면에 알림 내용 숨김"은 앱이 조회할 수 없다 → 안내 문구로만 다룬다.
+  const [notifDiag, setNotifDiag] = useState(null); // { granted, channelOff } | null(조회 전/실패)
+  const refreshNotifDiag = useCallback(async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      const perm = await Notifications.getPermissionsAsync();
+      // 채널은 타이머를 한 번 돌려야 만들어진다 → 없으면(null) 판단 보류(꺼짐으로 단정 금지)
+      const ch = await Notifications.getNotificationChannelAsync(ONGOING_CHANNEL_ID);
+      const channelOff = !!ch && ch.importance === Notifications.AndroidImportance.NONE;
+      setNotifDiag({ granted: !!perm.granted, channelOff });
+    } catch { setNotifDiag(null); }
+  }, []);
+  useEffect(() => {
+    refreshNotifDiag();
+    // OS 설정 화면에 다녀오면 배경→활성 전환이 일어난다 → 그때 다시 조회해 배너를 갱신
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') refreshNotifDiag(); });
+    return () => sub.remove();
+  }, [refreshNotifDiag]);
 
   // ── 학교급 변경 ──
   // 학교급을 바꿔도 **이미 만들어 둔 주간 시간표는 그대로 남는다**(공들여 짠 걸 앱이 지우지 않는 것).
@@ -655,19 +717,24 @@ export default function SettingsScreen() {
                 <Text style={{ fontSize: 12, fontWeight: '700', color: T.sub, marginBottom: 4 }}>세부 설정</Text>
               </View>
               {Platform.OS === 'android' && (
-                <Row
-                  T={T}
-                  label="잠금화면 타이머 표시"
-                  sub="타이머 실행 중 상단바·잠금화면에 흐르는 시간을 보여줘요"
-                  right={
-                    <Switch
-                      value={app.settings.timerOngoingNotif !== false}
-                      onValueChange={(v) => app.updateSettings({ timerOngoingNotif: v })}
-                      trackColor={{ true: T.accent }}
-                      thumbColor="white"
-                    />
-                  }
-                />
+                <>
+                  <Row
+                    T={T}
+                    label="잠금화면 타이머 표시"
+                    sub="타이머 실행 중 상단바·잠금화면에 흐르는 시간을 보여줘요"
+                    right={
+                      <Switch
+                        value={app.settings.timerOngoingNotif !== false}
+                        onValueChange={(v) => app.updateSettings({ timerOngoingNotif: v })}
+                        trackColor={{ true: T.accent }}
+                        thumbColor="white"
+                      />
+                    }
+                  />
+                  {app.settings.timerOngoingNotif !== false && (
+                    <OngoingNotifDiag T={T} diag={notifDiag} />
+                  )}
+                </>
               )}
               <Row
                 T={T}

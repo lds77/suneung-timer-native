@@ -17,6 +17,12 @@ if (Platform.OS === 'android') {
 
 let lastSig = null;
 
+// 알림 채널 id — Kotlin(TimerNotifModule.CHANNEL_ID)과 반드시 같아야 한다.
+// 설정탭이 이 id로 채널 상태를 조회해 '잠금화면에 안 뜬다'의 원인을 짚는다
+// (채널만 꺼도 앱 토글은 켜진 채라 앱 안에 아무 단서가 없었다 — 2026-08-22 Play 리뷰).
+// ongoingNotif.test.js가 Kotlin 파일을 직접 읽어 대조한다.
+export const ONGOING_CHANNEL_ID = 'timer-ongoing';
+
 // 알림 색: 타이머(과목) 색 우선, 없으면 앱 브랜드 색 (expo-notifications 플러그인 설정과 동일)
 const FALLBACK_COLOR = '#FF6B9D';
 

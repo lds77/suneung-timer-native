@@ -18,3 +18,23 @@ export const openExactAlarmSettings = () => {
       IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APPLICATION_DETAILS_SETTINGS, { data: `package:${PKG}` }).catch(() => {});
     });
 };
+
+// 앱 알림 설정 화면 (안드 8+) — 알림 권한이 꺼져 있을 때 바로 보내 준다.
+// 미지원 기기는 앱 상세 설정으로 폴백
+export const openAppNotifSettings = () => {
+  if (Platform.OS !== 'android') return;
+  IntentLauncher.startActivityAsync('android.settings.APP_NOTIFICATION_SETTINGS', {
+    extra: { 'android.provider.extra.APP_PACKAGE': PKG },
+  }).catch(() => {
+    IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APPLICATION_DETAILS_SETTINGS, { data: `package:${PKG}` }).catch(() => {});
+  });
+};
+
+// 특정 알림 채널 설정 화면 (안드 8+) — 채널만 꺼 둔 경우 그 화면으로 바로 보낸다.
+// 채널이 아직 만들어지지 않았으면(타이머를 한 번도 안 돌림) 열리지 않으므로 앱 알림 설정으로 폴백
+export const openChannelSettings = (channelId) => {
+  if (Platform.OS !== 'android' || !channelId) return;
+  IntentLauncher.startActivityAsync('android.settings.CHANNEL_NOTIFICATION_SETTINGS', {
+    extra: { 'android.provider.extra.APP_PACKAGE': PKG, 'android.provider.extra.CHANNEL_ID': channelId },
+  }).catch(() => openAppNotifSettings());
+};
