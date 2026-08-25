@@ -29,7 +29,13 @@ build57(08-04 승인) 이후 앱 소스 15커밋은 **전부 OTA 3회로 이미 
 
 - [x] **EAS 빌드 성공** — `c14f72eb-47ab-4c26-afd0-2c3f9eeae917` (profile `testflight`, channel production)
       https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/builds/c14f72eb-47ab-4c26-afd0-2c3f9eeae917
-- [x] **App Store Connect 업로드** (`eas submit --platform ios --profile production --latest`)
+- [ ] **App Store Connect 업로드** — ★**첫 시도가 조용히 실패했다**★ (2026-08-25).
+      `--latest`로 건 프로세스가 25분간 출력 없이 붙들려 있었고 **ASC 빌드 업로드 목록에
+      1.0.40(57)까지만 있었다** — 즉 아무것도 안 올라갔다. 프로세스를 죽이고
+      `eas submit --platform ios --profile production --id c14f72eb-... --non-interactive`로
+      다시 걸었다(658행이 08-01에 성공한 형태 — ASC API Key가 EAS에 있어 무프롬프트).
+      ※**eas-cli는 TTY가 아니면 진행 상황을 안 흘린다** — 끝날 때까지 출력이 비어 있는 것이
+      정상이라 **"돌고 있다"를 "되고 있다"로 읽으면 안 된다. 확인은 ASC 업로드 목록으로 할 것**
 - [ ] ASC에서 1.0.41 버전 생성 → 아래 부제·키워드 입력 → build58 첨부 → 심사 제출
 
 ### 제출 전 필수 확인
