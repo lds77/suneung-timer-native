@@ -10,7 +10,7 @@
 - **타겟**: 초등학생~공시생까지 모든 학습자 (수능/공시/자격증/내신 등)
 - **플랫폼**: iOS + Android (React Native + Expo SDK 56)
 - **번들 ID**: `com.yeolgong.timer` / Apple ID: `6759892516` (preview 변형: `com.yeolgong.timer.preview`)
-- **현재 버전**: iOS 1.0.41 (buildNumber 58, **2026-08-25 빌드 — 심사 전**) / Android 1.0.40 (vc72).
+- **현재 버전**: iOS 1.0.41 (buildNumber 58, **2026-08-25 심사 제출 — 대기 중**) / Android 1.0.40 (vc72).
   라이브: **iOS 1.0.40 (2026-08-04 승인)** / **Android 1.0.40 (vc72, 2026-08-09 승인)**.
   ★**1.0.41은 코드 변경이 0인 메타데이터 릴리스다**★ — App Store 부제·키워드가 **새 버전
   제출과 함께만** 바뀌기 때문에 빌드했을 뿐, 새로 나가는 기능은 없다(build57 이후 앱 소스는
