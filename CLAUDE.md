@@ -476,7 +476,7 @@ eas build --profile preview --platform android
 | Android | Google Play 라이브 **1.0.40(vc72)** — **2026-08-09 승인**. 이걸로 안드에 없던 네이티브 4건(RECORD_AUDIO 음성 메모·zip 백업·첨부 백업 제외·AwayWatch)과 시간 입력 개편·계획 5분 규칙·연속모드 결과 모달이 전부 나갔다. 직전 vc70(1.0.39)은 08-05 승인. 다음 번호는 **vc74** |
 | 웹사이트 | `https://lds77.github.io/suneung-timer-native/` (main 브랜치 index.html, GitHub Pages) |
 | 사용자 수 | 2026-07-14 기준 Play 활성기기 94 · MAU 약 100 · 총 설치 198 / iOS 90일 다운로드 185 (6월 대비 약 2배) |
-| 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지. 08-23에 ff 머지로 한 번 완전히 맞췄고, **2026-08-26 현재 `main`이 10커밋 앞선다** — 1.0.41 릴리스 문서와 `app.config.js` 버전 범프뿐이고 **앱 소스 변경은 0**이라 `sdk56`으로 ff 머지하면 끝난다(머지는 사용자 승인 필요) |
+| 브랜치 | 작업은 `sdk56`, 배포 승인 후 `main` 머지. **2026-08-26 ff 머지로 `main`·`sdk56`·양쪽 origin이 완전히 동일하다**(1.0.41 릴리스 문서 + `app.config.js` 버전 범프 10커밋, 앱 소스 변경 0). 다음 네이티브 빌드가 어느 브랜치에서 나가도 버전이 1.0.41/58/vc74로 맞는다 |
 | 아이콘 | 런처·스토어 아이콘 모두 회색곰+빨간 스톱워치로 통일 (배경 블루그레이 #E4ECF7, 풀블리드). 1.0.29 빌드부터 반영 |
 
 ---
@@ -491,7 +491,7 @@ eas build --profile preview --platform android
 6. **알림 테스트**: 실기기 + EAS 빌드로만 검증 가능
 7. **날짜 코드는 반드시 `format.js`의 `getToday()`/`toDateStr()` 사용** — `toISOString()`은 UTC라
    KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
-8. **로직 변경 후 `npm test`** (Jest 577개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기).
+8. **로직 변경 후 `npm test`** (Jest 578개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기).
    ★**레이아웃은 테스트가 없다**★ — 태블릿/가로/글자크기 관련 변경은 통과해도 검증된 게 아니다
 9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
 10. **월 이동은 `new Date(y, m ± n, 1)`로 1일 정규화** — `new Date()`에 그대로 `setMonth(±n)`
