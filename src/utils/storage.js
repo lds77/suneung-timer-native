@@ -52,8 +52,16 @@ export const saveSubjects = (subjects) => saveJSON(KEYS.SUBJECTS, subjects);
 export const loadSubjects = () => loadJSON(KEYS.SUBJECTS, []);
 
 // ── 세션 ──
-export const saveSessions = (sessions) => saveJSON(KEYS.SESSIONS, sessions);
-export const loadSessions = () => loadJSON(KEYS.SESSIONS, []);
+let sessionWrite = Promise.resolve();
+export const saveSessions = (sessions) => {
+  // 연속 완료/평가 직후 저장 순서가 뒤집혀 오래된 평가 대기가 되살아나지 않게 직렬화.
+  sessionWrite = sessionWrite.then(() => saveJSON(KEYS.SESSIONS, sessions));
+  return sessionWrite;
+};
+export const loadSessions = async () => {
+  await sessionWrite;
+  return loadJSON(KEYS.SESSIONS, []);
+};
 
 // ── D-Day ──
 export const saveDDays = (ddays) => saveJSON(KEYS.DDAYS, ddays);
@@ -102,6 +110,7 @@ export const loadDailyRecords = () => loadJSON(KEYS.DAILY_RECORDS, {});
 export const saveTimerSnapshot = (snapshot) => saveJSON(KEYS.TIMER_SNAPSHOT, snapshot);
 export const loadTimerSnapshot = () => loadJSON(KEYS.TIMER_SNAPSHOT, null);
 export const clearTimerSnapshot = async () => {
+  if (await sessionWrite === false) return; // 기록 저장 실패 시 복구에 필요한 스냅샷 보존
   try { await AsyncStorage.removeItem(KEYS.TIMER_SNAPSHOT); } catch {}
 };
 
@@ -111,6 +120,7 @@ export const loadWeeklySchedule = () => loadJSON(KEYS.WEEKLY_SCHEDULE, null);
 
 // ── 전체 초기화 ──
 export const clearAllData = async () => {
+  await sessionWrite;
   try {
     const keys = Object.values(KEYS);
     await AsyncStorage.multiRemove(keys);
@@ -154,6 +164,7 @@ export const exportBackupData = async () => {
 
 export const importBackupData = async (data) => {
   if (!data || data._meta?.app !== 'yeolgong') throw new Error('invalid_backup');
+  await sessionWrite;
   for (const k of BACKUP_KEYS) {
     if (data[k] !== undefined && matchesShape(data[k], BACKUP_KEY_SHAPES[k])) {
       await AsyncStorage.setItem(KEYS[k], JSON.stringify(data[k]));

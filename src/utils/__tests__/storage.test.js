@@ -13,9 +13,43 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-const { exportBackupData, importBackupData, loadSessions } = require('../storage');
+const { exportBackupData, importBackupData, loadSessions, saveSessions, clearTimerSnapshot } = require('../storage');
 
 beforeEach(() => { mockStore = {}; });
+
+test('평가 대기와 세션은 함께 저장되고 다음 평가 상태가 마지막으로 남는다', async () => {
+  const first = saveSessions([{ id: 's', pendingResult: { sessionId: 's' } }]);
+  const second = saveSessions([{ id: 's', reviewResolved: true }]);
+  await Promise.all([first, second]);
+  expect(await loadSessions()).toEqual([{ id: 's', reviewResolved: true }]);
+});
+
+test('완료 스냅샷은 세션/평가 대기 쓰기가 끝난 뒤 삭제한다', async () => {
+  const storage = require('@react-native-async-storage/async-storage').default;
+  let finishWrite;
+  storage.setItem.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
+  const saving = saveSessions([{ id: 's', pendingResult: { sessionId: 's' } }]);
+  await Promise.resolve();
+  storage.removeItem.mockClear();
+  const clearing = clearTimerSnapshot();
+  await Promise.resolve();
+  expect(storage.removeItem).not.toHaveBeenCalled();
+  finishWrite();
+  await Promise.all([saving, clearing]);
+  expect(storage.removeItem).toHaveBeenCalledWith('@yeolgong/timerSnapshot');
+});
+
+test('기록 쓰기 실패 시 완료 스냅샷을 보존하고 다음 저장은 재시도한다', async () => {
+  const storage = require('@react-native-async-storage/async-storage').default;
+  storage.setItem.mockRejectedValueOnce(new Error('disk unavailable'));
+  expect(await saveSessions([{ id: 's' }])).toBe(false);
+  storage.removeItem.mockClear();
+  await clearTimerSnapshot();
+  expect(storage.removeItem).not.toHaveBeenCalled();
+  expect(await saveSessions([{ id: 's', pendingResult: { sessionId: 's' } }])).toBe(true);
+  await clearTimerSnapshot();
+  expect(storage.removeItem).toHaveBeenCalledWith('@yeolgong/timerSnapshot');
+});
 
 describe('exportBackupData', () => {
   test('저장된 키만 포함하고 _meta를 붙인다', async () => {

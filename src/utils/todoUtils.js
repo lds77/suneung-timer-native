@@ -82,6 +82,49 @@ export const isTodoDuplicate = (todos, fields, selfId = null) => {
     && (t.ddayId ?? null) === (fields.ddayId ?? null));
 };
 
+// 반복 설정과 오늘의 실행 항목을 한 번에 수정한다. 세션이 참조하는 실행 항목 ID는
+// 템플릿으로 바꾸거나 재발급하지 않는다. 완료 여부/완료 시각도 편집으로 초기화하지 않는다.
+// 반복 요일에서 오늘을 빼도 이미 생성된 오늘 항목은 유지한다. 변경된 요일은 이후 생성에 적용한다.
+export const findEditableTodoInstance = (todos, original, today) => original.isTemplate
+  ? todos.find(t => t.templateId === original.id && t.createdDate === today)
+    || todos.find(t => t.templateId === original.id && t.createdDate < today)
+  : original;
+
+export const editTodoInPlace = (todos, id, fields, today = toDateStr(new Date())) => {
+  const original = todos.find(t => t.id === id);
+  if (!original) return todos;
+  const parent = original.isTemplate ? original : todos.find(t => t.id === original.templateId);
+  const instance = findEditableTodoInstance(todos, original, today);
+  const targetId = instance?.id || id;
+  if (isTodoDuplicate(todos, fields, targetId)) return todos;
+  const content = { ...fields, text: fields.text.trim() };
+  if (!fields.isTemplate) {
+    return todos.filter(t => !(parent && t.id === parent.id && t.id !== targetId)).map(t => {
+      if (t.id === targetId) return { ...t, ...content, id: targetId, isTemplate: false,
+        repeatDays: null, templateId: null };
+      return parent && t.templateId === parent.id ? { ...t, templateId: null } : t;
+    });
+  }
+  const templateId = parent?.id || generateId('todo_');
+  const template = { ...parent, ...content, id: templateId, isTemplate: true,
+    done: false, completedAt: null, templateId: null, createdDate: null };
+  const instanceFields = { ...content, isTemplate: false, repeatDays: null,
+    templateId, scope: 'today', ddayId: null, dueDate: null };
+  let next = todos.map(t => {
+    if (t.id === templateId) return template;
+    // 자정 후 리셋 전의 전날 항목도 ID를 유지해 오늘 항목으로 이어간다.
+    // 날짜를 갱신해야 다음 포그라운드 복귀 리셋이 다시 지우고 새 ID를 만들지 않는다.
+    if (t.id === instance?.id) return { ...t, ...instanceFields, id: t.id, createdDate: today };
+    return t;
+  });
+  if (!parent) next = [...next, template];
+  if (!instance && fields.repeatDays?.includes(new Date(today + 'T00:00:00').getDay())) {
+    next = [...next, { ...instanceFields, id: generateId('todo_'), done: false,
+      completedAt: null, repeat: false, createdDate: today }];
+  }
+  return next;
+};
+
 // 드래그 정렬 커밋: orderedIds에 해당하는 항목들을 배열 내 기존 자리(슬롯)에 새 순서로 재배치.
 // 그룹 밖 항목들의 위치는 그대로 유지 — 과목 그룹 안에서만 순서를 바꾸는 용도
 export const applyReorder = (list, orderedIds) => {

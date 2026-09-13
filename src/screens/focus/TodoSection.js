@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { calcDDay, generateId, getToday, formatDuration } from '../../utils/format';
-import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex, isTodoDuplicate } from '../../utils/todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex, isTodoDuplicate, findEditableTodoInstance } from '../../utils/todoUtils';
 import { getTodoMessage } from '../../constants/characters';
 import TodoFormSheet from './TodoFormSheet';
 import ReviewNotesScreen from '../ReviewNotesScreen';
@@ -286,19 +286,12 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
     const f = buildTodoFields(fields);
     // 중복(같은 과목·목록에 같은 이름)이면 조용히 막히므로 사전 판정 — 시트 유지해 이름을 바꿀 수 있게.
     // 과목/목록을 옮길 때 대상에 같은 이름이 있는 경우가 대표적 (사장님 신고: 과학→수학 이동 시 안 넘어감)
-    if (isTodoDuplicate(app.todos, f, todo.id)) {
+    const currentInstance = findEditableTodoInstance(app.todos, todo, getToday());
+    if (isTodoDuplicate(app.todos, f, currentInstance?.id || todo.id)) {
       app.showToastCustom('옮기려는 곳에 같은 할 일이 이미 있어요', 'paengi');
       return;
     }
-    // 인스턴스 편집 시 부모 템플릿도 함께 제거 (새 템플릿 생성 또는 반복 해제 시 중복/유령 템플릿 방지)
-    if (todo.templateId) {
-      app.removeTodo(todo.templateId);
-    }
-    // 템플릿 자체 편집 시 기존 인스턴스도 제거 — 아래 addTodo가 오늘 인스턴스를 다시 생성하므로 중복 방지
-    if (todo.isTemplate) {
-      app.todos.filter(x => x.templateId === todo.id).forEach(x => app.removeTodo(x.id));
-    }
-    // 삭제 후 재추가 대신 replaceId로 제자리 교체 — 맨 뒤로 붙으면 드래그로 정한 순서가 깨짐
+    // 템플릿과 실행 항목은 addTodo의 편집 경로에서 함께 갱신한다. 먼저 삭제하면 기록 연결이 끊긴다.
     app.addTodo({ ...f, replaceId: todo.id });
     setEditTarget(null);
     Vibration.vibrate([0, 30]);

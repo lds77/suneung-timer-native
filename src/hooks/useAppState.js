@@ -1,5 +1,5 @@
 // src/hooks/useAppState.js
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { AppState, Vibration, Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Brightness from 'expo-brightness';
@@ -20,7 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty, saveReviewNotes, loadReviewNotes } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId, formatDuration } from '../utils/format';
-import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos, editTodoInPlace } from '../utils/todoUtils';
 import { makeNoteFromTodo } from '../utils/reviewNotes';
 import { deleteFiles as deleteAttachmentFiles } from '../utils/attachments';
 import { shouldNudgeBackup } from '../utils/backupNudge';
@@ -36,6 +36,7 @@ import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPr
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 import { spanMinutes } from '../screens/planner/helpers';
+import { enqueueResult, nextPendingResult, resultSessionId, updatePendingResult, sequenceResultData } from '../utils/pendingResults';
 
 // 이탈 인정 최소 시간 — 플랫폼의 첫 알림 시각에서 파생된다(focusAway.awayMinMs 주석 참조).
 // 안드 15초 / iOS 30초. ★숫자를 여기에 다시 박지 말 것★ — 예전에 그렇게 해서
@@ -154,6 +155,11 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
+  // 백업 복원 중 — 자동 저장만 멈추는 플래그. ★loading을 재사용하지 말 것★
+  // App.js가 app.loading일 때 화면 전체를 '로딩 중...'으로 갈아끼우므로(app.loading 분기),
+  // 복원에 그걸 쓰면 네비게이션이 통째로 언마운트돼 보고 있던 탭이 초기화된다.
+  // (같은 이유로 폰트 로딩도 MainApp을 언마운트하지 않고 오버레이만 씌운다 — App.js 주석)
+  const [restoring, setRestoring] = useState(false);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [subjects, setSubjects] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -174,7 +180,27 @@ export function AppProvider({ children }) {
 
   // 완료 결과 모달 데이터 (null이면 모달 숨김)
   // { timerId, label, totalSec, result, seqSummary? }
-  const [completedResultData, setCompletedResultData] = useState(null);
+  const completedResultRef = useRef(null);
+  // 경과 초 변경은 평가 대상 선정에 영향을 주지 않는다.
+  const reviewTimerSignature = JSON.stringify(timers.map(t => ({
+    id: t.id, startedAt: t.startedAt, status: t.status, pendingResult: t.pendingResult,
+  })));
+  const completedResultData = useMemo(() => loading ? null
+    : nextPendingResult(sessions, JSON.parse(reviewTimerSignature), resultSessionId(completedResultRef.current)),
+  [sessions, reviewTimerSignature, loading]);
+  useLayoutEffect(() => { completedResultRef.current = completedResultData; }, [completedResultData]);
+  // 객체 전달은 추가, null/함수 전달은 현재 표시 중인 한 건만 처리한다.
+  const setCompletedResultData = useCallback(update => {
+    if (update && typeof update !== 'function') {
+      setSessions(prev => enqueueResult(prev, update));
+    } else {
+      const id = resultSessionId(completedResultRef.current);
+      if (id) {
+        setSessions(prev => updatePendingResult(prev, id, update));
+        setTimers(prev => updatePendingResult(prev, id, update));
+      }
+    }
+  }, []);
 
   // 전역 집중모드 선택 대기 콜백
   const [pendingModeAction, setPendingModeAction] = useState(null);
@@ -1082,11 +1108,18 @@ export function AppProvider({ children }) {
   const pomoFlip = (t, skipNotif = false) => {
     const { endedPhase, workSession, next } = pomoFlipCore(t);
     if (workSession) {
-      recordSessionInternal({
+      const sessionId = recordSessionInternal({
         ...workSession,
         focusMode: focusModeRef.current || 'screen_off',
         exitCount: focusModeRef.current === 'screen_on' ? (ultraRef.current?.exitCount || 0) : 0,
       });
+      if (workSession.durationSec >= RESULT_MODAL_MIN_SEC) {
+        setCompletedResultData({
+          timerId: t.id, timerStartedAt: t.startedAt, sessionId, isSeq: false,
+          deferUntilTimerStops: true,
+          result: calcResult({ ...t, pomoSet: t.pomoSet + 1 }, workSession.durationSec),
+        });
+      }
     }
     // 알림은 예약 알림(scheduleAllPhaseNotifs)이 처리 — fireNotif 제거(중복 방지)
     if (!skipNotif && settingsRef.current.notifEnabled) {
@@ -1125,8 +1158,10 @@ export function AppProvider({ children }) {
         if (!skipNotif && settingsRef.current.notifEnabled) Vibration.vibrate([0, 500, 200, 500]);
         phaseNotifMap.current.delete(t.id);
       }
-      setCompletedResultData({ timerId: t.id, label: t.seqName || '연속모드', result, isSeq: true, seqTotal: t.seqTotal, seqSessionIds: updatedSeqSessionIds });
-      return { ...core.next, result, seqSessionIds: updatedSeqSessionIds };
+      const data = sequenceResultData(t, result, updatedSeqSessionIds);
+      if (updatedSeqSessionIds.length) setCompletedResultData(data);
+      return { ...core.next, result, seqSessionIds: updatedSeqSessionIds,
+        ...(!updatedSeqSessionIds.length ? { pendingResult: data } : {}) };
     }
 
     if (core.kind === 'toBreak') {
@@ -2047,7 +2082,7 @@ export function AppProvider({ children }) {
         const ufState = ultraRef.current;
         // 연속모드는 항목 기준 카운트다운으로 기록 (stopTimer/seqFlip과 동일 규칙)
         const recType = t.type === 'sequence' ? 'countdown' : t.type;
-        recordSessionInternal({
+        const sessionId = recordSessionInternal({
           subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
           durationSec: t.elapsedSec, mode: recType, pauseCount: t.pauseCount,
           focusMode: mode, exitCount: mode === 'screen_on' ? (ufState.exitCount || 0) : 0,
@@ -2055,6 +2090,10 @@ export function AppProvider({ children }) {
           pomoSets: t.pomoSet || 0, planId: t.planId || null, todoId: t.todoId || null,
           dedupeKey: `complete|${t.id}|${t.startedAt}`,
         });
+        if (t.type !== 'lap') {
+          setCompletedResultData({ timerId: t.id, sessionId, isSeq: false,
+            todoId: t.todoId || null, result: calcResult(t, t.elapsedSec, { seqPartial: true }) });
+        }
       }
       return prev.filter(timer => timer.id !== id);
     });
@@ -2206,7 +2245,7 @@ export function AppProvider({ children }) {
         if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
-      if (sess) setSessions(sess); if (dd) setDDays(dd);
+      if (sess) { sessionsRef.current = sess; setSessions(sess); } if (dd) setDDays(dd);
       // 할일 매일 자동 초기화: 완료된 일반 항목 삭제, 반복 항목은 done만 리셋
       const today = getToday();
       const mergedSettings = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
@@ -2254,8 +2293,8 @@ export function AppProvider({ children }) {
           await saveTodos(finalTodos);
         }
       }
-      if (cuf) setCountupFavs(cuf);
-      if (fv && fv.length > 0) setFavs(fv);
+      if (Array.isArray(cuf)) setCountupFavs(cuf);
+      if (Array.isArray(fv)) setFavs(fv);
       const ws = await loadWeeklySchedule();
       if (ws && typeof ws === 'object' && !Array.isArray(ws)) {
         // '이번 주만'(onlyWeek) 계획/고정일정 중 지난 주 항목 정리
@@ -2287,23 +2326,32 @@ export function AppProvider({ children }) {
       const snapshot = await loadTimerSnapshot();
       if (snapshot && snapshot.timers && snapshot.timers.length > 0) {
         const gap = Math.floor((Date.now() - (snapshot.savedAt || Date.now())) / 1000);
-        const activeTimers = snapshot.timers.filter(t => t.status === 'running' || t.status === 'paused');
+        const activeTimers = snapshot.timers.filter(t => t.status === 'running' || t.status === 'paused' || t.pendingResult);
         if (activeTimers.length > 0) {
           const now = Date.now();
           // 분기 결정은 timerCore.restoreTimerCore(순수, 테스트 有) — 여기선 부수효과만 수행
           const restored = activeTimers.map(t => {
+            if (t.status === 'completed' && t.pendingResult) return t;
             const plan = restoreTimerCore(t, gap, now);
             if (plan.kind === 'complete') {
               // 앱이 꺼져 있는 동안 목표/상한 도달: 세션 기록 후 제거 (기록 없이 버리면 공부시간 유실).
               // 완료 직후~스냅샷 정리 사이에 죽은 경우는 영속 dedupe로 재기록 방지 (불변식 3)
               if (plan.record) {
-                recordSessionInternal({
+                const sessionId = recordSessionInternal({
                   subjectId: t.subjectId, label: t.label, startedAt: t.startedAt,
                   durationSec: plan.durationSec, mode: plan.timerType, pauseCount: t.pauseCount || 0,
                   focusMode: 'screen_off', exitCount: 0, timerType: plan.timerType,
                   completionRatio: 1, planId: t.planId || null, todoId: t.todoId || null,
                   dedupeKey: `complete|${t.id}|${t.startedAt}`,
                 });
+                if (plan.durationSec >= RESULT_MODAL_MIN_SEC) {
+                  setCompletedResultData({
+                    timerId: t.id, sessionId, isSeq: false, todoId: t.todoId || null,
+                    result: calcTimerResult(t, plan.durationSec, {
+                      focusMode: 'screen_off', schoolLevel: mergedSettings.schoolLevel,
+                    }),
+                  });
+                }
                 showToastCustom(plan.capped
                   ? `${t.label} 5시간 자동 종료! 공부 기록을 저장했어요`
                   : `${t.label} 완료! 공부 기록을 저장했어요`, 'toru');
@@ -2323,7 +2371,8 @@ export function AppProvider({ children }) {
             else if (t.type === 'free') scheduleCapNotif(t);
           });
         }
-        await clearTimerSnapshot();
+        // 복원 세션/평가 저장 뒤 아래 스냅샷 effect가 정리 또는 갱신한다.
+        // loading 중 여기서 지우면 복원 기록 저장 전에 다시 종료될 때 기록이 유실된다.
       }
       // 이전 세션의 Live Activity id 복원 (iOS) — 동기화 effect가 재사용/정리
       await initLiveActivity();
@@ -2331,12 +2380,17 @@ export function AppProvider({ children }) {
     })();
   }, []);
 
+  // 기록과 평가 대기는 함께 즉시 저장한다. 다른 설정의 디바운스에 밀리지 않는다.
+  useEffect(() => {
+    if (!loading && !restoring) saveSessions(sessions);
+  }, [sessions, loading, restoring]);
+
   // 자동 저장
   const saveRef = useRef(null);
   useEffect(() => {
-    if (loading) return; clearTimeout(saveRef.current);
+    if (loading || restoring) return; clearTimeout(saveRef.current);
     saveRef.current = setTimeout(async () => {
-      saveSettings(settings); saveSubjects(subjects); saveSessions(sessions); saveDDays(ddays);
+      saveSettings(settings); saveSubjects(subjects); saveDDays(ddays);
       // 위젯이 storage의 todos를 직접 수정했으면(오늘할일 체크) 메모리로 덮어쓰지 않고 재로드.
       // 앱 JS가 백그라운드에 살아있는 동안(실행 중 타이머의 포그라운드 서비스) 다른 상태 변화로
       // autosave가 돌면, 이 가드 없이는 위젯 체크가 stale 메모리에 덮여 조용히 풀린다.
@@ -2351,7 +2405,7 @@ export function AppProvider({ children }) {
       saveCountupFavs(countupFavs); saveFavs(favs); if (weeklySchedule) saveWeeklySchedule(weeklySchedule);
       saveReviewNotes(reviewNotes);
     }, 500);
-  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, reviewNotes, loading]);
+  }, [settings, subjects, sessions, ddays, todos, todoLog, countupFavs, favs, weeklySchedule, reviewNotes, loading, restoring]);
 
   // 백업 넛지 — 로드 완료 후 1회 판정 (기록 20세션+, 마지막 백업/넛지에서 30일 경과 시 토스트)
   useEffect(() => {
@@ -2519,12 +2573,16 @@ export function AppProvider({ children }) {
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용
   const lastSnapshotSaveRef = useRef(0);
+  const lastPendingSnapshotRef = useRef('[]');
   useEffect(() => {
     if (loading) return;
-    const hasActive = timers.some(t => t.status === 'running' || t.status === 'paused');
+    const pendingSignature = JSON.stringify(timers.filter(t => t.pendingResult).map(t => t.pendingResult));
+    const pendingChanged = pendingSignature !== lastPendingSnapshotRef.current;
+    lastPendingSnapshotRef.current = pendingSignature;
+    const hasActive = timers.some(t => t.status === 'running' || t.status === 'paused' || t.pendingResult);
     if (hasActive) {
       const now = Date.now();
-      if (now - lastSnapshotSaveRef.current >= 5000) {
+      if (pendingChanged || now - lastSnapshotSaveRef.current >= 5000) {
         lastSnapshotSaveRef.current = now;
         saveTimerSnapshot({ savedAt: now, timers });
       }
@@ -2681,6 +2739,7 @@ export function AppProvider({ children }) {
   // ※streak(연속일)는 '그날 공부했는지' 기준이라 금액 변화와 무관 — 건드리지 않음(방금 만든 기록 폐기 시 미세 오차는 감수).
   const deleteSessions = useCallback((ids) => {
     const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
+    if (sessionsRef.current.some(s => idSet.has(s.id) && s.edited)) return;
     const removed = sessionsRef.current.filter(s => idSet.has(s.id));
     if (removed.length === 0) return;
     setSessions(prev => prev.filter(s => !idSet.has(s.id)));
@@ -2695,18 +2754,20 @@ export function AppProvider({ children }) {
   // 세션 공부시간 수정 (결과 모달의 '시간 수정'). 잊은 타이머 등 잘못 기록된 세션을 실제 시간으로 정정.
   // subject 누적시간을 차액만큼 조정. 나머지 통계는 sessions 파생이라 자동 반영.
   // ※밀도(focusDensity)/tier는 유지 — 시간만 정정하는 것이지 집중 행동을 바꾸는 게 아니므로.
-  // edited 플래그로 '사용자 수정본'임을 기록(데이터 정직성). 결과 모달은 세션당 한 번만 떠서 구조적으로 재수정 불가.
+  // edited를 영속 가드로 사용해 재실행 후에도 재수정/삭제를 막는다.
   const updateSessionDuration = useCallback((sessionId, newSec) => {
     const target = sessionsRef.current.find(s => s.id === sessionId);
-    if (!target) return;
+    if (!target || target.edited || !Number.isFinite(newSec) || newSec < 60 || newSec > 18000) return false;
     const oldSec = target.durationSec || 0;
     const delta = newSec - oldSec;
-    if (delta === 0) return;
+    const updated = sessionsRef.current.map(s => s.id === sessionId ? { ...s, durationSec: newSec, edited: true } : s);
+    sessionsRef.current = updated; // 같은 이벤트에서 중복 호출돼도 차액을 두 번 반영하지 않는다.
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, durationSec: newSec, edited: true } : s));
     if (target.subjectId) {
       setSubjects(prev => prev.map(s => s.id === target.subjectId
         ? { ...s, totalElapsedSec: Math.max(0, (s.totalElapsedSec || 0) + delta) } : s));
     }
+    return true;
   }, []);
 
   const updateStreak = useCallback(() => {
@@ -2787,16 +2848,17 @@ export function AppProvider({ children }) {
     const isTemplate = o.isTemplate ?? false;
     const repeatDays = o.repeatDays ?? null;
     const replaceId = o.replaceId ?? null; // 수정 저장: 이 id 자리에 교체 삽입 (맨 뒤로 밀리면 드래그 순서가 깨짐)
+    if (replaceId) {
+      const { replaceId: ignored, ...fields } = o;
+      setTodos(prev => editTodoInPlace(prev, replaceId, fields));
+      return;
+    }
     const tmplId = generateId('todo_');
     setTodos(prev => {
-      const replaceIdx = replaceId ? prev.findIndex(t => t.id === replaceId) : -1;
-      const base = replaceIdx !== -1 ? prev.filter(t => t.id !== replaceId) : prev;
-      // 수정 저장 시 id를 보존한다 — 세션(todoId)/누적시간 칩·계획 연동이 id로 걸려 있어
-      // 새 id를 발급하면 링크가 끊겨 기록된 학습시간이 사라져 보인다 (김진 제보, 메모 수정 후 시간 증발)
-      const newId = replaceIdx !== -1 ? replaceId : tmplId;
+      const base = prev;
+      const newId = tmplId;
       // 중복 방지: 같은 목록(scope+ddayId) 안에 같은 텍스트+과목의 미완료 할일이 이미 있으면 건너뜀 (템플릿 제외)
       // scope/ddayId를 비교하지 않으면 오늘 할일이나 다른 시험에 같은 텍스트가 있을 때 추가가 조용히 무시됨
-      // 교체 대상 자신은 base에서 이미 빠져 있어 자기 자신과의 중복으로 오탐하지 않음
       if (!isTemplate) {
         const trimmed = text.trim();
         const dup = base.some(t => !t.isTemplate && !t.done && t.text === trimmed
@@ -2841,8 +2903,7 @@ export function AppProvider({ children }) {
           });
         }
       }
-      const insertAt = replaceIdx !== -1 ? replaceIdx : base.length;
-      return [...base.slice(0, insertAt), ...items, ...base.slice(insertAt)];
+      return [...base, ...items];
     });
   }, []);
   const toggleTodo = useCallback((id) => {
@@ -2905,6 +2966,7 @@ export function AppProvider({ children }) {
     plannerReminderDebounceRef.current = setTimeout(() => {
       schedulePlannerReminders();
     }, 1500);
+    return () => clearTimeout(plannerReminderDebounceRef.current);
   }, [weeklySchedule, settings.plannerNotifEnabled, settings.notifEnabled, loading]);
 
   // 공부 리마인더: 앱 시작 + 세션/설정 변경 시 재예약
@@ -2915,7 +2977,8 @@ export function AppProvider({ children }) {
     studyReminderDebounceRef.current = setTimeout(() => {
       scheduleStudyReminders();
     }, 2000);
-  }, [sessions.length, settings.dailyReminderEnabled, settings.dailyReminderHour, settings.dailyReminderMin, settings.streakReminderEnabled, settings.streak, loading]);
+    return () => clearTimeout(studyReminderDebounceRef.current);
+  }, [sessions.length, settings.dailyReminderEnabled, settings.dailyReminderHour, settings.dailyReminderMin, settings.streakReminderEnabled, settings.streak, settings.notifEnabled, loading]);
 
   // 리포트 알림: 앱 시작 + 세션/리포트 설정 변경 시 재예약
   const reportDebounceRef = useRef(null);
@@ -2926,6 +2989,7 @@ export function AppProvider({ children }) {
       scheduleWeeklyReport();
       scheduleMonthlyReport();
     }, 2500);
+    return () => clearTimeout(reportDebounceRef.current);
   }, [sessions.length, settings.weeklyReportEnabled, settings.monthlyReportEnabled, settings.notifEnabled, loading]);
 
   // 즐겨찾기 추가/제거
@@ -3013,6 +3077,18 @@ export function AppProvider({ children }) {
     return addReviewNote({ ...makeNoteFromTodo(todo), ...overrides });
   }, [todos, reviewNotes, addReviewNote]);
 
+  // 실행 중 타이머와 복원 기록을 섞지 않는다. 복원 중에는 자동 저장도 잠시 보류한다.
+  const canRestoreBackup = useCallback(() => !timersRef.current.some(t =>
+    t.status === 'running' || t.status === 'paused'), []);
+  const beginBackupRestore = useCallback(() => {
+    if (!canRestoreBackup()) return false;
+    clearTimeout(saveRef.current);
+    setRestoring(true);
+    return true;
+  }, [canRestoreBackup]);
+  // 성공·실패 어느 쪽이든 반드시 풀린다 (호출부 SettingsScreen의 finally)
+  const finishBackupRestore = useCallback(() => setRestoring(false), []);
+
   // 백업 복원 후 전체 상태 다시 로드
   const reloadAllData = useCallback(async () => {
     const [s, subj, sess, dd, td, cuf, fv] = await Promise.all([
@@ -3020,13 +3096,18 @@ export function AppProvider({ children }) {
     ]);
     if (s) setSettings({ ...DEFAULT_SETTINGS, ...s });
     if (subj) setSubjects(subj);
-    if (sess) setSessions(sess);
+    if (sess) {
+      sessionDedupeRef.current.clear();
+      sessionsRef.current = sess;
+      setSessions(sess);
+    }
+    setTimers([]); // 복원 전 완료 카드/기록 없는 연속모드 결과도 교체한다.
     if (dd) setDDays(dd);
     if (td) setTodos(td);
     const tl = await loadTodoLog();
     if (Array.isArray(tl)) setTodoLog(tl);
-    if (cuf) setCountupFavs(cuf);
-    if (fv && fv.length > 0) setFavs(fv);
+    if (Array.isArray(cuf)) setCountupFavs(cuf);
+    if (Array.isArray(fv)) setFavs(fv);
     const ws = await loadWeeklySchedule();
     if (ws) setWeeklySchedule(ws);
     const rn = await loadReviewNotes();
@@ -3063,7 +3144,7 @@ export function AppProvider({ children }) {
       weeklySchedule, setWeeklySchedule,
       getTodaySchedule, getPlanCompletedSec, getTodayPlanRate, findTodayPlanIdForSubject,
       startFromPlan, getAvailableMin, getDayKey, schedulePlannerReminders,
-      reloadAllData,
+      reloadAllData, canRestoreBackup, beginBackupRestore, finishBackupRestore,
     }}>
       {children}
     </AppContext.Provider>

@@ -1016,6 +1016,11 @@ export default function SettingsScreen() {
                 [
                   { text: '취소', style: 'cancel', onPress: () => { if (stage) finishRestore(stage); } },
                   { text: '복원', style: 'destructive', onPress: async () => {
+                    if (!app.beginBackupRestore()) {
+                      if (stage) await finishRestore(stage);
+                      Alert.alert('타이머 실행 중', '타이머를 종료한 뒤 백업을 복원해 주세요.');
+                      return;
+                    }
                     try {
                       await importBackupData(data);
                       // 사진은 기록보다 뒤에 — 노트가 참조하는 파일만 되돌린다
@@ -1030,6 +1035,7 @@ export default function SettingsScreen() {
                     } catch {
                       Alert.alert('복원 실패', '데이터를 복원하는 중 오류가 발생했습니다.');
                     } finally {
+                      app.finishBackupRestore();
                       if (stage) await finishRestore(stage);
                     }
                   }},

@@ -8,7 +8,7 @@
 //
 // FocusScreen과 공유하는 것은 스타일(focus/styles.js)뿐 — 상태는 전부 이 컴포넌트 안에 있다.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, Modal, Alert,
   KeyboardAvoidingView, useWindowDimensions, StyleSheet,
@@ -20,6 +20,7 @@ import { formatDuration } from '../../utils/format';
 import { getTier } from '../../constants/presets';
 import { getDensityBreakdown } from '../../utils/density';
 import { maybeAskReview } from '../../utils/reviewAsk';
+import { resultSessionId } from '../../utils/pendingResults';
 import NumberField from '../../components/NumberField';
 import Toast from '../../components/Toast';
 import { createStyles } from './styles';
@@ -40,6 +41,14 @@ export default function ResultModal() {
   const [editingDuration, setEditingDuration] = useState(false); // 공부시간 수정 시트 열림
   const [editHour, setEditHour] = useState(0);
   const [editMin, setEditMin] = useState(0);
+  const reviewId = resultSessionId(app.completedResultData);
+  useEffect(() => {
+    setResultSelfRating(null);
+    setResultMemo('');
+    setResultTodoDone(false);
+    setResultShowBreakdown(false);
+    setEditingDuration(false);
+  }, [reviewId]);
 
   // 결과 모달 닫기 공통 처리 (확인/건너뛰기/뒤로가기) — 할일 완료 토글 반영 + 입력 상태 리셋
   const closeResultModal = () => {
@@ -49,7 +58,9 @@ export default function ResultModal() {
       if (todo) app.toggleTodo(todo.id);
     }
     app.setCompletedResultData(null);
-    if (data?.timerId) app.removeTimer(data.timerId);
+    if (data?.timerId && app.timers.some(t => t.id === data.timerId && t.status === 'completed')) {
+      app.removeTimer(data.timerId);
+    }
     setResultSelfRating(null);
     setResultMemo('');
     setResultTodoDone(false);
@@ -209,6 +220,7 @@ export default function ResultModal() {
               if (!data) return null;
               const ids = data.sessionId ? [data.sessionId] : (data.seqSessionIds || []);
               if (ids.length === 0) return null;
+              if (app.sessions.some(s => ids.includes(s.id) && s.edited)) return null;
               // 연속모드(여러 세션 묶음)만 시간 정정 대상에서 제외 — 삭제만.
               // ※계획 타이머는 2026-08-01부터 세션 단위(sessionId)로 오므로 시간 수정도 된다
               const canEditTime = !!data.sessionId;
@@ -280,7 +292,11 @@ export default function ResultModal() {
                 Alert.alert('시간 수정', `${editHour > 0 ? editHour + '시간 ' : ''}${editMin}분으로 수정할까요?\n\n입력한 시간이 통계에 그대로 반영되며, 수정 후에는 되돌릴 수 없어요.`, [
                   { text: '취소', style: 'cancel' },
                   { text: '수정', onPress: () => {
-                    app.updateSessionDuration(data.sessionId, newSec);
+                    if (!app.updateSessionDuration(data.sessionId, newSec)) {
+                      setEditingDuration(false);
+                      app.showToastCustom('이미 수정했거나 수정할 수 없는 기록이에요', 'paengi');
+                      return;
+                    }
                     app.setCompletedResultData(prev => prev ? { ...prev, result: { ...prev.result, durationSec: newSec } } : prev);
                     setEditingDuration(false);
                     app.showToastCustom('시간을 수정했어요', 'toru');
