@@ -13,9 +13,22 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-const { exportBackupData, importBackupData, loadSessions, saveSessions, clearTimerSnapshot } = require('../storage');
+const { exportBackupData, importBackupData, loadSessions, saveSessions, clearTimerSnapshot, saveTodos, loadTodos } = require('../storage');
 
 beforeEach(() => { mockStore = {}; });
+
+test('세부 체크리스트는 저장·재로드 및 백업·복원 왕복에서 유지된다', async () => {
+  const todos = [{ id: 'math', text: '수학 공부', done: false, subtasks: [
+    { id: 'pages', text: '문제집 풀기', done: true },
+    { id: 'review', text: '오답 복습', done: false },
+  ] }];
+  await saveTodos(todos);
+  expect(await loadTodos()).toEqual(todos);
+  const backup = JSON.parse(JSON.stringify(await exportBackupData()));
+  mockStore = {};
+  await importBackupData(backup);
+  expect(await loadTodos()).toEqual(todos);
+});
 
 test('평가 대기와 세션은 함께 저장되고 다음 평가 상태가 마지막으로 남는다', async () => {
   const first = saveSessions([{ id: 's', pendingResult: { sessionId: 's' } }]);

@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.41',
+    version: '1.0.42',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -31,6 +31,8 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
+      // build59 = 1.0.42 (2026-10-13): 할 일 세부 항목(체크리스트) — 사용자 메일 피드백.
+      //           공유 JS만 바뀌었고 네이티브 변경 없음. 안드 vc74(1.0.42)가 나가면 런타임이 다시 합쳐진다
       // build58 = 1.0.41 (2026-08-25): ★코드 변경 없음 — App Store 부제·키워드 교체만을 위한 빌드★
       //           build57 이후의 앱 소스는 전부 OTA 3회(08-05·08-10·08-23)로 이미 라이브다.
       //           iOS 키워드·부제는 **새 버전 제출과 함께만** 바뀌므로 빌드가 필요했을 뿐이다.
@@ -46,7 +48,7 @@ module.exports = {
       // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
       // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
       // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
-      buildNumber: '58',
+      buildNumber: '59',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -84,8 +86,8 @@ module.exports = {
         backgroundColor: '#E4ECF7',
       },
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
-      // vc74 = 1.0.41 — ★아직 빌드하지 않았다★. 08-25 시점 안드 라이브는 vc72(1.0.40)이고
-      //        안드에 실을 변경이 없어 iOS만 1.0.41로 올렸다(사용자 결정). 이 번호는 예약분이다.
+      // vc74 = 1.0.42 (2026-10-13 예정) — 할 일 세부 항목. 로컬 APK로 실기기 확인 후 빌드한다.
+      //        (1.0.41은 iOS 전용 메타데이터 릴리스라 안드엔 건너뛴 번호다)
       versionCode: 74, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
       //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
       //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★

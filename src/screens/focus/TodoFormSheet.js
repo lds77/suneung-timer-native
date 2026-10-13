@@ -2,10 +2,11 @@
 // 할일 추가/수정 통합 바텀시트 — 자주 쓰는 것(내용/과목/목록/날짜)만 항상 노출하고
 // 반복/우선순위/메모는 요약 칩으로 접어 탭하면 펼치는 구조. 폼 상태는 시트가 소유하고
 // visible 시 initial로 초기화, 저장 시 onSave(fields)로 전달만 한다 (데이터 로직은 TodoSection).
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Keyboard, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { dateChipLabel, buildMonthCells, DAYS_KR } from '../../utils/todoUtils';
+import { dateChipLabel, buildMonthCells, DAYS_KR, normalizeSubtasks } from '../../utils/todoUtils';
+import { generateId } from '../../utils/format';
 
 const PRIORITIES = [
   { id: 'high', label: '중요', color: '#E17055' },
@@ -18,6 +19,8 @@ const REPEATS = [
 ];
 const WEEKDAYS = [{ d: 1, l: '월' }, { d: 2, l: '화' }, { d: 3, l: '수' }, { d: 4, l: '목' }, { d: 5, l: '금' }, { d: 6, l: '토' }, { d: 0, l: '일' }];
 const MEMO_TAGS = ['오답', '개념 부족', '재풀이', '암기 필요', '계산 실수', '시간 초과'];
+const MAX_SUBTASKS = 20;
+const MAX_SUBTASK_LENGTH = 200;
 
 // 라벨 + 가로스크롤 칩 한 줄 — 컴포넌트 내부 정의 금지 (렌더마다 타입이 바뀌어 리마운트됨)
 const Row = ({ T, label, children }) => (
@@ -55,6 +58,9 @@ export default function TodoFormSheet({
   const [customDays, setCustomDays] = useState([]);
   const [priority, setPriority] = useState('normal');
   const [memo, setMemo] = useState('');
+  const [subtasks, setSubtasks] = useState([]);
+  const [newSubtaskId, setNewSubtaskId] = useState(null);
+  const subtaskInputs = useRef(new Map());
   const [expanded, setExpanded] = useState(null); // 'repeat' | 'priority' | 'memo' | null
   const [showCalendar, setShowCalendar] = useState(false); // 날짜 임의 선택 달력
   const [calMonth, setCalMonth] = useState(null); // 달력 표시 중인 달의 1일 Date
@@ -76,6 +82,8 @@ export default function TodoFormSheet({
     setCustomDays(rType === 'custom' ? i.repeatDays : []);
     setPriority(i.priority ?? 'normal');
     setMemo(i.memo ?? '');
+    setSubtasks(normalizeSubtasks(i.subtasks));
+    setNewSubtaskId(null);
     // 기존 값이 있는 접힌 섹션은 펼친 채로 시작 (수정 시 안 보이면 없는 줄 알게 됨)
     setExpanded(i.memo ? 'memo' : rType !== 'none' ? 'repeat' : null);
     setShowCalendar(false);
@@ -89,7 +97,21 @@ export default function TodoFormSheet({
     onSave({
       text: text.trim(), subjectId, subjectLabel, subjectColor,
       scope, dueDate, ddayId, repeatType, customDays, priority, memo,
+      subtasks: normalizeSubtasks(subtasks),
     });
+  };
+
+  const addSubtask = () => {
+    const empty = subtasks.find(s => !s.text.trim());
+    if (empty) {
+      subtaskInputs.current.get(empty.id)?.focus();
+      return;
+    }
+    if (subtasks.length >= MAX_SUBTASKS) return;
+    const id = generateId('sub_');
+    setSubtasks(prev => prev.length >= MAX_SUBTASKS || prev.some(s => !s.text.trim())
+      ? prev : [...prev, { id, text: '', done: false }]);
+    setNewSubtaskId(id);
   };
 
   // 공통 칩 스타일 — 시트 내 모든 선택 UI 통일 (모서리 14 / 세로 6 / 폰트 13)
@@ -126,6 +148,42 @@ export default function TodoFormSheet({
               style={[S.todoInput, { borderColor: T.accent, backgroundColor: T.surface, color: T.text, fontSize: 15, paddingVertical: 10, marginBottom: 12 }]}
               onSubmitEditing={submit} returnKeyType="done" autoFocus
             />
+            {/* 큰 할 일 아래 한 단계의 체크리스트 */}
+            <View style={{ marginBottom: 12 }}>
+              {subtasks.map((subtask, index) => (
+                <View key={subtask.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 10, marginBottom: 6 }}>
+                  <Ionicons name="return-down-forward-outline" size={16} color={T.sub} />
+                  <TextInput
+                    ref={input => {
+                      if (input) subtaskInputs.current.set(subtask.id, input);
+                      else subtaskInputs.current.delete(subtask.id);
+                    }}
+                    value={subtask.text}
+                    maxLength={MAX_SUBTASK_LENGTH}
+                    onChangeText={value => setSubtasks(prev => prev.map(s => s.id === subtask.id ? { ...s, text: value } : s))}
+                    accessibilityLabel={`세부 항목 ${index + 1}`}
+                    placeholder={index === 0 ? '예: 문제집 p12–17 풀기' : '세부 항목을 입력하세요'}
+                    placeholderTextColor={T.sub}
+                    autoFocus={subtask.id === newSubtaskId}
+                    onSubmitEditing={addSubtask} returnKeyType="next" blurOnSubmit={false}
+                    style={[S.todoInput, { flex: 1, color: T.text, backgroundColor: T.surface, borderColor: T.border, marginBottom: 0 }]}
+                  />
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`세부 항목 ${index + 1} 삭제`}
+                    onPress={() => setSubtasks(prev => prev.filter(s => s.id !== subtask.id))}
+                    style={{ padding: 10 }}>
+                    <Ionicons name="close" size={18} color={T.sub} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity onPress={addSubtask} accessibilityRole="button"
+                disabled={subtasks.length >= MAX_SUBTASKS}
+                accessibilityState={{ disabled: subtasks.length >= MAX_SUBTASKS }}
+                style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, paddingVertical: 10, opacity: subtasks.length >= MAX_SUBTASKS ? 0.5 : 1 }}>
+                <Ionicons name="add-circle-outline" size={18} color={T.accent} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>세부 항목 추가 ({subtasks.length}/{MAX_SUBTASKS})</Text>
+              </TouchableOpacity>
+              {subtasks.length > 0 && <Text style={{ fontSize: 12, color: T.sub }}>세부 항목과 큰 할 일은 각각 완료 표시할 수 있어요.</Text>}
+            </View>
             {/* 과목 */}
             <Row T={T} label="과목">
               <TouchableOpacity onPress={() => { setSubjectId(null); setSubjectLabel(null); setSubjectColor(null); }} style={chipStyle(!subjectId)}>

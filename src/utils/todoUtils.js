@@ -4,6 +4,44 @@
 
 import { toDateStr, generateId } from './format';
 
+// 읽기 경로에서는 손상된 항목만 제외하고 ID를 새로 발급하지 않는다.
+export const getSubtasks = (todo) => {
+  if (!Array.isArray(todo?.subtasks)) return [];
+  const ids = new Set();
+  return todo.subtasks.filter(s => {
+    if (!s || typeof s.id !== 'string' || !s.id.trim() || ids.has(s.id)
+      || typeof s.text !== 'string' || !s.text.trim()) return false;
+    ids.add(s.id);
+    return true;
+  });
+};
+
+// 편집 폼의 완료 값 대신 현재 실행 항목의 체크를 보존한다. 새 항목은 미완료.
+export const mergeSubtaskDone = (next, previous) => {
+  const doneById = new Map(previous.map(s => [s.id, !!s.done]));
+  return next.map(s => ({ ...s, done: doneById.get(s.id) ?? false }));
+};
+
+// 세부 항목은 부모 할 일에 포함해 저장한다. 완료는 부모와 독립적으로 관리한다.
+export const normalizeSubtasks = (items, resetDone = false) => {
+  if (!Array.isArray(items)) return [];
+  const ids = new Set();
+  return items.filter(item => typeof item?.text === 'string' && item.text.trim()).map(item => {
+    const id = typeof item.id === 'string' && item.id && !ids.has(item.id) ? item.id : generateId('sub_');
+    ids.add(id);
+    return { id, text: item.text.trim(), done: resetDone ? false : !!item.done };
+  });
+};
+
+export const toggleTodoSubtask = (todos, todoId, subtaskId) => todos.map(todo => {
+  if (todo.id !== todoId || todo.isTemplate) return todo;
+  const target = getSubtasks(todo).find(s => s.id === subtaskId);
+  if (!target) return todo;
+  const targetIndex = todo.subtasks.indexOf(target);
+  // 읽기에서 제외한 항목도 보존해, 다른 항목 체크만으로 원본이 삭제되지 않게 한다.
+  return { ...todo, subtasks: todo.subtasks.map((s, index) => index === targetIndex ? { ...s, done: !s.done } : s) };
+});
+
 export const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 두 날짜 문자열의 일수 차 (to - from)
@@ -97,30 +135,35 @@ export const editTodoInPlace = (todos, id, fields, today = toDateStr(new Date())
   const instance = findEditableTodoInstance(todos, original, today);
   const targetId = instance?.id || id;
   if (isTodoDuplicate(todos, fields, targetId)) return todos;
-  const content = { ...fields, text: fields.text.trim() };
+  const content = { ...fields, text: fields.text.trim(),
+    subtasks: normalizeSubtasks(fields.subtasks ?? instance?.subtasks ?? original.subtasks) };
+  const instanceSubtasks = mergeSubtaskDone(content.subtasks, getSubtasks(instance));
   if (!fields.isTemplate) {
     return todos.filter(t => !(parent && t.id === parent.id && t.id !== targetId)).map(t => {
       if (t.id === targetId) return { ...t, ...content, id: targetId, isTemplate: false,
-        repeatDays: null, templateId: null };
+        repeatDays: null, templateId: null, subtasks: instanceSubtasks };
       return parent && t.templateId === parent.id ? { ...t, templateId: null } : t;
     });
   }
   const templateId = parent?.id || generateId('todo_');
   const template = { ...parent, ...content, id: templateId, isTemplate: true,
-    done: false, completedAt: null, templateId: null, createdDate: null };
+    done: false, completedAt: null, templateId: null, createdDate: null,
+    subtasks: normalizeSubtasks(content.subtasks, true) };
   const instanceFields = { ...content, isTemplate: false, repeatDays: null,
     templateId, scope: 'today', ddayId: null, dueDate: null };
   let next = todos.map(t => {
     if (t.id === templateId) return template;
     // 자정 후 리셋 전의 전날 항목도 ID를 유지해 오늘 항목으로 이어간다.
     // 날짜를 갱신해야 다음 포그라운드 복귀 리셋이 다시 지우고 새 ID를 만들지 않는다.
-    if (t.id === instance?.id) return { ...t, ...instanceFields, id: t.id, createdDate: today };
+    if (t.id === instance?.id) return { ...t, ...instanceFields, id: t.id, createdDate: today,
+      subtasks: instanceSubtasks };
     return t;
   });
   if (!parent) next = [...next, template];
   if (!instance && fields.repeatDays?.includes(new Date(today + 'T00:00:00').getDay())) {
     next = [...next, { ...instanceFields, id: generateId('todo_'), done: false,
-      completedAt: null, repeat: false, createdDate: today }];
+      completedAt: null, repeat: false, createdDate: today,
+      subtasks: normalizeSubtasks(content.subtasks, true) }];
   }
   return next;
 };
@@ -174,7 +217,8 @@ export const applyDailyTodoReset = (list, { today, needsReset }) => {
   if (needsReset) {
     next = next
       .filter(t => t.isTemplate || !t.done || t.repeat || (t.scope != null && t.scope !== 'today'))
-      .map(t => (!t.isTemplate && t.repeat && t.done) ? { ...t, done: false, completedAt: null } : t);
+      .map(t => (!t.isTemplate && t.repeat && (t.done || getSubtasks(t).some(s => s.done)))
+        ? { ...t, done: false, completedAt: null, subtasks: normalizeSubtasks(t.subtasks, true) } : t);
   }
   const generated = [];
   next.forEach(tmpl => {
@@ -187,6 +231,7 @@ export const applyDailyTodoReset = (list, { today, needsReset }) => {
       subjectColor: tmpl.subjectColor ?? null, subjectIcon: tmpl.subjectIcon ?? null,
       priority: tmpl.priority ?? 'normal', scope: 'today', ddayId: null,
       memo: tmpl.memo ?? '', isTemplate: false, repeatDays: null,
+      subtasks: normalizeSubtasks(tmpl.subtasks, true),
       templateId: tmpl.id, createdDate: today,
     });
   });

@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Alert, KeyboardAvoidingView, Platform, Vibration, Keyboard, AppState, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { calcDDay, generateId, getToday, formatDuration } from '../../utils/format';
-import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex, isTodoDuplicate, findEditableTodoInstance } from '../../utils/todoUtils';
+import { isTodayVisible, isUpcoming, dueBadge, nextDates, dateChipLabel, computeDropIndex, isTodoDuplicate, findEditableTodoInstance, getSubtasks } from '../../utils/todoUtils';
 import { getTodoMessage } from '../../constants/characters';
 import TodoFormSheet from './TodoFormSheet';
 import ReviewNotesScreen from '../ReviewNotesScreen';
@@ -257,6 +257,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
       dueDate: f.repeatType !== 'none' ? null : f.dueDate,
       ddayId: f.ddayId,
       memo: f.memo,
+      subtasks: f.subtasks,
       isTemplate: repeatDays !== null,
       repeatDays,
     };
@@ -340,6 +341,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
           // orderedIds: 이 행이 속한 그룹의 미완료 id 목록(표시 순서) — 드래그 정렬 범위
           const renderTodoRow = (t, orderedIds) => {
             const isExpanded = expandedTodo === t.id;
+            const subtasks = getSubtasks(t);
             const timeStr = t.completedAt
               ? new Date(t.completedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
               : null;
@@ -388,7 +390,7 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                   <Text style={[S.todoText, { color: t.done ? T.sub : T.text }, t.done && { textDecorationLine: 'line-through' }]}
                     numberOfLines={isExpanded ? 0 : 2}>{t.text}</Text>
                   {/* 메타 행: scope 뱃지 + 메모 + 완료 시각 */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 2 }}>
                     {(() => {
                       const scopeInfo = t.scope === 'exam' ? { label: examLabel, color: '#E17055' }
                         : (t.scope === 'today' || t.scope == null) ? { label: todayLabel, color: T.accent }
@@ -416,6 +418,9 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                         <Ionicons name="timer-outline" size={10} color={T.sub} />
                         <Text style={{ fontSize: 11, fontWeight: '700', color: T.sub }}>{formatDuration(todoFocusSec[t.id])}</Text>
                       </View>
+                    )}
+                    {subtasks.length > 0 && (
+                      <Text style={{ fontSize: 11, color: T.sub }}>세부 {subtasks.filter(s => s.done).length}/{subtasks.length}</Text>
                     )}
                     {t.memo && <Ionicons name="attach-outline" size={13} color={T.sub} />}
                     {t.done && timeStr && <Text style={{ fontSize: 11, color: T.sub }}>{timeStr}</Text>}
@@ -499,6 +504,27 @@ export default function TodoSection({ app, T, S, isTablet, isLandscape, contentM
                   <Text style={{ fontSize: 16, color: T.sub }}>×</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
+              {!t.done && subtasks.length > 0 && (
+                <View style={{ marginLeft: 32, marginBottom: 8, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: T.border }}>
+                  {subtasks.map(subtask => (
+                    <TouchableOpacity key={subtask.id}
+                      accessibilityRole="checkbox" accessibilityState={{ checked: !!subtask.done }} accessibilityLabel={subtask.text}
+                      onPress={() => { app.toggleSubtask(t.id, subtask.id); Vibration.vibrate([0, 20]); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingVertical: 6, paddingRight: 12 }}>
+                      <Ionicons name={subtask.done ? 'checkbox' : 'square-outline'} size={20} color={subtask.done ? T.accent : T.sub} />
+                      <Text style={{ flex: 1, fontSize: 13, color: subtask.done ? T.sub : T.text,
+                        textDecorationLine: subtask.done ? 'line-through' : 'none' }}>{subtask.text}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {isExpanded && (
+                <TouchableOpacity onPress={() => openEditTodo(t)} accessibilityRole="button"
+                  style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, marginLeft: 32, paddingVertical: 10, paddingHorizontal: 8, marginBottom: 4 }}>
+                  <Ionicons name="create-outline" size={14} color={T.accent} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: T.accent }}>수정 · 세부 항목 추가</Text>
+                </TouchableOpacity>
+              )}
               </Animated.View>
             );
           };

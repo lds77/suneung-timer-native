@@ -20,7 +20,7 @@ const SOUND_FILES = {
 };
 import { saveSettings, loadSettings, saveSubjects, loadSubjects, saveSessions, loadSessions, saveDDays, loadDDays, saveTodos, loadTodos, saveTodoLog, loadTodoLog, saveCountupFavs, loadCountupFavs, saveFavs, loadFavs, saveWeeklySchedule, loadWeeklySchedule, saveTimerSnapshot, loadTimerSnapshot, clearTimerSnapshot, consumeWidgetTodoDirty, saveReviewNotes, loadReviewNotes } from '../utils/storage';
 import { getToday, getYesterday, toDateStr, getWeekStartStr, generateId, formatDuration } from '../utils/format';
-import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos, editTodoInPlace } from '../utils/todoUtils';
+import { isTodayVisible, applyReorder, applyDailyTodoReset, sweepOrphanExamTodos, editTodoInPlace, normalizeSubtasks, toggleTodoSubtask } from '../utils/todoUtils';
 import { makeNoteFromTodo } from '../utils/reviewNotes';
 import { deleteFiles as deleteAttachmentFiles } from '../utils/attachments';
 import { shouldNudgeBackup } from '../utils/backupNudge';
@@ -2881,6 +2881,7 @@ export function AppProvider({ children }) {
         scope:        o.scope        ?? 'today',
         ddayId:       o.ddayId       ?? null,
         memo:         o.memo         ?? '',
+        subtasks:     normalizeSubtasks(o.subtasks, true),
         isTemplate,
         repeatDays,
         templateId:   o.templateId   ?? null,
@@ -2899,6 +2900,7 @@ export function AppProvider({ children }) {
             subjectColor: o.subjectColor ?? null, subjectIcon: o.subjectIcon ?? null,
             priority: o.priority ?? 'normal', scope: 'today', ddayId: null,
             memo: o.memo ?? '', isTemplate: false, repeatDays: null,
+            subtasks: normalizeSubtasks(newTmpl.subtasks, true),
             templateId: newId, createdDate: todayStr,
           });
         }
@@ -2923,6 +2925,9 @@ export function AppProvider({ children }) {
       return next.length > 1000 ? next.slice(next.length - 1000) : next;
     });
   }, [todos]);
+  const toggleSubtask = useCallback((todoId, subtaskId) => {
+    setTodos(prev => toggleTodoSubtask(prev, todoId, subtaskId));
+  }, []);
   const removeTodo = useCallback((id) => setTodos(prev => prev.filter(t => t.id !== id)), []);
   // 커스텀 목록 삭제 시 소속 할일 일괄 제거
   const removeTodosByScope = useCallback((scope) => setTodos(prev => prev.filter(t => t.scope !== scope)), []);
@@ -3120,7 +3125,7 @@ export function AppProvider({ children }) {
       subjects, addSubject, removeSubject, updateSubject, editSubject, reorderSubjects,
       sessions, todaySessions, todayTotalSec, runningTodaySec, recordSession, updateSessionMemo, updateSessionSelfRating, deleteSessions, updateSessionDuration,
       ddays, addDDay, removeDDay, updateDDay, setPrimaryDDay,
-      todos, addTodo, toggleTodo, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
+      todos, addTodo, toggleTodo, toggleSubtask, removeTodo, removeTodosByScope, toggleTodoRepeat, updateTodo, reorderTodos, todoLog,
       getTodayTodos, getTodosBySubject, getTodoCompletionRate, getExamTodos, mood,
       reviewNotes, addReviewNote, updateReviewNote, deleteReviewNotes, archiveTodoToNote, markReviewed, unmarkReviewed, toggleMastered,
       timers, addTimer, pauseTimer, resumeTimer, stopTimer, restartTimer, resetTimer, removeTimer, addLap, setTimers,

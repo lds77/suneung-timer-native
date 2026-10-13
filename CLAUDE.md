@@ -407,6 +407,17 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
   → `@yeolgong/widgetTodoDirty` 플래그 → 앱 복귀 시 todos/todoLog 재로드 (자동저장 덮어쓰기 방지). iOS는 보기 전용
 - ※iOS 위젯 타겟명은 디렉터리와 같은 ASCII('widgets') 필수, apple-targets는 patch-package 패치 유지 필요
 
+### 할 일 세부 항목 (1.0.42~, 미출시)
+- 사용자 메일 피드백(2026-10-13): 큰 할 일 아래 한 단계 체크리스트. 부모 todo 안의 `subtasks: [{ id, text, done }]` —
+  별도 저장 키·최상위 todo 없음. 순수 로직은 `todoUtils.js`(`getSubtasks`/`normalizeSubtasks`/`mergeSubtaskDone`/
+  `toggleTodoSubtask`), 테스트 `todoSubtasks.test.js`. 검토·실기기 기록 `docs/todo-subtasks-opus-review.md`
+- **부모와 세부는 독립 완료**(자동 연동 없음) — 통계·todoLog·위젯·결과 모달은 부모만 본다. 부모가 완료되면 목록을 숨기고 `세부 n/m`만 표시
+- ★**체크 상태는 폼 값이 아니라 저장된 실행 항목에서 가져온다**(`mergeSubtaskDone`)★ — 템플릿 목록에서 편집해도 오늘 체크가 유지된다.
+  템플릿·새 실행 항목은 항상 미완료. 세부 ID는 템플릿↔실행 항목이 공유한다(이 병합의 전제)
+- 읽기 경로는 `getSubtasks`(손상 항목 제외, ID 재발급 없음), 쓰기 경로는 `normalizeSubtasks`. 입력 상한 20개·200자(새 입력만)
+- 오답노트 저장 시 body에 `· 내용 (완료/미완료)` 평문으로 덧붙인다
+- ※세부 항목 입력은 **추가 시트·수정 시트에만** 있다 — 집중탭 한 줄 빠른 추가엔 없다(행을 탭해 펼치면 '수정 · 세부 항목 추가')
+
 ### 오답노트 (1.0.36~)
 - `src/screens/ReviewNotesScreen.js` + `src/utils/reviewNotes.js`(순수 로직) +
   `src/utils/attachments.js`(사진). 저장 키 `@yeolgong/reviewNotes`. 설계 `docs/review-notes-design.md`
@@ -491,7 +502,7 @@ eas build --profile preview --platform android
 6. **알림 테스트**: 실기기 + EAS 빌드로만 검증 가능
 7. **날짜 코드는 반드시 `format.js`의 `getToday()`/`toDateStr()` 사용** — `toISOString()`은 UTC라
    KST 새벽 0~9시에 하루 밀림 (이 클래스 버그를 6월·7월 두 번 일소함). 'YYYY-MM-DD' 파싱은 `+ 'T00:00:00'`
-8. **로직 변경 후 `npm test`** (Jest 578개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기).
+8. **로직 변경 후 `npm test`** (Jest 641개, 순수 로직만 — RN 의존 코드는 EAS 빌드+실기기).
    ★**레이아웃은 테스트가 없다**★ — 태블릿/가로/글자크기 관련 변경은 통과해도 검증된 게 아니다
 9. **UI 문구에 이모지 금지** — 필요하면 Ionicons 사용
 10. **월 이동은 `new Date(y, m ± n, 1)`로 1일 정규화** — `new Date()`에 그대로 `setMonth(±n)`
