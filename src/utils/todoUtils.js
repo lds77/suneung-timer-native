@@ -4,6 +4,20 @@
 
 import { toDateStr, generateId } from './format';
 
+// 폼 전용: 끝 빈 칸 하나를 유지한다. 중간 빈 칸과 기존 행 객체/ID는 보존한다.
+// makeId를 주입해 행 생성도 테스트 가능하게 한다. 저장 시에는 normalizeSubtasks 사용.
+export const syncSubtaskRows = (rows, max, makeId) => {
+  const filledCount = rows.filter(s => s.text.trim()).length;
+  let lastFilled = rows.length - 1;
+  while (lastFilled >= 0 && !rows[lastFilled].text.trim()) lastFilled--;
+  const end = filledCount >= max ? lastFilled + 1 : Math.min(rows.length, lastFilled + 2);
+  const next = end < rows.length ? rows.slice(0, end) : rows;
+  if (filledCount < max && next.length === lastFilled + 1) {
+    return [...next, { id: makeId(), text: '', done: false }];
+  }
+  return next;
+};
+
 // 읽기 경로에서는 손상된 항목만 제외하고 ID를 새로 발급하지 않는다.
 export const getSubtasks = (todo) => {
   if (!Array.isArray(todo?.subtasks)) return [];

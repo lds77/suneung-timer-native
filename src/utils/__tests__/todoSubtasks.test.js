@@ -1,4 +1,4 @@
-const { normalizeSubtasks, getSubtasks, toggleTodoSubtask, editTodoInPlace, applyDailyTodoReset } = require('../todoUtils');
+const { normalizeSubtasks, getSubtasks, toggleTodoSubtask, editTodoInPlace, applyDailyTodoReset, syncSubtaskRows } = require('../todoUtils');
 const { makeNoteFromTodo } = require('../reviewNotes');
 const { generateId, getToday } = require('../format');
 const fs = require('fs');
@@ -11,6 +11,128 @@ const steps = [
   { id: 'review', text: '전에 오답 복습하기', done: false },
 ];
 const parent = { id: 'math', text: '수학 공부', scope: 'today', done: false, subtasks: steps };
+
+describe('폼의 끝 빈 칸 유지', () => {
+  const empty = id => ({ id, text: '', done: false });
+  const filled = count => Array.from({ length: count }, (_, i) => ({ id: `row_${i}`, text: `항목 ${i}`, done: i === 0 }));
+
+  test('빈 목록은 빈 칸 하나로 시작하고 재동기화해도 ID가 바뀌지 않는다', () => {
+    const makeId = jest.fn(() => 'new');
+    const rows = syncSubtaskRows([], 20, makeId);
+    expect(rows).toEqual([empty('new')]);
+    expect(syncSubtaskRows(rows, 20, makeId)).toBe(rows);
+    expect(makeId).toHaveBeenCalledTimes(1);
+  });
+
+  test('마지막 칸을 채우면 빈 칸을 하나 추가하고 기존 객체·ID·체크는 유지한다', () => {
+    const rows = filled(2);
+    const result = syncSubtaskRows(rows, 20, () => 'new');
+    expect(result).toHaveLength(3);
+    rows.forEach((row, index) => expect(result[index]).toBe(row));
+    expect(result[2]).toEqual(empty('new'));
+    expect(rows).toHaveLength(2);
+  });
+
+  test('끝 빈 칸 3개는 앞쪽 빈 칸 하나만 남기고 중간 빈 칸은 보존한다', () => {
+    const rows = [steps[0], empty('middle'), steps[1], empty('first'), empty('second'), empty('third')];
+    const makeId = jest.fn();
+    const result = syncSubtaskRows(rows, 20, makeId);
+    expect(result).toHaveLength(4);
+    result.forEach((row, index) => expect(row).toBe(rows[index]));
+    expect(makeId).not.toHaveBeenCalled();
+    expect(rows).toHaveLength(6);
+  });
+
+  test('공백만 있는 마지막 칸을 지우듯 취급하며 그 입력 행의 ID는 유지한다', () => {
+    const editing = { id: 'editing', text: '  ', done: false };
+    const rows = [steps[0], editing, empty('tail')];
+    expect(syncSubtaskRows(rows, 20, () => 'unused')).toEqual([steps[0], editing]);
+    expect(syncSubtaskRows(rows, 20, () => 'unused')[1]).toBe(editing);
+    expect(syncSubtaskRows([editing, empty('tail')], 20, () => 'unused')).toEqual([editing]);
+  });
+
+  test.each([20, 21])('채운 칸 %i개는 잘라내지 않고 끝 빈 칸만 제거한다', count => {
+    const rows = filled(count);
+    const makeId = jest.fn();
+    expect(syncSubtaskRows(rows, 20, makeId)).toBe(rows);
+    const result = syncSubtaskRows([...rows, empty('tail')], 20, makeId);
+    expect(result).toEqual(rows);
+    result.forEach((row, index) => expect(row).toBe(rows[index]));
+    expect(makeId).not.toHaveBeenCalled();
+  });
+
+  test('상한은 채운 칸 수로 판단하며, 상한 상태에서도 중간 빈 칸은 보존한다', () => {
+    const rows = [empty('middle'), ...filled(19)];
+    const result = syncSubtaskRows(rows, 20, () => 'tail');
+    expect(result).toHaveLength(21);
+    const full = [...rows, { id: 'last', text: '20번째', done: false }, empty('tail')];
+    expect(syncSubtaskRows(full, 20, () => 'unused')).toEqual(full.slice(0, -1));
+  });
+
+  test('상한에서 한 항목 삭제 후 빈 칸을 복원하고, 빈 칸은 저장 결과에 남지 않는다', () => {
+    const rows = filled(20).slice(0, -1);
+    const result = syncSubtaskRows(rows, 20, () => 'tail');
+    expect(result[result.length - 1]).toEqual(empty('tail'));
+    expect(normalizeSubtasks(result)).toEqual(rows);
+    expect(normalizeSubtasks(syncSubtaskRows([], 20, () => 'empty'))).toEqual([]);
+  });
+});
+
+// 네이티브 렌더러 없이 실제 폼 핸들러의 상태 변경·포커스 분기를 실행한다.
+describe('세부 입력 폼 핸들러', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../screens/focus/TodoFormSheet.js'), 'utf8');
+  const ast = parser.parse(source, { sourceType: 'module', plugins: ['jsx'] });
+  const component = ast.program.body.find(n => n.type === 'ExportDefaultDeclaration').declaration;
+  const handler = (name, bindings) => {
+    const fn = component.body.body.flatMap(n => n.declarations || []).find(n => n.id.name === name).init;
+    return new Function(...Object.keys(bindings), `return (${source.slice(fn.start, fn.end)});`)(...Object.values(bindings));
+  };
+
+  test('입력 변경은 자동 빈 칸을 만들되 포커스를 이동하지 않고 상한 우회도 막는다', () => {
+    let rows = [{ id: 'first', text: '', done: false }];
+    let sequence = 0;
+    const change = handler('changeSubtaskText', {
+      setSubtasks: update => { rows = update(rows); }, syncSubtaskRows,
+      MAX_SUBTASKS: 20, makeSubtaskId: () => `new_${sequence++}`,
+    });
+    change('first', '수학');
+    expect(rows).toEqual([{ id: 'first', text: '수학', done: false }, { id: 'new_0', text: '', done: false }]);
+    // 중간 빈 칸을 남긴 상태에서 마지막 빈 칸들을 채워 상한에 도달한 상황.
+    rows = [{ id: 'empty', text: '', done: false }, ...Array.from({ length: 20 }, (_, i) => ({ id: `full_${i}`, text: '공부', done: false }))];
+    const before = rows;
+    change('empty', '21번째');
+    expect(rows).toBe(before);
+    change('full_0', '내용 수정');
+    expect(rows[1].text).toBe('내용 수정');
+    change('full_0', '');
+    expect(rows[1].id).toBe('full_0');
+    expect(rows[rows.length - 1].text).toBe('');
+  });
+
+  test('다음 키는 바로 아래 중간 빈 칸으로 이동하며, 마지막 빈 칸에서는 키보드를 닫는다', () => {
+    const focus = jest.fn();
+    const dismiss = jest.fn();
+    const next = handler('focusNextSubtask', {
+      subtasks: [{ id: 'first', text: '수학' }, { id: 'middle', text: '' }, { id: 'last', text: '' }],
+      subtaskInputs: { current: new Map([['middle', { focus }]]) }, Keyboard: { dismiss },
+    });
+    next('first');
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(dismiss).not.toHaveBeenCalled();
+    next('last');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  test('20번째 채운 칸의 다음 키도 새 행 없이 키보드를 닫는다', () => {
+    const dismiss = jest.fn();
+    const rows = Array.from({ length: 20 }, (_, i) => ({ id: `row_${i}`, text: '공부' }));
+    handler('focusNextSubtask', {
+      subtasks: rows, subtaskInputs: { current: new Map() }, Keyboard: { dismiss },
+    })('row_19');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(rows).toHaveLength(20);
+  });
+});
 
 test.each([true, false])('템플릿에서 수정해도 오늘 체크를 유지한다 (반복 유지=%s)', keepRepeat => {
   const template = { ...parent, id: 'template', isTemplate: true,
