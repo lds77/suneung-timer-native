@@ -82,7 +82,10 @@ export default function TodoFormSheet({
     setCustomDays(rType === 'custom' ? i.repeatDays : []);
     setPriority(i.priority ?? 'normal');
     setMemo(i.memo ?? '');
-    setSubtasks(normalizeSubtasks(i.subtasks));
+    // 세부 항목이 없으면 빈 칸 하나를 미리 깐다 — 버튼 글자만으로는 기능인 줄 모른다(실기기 2026-10-14).
+    // 빈 칸은 저장 시 normalizeSubtasks가 버리므로 세부 항목을 안 쓰는 흐름은 그대로다
+    const initialSubtasks = normalizeSubtasks(i.subtasks);
+    setSubtasks(initialSubtasks.length ? initialSubtasks : [{ id: generateId('sub_'), text: '', done: false }]);
     setNewSubtaskId(null);
     // 기존 값이 있는 접힌 섹션은 펼친 채로 시작 (수정 시 안 보이면 없는 줄 알게 됨)
     setExpanded(i.memo ? 'memo' : rType !== 'none' ? 'repeat' : null);
@@ -101,6 +104,7 @@ export default function TodoFormSheet({
     });
   };
 
+  const filledSubtaskCount = subtasks.filter(s => s.text.trim()).length;
   const addSubtask = () => {
     const empty = subtasks.find(s => !s.text.trim());
     if (empty) {
@@ -152,7 +156,7 @@ export default function TodoFormSheet({
             <View style={{ marginBottom: 12 }}>
               {subtasks.map((subtask, index) => (
                 <View key={subtask.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 10, marginBottom: 6 }}>
-                  <Ionicons name="return-down-forward-outline" size={16} color={T.sub} />
+                  <Ionicons name="square-outline" size={18} color={T.sub} />
                   <TextInput
                     ref={input => {
                       if (input) subtaskInputs.current.set(subtask.id, input);
@@ -162,17 +166,20 @@ export default function TodoFormSheet({
                     maxLength={MAX_SUBTASK_LENGTH}
                     onChangeText={value => setSubtasks(prev => prev.map(s => s.id === subtask.id ? { ...s, text: value } : s))}
                     accessibilityLabel={`세부 항목 ${index + 1}`}
-                    placeholder={index === 0 ? '예: 문제집 p12–17 풀기' : '세부 항목을 입력하세요'}
+                    placeholder={index === 0 ? '체크할 세부 항목 (선택)' : '세부 항목을 입력하세요'}
                     placeholderTextColor={T.sub}
                     autoFocus={subtask.id === newSubtaskId}
                     onSubmitEditing={addSubtask} returnKeyType="next" blurOnSubmit={false}
                     style={[S.todoInput, { flex: 1, color: T.text, backgroundColor: T.surface, borderColor: T.border, marginBottom: 0 }]}
                   />
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`세부 항목 ${index + 1} 삭제`}
-                    onPress={() => setSubtasks(prev => prev.filter(s => s.id !== subtask.id))}
-                    style={{ padding: 10 }}>
-                    <Ionicons name="close" size={18} color={T.sub} />
-                  </TouchableOpacity>
+                  {/* 하나 남은 빈 칸은 '선택' 안내 칸이라 지울 대상이 아니다 — 자리만 유지해 정렬을 맞춘다 */}
+                  {(subtask.text || subtasks.length > 1) ? (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel={`세부 항목 ${index + 1} 삭제`}
+                      onPress={() => setSubtasks(prev => prev.filter(s => s.id !== subtask.id))}
+                      style={{ padding: 10 }}>
+                      <Ionicons name="close" size={18} color={T.sub} />
+                    </TouchableOpacity>
+                  ) : <View style={{ width: 38 }} />}
                 </View>
               ))}
               <TouchableOpacity onPress={addSubtask} accessibilityRole="button"
@@ -180,9 +187,9 @@ export default function TodoFormSheet({
                 accessibilityState={{ disabled: subtasks.length >= MAX_SUBTASKS }}
                 style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, paddingVertical: 10, opacity: subtasks.length >= MAX_SUBTASKS ? 0.5 : 1 }}>
                 <Ionicons name="add-circle-outline" size={18} color={T.accent} />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>세부 항목 추가 ({subtasks.length}/{MAX_SUBTASKS})</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T.accent }}>세부 항목 추가 ({filledSubtaskCount}/{MAX_SUBTASKS})</Text>
               </TouchableOpacity>
-              {subtasks.length > 0 && <Text style={{ fontSize: 12, color: T.sub }}>세부 항목과 큰 할 일은 각각 완료 표시할 수 있어요.</Text>}
+              {filledSubtaskCount > 0 && <Text style={{ fontSize: 12, color: T.sub }}>세부 항목과 큰 할 일은 각각 완료 표시할 수 있어요.</Text>}
             </View>
             {/* 과목 */}
             <Row T={T} label="과목">
