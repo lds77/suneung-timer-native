@@ -17,6 +17,9 @@
   안드 vc74(1.0.42)까지 나가고 대부분이 업데이트하면 다시 1.0.42 하나로 모인다
 - [x] **iOS EAS 빌드 성공** — `0faccbd6-6838-4a00-9ca2-e0ca40e65eea` (profile `testflight`, channel production, 2026-10-13 23:47)
 - [x] **ASC 업로드 완료** — EAS 제출 `bdf586b1-ac44-4de4-91cb-897d3eaa4602`. ★23:47 예약 → **30분간 IN_QUEUE** → 00:17 FINISHED★ (대기열이 길 뿐 실패 아님 — 재제출 금지)
+- ★**build59에는 그 뒤 JS 2건이 빠져 있다**★ — `560026e`(빈 칸 1개 미리 깔기)·`3df353e`(끝에 항상 빈 칸 하나).
+  실기기에서 세부 항목 입력을 **기능인 줄 몰라** 고친 것이다. **미결**: build59로 심사 → 승인 후 OTA(권장) vs build60
+- [x] **안드 preview APK 실기기 통과** (2026-10-14, `3df353e` = `dist/yeolgong-preview-1.0.42-20261014-c.apk`)
 - [ ] TestFlight 실기기 확인 → 순위 기록 → **심사 제출(사용자)**
 - 안드 프로덕션 AAB는 `android/`가 preview로 prebuild돼 있으므로 **`APP_VARIANT` 없이 prebuild를 다시** 돌린 뒤 빌드
 - 승인되면: 블로그 지침서 '미출시' → '출시됨' + 코워크 사본 덮어쓰기, CLAUDE.md 버전 줄 갱신, 메일 답장(사용법 한 줄 포함)
