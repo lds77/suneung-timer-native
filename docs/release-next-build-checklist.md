@@ -24,7 +24,7 @@
   이후 빌드·배포는 사용자와 Opus가 진행. 이 확인을 iOS 실기기 확인이나 심사/OTA 승인으로 확대 해석하지 않는다.
 - ★**결정(2026-10-14 사용자)**: iOS는 **build60**을 새로 빌드해 안드 vc74와 같은 커밋으로 맞춘다(무료 빌드 여유).
   **build59는 심사에 쓰지 않는다.** 안드 vc74도 EAS production으로 정식 빌드
-- [x] iOS build60 EAS 빌드 `df77eb34` → ASC 업로드 예약(EAS 제출 `70022e12`) (2026-10-14 21:30)
+- [x] iOS build60 EAS 빌드 `df77eb34` → **ASC 업로드 완료**(EAS 제출 `70022e12`, 21:30 — 이번엔 대기열 없이 31초)
 - [x] 안드 vc74 EAS production 빌드 `262eaeb8` (`d56ed7f`) — AAB `dist/yeolgong-1.0.42-vc74.aab`
 - [ ] AAB **Play Console 수동 업로드(사용자)** — 권한·네이티브 변경 없음
 - [ ] TestFlight build60 실기기 확인 → 순위 기록 → **심사 제출(사용자)**
