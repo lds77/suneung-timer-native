@@ -31,6 +31,8 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
+      // build60 = 1.0.42 (2026-10-14): build59 + 세부 항목 입력 개선 2건(560026e·3df353e — 끝에 항상 빈 칸 하나).
+      //           안드 vc74와 같은 커밋에서 빌드해 두 플랫폼 코드를 맞춘다(사용자 결정). build59는 심사에 쓰지 않는다
       // build59 = 1.0.42 (2026-10-13): 할 일 세부 항목(체크리스트) — 사용자 메일 피드백.
       //           공유 JS만 바뀌었고 네이티브 변경 없음. 안드 vc74(1.0.42)가 나가면 런타임이 다시 합쳐진다
       // build58 = 1.0.41 (2026-08-25): ★코드 변경 없음 — App Store 부제·키워드 교체만을 위한 빌드★
@@ -48,7 +50,7 @@ module.exports = {
       // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
       // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
       // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
-      buildNumber: '59',
+      buildNumber: '60',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {

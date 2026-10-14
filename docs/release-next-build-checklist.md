@@ -22,7 +22,11 @@
 - [x] **안드 preview APK 실기기 통과** (2026-10-14, `3df353e` = `dist/yeolgong-preview-1.0.42-20261014-c.apk`)
 - **2026-10-14 사용자 최종 확인: "의도대로 잘 동작해. 여기까지 메모리하자".** 자동 빈 칸 입력 방식 확정.
   이후 빌드·배포는 사용자와 Opus가 진행. 이 확인을 iOS 실기기 확인이나 심사/OTA 승인으로 확대 해석하지 않는다.
-- [ ] TestFlight 실기기 확인 → 순위 기록 → **심사 제출(사용자)**
+- ★**결정(2026-10-14 사용자)**: iOS는 **build60**을 새로 빌드해 안드 vc74와 같은 커밋으로 맞춘다(무료 빌드 여유).
+  **build59는 심사에 쓰지 않는다.** 안드 vc74도 EAS production으로 정식 빌드
+- [ ] iOS build60 EAS 빌드 → TestFlight 업로드
+- [ ] 안드 vc74 EAS production 빌드 → AAB **수동 업로드(사용자)**
+- [ ] TestFlight build60 실기기 확인 → 순위 기록 → **심사 제출(사용자)**
 - 안드 프로덕션 AAB는 `android/`가 preview로 prebuild돼 있으므로 **`APP_VARIANT` 없이 prebuild를 다시** 돌린 뒤 빌드
 - 승인되면: 블로그 지침서 '미출시' → '출시됨' + 코워크 사본 덮어쓰기, CLAUDE.md 버전 줄 갱신, 메일 답장(사용법 한 줄 포함)
 
