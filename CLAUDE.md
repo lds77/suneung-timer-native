@@ -419,6 +419,9 @@ docs/                     설계·릴리스 문서. release-next-build-checklist
 - ★**입력 폼은 끝에 항상 빈 칸 하나**(`syncSubtaskRows`)★ — 적으면 아래 칸이 자동으로 생긴다. '세부 항목 추가'
   글자 버튼과 '다음' 키 추가 방식은 실기기에서 **기능인 줄 모르고 메모 칸에 적어** 폐기했다(2026-10-14). 되돌리지 말 것
 - ※세부 항목 입력은 **추가 시트·수정 시트에만** 있다 — 집중탭 한 줄 빠른 추가엔 없다(행을 탭해 펼치면 '수정 · 세부 항목 추가')
+- **2026-10-14 사용자 확인: "의도대로 잘 동작해".** 자동 빈 칸 방식(`3df353e`)으로 확정, 26개 스위트·652개 테스트 통과.
+  안드 preview 실기기 통과. 빌드·배포는 사용자가 Opus와 진행한다. iOS build59에는 입력 개선 2건이 빠져 있으며
+  build59 심사 후 OTA vs build60은 아직 미결 — 최신 상태는 `docs/release-next-build-checklist.md` 참고.
 
 ### 오답노트 (1.0.36~)
 - `src/screens/ReviewNotesScreen.js` + `src/utils/reviewNotes.js`(순수 로직) +
