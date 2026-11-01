@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.42',
+    version: '1.0.43',
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -50,7 +50,7 @@ module.exports = {
       // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
       // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
       // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
-      buildNumber: '60',
+      buildNumber: '61',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
@@ -90,7 +90,7 @@ module.exports = {
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
       // vc74 = 1.0.42 (2026-10-13 예정) — 할 일 세부 항목. 로컬 APK로 실기기 확인 후 빌드한다.
       //        (1.0.41은 iOS 전용 메타데이터 릴리스라 안드엔 건너뛴 번호다)
-      versionCode: 74, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
+      versionCode: 76, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
       //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
       //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★
       // vc70=1.0.39(2026-08-01 제출, 심사 중): 화면 끄기/잠금은 이탈 아님 + 🔥모드 화면 꺼짐을 시스템에 맡김.
