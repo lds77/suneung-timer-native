@@ -210,45 +210,50 @@ export default function ResultModal() {
               }}>
               <Text style={{ color: 'white', fontSize: 15, fontWeight: '900', letterSpacing: 1 }}>완료</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={closeResultModal}
-              style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <Text style={{ fontSize: 14, color: T.sub }}>건너뛰기</Text>
-            </TouchableOpacity>
-            {/* 방금 끝난 기록 정정 — 잊은 타이머 등 잘못 기록된 세션의 시간 수정/삭제 (지나간 통계는 건드리지 않음) */}
+            {/* 방금 끝난 기록 정정(잊은 타이머 등 시간 수정/삭제 — 지나간 통계는 건드리지 않음) + 건너뛰기를 한 줄에 둔다.
+                ★예전엔 폭 전체를 차지하는 건너뛰기 바로 밑에 글자 높이뿐인 시간 수정이 있어서, 시간 수정을
+                누르려다 건너뛰기가 눌렸다 — 모달이 닫혀 그 기록은 다시 고칠 수 없다(실기기 제보 2026-11-01).
+                건너뛰기를 오른쪽 끝에 둬서 시간 수정과 이웃하지 않게 한다(사이의 기록 삭제는 확인창을 거쳐 안전).
+                칸마다 높이 44로 표적을 키우고, 위의 완료 버튼과도 띄운다 */}
             {(() => {
               const data = app.completedResultData;
-              if (!data) return null;
-              const ids = data.sessionId ? [data.sessionId] : (data.seqSessionIds || []);
-              if (ids.length === 0) return null;
-              if (app.sessions.some(s => ids.includes(s.id) && s.edited)) return null;
+              const ids = data ? (data.sessionId ? [data.sessionId] : (data.seqSessionIds || [])) : [];
+              const canFix = ids.length > 0 && !app.sessions.some(s => ids.includes(s.id) && s.edited);
               // 연속모드(여러 세션 묶음)만 시간 정정 대상에서 제외 — 삭제만.
               // ※계획 타이머는 2026-08-01부터 세션 단위(sessionId)로 오므로 시간 수정도 된다
-              const canEditTime = !!data.sessionId;
+              const canEditTime = canFix && !!data.sessionId;
+              const cell = { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 };
               return (
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, paddingTop: 2, paddingBottom: 6 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                   {canEditTime && (
                     <TouchableOpacity onPress={() => {
                       const cur = data.result?.durationSec || 0;
                       setEditHour(Math.floor(cur / 3600));
                       setEditMin(Math.round((cur % 3600) / 60));
                       setEditingDuration(true);
-                    }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    }} style={cell}>
                       <Ionicons name="create-outline" size={14} color={T.sub} />
-                      <Text style={{ fontSize: 13, color: T.sub, fontWeight: '700' }}>시간 수정</Text>
+                      <Text numberOfLines={1} style={{ fontSize: 13, color: T.sub, fontWeight: '700' }}>시간 수정</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={() => {
-                    Alert.alert('기록 삭제', '방금 기록한 공부 시간을 삭제(폐기)할까요?\n통계에서도 빠집니다.', [
-                      { text: '취소', style: 'cancel' },
-                      { text: '삭제', style: 'destructive', onPress: () => {
-                        app.deleteSessions(ids);
-                        app.showToastCustom('기록을 삭제했어요', 'paengi');
-                        closeResultModal();
-                      } },
-                    ]);
-                  }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="trash-outline" size={14} color="#E8575A" />
-                    <Text style={{ fontSize: 13, color: '#E8575A', fontWeight: '700' }}>기록 삭제</Text>
+                  {canFix && (
+                    <TouchableOpacity onPress={() => {
+                      Alert.alert('기록 삭제', '방금 기록한 공부 시간을 삭제(폐기)할까요?\n통계에서도 빠집니다.', [
+                        { text: '취소', style: 'cancel' },
+                        { text: '삭제', style: 'destructive', onPress: () => {
+                          app.deleteSessions(ids);
+                          app.showToastCustom('기록을 삭제했어요', 'paengi');
+                          closeResultModal();
+                        } },
+                      ]);
+                    }} style={cell}>
+                      <Ionicons name="trash-outline" size={14} color="#E8575A" />
+                      <Text numberOfLines={1} style={{ fontSize: 13, color: '#E8575A', fontWeight: '700' }}>기록 삭제</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={closeResultModal} style={cell}>
+                    <Ionicons name="play-skip-forward-outline" size={14} color={T.sub} />
+                    <Text numberOfLines={1} style={{ fontSize: 13, color: T.sub, fontWeight: '700' }}>건너뛰기</Text>
                   </TouchableOpacity>
                 </View>
               );
