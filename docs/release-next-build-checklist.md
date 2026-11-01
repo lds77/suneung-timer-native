@@ -15,11 +15,22 @@
 - ASC 업로드 **성공**: EAS 제출 `d238a8f5-50b5-4410-9a98-fa78dad70bbe`.
   https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/submissions/d238a8f5-50b5-4410-9a98-fa78dad70bbe
   CLI가 Apple 업로드 성공 및 처리 중을 반환. TestFlight 처리 완료·설치 가능 여부는 콘솔 미확인. **중복 submit 금지.**
-- **사용자 아이폰 확인 대기**: 세 칸 한 줄/시간 수정 연속 누르기/각 버튼 동작/큰 글꼴. 확인 답변 전 App Store 심사 제출 금지.
-- Android 빌드: `2b8d8fa1-467a-42c5-93aa-f3fb91bdd38e` (1.0.43 / 76), 마지막 조회 **IN_PROGRESS**.
+- **사용자 아이폰 확인 통과 (2026-11-02)**: TestFlight 1.0.43(61) 설치 후 세 칸/시간 수정 연속 누르기/각 버튼 동작/큰 글꼴 질문에 「설치해서 모두 확인했고 정상이에요」라고 답했다. 사용자 확인이며 아스트라 직접 기기 검증과 구분한다. App Store 제출 전 기기 확인 조건 충족.
+- Android 빌드: `2b8d8fa1-467a-42c5-93aa-f3fb91bdd38e` (1.0.43 / 76), **FINISHED** (KST 2026-11-02 00:16).
   https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/builds/2b8d8fa1-467a-42c5-93aa-f3fb91bdd38e
-  이 ID 조회 후 완료되면 `dist/yeolgong-1.0.43-vc76.aab` 다운로드·패키지/버전/서명 확인·vc74 비교. 새 빌드 요청 금지.
+  `dist/yeolgong-1.0.43-vc76.aab` 다운로드·로컬 검증 완료. 새 빌드 요청 금지.
 - App Store 새 버전 작성/심사 및 Play 업로드/제출: **모두 미실행**. 지침의 사용자 AAB 업로드·Play 최종 항목/경고 확인 후 제출 확인 필요.
+
+### 2026-11-02 후속 확인 — 양쪽 빌드 완료
+
+- 사용자가 제공한 Chrome 캡처는 열공메이트 iOS 1.0.42 「배포 준비됨」 화면. 기존 버전 화면이 맞음을 확인했으며 1.0.43 심사 제출 화면이 아니다.
+- Android AAB: 87,334,449 bytes. SHA256 `376f74488672dd501303864a87a142e9ecb018c34d2b7cbc8f01aa90c8fb5fe7`.
+- Google bundletool 1.18.3 validate 통과. package `com.yeolgong.timer`, version `1.0.43`, versionCode `76`.
+- vc74와 minSdk24/targetSdk36, ABI4(arm64-v8a/armeabi-v7a/x86/x86_64), manifest 권한/uses-feature, 서명 인증서 동일.
+- jarsigner 검증 성공. 자체 서명/타임스탬프 없음/체인 경고, POSIX 속성 및 JarInputStream 읽기 경고는 이전 vc74에도 동일. 경고가 없었다고 보고하지 않는다.
+- 로컬 검증 결과 `dist/yeolgong-1.0.43-vc76-validation.json`, manifest·서명 로그·bundletool 로그도 dist에 보존(모두 git 제외). 첫 검증은 임시 스크립트의 PowerShell 인수 전달 오류로 validate 단계 실패, 해당 스크립트만 고친 뒤 재검증 통과. 앱/AAB 수정 없음.
+- **Play Console 실제 지원 기기 수·경고·제출 항목은 아직 확인하지 못했다.** 로컬 manifest 비교를 콘솔 검증으로 대체하지 않는다.
+- iOS 기기 확인은 통과했으나 브라우저 연결이 막혀 App Store 새 버전 생성·메타데이터 저장·심사 제출 없음. Play 업로드·심사 제출도 없음. main 푸시 승인은 계속 대기.
 
 ### 중단 원인과 다음 단계
 
