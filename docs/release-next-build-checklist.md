@@ -3,6 +3,37 @@
 2026-07-19 작성 — 메모리/커밋에 흩어진 대기 항목 통합. 어떤 모델/세션이든 이 문서만으로
 다음 릴리스를 진행할 수 있게 하는 것이 목적. 절차 기준: CLAUDE.md 빌드/배포 섹션.
 
+## 0-AAAAJ. 2026-11-02 — 1.0.43 / iOS61 / Android76: 결과 화면 버튼 (진행 중)
+
+지침: `docs/handoff-astra-2026-11-01-result-row-release.md`. **양대 스토어 심사 제출 전**이다. 기존 라이브 1.0.42 기록을 유지한다.
+
+- Jest 26스위트/652개, ResultModal Babel 파싱 통과.
+- 코드 커밋 `fb04535`, 버전 커밋 `ffde4a4` (1.0.43 / 61 / 76). sdk56 머지·OTA·로컬 Android 빌드 없음.
+- 양쪽 빌드 소스 `ffde4a4b3940e2fc8611264977ca6bc6f21a7203`, iOS testflight / Android production 프로필.
+- iOS 빌드 **FINISHED**: `a965ea81-fdcc-4455-811c-6d4df42f3852` (1.0.43 / 61).
+  https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/builds/a965ea81-fdcc-4455-811c-6d4df42f3852
+- ASC 업로드 **성공**: EAS 제출 `d238a8f5-50b5-4410-9a98-fa78dad70bbe`.
+  https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/submissions/d238a8f5-50b5-4410-9a98-fa78dad70bbe
+  CLI가 Apple 업로드 성공 및 처리 중을 반환. TestFlight 처리 완료·설치 가능 여부는 콘솔 미확인. **중복 submit 금지.**
+- **사용자 아이폰 확인 대기**: 세 칸 한 줄/시간 수정 연속 누르기/각 버튼 동작/큰 글꼴. 확인 답변 전 App Store 심사 제출 금지.
+- Android 빌드: `2b8d8fa1-467a-42c5-93aa-f3fb91bdd38e` (1.0.43 / 76), 마지막 조회 **IN_PROGRESS**.
+  https://expo.dev/accounts/leedongsik/projects/yeolgong-timer/builds/2b8d8fa1-467a-42c5-93aa-f3fb91bdd38e
+  이 ID 조회 후 완료되면 `dist/yeolgong-1.0.43-vc76.aab` 다운로드·패키지/버전/서명 확인·vc74 비교. 새 빌드 요청 금지.
+- App Store 새 버전 작성/심사 및 Play 업로드/제출: **모두 미실행**. 지침의 사용자 AAB 업로드·Play 최종 항목/경고 확인 후 제출 확인 필요.
+
+### 중단 원인과 다음 단계
+
+Chrome browser access host unavailable. 네이티브 Chrome에서도 현재 URL을 확인하지 못해 Computer Use 중단. 사용자가 ASC 화면을 준비한 뒤 재시도했으나 동일. 콘솔은 수정하지 않았다. 다음에는 브라우저 연결 복구 확인부터 한다.
+
+소스·버전·진행 기록의 원격 main 푸시는 자동 승인 검토에서 거절됐다. 사유: 빌드/제출 요청이 원격 기본 브랜치 푸시를 명시적으로 승인하지 않았다고 판단. 해당 명령은 실행 전 거절되어 원격 변경 없음. 로컬 기록/커밋은 별도 수행하고, 푸시는 사용자 명시 승인 후 재개한다.
+
+### 출시 노트
+
+공부 완료 화면에서 시간 수정을 누르다 건너뛰기가 눌리던 문제를 고쳤습니다.
+시간 수정, 기록 삭제, 건너뛰기를 한 줄로 정리하고 누르는 영역을 넓혔습니다.
+
+승인 뒤: CLAUDE.md 라이브 버전 갱신, 구글열공 cap-result-bottom.png 재촬영, 12/25 예약 글 사진 교체. 현재 승인 완료로 기록하지 않는다.
+
 ## 0-AAAAI. 2026-10-13 — 1.0.42 / build60 / vc74: 할 일 세부 항목 (**양대 심사 중** 10-14)
 
 **내용**: 사용자 메일 피드백(큰 할 일 아래 세부 체크리스트). 공유 JS만 바뀌었고 네이티브 델타 0.
