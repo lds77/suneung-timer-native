@@ -245,7 +245,7 @@ function OngoingNotifDiag({ T, diag }) {
     return (
       <View style={{ paddingHorizontal: 16, paddingBottom: 10, marginTop: -4 }}>
         <Text style={{ fontSize: 11, color: T.sub, lineHeight: 16 }}>
-          잠금화면에 안 보이면 휴대폰 설정 &gt; 알림 &gt; 잠금화면에서 알림 내용 표시를 확인해 주세요
+          잠금화면에 안 보이면 휴대폰 설정 &gt; 알림 &gt; 잠금화면을 확인해 주세요. 갤럭시는 스타일을 카드로 하고 '소리 알림만 표시'를 끄면 보여요
         </Text>
       </View>
     );
@@ -721,7 +721,7 @@ export default function SettingsScreen() {
                   <Row
                     T={T}
                     label="잠금화면 타이머 표시"
-                    sub="타이머 실행 중 상단바·잠금화면에 흐르는 시간을 보여줘요"
+                    sub="타이머 실행 중 알림창·잠금화면에 흐르는 시간을 보여줘요"
                     right={
                       <Switch
                         value={app.settings.timerOngoingNotif !== false}
