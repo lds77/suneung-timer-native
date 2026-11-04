@@ -34,6 +34,8 @@ let cachedRoomId; // undefined = 미조회, null = 방 없음
 let lastPresenceSig = null;
 let disconnectArmed = false;
 let connectedUnsub = null;
+let reconciling = null; // 진행 중인 멤버십 확인 (앱 시작과 방 화면이 겹쳐도 한 번만)
+let membershipNotice = null; // 복귀에 실패했을 때 방 화면이 한 번 보여줄 안내
 
 // roomId를 storage에도 영속 — 위젯 헤드리스(별도 JS 컨텍스트)가 서버 조회 없이 읽는다
 const ROOM_ID_KEY = '@yeolgong/studyRoomId';
@@ -179,7 +181,7 @@ export const joinRoom = async (codeRaw, profile) => {
   await leavePrevRoomIfAny(code);
   try {
     let snap = await get(ref(db, `rooms/${code}`));
-    if (!snap.exists()) return { ok: false, reason: '그 코드의 방을 찾지 못했어요' };
+    if (!snap.exists()) return { ok: false, gone: true, reason: '그 코드의 방을 찾지 못했어요' };
     let room = snap.val();
     const alreadyIn = !!room.members?.[uid];
     if (alreadyIn) {
@@ -194,7 +196,7 @@ export const joinRoom = async (codeRaw, profile) => {
       snap = await get(ref(db, `rooms/${code}`));
       room = snap.val() || room;
       if (Object.keys(room.members || {}).length >= MAX_ROOM_MEMBERS) {
-        return { ok: false, reason: `방이 가득 찼어요 (최대 ${MAX_ROOM_MEMBERS}명)` };
+        return { ok: false, full: true, reason: `방이 가득 찼어요 (최대 ${MAX_ROOM_MEMBERS}명)` };
       }
     }
     await update(ref(db), {
@@ -306,6 +308,65 @@ export const leaveRoom = async () => {
   lastPresenceSig = null;
 };
 
+// '내 방'이 실제 명단과 맞는지 확인하고, 명단에서 빠졌으면 다시 넣는다.
+//
+// ★유령 정리는 rooms/{id}/members/{uid}만 지운다. users/{uid}는 규칙상 본인만 쓸 수 있어 '내 방'이 남는다.★
+// 그대로 두면 앱은 방에 있는 줄 알고 방 화면을 보여주는데, 규칙상 status를 읽지도 쓰지도 못한다.
+// 내 공부는 남에게 안 보이고, 남은 전부 쉬는 중으로 보인다 (2026-11-04 제보).
+//
+// 앱을 쓰는 사람은 유령이 아니므로 묻지 않고 되돌린다. 나가기는 '내 방'을 함께 지우므로
+// '내 방은 있는데 명단에 없다'는 정리된 경우뿐이다 — 스스로 나간 사람이 되돌아오는 일은 없다.
+// 네트워크 실패는 정리로 치지 않는다 (known: false — 다음 기회에 다시 확인).
+const doReconcile = async () => {
+  const uid = await ensureSignedIn();
+  if (!uid) return { roomId: null, known: false };
+  let roomId;
+  try {
+    const pointer = await get(ref(db, `users/${uid}/roomId`));
+    roomId = pointer.exists() ? pointer.val() : null;
+  } catch {
+    return { roomId: cachedRoomId ?? null, known: false };
+  }
+  persistRoomId(roomId);
+  if (!roomId) return { roomId: null, known: true };
+
+  let profile;
+  try {
+    // 대부분 여기서 끝나므로 방 전체가 아니라 내 줄만 읽는다
+    const me = await get(ref(db, `rooms/${roomId}/members/${uid}`));
+    if (me.exists()) return { roomId, known: true };
+    profile = (await get(ref(db, `users/${uid}`))).val();
+  } catch {
+    return { roomId, known: false };
+  }
+  if (!profile?.nickname) return { roomId, known: false };
+
+  // 정리된 동안 걸어 둔 onDisconnect와 전송 기록은 거부된 것이라 새로 시작한다
+  teardownPresence();
+  lastPresenceSig = null;
+  const lounge = isLoungeCode(roomId);
+  const r = lounge ? await joinLounge(profile) : await joinRoom(roomId, profile);
+  if (r.ok) return { roomId: r.roomId, known: true, rejoined: true };
+  // 방 코드의 네트워크 실패는 '내 방'을 지우지 않는다. 라운지는 joinLounge가 이미 나왔다
+  if (!lounge && !r.gone && !r.full) return { roomId, known: false };
+  if (!lounge) await leaveRoom();
+  const where = lounge ? '라운지' : `방(${roomId})`;
+  membershipNotice = `오랫동안 사용하지 않아 ${where} 자리가 정리됐어요.\n${r.reason}`;
+  return { roomId: null, known: true };
+};
+
+export const reconcileMembership = () => {
+  if (!reconciling) reconciling = doReconcile().finally(() => { reconciling = null; });
+  return reconciling;
+};
+
+// 방 화면이 한 번만 띄울 안내를 꺼낸다 (앱 시작 때 실패했어도 방을 열 때 알 수 있게)
+export const takeMembershipNotice = () => {
+  const notice = membershipNotice;
+  membershipNotice = null;
+  return notice;
+};
+
 // 자리 선택 — 빈 좌석 탭 시 내 멤버 레코드에 seat 저장 (표시 배치는 resolveSeats가 결정)
 export const setMySeat = async (roomId, seat) => {
   const uid = uidOrNull();
@@ -347,7 +408,7 @@ export const deleteMyData = async () => {
 export const subscribeRoom = (roomId, cb) => {
   if (!initApp() || !roomId) return () => {};
   let room = null;
-  let status = null;
+  let status; // undefined = 아직 못 받았거나 읽을 권한이 없음. null은 받았는데 아무도 없다는 뜻
   let cheers = null;
   const emit = () => cb({ room, status, cheers });
   const u1 = onValue(ref(db, `rooms/${roomId}`), s => { room = s.val(); emit(); }, () => {});

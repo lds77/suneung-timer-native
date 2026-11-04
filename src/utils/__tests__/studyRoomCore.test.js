@@ -310,6 +310,34 @@ describe('findGhostMembers', () => {
     expect(findGhostMembers(null, null, NOW)).toEqual([]);
   });
 
+  describe('visibleMemberEntries', () => {
+    const { visibleMemberEntries } = require('../studyRoomCore');
+    const oldButActive = { joinedAt: NOW - GHOST_MS - 1000 };
+    const newcomer = { joinedAt: NOW - 1000 };
+    const uidsOf = (entries) => entries.map(([uid]) => uid);
+
+    test('status를 받았으면 최근 활동을 보고 유령만 뺀다', () => {
+      const members = { active: oldButActive, ghost: oldButActive, newcomer };
+      const status = { active: { updatedAt: NOW - 1000 } };
+      expect(uidsOf(visibleMemberEntries(members, status, NOW))).toEqual(['active', 'newcomer']);
+    });
+
+    // 2026-11-04 제보: 정리된 폰은 status를 못 읽어 오래된 멤버가 활동 중이어도 전부 사라졌다
+    test('★status를 못 받았으면(undefined) 들어온 지 오래된 사람을 빼지 않는다', () => {
+      const members = { active: oldButActive, newcomer };
+      expect(uidsOf(visibleMemberEntries(members, undefined, NOW))).toEqual(['active', 'newcomer']);
+    });
+
+    test('받았는데 비어 있으면(null) joinedAt만 남으니 오래된 사람은 유령이다', () => {
+      const members = { old: oldButActive, newcomer };
+      expect(uidsOf(visibleMemberEntries(members, null, NOW))).toEqual(['newcomer']);
+    });
+
+    test('명단이 없으면 빈 목록이다', () => {
+      expect(visibleMemberEntries(null, undefined, NOW)).toEqual([]);
+    });
+  });
+
   test('staleJoinCandidates: 입장 전(status 접근 불가) joinedAt 기준 후보만 — 만석 방 잠금 방지용', () => {
     const { staleJoinCandidates } = require('../studyRoomCore');
     const members = {

@@ -15,13 +15,13 @@ import Toast from '../components/Toast';
 import { getToday, formatShort } from '../utils/format';
 import {
   validateNickname, normalizeRoomCode, extractRoomCode, displayStatus, todayStudySec, buildPresence,
-  findGhostMembers, GHOST_MS, withNicknameTags,
+  findGhostMembers, visibleMemberEntries, withNicknameTags,
   ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
   focusSessionView, fmtClock, FOCUS_SESSION_OPTIONS, FOCUS_SESSION_MAX_MIN, isLoungeCode,
   cheerView, sortMembers,
 } from '../utils/studyRoomCore';
 import {
-  fetchProfile, saveProfile, updateProfile, fetchMyRoomId, createRoom, joinRoom, joinLounge, leaveRoom,
+  fetchProfile, saveProfile, updateProfile, reconcileMembership, takeMembershipNotice, createRoom, joinRoom, joinLounge, leaveRoom,
   deleteMyData, subscribeRoom, syncPresence, sweepGhostMembers, getMyUid, setMySeat,
   startFocusSession, clearFocusSession, reportMember, sendCheer,
 } from '../utils/studyRoom';
@@ -94,10 +94,13 @@ export default function StudyRoomScreen({ visible, onClose }) {
         return;
       }
       setProfile(p);
-      const rid = await fetchMyRoomId();
+      // '내 방' 값만 믿지 않는다 — 유령 정리로 명단에서 빠졌으면 여기서 돌아온다
+      const { roomId: rid } = await reconcileMembership();
       if (!alive) return;
       setRoomId(rid);
       setStep(rid ? 'room' : 'lobby');
+      const notice = takeMembershipNotice();
+      if (notice) Alert.alert('스터디룸 안내', notice);
       // ★서버에 방 멤버십이 있으면 로컬 플래그도 켠다 (자가 치유)★
       // studyRoomEnabled는 여태 create/join/joinLounge에서만 켜졌다. 그런데 익명 uid는
       // iOS 키체인으로 재설치에도 살아남으므로(durableAuthStorage) **앱을 다시 깔면
@@ -115,7 +118,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
   useEffect(() => {
     if (step !== 'room' || !roomId || sweptRef.current === roomId) return;
     const { room, status } = roomData;
-    if (!room?.members) return;
+    // status를 받기 전에 판정하면 활동 중인 사람까지 후보가 된다 (규칙이 막지만 헛쓰기다)
+    if (!room?.members || status === undefined) return;
     sweptRef.current = roomId;
     const ghosts = findGhostMembers(room.members, status);
     if (ghosts.length) sweepGhostMembers(roomId, ghosts);
@@ -141,9 +145,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
     if (!room?.members) return [];
     const today = getToday();
     const now = Date.now();
-    return withNicknameTags(Object.entries(room.members)
-      // 유령(14일 무활동)은 정리 반영 전에도 표시에서 제외
-      .filter(([uid, m]) => (now - Math.max(m?.joinedAt || 0, status?.[uid]?.updatedAt || 0)) <= GHOST_MS)
+    return withNicknameTags(visibleMemberEntries(room.members, status, now)
       .map(([uid, m]) => {
         const d = displayStatus(status?.[uid], { nowMs: now, today });
         return {

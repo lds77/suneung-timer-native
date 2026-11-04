@@ -182,7 +182,7 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
 
 // 유령 멤버 판정 — 익명 계정은 앱 삭제 시 영영 못 돌아오는데 명단에는 남아
 // 방 정원(30)을 잠식한다. 마지막 생존 신호(가입 or 상태 갱신) 후 14일 무소식이면 정리 대상.
-// 정리돼도 코드로 재입장 가능하므로 오탐 피해는 없음
+// 정리돼도 앱을 다시 켜면 자동으로 돌아오므로(studyRoom.reconcileMembership) 오탐 피해는 없음
 export const GHOST_MS = 14 * 24 * 60 * 60 * 1000;
 export const findGhostMembers = (members, status, nowMs = Date.now()) =>
   Object.entries(members || {})
@@ -191,6 +191,17 @@ export const findGhostMembers = (members, status, nowMs = Date.now()) =>
       return (nowMs - lastAlive) > GHOST_MS;
     })
     .map(([uid]) => uid);
+
+// 화면에 보일 멤버 — 유령은 정리가 반영되기 전에도 뺀다.
+// ★status가 undefined면 아직 못 받았거나 읽을 권한이 없다는 뜻이라 거르지 않는다.★
+// 거르면 joinedAt만 남아 '들어온 지 14일 지난 사람'이 활동 중이어도 전부 사라진다
+// (2026-11-04 제보: 정리된 폰에서만 인원이 줄어 라운지가 사람마다 따로 있는 것처럼 보였다)
+export const visibleMemberEntries = (members, status, nowMs = Date.now()) => {
+  const entries = Object.entries(members || {});
+  if (status === undefined) return entries;
+  const ghosts = new Set(findGhostMembers(members, status, nowMs));
+  return entries.filter(([uid]) => !ghosts.has(uid));
+};
 
 // 만석 방 입장 시 유령 '후보' — 입장 전엔 status를 읽을 권한이 없어 joinedAt만으로 추림.
 // 실제 삭제 가능 여부는 서버 규칙이 status 무활동(14일)까지 검증 — 활동 중인 장기 멤버 삭제는 거부됨.

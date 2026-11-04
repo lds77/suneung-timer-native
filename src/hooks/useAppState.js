@@ -32,7 +32,7 @@ import { pinScreen, unpinScreen, isScreenPinned, scheduleLockAlarm, cancelLockAl
 import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_AWAY_NOTIF_DELAY_SEC, AWAY_NOW_ID, AWAY_NOTIF_IDS, wasIdleBeforeBackground, awayMsAfterCall, awayMsAfterBreak, iosAwayBeforeLockMs } from '../utils/focusAway';
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
 import { realRemainingSec, wallElapsedSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
-import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, fetchMyRoomId as fetchMyStudyRoomId, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
+import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, reconcileMembership as reconcileStudyRoomMembership, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
 import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 import { spanMinutes } from '../screens/planner/helpers';
@@ -2456,19 +2456,20 @@ export function AppProvider({ children }) {
   // 스터디룸 presence 동기화 — 타이머 상태 시그니처/세션(오늘 누적) 변화 시에만.
   // 초당 쓰기 금지(설계 8): elapsed 틱 제외, 모듈 내부 presenceSig 중복 가드가 재전송도 차단.
   // studyRoomEnabled를 켠 유저만 네트워크 사용 — 미사용자는 완전 로컬 유지
+  const sendStudyPresence = useCallback(() => {
+    const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
+    const today = getToday();
+    syncStudyRoomPresence(buildStudyPresence(active, {
+      todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
+      focusMode: focusModeRef.current,
+      ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
+    }));
+  }, []);
   useEffect(() => {
     if (loading || !settings.studyRoomEnabled) return;
-    const h = setTimeout(() => {
-      const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
-      const today = getToday();
-      syncStudyRoomPresence(buildStudyPresence(active, {
-        todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
-        focusMode: focusModeRef.current,
-        ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
-      }));
-    }, 1000);
+    const h = setTimeout(sendStudyPresence, 1000);
     return () => clearTimeout(h);
-  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, focusMode, loading]);
+  }, [widgetTimerSig, sessions, settings.studyRoomEnabled, focusMode, loading, sendStudyPresence]);
 
   // 스터디룸 하트비트 — 자유/뽀모처럼 끝이 정해지지 않은 타이머의 장시간 공부 유지.
   // 안드는 타이머 실행 중 포그라운드 서비스가 JS를 살려둬 백그라운드에서도 동작 (10분 간격 소량 쓰기)
@@ -2510,9 +2511,13 @@ export function AppProvider({ children }) {
     let subRoomId = null; // 현재 구독 중인 방
     const trySubscribe = async () => {
       if (!alive || unsub) return;
-      const cached = getCachedStudyRoomId();
-      const roomId = cached !== undefined ? cached : await fetchMyStudyRoomId();
-      if (!alive || unsub || !roomId) return;
+      if (getCachedStudyRoomId() === null) return; // 방 없음이 확인된 유저는 서버에 묻지 않는다
+      // 구독 전에 실제 명단을 확인한다 — 유령 정리로 빠졌으면 여기서 돌아온다.
+      // 안 하면 아래 구독이 거부되고 내 공부도 남에게 안 보인다 (studyRoom.reconcileMembership)
+      const { roomId, known } = await reconcileStudyRoomMembership();
+      if (!alive || unsub || !roomId || !known) return;
+      // 앱을 켠 것이 곧 생존 신호다. 복귀 직후에도 내 상태가 바로 보이게 한 번 보낸다
+      sendStudyPresence();
       subRoomId = roomId;
       unsub = subscribeStudyRoomStatus(roomId, (status) => { lastStatus = status; recompute(); });
       // 다같이 집중 — 방 밖에서도 인지 (라운지는 B 자체가 미노출이라 구독하지 않음)
@@ -2568,7 +2573,7 @@ export function AppProvider({ children }) {
       if (unsub) recompute(); else trySubscribe();
     }, 15 * 1000);
     return () => { alive = false; clearInterval(iv); dropSubs(); };
-  }, [settings.studyRoomEnabled, loading, showToastCustom]);
+  }, [settings.studyRoomEnabled, loading, showToastCustom, sendStudyPresence]);
 
   // 타이머 스냅샷 자동 저장 (앱 강제종료 대비) — 스로틀 방식 (5초마다 최대 1회)
   // 디바운스는 1초 틱마다 리셋되어 영원히 실행되지 않으므로 스로틀을 사용
