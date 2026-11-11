@@ -18,7 +18,7 @@ import {
   findGhostMembers, visibleMemberEntries, withNicknameTags,
   ROOM_THEMES, themeOf, TOTAL_SEATS, resolveSeats,
   focusSessionView, fmtClock, FOCUS_SESSION_OPTIONS, FOCUS_SESSION_MAX_MIN, isLoungeCode,
-  cheerView, sortMembers,
+  cheerView, sortMembers, todayStack,
 } from '../utils/studyRoomCore';
 import {
   fetchProfile, saveProfile, updateProfile, reconcileMembership, takeMembershipNotice, createRoom, joinRoom, joinLounge, leaveRoom,
@@ -27,6 +27,28 @@ import {
 } from '../utils/studyRoom';
 
 const BLOCKED_KEY = '@yeolgong/studyRoomBlocked'; // 숨긴 사용자 uid 목록 (로컬 전용)
+
+// ── 온기·책 더미 (2026-11-11 사용자 결정) ──
+// 온기: 방금 전까지 공부하고 간 자리를 옅은 주황 불빛으로 — 30분 동안 점점 옅어진다(warmLevel).
+//   공부 중(모드 색 테두리 + 흐르는 시간)과 섞이지 않게 색도 글자도 다르게 둔다
+const WARM_COLOR = '#F2A541';
+const alphaHex = (a) => Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0');
+// 책 더미: 오늘 공부한 양을 숫자 대신 책 1~3권으로. 별은 평점(30분 = '별 하나짜리')으로 읽혀서 쌓이는 그림을 골랐다.
+//   빈 책은 그리지 않는다 — '덜 채웠다'로 보인다. 나도 남과 똑같이 보인다(정확한 기록은 통계)
+const BOOK_COLORS = ['#8E6E53', '#5D7FA3', '#7A9A6B']; // 아래부터 갈색·청회색·올리브 — 책등 색
+const BOOK_WIDTH_RATIO = [1, 0.84, 0.92];
+const STACK_LABEL = { 1: '오늘 1시간 미만 공부', 2: '오늘 1~3시간 공부', 3: '오늘 3시간 이상 공부' };
+function BookStack({ level, width = 12, thick = 2.5 }) {
+  if (!level) return null;
+  const books = Array.from({ length: level }, (_, i) => i).reverse(); // 위 → 아래 순서로 그린다
+  return (
+    <View accessible accessibilityLabel={STACK_LABEL[level]} style={{ alignItems: 'center', gap: Math.max(0.8, thick * 0.4) }}>
+      {books.map(i => (
+        <View key={i} style={{ width: width * BOOK_WIDTH_RATIO[i], height: thick, borderRadius: thick / 2, backgroundColor: BOOK_COLORS[i] }} />
+      ))}
+    </View>
+  );
+}
 
 // 초대 랜딩 페이지 (GitHub Pages, main) — 메신저에서 tappable한 https 링크로 앱 열기/설치/코드 복사를
 // 모두 처리. 링크 클릭 → 설치자는 yeolgong://join?code= 로 앱 입장 제안, 미설치자는 스토어로.
@@ -516,6 +538,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
         );
       }
       const modeColor = MODE_COLOR[m.mode] || T.accent;
+      const warm = m.studying ? 0 : (m.warm || 0); // 방금 전까지 공부한 자리 — 0~1, 30분에 걸쳐 옅어짐
+      const stack = todayStack(m.todaySec);
       // 다른 사람 좌석은 탭 → 숨기기/신고 메뉴, 내 자리는 비탭
       const SeatCont = mine ? View : TouchableOpacity;
       return (
@@ -528,6 +552,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
             partitionStyle,
             { backgroundColor: m.studying ? modeColor + '12' : T.surface2, borderColor: m.studying ? modeColor : T.border },
             theme.partition && !m.studying && { borderColor: T.sub + '55' },
+            warm > 0 && { backgroundColor: WARM_COLOR + alphaHex(0.08 + 0.14 * warm), borderColor: WARM_COLOR + alphaHex(0.3 + 0.45 * warm) },
             mine && { borderWidth: 2 },
             m.maybeAway && { opacity: 0.55 },
           ]}>
@@ -548,19 +573,23 @@ export default function StudyRoomScreen({ visible, onClose }) {
               {m.cheer.count > 1 && <Text style={S.seatCheerCount}>{m.cheer.count}</Text>}
             </View>
           )}
-          <View style={{ opacity: m.studying ? 1 : 0.5 }}>
+          <View style={{ opacity: m.studying ? 1 : 0.5 + 0.4 * warm }}>
             <CharacterAvatar characterId={m.character} size={24} />
           </View>
-          <View style={[S.seatDesk, { backgroundColor: m.studying ? theme.desk : T.border }]} />
+          <View style={[S.seatDesk, m.studying ? { backgroundColor: theme.desk }
+            : warm > 0 ? { backgroundColor: theme.desk, opacity: 0.35 + 0.5 * warm }
+            : { backgroundColor: T.border }]} />
           <Text style={[S.seatName, { color: T.text }]} numberOfLines={1}>{m.displayName}</Text>
           {m.studying ? (
             <Text style={[S.seatInfo, { color: modeColor }]} numberOfLines={1}>
               {(m.subjectLabel || '공부')} {formatShort(Math.max(0, (now - m.startedAt) / 1000))}
             </Text>
+          ) : warm > 0 ? (
+            <Text style={[S.seatInfo, { color: T.text }]} numberOfLines={1}>방금 전까지</Text>
+          ) : stack > 0 ? (
+            <View style={S.seatStack}><BookStack level={stack} /></View>
           ) : (
-            <Text style={[S.seatInfo, { color: T.sub }]} numberOfLines={1}>
-              {m.todaySec > 0 ? formatShort(m.todaySec) : '휴식'}
-            </Text>
+            <Text style={[S.seatInfo, { color: T.sub }]} numberOfLines={1}>휴식</Text>
           )}
           {mine && <View style={[S.seatMineDot, { backgroundColor: T.accent }]} />}
         </SeatCont>
@@ -653,44 +682,76 @@ export default function StudyRoomScreen({ visible, onClose }) {
               ))}
             </View>
           ))}
+          {/* 범례 — 온기와 책 더미가 무엇을 말하는지. 불빛은 '언제(방금)', 책은 '얼마나(오늘)'다 */}
+          <View style={S.legendRow}>
+            <View style={[S.legendSwatch, { backgroundColor: WARM_COLOR + alphaHex(0.22), borderColor: WARM_COLOR + alphaHex(0.75) }]} />
+            <Text style={[S.legendText, { color: T.sub }]}>방금 전까지 공부한 자리</Text>
+            <View style={{ width: 10 }} />
+            <BookStack level={2} />
+            <Text style={[S.legendText, { color: T.sub }]}>오늘 공부한 양</Text>
+          </View>
           <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, textAlign: 'center' }}>
             빈 책상을 누르면 그 자리로 옮겨요 · 다른 사람 자리를 누르면 익명 응원
           </Text>
         </View>
 
-        {/* 오늘 이 방 — 좌석 타일의 작은 글씨로는 안 보이는 누적시간 비교 (추가 네트워크 없음) */}
+        {/* 오늘 이 방 — 순위표가 아니라 '오늘 함께한 사람들' 명단 (2026-11-11).
+            전엔 시상대 + 1·2·3 순번 + 공부시간 내림차순이라 '부담 없이 함께'와 어긋났다.
+            공부 중 → 방금 전까지 → 나머지, 각 묶음 안은 자리 번호 순. 시간은 책 더미로만(나 포함) */}
         <View style={[S.card, { backgroundColor: T.card, borderColor: T.border, padding: 0, overflow: 'hidden' }]}>
           <TouchableOpacity style={S.rosterHead} onPress={() => setShowRoster(v => !v)} activeOpacity={0.7}>
-            <Ionicons name="podium-outline" size={16} color={T.accent} />
+            <Ionicons name="people-outline" size={16} color={T.accent} />
             <Text style={[S.cardTitle, { color: T.text, flex: 1, fontSize: 15 }]}>오늘 이 방</Text>
             <Ionicons name={showRoster ? 'chevron-up' : 'chevron-down'} size={16} color={T.sub} />
           </TouchableOpacity>
-          {showRoster && (
-            <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-              {sortMembers(members).map((m, i) => (
-                <View key={m.uid} style={[S.rosterRow, i > 0 && { borderTopWidth: 1, borderTopColor: T.border }]}>
-                  <Text style={[S.rosterRank, { color: T.sub }]}>{i + 1}</Text>
-                  {m.hidden ? (
-                    <Ionicons name="eye-off-outline" size={18} color={T.sub} style={{ marginHorizontal: 3 }} />
-                  ) : (
-                    <CharacterAvatar characterId={m.character} size={22} />
-                  )}
-                  <Text style={[S.rosterName, { color: m.hidden ? T.sub : T.text }]} numberOfLines={1}>
-                    {m.hidden ? '숨긴 사용자' : m.displayName}
-                  </Text>
-                  {m.studying && !m.hidden && (
-                    <View style={[S.rosterDot, { backgroundColor: MODE_COLOR[m.mode] || T.accent }]} />
-                  )}
-                  <Text style={[S.rosterTime, { color: m.todaySec > 0 ? T.text : T.sub }]}>
-                    {m.todaySec > 0 ? formatShort(m.todaySec) : '-'}
-                  </Text>
+          {showRoster && (() => {
+            const seatNoOf = {};
+            Object.keys(bySeat).forEach(no => { if (bySeat[no]) seatNoOf[bySeat[no].uid] = Number(no); });
+            return (
+              <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+                {sortMembers(members.map(m => ({ ...m, seatNo: seatNoOf[m.uid] }))).map((m, i) => {
+                  const rowWarm = !m.studying && (m.warm || 0) > 0;
+                  return (
+                    <View key={m.uid} style={[S.rosterRow, i > 0 && { borderTopWidth: 1, borderTopColor: T.border }]}>
+                      {m.hidden ? (
+                        <Ionicons name="eye-off-outline" size={18} color={T.sub} style={{ marginHorizontal: 3 }} />
+                      ) : (
+                        <CharacterAvatar characterId={m.character} size={22} />
+                      )}
+                      <Text style={[S.rosterName, { color: m.hidden ? T.sub : T.text }]} numberOfLines={1}>
+                        {m.hidden ? '숨긴 사용자' : m.displayName}
+                      </Text>
+                      {!m.hidden && m.studying && (
+                        <>
+                          <View style={[S.rosterDot, { backgroundColor: MODE_COLOR[m.mode] || T.accent }]} />
+                          <Text style={[S.rosterState, { color: MODE_COLOR[m.mode] || T.accent }]}>공부 중</Text>
+                        </>
+                      )}
+                      {!m.hidden && rowWarm && (
+                        <>
+                          <View style={[S.rosterDot, { backgroundColor: WARM_COLOR }]} />
+                          <Text style={[S.rosterState, { color: T.sub }]}>방금 전까지</Text>
+                        </>
+                      )}
+                      <View style={S.rosterStack}>
+                        {!m.hidden && <BookStack level={todayStack(m.todaySec)} width={16} thick={3.5} />}
+                      </View>
+                    </View>
+                  );
+                })}
+                <View style={[S.legendRow, { marginTop: 10 }]}>
+                  <BookStack level={1} /><Text style={[S.legendText, { color: T.sub }]}>1시간 미만</Text>
+                  <View style={{ width: 8 }} />
+                  <BookStack level={2} /><Text style={[S.legendText, { color: T.sub }]}>1~3시간</Text>
+                  <View style={{ width: 8 }} />
+                  <BookStack level={3} /><Text style={[S.legendText, { color: T.sub }]}>3시간 이상</Text>
                 </View>
-              ))}
-              <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, marginTop: 8, textAlign: 'center' }}>
-                오늘 공부시간 순 · 공부 중인 사람이 위로 와요
-              </Text>
-            </View>
-          )}
+                <Text style={{ fontSize: 10, color: T.sub, opacity: 0.7, marginTop: 6, textAlign: 'center' }}>
+                  공부 시간은 서로 대략으로만 보여요 · 내 정확한 기록은 통계에서
+                </Text>
+              </View>
+            );
+          })()}
         </View>
 
         {blockedUids.length > 0 && (
@@ -814,6 +875,12 @@ const S = StyleSheet.create({
   rosterName: { flex: 1, fontSize: 13, fontWeight: '700' },
   rosterDot: { width: 6, height: 6, borderRadius: 3 },
   rosterTime: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  rosterState: { fontSize: 11, fontWeight: '700' },
+  rosterStack: { width: 22, alignItems: 'center', justifyContent: 'center' },
+  seatStack: { height: 10, justifyContent: 'center', marginTop: 1 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 4 },
+  legendSwatch: { width: 12, height: 9, borderRadius: 3, borderWidth: 1 },
+  legendText: { fontSize: 10 },
   editBackdrop: { flex: 1, backgroundColor: '#00000088', justifyContent: 'center', padding: 24 },
   editSheet: { borderRadius: 18, borderWidth: 1, padding: 18 },
   editBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },

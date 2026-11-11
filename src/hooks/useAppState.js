@@ -33,7 +33,7 @@ import { isRealAwayAfterScreenOn, awayMinMs, IOS_AWAY_NOTIF_DELAY_SEC, ANDROID_A
 import { setShield, shieldSupported, setLockWatch, consumeScreenLock, lockDetectSupported, callDetectSupported, isInCallIOS, msSinceCallIOS, consumeCallHeldIOS } from '../utils/focusShield';
 import { realRemainingSec, wallElapsedSec, pomoFlipCore, seqFlipCore, buildPhaseNotifSpecs, calcTimerResult, buildSessionRecord, COUNTUP_MAX_SEC, restoreTimerCore, breakEndsAtMs } from '../utils/timerCore';
 import { syncPresence as syncStudyRoomPresence, forcePresenceResync, heartbeatPresence, subscribeRoomStatus as subscribeStudyRoomStatus, subscribeFocusSession as subscribeStudyFocusSession, subscribeMyCheers as subscribeStudyMyCheers, reconcileMembership as reconcileStudyRoomMembership, getMyUid as getMyStudyRoomUid, getCachedRoomId as getCachedStudyRoomId } from '../utils/studyRoom';
-import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
+import { buildPresence as buildStudyPresence, todayStudySec as studyRoomTodaySec, lastEndedAtToday as studyRoomLastEndedAt, displayStatus as studyRoomDisplayStatus, focusSessionView as studyFocusSessionView, cheerView as studyCheerView, isLoungeCode as isStudyLoungeCode } from '../utils/studyRoomCore';
 import { getRandomMessage } from '../constants/characters';
 import { spanMinutes } from '../screens/planner/helpers';
 import { enqueueResult, nextPendingResult, resultSessionId, updatePendingResult, sequenceResultData } from '../utils/pendingResults';
@@ -2456,13 +2456,21 @@ export function AppProvider({ children }) {
   // 스터디룸 presence 동기화 — 타이머 상태 시그니처/세션(오늘 누적) 변화 시에만.
   // 초당 쓰기 금지(설계 8): elapsed 틱 제외, 모듈 내부 presenceSig 중복 가드가 재전송도 차단.
   // studyRoomEnabled를 켠 유저만 네트워크 사용 — 미사용자는 완전 로컬 유지
+  // 온기(방금 전까지 공부한 자리)용 끝 시각 — 공부 중 → 멈춤(종료·일시정지)으로 바뀌는 순간을 직접 잡는다.
+  // 앱을 다시 켜 그 순간을 못 봤으면 오늘 마지막 세션의 끝 시각으로 대신한다 (2026-11-11)
+  const presenceWasRunningRef = useRef(false);
+  const presenceEndedAtRef = useRef(null);
   const sendStudyPresence = useCallback(() => {
     const active = timersRef.current.find(t => t.type !== 'lap' && t.status === 'running') || null;
     const today = getToday();
+    if (active) presenceEndedAtRef.current = null;
+    else if (presenceWasRunningRef.current) presenceEndedAtRef.current = Date.now();
+    presenceWasRunningRef.current = !!active;
     syncStudyRoomPresence(buildStudyPresence(active, {
       todaySec: studyRoomTodaySec(sessionsRef.current, today), today,
       focusMode: focusModeRef.current,
       ultraFocusLevel: settingsRef.current?.ultraFocusLevel || 'normal',
+      endedAt: presenceEndedAtRef.current ?? studyRoomLastEndedAt(sessionsRef.current, today),
     }));
   }, []);
   useEffect(() => {

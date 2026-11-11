@@ -114,7 +114,10 @@ export const heartbeatEligible = (t, nowMs = Date.now()) => {
   return wallElapsedSec(t, nowMs) < COUNTUP_MAX_SEC;
 };
 
-export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal' } = {}) => {
+// endedAt — 마지막으로 공부를 멈춘(종료·일시정지) 벽시계 시각. 다른 사람 화면의 '방금 전까지'(온기) 판정에 쓴다.
+//   공부 중에는 null(RTDB update에서 null = 삭제)이라 공부 중인 사람에게는 남지 않는다.
+//   2026-11-11 추가 — 규칙(status/$uid/endedAt)을 먼저 게시해야 한다. 안 하면 $other 거부로 전송 전체가 실패한다
+export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal', endedAt = null } = {}) => {
   const t = activeTimer;
   const running = !!t && t.type !== 'lap' && t.status === 'running';
   const inBreak = running && (
@@ -134,12 +137,44 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     plannedEndAt: running ? plannedEndAtOf(t, nowMs) : null,
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
+    endedAt: !running && Number.isFinite(endedAt) && endedAt > 0 ? Math.round(endedAt) : null,
     updatedAt: nowMs,
   };
 };
 
 // presence 시그니처 — 같은 값 재전송 방지용 (elapsed 틱 제외, 상태 변화만)
-export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.plannedEndAt || 0}|${p.todaySec}|${p.date}`;
+export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.plannedEndAt || 0}|${p.todaySec}|${p.date}|${p.endedAt || 0}`;
+
+// 오늘 마지막으로 끝난 세션의 끝 시각 — 앱을 다시 켜서 '멈춘 순간'을 직접 못 본 경우의 대체값.
+// 세션 endedAt은 시작+실공부시간이라 일시정지가 있었으면 실제보다 조금 이르다(온기가 조금 짧아질 뿐)
+export const lastEndedAtToday = (sessions, today) => {
+  let last = null;
+  (sessions || []).forEach(s => {
+    if (s && s.date === today && Number.isFinite(s.endedAt) && (last === null || s.endedAt > last)) last = s.endedAt;
+  });
+  return last;
+};
+
+// 오늘 공부한 양을 '책 더미'로 — 숫자 대신 넓은 3단계 (2026-11-11 사용자 결정).
+// 1시간마다 한 권이면 오래 공부하는 사람끼리 다시 줄이 선다 → 위쪽을 넓게 묶는다. 0이면 아무것도 안 그린다
+export const STACK_STEPS_SEC = [3600, 3 * 3600]; // 1권: ~1시간 미만 / 2권: 1~3시간 / 3권: 3시간 이상
+export const todayStack = (todaySec) => {
+  const s = Number(todaySec) || 0;
+  if (s <= 0) return 0;
+  if (s < STACK_STEPS_SEC[0]) return 1;
+  if (s < STACK_STEPS_SEC[1]) return 2;
+  return 3;
+};
+
+// 온기(방금 전까지 공부한 자리) — 끝난 뒤 30분 동안, 시간이 지날수록 옅어진다 (2026-11-11 사용자 아이디어)
+export const WARM_MS = 30 * 60 * 1000;
+const WARM_SKEW_MS = 60 * 1000; // 기기 시계가 조금 빠른 사람의 endedAt이 '미래'로 와도 1분까지는 막 끝난 것으로 본다
+export const warmLevel = (endMs, nowMs = Date.now()) => {
+  if (!Number.isFinite(endMs) || endMs <= 0) return 0;
+  const age = nowMs - endMs;
+  if (age < -WARM_SKEW_MS || age >= WARM_MS) return 0;
+  return Math.min(1, Math.max(0, 1 - Math.max(0, age) / WARM_MS));
+};
 
 // 서버 status → 표시 상태.
 // 규칙(설계 8): studying/bg는 updatedAt 기준 60분까지 신뢰.
@@ -170,6 +205,17 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
   // 화면켬(집중/울트라)에서 소켓이 끊긴(bg) 경우만 잠금 이탈 = 자리비움 가능성 → 흐리게.
   // mode 불명 시엔 '공부 중을 신뢰' 철학에 따라 화면끔(present)으로 관대하게 해석.
   const screenOff = studying && (s.mode || 'book') === 'book';
+  // 온기의 끝 시각 — 공부 중이 아닐 때만.
+  //   ① 새 앱이 남긴 endedAt. 공부를 끝내고 앱을 닫으면 onDisconnect가 state를 'bg'로 바꾸므로
+  //     state가 아니라 '시작 시각 없음'(공부 중이 아니라는 뜻)으로 본다
+  //   ② 끝이 정해진 타이머가 백그라운드에서 끝나 알리지 못한 경우 — 예정 종료가 곧 끝난 시각이다.
+  //     예전엔 예정 종료+5분까지 공부 중으로 보이다가 갑자기 꺼졌다
+  //   끝이 없는 타이머가 60분 신뢰창을 넘겨 내려간 경우는 언제 끝났는지 모르므로 온기를 주지 않는다
+  let endMs = null;
+  if (!studying) {
+    if (Number.isFinite(s.endedAt) && !s.startedAt) endMs = s.endedAt;
+    else if ((s.state === 'studying' || s.state === 'bg') && s.startedAt && Number.isFinite(s.plannedEndAt) && s.plannedEndAt <= nowMs) endMs = s.plannedEndAt;
+  }
   return {
     studying,
     screenOff,
@@ -177,6 +223,7 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
     startedAt: studying ? s.startedAt : null,
     mode: studying ? (s.mode || 'book') : null,
     todaySec: s.date === today ? (s.todaySec || 0) : 0,
+    warm: warmLevel(endMs, nowMs),
   };
 };
 
@@ -298,10 +345,16 @@ export const resolveSeats = (rows, totalSeats = TOTAL_SEATS) => {
   return bySeat; // { 좌석번호: 멤버 }
 };
 
-// 멤버 정렬: 공부 중 우선 → 오늘 누적 내림차순 → 닉네임 (안정적 표시)
+// 멤버 정렬('오늘 이 방'): 공부 중 → 방금 전까지(온기) → 나머지, 각 묶음 안에서는 자리 번호 순.
+//   2026-11-11 — 오늘 누적 내림차순(+순번·시상대)은 순위표로 읽혀 '부담 없이 함께'와 어긋났다.
+//   자리 번호(seatNo)가 없으면 닉네임으로 안정 정렬한다
 export const sortMembers = (rows) => [...rows].sort((a, b) => {
-  if (a.studying !== b.studying) return a.studying ? -1 : 1;
-  if (a.todaySec !== b.todaySec) return b.todaySec - a.todaySec;
+  if (!!a.studying !== !!b.studying) return a.studying ? -1 : 1;
+  const aw = (a.warm || 0) > 0; const bw = (b.warm || 0) > 0;
+  if (aw !== bw) return aw ? -1 : 1;
+  const as = Number.isInteger(a.seatNo) ? a.seatNo : Infinity;
+  const bs = Number.isInteger(b.seatNo) ? b.seatNo : Infinity;
+  if (as !== bs) return as - bs;
   return String(a.nickname || '').localeCompare(String(b.nickname || ''));
 });
 

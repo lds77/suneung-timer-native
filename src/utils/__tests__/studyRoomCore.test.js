@@ -81,7 +81,7 @@ describe('buildPresence', () => {
     expect(buildPresence(t, base)).toEqual({
       state: 'studying', subjectLabel: '수학', startedAt: NOW - 60000, mode: 'book',
       plannedEndAt: NOW - 60000 + 7200_000, // 시작 + 2시간 (10초 반올림)
-      todaySec: 3600, date: '2027-01-15', updatedAt: NOW,
+      todaySec: 3600, date: '2027-01-15', endedAt: null, updatedAt: NOW, // 공부 중에는 endedAt을 지운다(null)
     });
   });
 
@@ -238,7 +238,7 @@ describe('displayStatus', () => {
   });
 
   test('status 없음(신규 멤버)도 안전', () => {
-    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0 });
+    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0, warm: 0 });
   });
 });
 
@@ -350,14 +350,119 @@ describe('findGhostMembers', () => {
 });
 
 describe('sortMembers', () => {
-  test('공부 중 우선 → 오늘 누적 내림차순 → 닉네임', () => {
+  // 2026-11-11: 순위표(누적 내림차순)를 걷고 '오늘 함께한 사람들' 명단으로 — 공부 시간은 순서를 정하지 않는다
+  test('공부 중 → 방금 전까지 → 나머지, 각 묶음 안은 자리 번호 순 (공부 시간은 순서에 안 쓴다)', () => {
     const rows = [
-      { nickname: '다', studying: false, todaySec: 9000 },
-      { nickname: '가', studying: true, todaySec: 100 },
-      { nickname: '나', studying: true, todaySec: 500 },
-      { nickname: '라', studying: false, todaySec: 9000 },
+      { nickname: '다', studying: false, todaySec: 30000, seatNo: 1 },
+      { nickname: '가', studying: true, todaySec: 100, seatNo: 9 },
+      { nickname: '나', studying: true, todaySec: 9000, seatNo: 4 },
+      { nickname: '라', studying: false, warm: 0.4, todaySec: 60, seatNo: 7 },
+      { nickname: '마', studying: false, todaySec: 0, seatNo: 2 },
     ];
-    expect(sortMembers(rows).map(r => r.nickname)).toEqual(['나', '가', '다', '라']);
+    expect(sortMembers(rows).map(r => r.nickname)).toEqual(['나', '가', '라', '다', '마']);
+  });
+  test('자리 번호가 없으면 뒤로, 그 안에서는 닉네임 순', () => {
+    const rows = [
+      { nickname: '하', studying: false },
+      { nickname: '가', studying: false },
+      { nickname: '나', studying: false, seatNo: 30 },
+    ];
+    expect(sortMembers(rows).map(r => r.nickname)).toEqual(['나', '가', '하']);
+  });
+});
+
+describe('온기·책 더미 (2026-11-11)', () => {
+  const {
+    todayStack, warmLevel, WARM_MS, lastEndedAtToday,
+  } = require('../studyRoomCore');
+  const today = '2026-11-11';
+
+  test('todayStack — 넓은 3단계, 0이면 아무것도 없음', () => {
+    expect(todayStack(0)).toBe(0);
+    expect(todayStack(undefined)).toBe(0);
+    expect(todayStack(1)).toBe(1);
+    expect(todayStack(3599)).toBe(1);
+    expect(todayStack(3600)).toBe(2);
+    expect(todayStack(3 * 3600 - 1)).toBe(2);
+    expect(todayStack(3 * 3600)).toBe(3);
+    expect(todayStack(12 * 3600)).toBe(3);
+  });
+
+  test('warmLevel — 끝난 직후 1, 30분에 걸쳐 옅어지고, 30분이 지나면 0', () => {
+    expect(warmLevel(NOW, NOW)).toBe(1);
+    expect(warmLevel(NOW - WARM_MS / 2, NOW)).toBeCloseTo(0.5);
+    expect(warmLevel(NOW - WARM_MS, NOW)).toBe(0);
+    expect(warmLevel(NOW - WARM_MS - 1, NOW)).toBe(0);
+    expect(warmLevel(null, NOW)).toBe(0);
+    expect(warmLevel(0, NOW)).toBe(0);
+  });
+
+  test('warmLevel — 시계가 조금 빠른 기기의 미래 값은 1분까지만 막 끝난 것으로 본다', () => {
+    expect(warmLevel(NOW + 30 * 1000, NOW)).toBe(1);
+    expect(warmLevel(NOW + 5 * 60 * 1000, NOW)).toBe(0);
+  });
+
+  test('buildPresence — 멈췄을 때만 endedAt을 싣고, 공부 중에는 null(서버에서 지운다)', () => {
+    const base = { today, nowMs: NOW };
+    expect(buildPresence(null, { ...base, endedAt: NOW - 1000 }).endedAt).toBe(NOW - 1000);
+    expect(buildPresence({ type: 'countdown', status: 'paused', label: '수학' }, { ...base, endedAt: NOW }).endedAt).toBe(NOW);
+    expect(buildPresence({ type: 'free', status: 'running', startedAt: NOW - 50 }, { ...base, endedAt: NOW - 1000 }).endedAt).toBeNull();
+    expect(buildPresence(null, base).endedAt).toBeNull();
+    expect(buildPresence(null, { ...base, endedAt: NaN }).endedAt).toBeNull();
+  });
+
+  test('presenceSig — endedAt이 바뀌면 다시 보낸다', () => {
+    const a = buildPresence(null, { today, nowMs: NOW, endedAt: NOW - 5000 });
+    const b = buildPresence(null, { today, nowMs: NOW, endedAt: NOW - 1000 });
+    expect(presenceSig(a)).not.toBe(presenceSig(b));
+    expect(presenceSig(a).startsWith('idle')).toBe(true);
+  });
+
+  test('lastEndedAtToday — 오늘 세션 중 가장 늦게 끝난 시각, 없으면 null', () => {
+    const sessions = [
+      { date: today, endedAt: NOW - 9000 },
+      { date: today, endedAt: NOW - 2000 },
+      { date: '2026-11-10', endedAt: NOW + 99999 },
+      { date: today },
+    ];
+    expect(lastEndedAtToday(sessions, today)).toBe(NOW - 2000);
+    expect(lastEndedAtToday([], today)).toBeNull();
+    expect(lastEndedAtToday(null, today)).toBeNull();
+  });
+
+  test('displayStatus — 쉬는 중 + endedAt이면 온기, 공부 중이면 온기 없음', () => {
+    const idle = displayStatus({ state: 'idle', endedAt: NOW - 10 * 60 * 1000, updatedAt: NOW - 10 * 60 * 1000, todaySec: 1800, date: today }, { nowMs: NOW, today });
+    expect(idle.studying).toBe(false);
+    expect(idle.warm).toBeGreaterThan(0.6);
+    expect(idle.warm).toBeLessThan(0.7);
+    const studying = displayStatus({ state: 'studying', startedAt: NOW - 100, updatedAt: NOW - 100, endedAt: NOW - 1000, todaySec: 600, date: today }, { nowMs: NOW, today });
+    expect(studying.studying).toBe(true);
+    expect(studying.warm).toBe(0);
+  });
+
+  test('displayStatus — 공부 끝내고 앱을 닫아 onDisconnect가 bg로 바꿔도 온기는 남는다', () => {
+    const d = displayStatus({ state: 'bg', startedAt: null, endedAt: NOW - 60 * 1000, updatedAt: NOW - 30 * 1000, date: today }, { nowMs: NOW, today });
+    expect(d.studying).toBe(false);
+    expect(d.warm).toBeGreaterThan(0.9);
+  });
+
+  test('displayStatus — 카운트다운이 백그라운드에서 끝나 못 알렸으면 예정 종료를 끝난 시각으로 본다', () => {
+    const s = { state: 'bg', startedAt: NOW - 70 * 60 * 1000, plannedEndAt: NOW - 10 * 60 * 1000, mode: 'book', updatedAt: NOW - 70 * 60 * 1000, date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.studying).toBe(false); // 예정 종료 + 5분이 지났다
+    expect(d.warm).toBeGreaterThan(0.6);
+  });
+
+  test('displayStatus — 끝이 없는 타이머가 60분 신뢰창을 넘겨 내려가면 언제 끝났는지 모르므로 온기 없음', () => {
+    const s = { state: 'bg', startedAt: NOW - 3 * 3600 * 1000, updatedAt: NOW - 2 * 3600 * 1000, mode: 'book', date: today };
+    const d = displayStatus(s, { nowMs: NOW, today });
+    expect(d.studying).toBe(false);
+    expect(d.warm).toBe(0);
+  });
+
+  test('displayStatus — 옛 앱(endedAt 없음)은 온기 없음, 30분 지나면 없음', () => {
+    expect(displayStatus({ state: 'idle', updatedAt: NOW, todaySec: 600, date: today }, { nowMs: NOW, today }).warm).toBe(0);
+    expect(displayStatus({ state: 'idle', endedAt: NOW - WARM_MS - 1, updatedAt: NOW, date: today }, { nowMs: NOW, today }).warm).toBe(0);
   });
 });
 

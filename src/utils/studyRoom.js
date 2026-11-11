@@ -524,6 +524,16 @@ export const syncPresence = async (payload) => {
     setupPresence(roomId, uid);
     await update(ref(db, `status/${roomId}/${uid}`), payload);
   } catch {
+    // ★규칙에 endedAt 칸이 없으면($other 거부 — 게시 전이거나 콘솔에서 되돌린 경우) 전송 전체가 실패해
+    //   '공부 중' 표시까지 멈춘다. 그 칸만 빼고 한 번 더 보낸다 — 온기만 잃고 나머지는 산다 (2026-11-11)
+    if (payload && payload.endedAt != null) {
+      try {
+        const rest = { ...payload };
+        delete rest.endedAt;
+        await update(ref(db, `status/${roomId}/${uid}`), rest);
+        return;
+      } catch {}
+    }
     lastPresenceSig = null; // 실패 시 다음 호출에서 재전송
   }
 };
