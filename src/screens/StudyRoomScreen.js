@@ -35,17 +35,39 @@ const WARM_COLOR = '#F2A541';
 const alphaHex = (a) => Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0');
 // 책 더미: 오늘 공부한 양을 숫자 대신 책 1~3권으로. 별은 평점(30분 = '별 하나짜리')으로 읽혀서 쌓이는 그림을 골랐다.
 //   빈 책은 그리지 않는다 — '덜 채웠다'로 보인다. 나도 남과 똑같이 보인다(정확한 기록은 통계)
-const BOOK_COLORS = ['#8E6E53', '#5D7FA3', '#7A9A6B']; // 아래부터 갈색·청회색·올리브 — 책등 색
-const BOOK_WIDTH_RATIO = [1, 0.84, 0.92];
+// ★책으로 보이게 하는 단서 (2026-11-11 사용자 「막대바 같고 책이라고 잘 안 느껴진다」):
+//   ① 오른쪽 끝의 종이 — 끝까지 닿고 위아래만 표지 색이 감싼다(옆에서 본 책). 가운데 떠 있으면 라벨로 읽힌다
+//   ② 책등의 가는 밝은 띠 ③ 반듯하지 않게 어긋나 쌓인 모양(2권 이상이면 맨 위를 살짝 기울임).
+//   색만 다른 납작한 막대는 막대그래프로 읽혔다. 견본을 4배로 그려 라이트·다크에서 보고 정했다
+const BOOK_COVERS = ['#B5654A', '#4F7CAC', '#6B9A5B']; // 아래부터 테라코타·파랑·초록 표지
+const BOOK_PAGES = '#FBF3E2';
+const BOOK_WIDTH_RATIO = [1, 0.86, 0.94];
+const BOOK_SHIFT = [0, 0.1, -0.07]; // 너비 대비 좌우 어긋남
 const STACK_LABEL = { 1: '오늘 1시간 미만 공부', 2: '오늘 1~3시간 공부', 3: '오늘 3시간 이상 공부' };
-function BookStack({ level, width = 12, thick = 2.5 }) {
+function BookStack({ level, width = 16, thick = 4.5 }) {
   if (!level) return null;
   const books = Array.from({ length: level }, (_, i) => i).reverse(); // 위 → 아래 순서로 그린다
+  const r = Math.max(1, thick * 0.28);
   return (
-    <View accessible accessibilityLabel={STACK_LABEL[level]} style={{ alignItems: 'center', gap: Math.max(0.8, thick * 0.4) }}>
-      {books.map(i => (
-        <View key={i} style={{ width: width * BOOK_WIDTH_RATIO[i], height: thick, borderRadius: thick / 2, backgroundColor: BOOK_COLORS[i] }} />
-      ))}
+    <View accessible accessibilityLabel={STACK_LABEL[level]} style={{ alignItems: 'center', gap: Math.max(0.8, thick * 0.2) }}>
+      {books.map(i => {
+        const w = width * BOOK_WIDTH_RATIO[i];
+        const tilt = level >= 2 && i === level - 1 ? -6 : 0;
+        return (
+          <View key={i} style={{
+            width: w, height: thick, backgroundColor: BOOK_COVERS[i],
+            borderTopLeftRadius: r, borderBottomLeftRadius: r, borderTopRightRadius: r * 0.4, borderBottomRightRadius: r * 0.4,
+            flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
+            transform: [{ translateX: width * BOOK_SHIFT[i] }, { rotate: `${tilt}deg` }],
+          }}>
+            {/* 책등 띠 */}
+            <View style={{ width: Math.max(0.8, w * 0.05), alignSelf: 'stretch', marginLeft: w * 0.16, backgroundColor: 'rgba(255,255,255,0.35)' }} />
+            <View style={{ flex: 1 }} />
+            {/* 종이 — 오른쪽 끝까지 */}
+            <View style={{ width: Math.max(2, w * 0.26), height: Math.max(1, thick * 0.58), backgroundColor: BOOK_PAGES }} />
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -734,7 +756,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
                         </>
                       )}
                       <View style={S.rosterStack}>
-                        {!m.hidden && <BookStack level={todayStack(m.todaySec)} width={16} thick={3.5} />}
+                        {!m.hidden && <BookStack level={todayStack(m.todaySec)} width={22} thick={6} />}
                       </View>
                     </View>
                   );
@@ -876,8 +898,8 @@ const S = StyleSheet.create({
   rosterDot: { width: 6, height: 6, borderRadius: 3 },
   rosterTime: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
   rosterState: { fontSize: 11, fontWeight: '700' },
-  rosterStack: { width: 22, alignItems: 'center', justifyContent: 'center' },
-  seatStack: { height: 10, justifyContent: 'center', marginTop: 1 },
+  rosterStack: { width: 30, alignItems: 'center', justifyContent: 'center' },
+  seatStack: { height: 17, justifyContent: 'center', marginTop: 1 },
   legendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 4 },
   legendSwatch: { width: 12, height: 9, borderRadius: 3, borderWidth: 1 },
   legendText: { fontSize: 10 },
