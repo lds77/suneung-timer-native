@@ -31,7 +31,7 @@ const BLOCKED_KEY = '@yeolgong/studyRoomBlocked'; // 숨긴 사용자 uid 목록
 // ── 온기·책 더미 (2026-11-11 사용자 결정) ──
 // 온기: 방금 전까지 공부하고 간 자리를 그 사람이 공부하던 모드 색으로 옅게 — 30분 동안 점점 옅어지다 사라진다(warmLevel).
 //   ★주황 한 색이던 것을 바꿨다 (2026-11-11 사용자: 집중·울트라와 비슷해 헷갈린다). 자리가 '식어 가는' 모양이다.
-//   공부 중과는 테두리 진하기(공부 중은 진한 선)·모드 이름·흐르는 시간으로 갈린다 — 식어 가는 자리엔 「방금 전까지」뿐
+//   공부 중은 모드 색 테두리(선)·모드 이름·흐르는 시간, 식어 가는 자리는 바탕 채움(테두리는 평소 회색)과 「방금 전까지」뿐
 const WARM_LEGEND_MODE = 'book'; // 범례 견본은 기본 모드 색
 const alphaHex = (a) => Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0');
 // 책 더미: 오늘 공부한 양을 숫자 대신 책 1~3권으로. 별은 평점(30분 = '별 하나짜리')으로 읽혀서 쌓이는 그림을 골랐다.
@@ -578,7 +578,9 @@ export default function StudyRoomScreen({ visible, onClose }) {
             partitionStyle,
             { backgroundColor: m.studying ? modeColor + '12' : T.surface2, borderColor: m.studying ? modeColor : T.border },
             theme.partition && !m.studying && { borderColor: T.sub + '55' },
-            warm > 0 && { backgroundColor: warmColor + alphaHex(0.06 * warm), borderColor: warmColor + alphaHex(0.2 + 0.35 * warm) },
+            // 식어 가는 자리는 바탕만 칠하고 테두리는 평소 회색 그대로 — 공부 중은 '선', 식어 가는 자리는 '채움'으로 갈린다
+            // (2026-11-12 사용자: 색 테두리가 남으면 옅어져도 공부 중으로 착각할 수 있다)
+            warm > 0 && { backgroundColor: warmColor + alphaHex(0.16 * warm) },
             mine && { borderWidth: 2 },
             m.maybeAway && { opacity: 0.55 },
           ]}>
@@ -710,7 +712,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
           ))}
           {/* 범례 — 온기와 책 더미가 무엇을 말하는지. 불빛은 '언제(방금)', 책은 '얼마나(오늘)'다 */}
           <View style={S.legendRow}>
-            <View style={[S.legendSwatch, { backgroundColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(0.05), borderColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(0.45) }]} />
+            <View style={[S.legendSwatch, { backgroundColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(0.16), borderColor: T.border }]} />
             <Text style={[S.legendText, { color: T.sub }]}>공부하던 색이 옅게 남은 자리 = 방금 전까지</Text>
             <View style={{ width: 10 }} />
             <BookStack level={2} />
