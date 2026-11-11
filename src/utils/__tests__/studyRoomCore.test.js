@@ -110,7 +110,9 @@ describe('buildPresence', () => {
     expect(buildPresence(t, { ...base, focusMode: 'screen_on', ultraFocusLevel: 'exam' }).mode).toBe('ultra');
     // screen_off면 시험 강도여도 편하게 (앱의 screen_on 게이팅과 일관)
     expect(buildPresence(t, { ...base, focusMode: 'screen_off', ultraFocusLevel: 'exam' }).mode).toBe('book');
-    expect(buildPresence(null, base).mode).toBeNull();
+    // 미실행 + 끝난 시각 모름 → mode 칸을 아예 안 싣는다(서버 값을 안 지운다). 끝난 시각을 알면 마지막 모드를 남긴다
+    expect('mode' in buildPresence(null, base)).toBe(false);
+    expect(buildPresence(null, { ...base, focusMode: 'screen_on', endedAt: NOW - 1000 }).mode).toBe('fire');
   });
 
   test('일시정지/타이머 없음/랩만 → idle (공부 중 신뢰 우선)', () => {
@@ -238,7 +240,7 @@ describe('displayStatus', () => {
   });
 
   test('status 없음(신규 멤버)도 안전', () => {
-    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0, warm: 0 });
+    expect(displayStatus(null, { nowMs: NOW, today })).toEqual({ studying: false, screenOff: false, maybeAway: false, startedAt: null, mode: null, todaySec: 0, warm: 0, warmMode: null });
   });
 });
 
@@ -470,6 +472,16 @@ describe('온기·책 더미 (2026-11-11)', () => {
     const d = displayStatus(s, { nowMs: NOW, today });
     expect(d.studying).toBe(false);
     expect(d.warm).toBe(0);
+  });
+
+  test('displayStatus — 식어 가는 자리의 색은 마지막 공부 모드, 모르면 기본(book), 온기가 없으면 null', () => {
+    const fire = displayStatus({ state: 'idle', mode: 'fire', endedAt: NOW - 60 * 1000, updatedAt: NOW, date: today }, { nowMs: NOW, today });
+    expect(fire.mode).toBeNull(); // 공부 중 모드는 아니다 — 공부 중 표시와 섞이지 않는다
+    expect(fire.warmMode).toBe('fire');
+    const old = displayStatus({ state: 'idle', endedAt: NOW - 60 * 1000, updatedAt: NOW, date: today }, { nowMs: NOW, today });
+    expect(old.warmMode).toBe('book');
+    const cold = displayStatus({ state: 'idle', mode: 'ultra', endedAt: NOW - WARM_MS - 1, updatedAt: NOW, date: today }, { nowMs: NOW, today });
+    expect(cold.warmMode).toBeNull();
   });
 
   test('displayStatus — 옛 앱(endedAt 없음)은 온기 없음, 30분 지나면 없음', () => {

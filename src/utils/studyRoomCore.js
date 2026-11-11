@@ -124,24 +124,26 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     (t.type === 'pomodoro' && t.pomoPhase !== 'work') ||
     (t.type === 'sequence' && t.seqPhase === 'break')
   );
+  // 공부 모드 3단계 — 친구에게 공부 강도 전달:
+  // book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)
+  const modeNow = focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire') : 'book';
+  const endKnown = !running && Number.isFinite(endedAt) && endedAt > 0;
   return {
     state: running ? 'studying' : 'idle',
     // 라벨은 60자 클램프 — 서버 규칙(subjectLabel ≤ 60)과 쌍. 입력 maxLength(50)보다 넉넉한 안전판
     subjectLabel: running ? (inBreak ? '휴식 중' : String(t.label || '').slice(0, 60)) : '',
     startedAt: running ? (t.startedAt ?? null) : null,
-    // 공부 모드 3단계 — 친구에게 공부 강도 전달:
-    // book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)
-    mode: !running ? null
-      : focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire')
-      : 'book',
+    // ★멈춘 뒤에도 끝난 시각을 알면 마지막 모드를 남긴다 — 식어 가는 자리를 공부하던 그 색으로 옅게 칠한다
+    //   (2026-11-11 사용자: 주황 온기가 집중·울트라와 헷갈린다 → 그 사람의 모드 색을 옅게).
+    //   끝난 시각을 모르면 endedAt과 같은 이유로 칸을 건드리지 않는다 — null은 서버 값을 지운다
+    ...(running || endKnown ? { mode: modeNow } : {}),
     plannedEndAt: running ? plannedEndAtOf(t, nowMs) : null,
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
     // ★끝난 시각을 모르면 칸을 아예 싣지 않는다 — null을 실으면 RTDB update가 서버의 값을 지운다.
     //   스터디룸 화면이 입장할 때 endedAt 없이 한 번 보내는 바람에, 집중 탭에서 끝내고 라운지를 여는 순간
     //   방금 남긴 온기가 지워졌다 (2026-11-11 사용자 실기기). 지우는 것은 공부 중일 때뿐이다
-    ...(running ? { endedAt: null }
-      : Number.isFinite(endedAt) && endedAt > 0 ? { endedAt: Math.round(endedAt) } : {}),
+    ...(running ? { endedAt: null } : endKnown ? { endedAt: Math.round(endedAt) } : {}),
     updatedAt: nowMs,
   };
 };
@@ -229,6 +231,8 @@ export const displayStatus = (status, { nowMs = Date.now(), today } = {}) => {
     mode: studying ? (s.mode || 'book') : null,
     todaySec: s.date === today ? (s.todaySec || 0) : 0,
     warm: warmLevel(endMs, nowMs),
+    // 식어 가는 자리의 색 — 마지막 공부 모드. 모르면(옛 기록) 기본 모드 색
+    warmMode: endMs !== null && warmLevel(endMs, nowMs) > 0 ? (s.mode || 'book') : null,
   };
 };
 
