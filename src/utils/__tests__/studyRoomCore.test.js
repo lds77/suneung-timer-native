@@ -407,8 +407,18 @@ describe('온기·책 더미 (2026-11-11)', () => {
     expect(buildPresence(null, { ...base, endedAt: NOW - 1000 }).endedAt).toBe(NOW - 1000);
     expect(buildPresence({ type: 'countdown', status: 'paused', label: '수학' }, { ...base, endedAt: NOW }).endedAt).toBe(NOW);
     expect(buildPresence({ type: 'free', status: 'running', startedAt: NOW - 50 }, { ...base, endedAt: NOW - 1000 }).endedAt).toBeNull();
-    expect(buildPresence(null, base).endedAt).toBeNull();
-    expect(buildPresence(null, { ...base, endedAt: NaN }).endedAt).toBeNull();
+  });
+
+  test('buildPresence — 멈췄는데 끝난 시각을 모르면 칸을 아예 싣지 않는다 (서버 값을 지우지 않는다)', () => {
+    // 스터디룸 화면이 입장할 때 endedAt 없이 보내던 전송이 null로 온기를 지웠다 (2026-11-11 실기기)
+    const base = { today, nowMs: NOW };
+    expect('endedAt' in buildPresence(null, base)).toBe(false);
+    expect('endedAt' in buildPresence(null, { ...base, endedAt: NaN })).toBe(false);
+    expect('endedAt' in buildPresence(null, { ...base, endedAt: null })).toBe(false);
+    expect('endedAt' in buildPresence({ type: 'countdown', status: 'paused' }, base)).toBe(false);
+    // 공부 중에는 지운다
+    expect('endedAt' in buildPresence({ type: 'free', status: 'running', startedAt: NOW }, base)).toBe(true);
+    expect(Object.values(buildPresence(null, base)).includes(undefined)).toBe(false);
   });
 
   test('presenceSig — endedAt이 바뀌면 다시 보낸다', () => {

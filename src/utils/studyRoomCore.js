@@ -137,7 +137,11 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     plannedEndAt: running ? plannedEndAtOf(t, nowMs) : null,
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
-    endedAt: !running && Number.isFinite(endedAt) && endedAt > 0 ? Math.round(endedAt) : null,
+    // ★끝난 시각을 모르면 칸을 아예 싣지 않는다 — null을 실으면 RTDB update가 서버의 값을 지운다.
+    //   스터디룸 화면이 입장할 때 endedAt 없이 한 번 보내는 바람에, 집중 탭에서 끝내고 라운지를 여는 순간
+    //   방금 남긴 온기가 지워졌다 (2026-11-11 사용자 실기기). 지우는 것은 공부 중일 때뿐이다
+    ...(running ? { endedAt: null }
+      : Number.isFinite(endedAt) && endedAt > 0 ? { endedAt: Math.round(endedAt) } : {}),
     updatedAt: nowMs,
   };
 };
