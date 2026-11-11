@@ -149,14 +149,15 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
 // presence 시그니처 — 같은 값 재전송 방지용 (elapsed 틱 제외, 상태 변화만)
 export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt || 0}|${p.mode || ''}|${p.plannedEndAt || 0}|${p.todaySec}|${p.date}|${p.endedAt || 0}`;
 
-// 오늘 마지막으로 끝난 세션의 끝 시각 — 앱을 다시 켜서 '멈춘 순간'을 직접 못 본 경우의 대체값.
-// 세션 endedAt은 시작+실공부시간이라 일시정지가 있었으면 실제보다 조금 이르다(온기가 조금 짧아질 뿐)
-export const lastEndedAtToday = (sessions, today) => {
-  let last = null;
-  (sessions || []).forEach(s => {
-    if (s && s.date === today && Number.isFinite(s.endedAt) && (last === null || s.endedAt > last)) last = s.endedAt;
-  });
-  return last;
+// 공부를 멈춘 순간의 벽시계 시각 — '실행 중 → 멈춤'을 본 그때 부른다. lastActive는 마지막으로 본 실행 중 타이머.
+// ★끝이 정해진 타이머가 앱이 멈춰 있는 동안 스스로 끝났으면 지금이 아니라 예정 종료가 끝난 시각이다.
+//   지금을 쓰면 100분 전에 끝난 공부가 복귀하는 순간 '방금 전까지'로 30분간 되살아난다 (2026-11-11 아스트라 W-03).
+//   사람이 직접 멈춘 경우(예정 종료 전)와 끝이 없는 타이머는 지금이다.
+// ※세션 기록의 endedAt(시작 + 실공부시간)은 쓰지 않는다 — 일시정지만큼 이르고 날짜도 시작일이라
+//   맞는 값을 더 이른 값으로 덮었다 (W-04). 앱을 다시 켜면 저장해 둔 이 값을 되살린다(useAppState)
+export const stopMomentOf = (lastActive, nowMs = Date.now()) => {
+  const planned = lastActive ? plannedEndAtOf(lastActive, lastActive.resumedAt || nowMs) : null;
+  return Number.isFinite(planned) && planned < nowMs ? planned : nowMs;
 };
 
 // 오늘 공부한 양을 '책 더미'로 — 숫자 대신 넓은 3단계 (2026-11-11 사용자 결정).

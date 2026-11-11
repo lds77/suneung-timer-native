@@ -56,6 +56,8 @@ function BookStack({ level, width = 16, thick = 4.5 }) {
         return (
           <View key={i} style={{
             width: w, height: thick, backgroundColor: BOOK_COVERS[i],
+            // 얇은 테두리 — 밝은 유색 좌석(라이트 네이비 등)에서 표지·종이 대비가 낮아 모양이 흐려진다 (아스트라 W-07)
+            borderWidth: 0.6, borderColor: 'rgba(0,0,0,0.3)',
             borderTopLeftRadius: r, borderBottomLeftRadius: r, borderTopRightRadius: r * 0.4, borderBottomRightRadius: r * 0.4,
             flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
             transform: [{ translateX: width * BOOK_SHIFT[i] }, { rotate: `${tilt}deg` }],
@@ -731,7 +733,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
             Object.keys(bySeat).forEach(no => { if (bySeat[no]) seatNoOf[bySeat[no].uid] = Number(no); });
             return (
               <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-                {sortMembers(members.map(m => ({ ...m, seatNo: seatNoOf[m.uid] }))).map((m, i) => {
+                {/* 숨긴 사람은 상태를 가린 채 자리 순으로만 놓는다 — 공부 중·온기로 줄이 움직이면 순서만 보고도 상태가 샌다 (아스트라 W-06) */}
+                {sortMembers(members.map(m => ({ ...m, seatNo: seatNoOf[m.uid], ...(m.hidden ? { studying: false, warm: 0 } : {}) }))).map((m, i) => {
                   const rowWarm = !m.studying && (m.warm || 0) > 0;
                   return (
                     <View key={m.uid} style={[S.rosterRow, i > 0 && { borderTopWidth: 1, borderTopColor: T.border }]}>

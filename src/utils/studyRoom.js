@@ -40,6 +40,18 @@ let membershipNotice = null; // 복귀에 실패했을 때 방 화면이 한 번
 // roomId를 storage에도 영속 — 위젯 헤드리스(별도 JS 컨텍스트)가 서버 조회 없이 읽는다
 const ROOM_ID_KEY = '@yeolgong/studyRoomId';
 const HEARTBEAT_AT_KEY = '@yeolgong/studyRoomLastHb';
+// 온기용 — 마지막으로 공부를 멈춘 벽시계 시각(로컬). 앱을 다시 켜도 같은 값을 보내려고 둔다 (2026-11-11)
+const ENDED_AT_KEY = '@yeolgong/studyRoomEndedAt';
+// 0·null이면 지운다 — 다시 공부를 시작하면 옛 멈춘 시각이 재시작 뒤에 되살아나지 않게
+export const saveMyEndedAt = (ms) => {
+  (ms > 0 ? AsyncStorage.setItem(ENDED_AT_KEY, String(ms)) : AsyncStorage.removeItem(ENDED_AT_KEY)).catch(() => {});
+};
+export const loadMyEndedAt = async () => {
+  try {
+    const n = Number(await AsyncStorage.getItem(ENDED_AT_KEY));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch { return null; }
+};
 const persistRoomId = (id) => {
   cachedRoomId = id;
   if (id) AsyncStorage.setItem(ROOM_ID_KEY, id).catch(() => {});
@@ -511,28 +523,42 @@ const teardownPresence = () => {
 
 // 타이머 상태 → 서버 반영. useAppState의 presence effect가 호출 (시그니처 변화 시에만 — 초당 쓰기 금지).
 // 방이 없거나 비활성이면 no-op. 실패는 조용히 무시 (다음 상태 변화 때 재시도되는 셈)
+// 가장 최근 syncPresence 호출의 세대 — 늦게 돌아온 실패가 그사이 나간 새 상태를 덮지 못하게 한다
+let presenceGen = 0;
+// 규칙이 endedAt을 거부한 적이 있으면(게시 전이거나 콘솔에서 되돌린 경우) 이 실행 동안은 싣지 않는다
+let endedAtUnsupported = false;
+const isPermissionDenied = (e) => /permission[_ ]denied/i.test(`${e?.code || ''} ${e?.message || ''}`);
+const withoutEndedAt = (p) => { const r = { ...p }; delete r.endedAt; return r; };
+
 export const syncPresence = async (payload) => {
   if (!isStudyRoomAvailable()) return;
   const uid = uidOrNull();
   if (!uid) return; // 화면에서 로그인하기 전에는 전송하지 않음 (자동 가입 방지)
   const roomId = cachedRoomId !== undefined ? cachedRoomId : await fetchMyRoomId();
   if (!roomId) return;
-  const sig = presenceSig(payload);
+  // 공부 시작의 endedAt: null(삭제)은 규칙 검증을 받지 않으므로 그대로 둔다 — 빼는 것은 숫자일 때뿐
+  const send = endedAtUnsupported && payload?.endedAt != null ? withoutEndedAt(payload) : payload;
+  const sig = presenceSig(send);
   if (sig === lastPresenceSig) return;
   lastPresenceSig = sig;
+  const gen = ++presenceGen;
+  const target = ref(db, `status/${roomId}/${uid}`);
   try {
     setupPresence(roomId, uid);
-    await update(ref(db, `status/${roomId}/${uid}`), payload);
-  } catch {
-    // ★규칙에 endedAt 칸이 없으면($other 거부 — 게시 전이거나 콘솔에서 되돌린 경우) 전송 전체가 실패해
-    //   '공부 중' 표시까지 멈춘다. 그 칸만 빼고 한 번 더 보낸다 — 온기만 잃고 나머지는 산다 (2026-11-11)
-    if (payload && payload.endedAt != null) {
-      try {
-        const rest = { ...payload };
-        delete rest.endedAt;
-        await update(ref(db, `status/${roomId}/${uid}`), rest);
-        return;
-      } catch {}
+    await update(target, send);
+  } catch (e) {
+    // ★늦게 돌아온 실패는 아무것도 하지 않는다 (2026-11-11 아스트라 W-01).
+    //   쉬는 중 전송 A가 늦게 거부되는 사이 다시 공부를 시작해 B가 나갔다면, A를 줄여 다시 보내는 순간
+    //   B의 '공부 중'을 '쉬는 중'으로 덮는다. 그 뒤엔 같은 B를 다시 불러도 sig가 같아 고쳐지지도 않았다
+    if (gen !== presenceGen) return;
+    // ★권한 거부일 때만 endedAt을 뺀다. 다른 오류까지 칸 미지원으로 보면 안 된다.
+    //   실제로 보낸 것(endedAt 없는 판)을 기억한다 — 다 보낸 것으로 기억하면 같은 상태에서 다시 안 보낸다 (W-05)
+    if (send.endedAt != null && isPermissionDenied(e)) {
+      endedAtUnsupported = true;
+      const rest = withoutEndedAt(send);
+      lastPresenceSig = presenceSig(rest);
+      try { await update(target, rest); } catch { if (gen === presenceGen) lastPresenceSig = null; }
+      return;
     }
     lastPresenceSig = null; // 실패 시 다음 호출에서 재전송
   }

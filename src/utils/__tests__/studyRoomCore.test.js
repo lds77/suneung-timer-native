@@ -373,7 +373,7 @@ describe('sortMembers', () => {
 
 describe('온기·책 더미 (2026-11-11)', () => {
   const {
-    todayStack, warmLevel, WARM_MS, lastEndedAtToday,
+    todayStack, warmLevel, WARM_MS, stopMomentOf,
   } = require('../studyRoomCore');
   const today = '2026-11-11';
 
@@ -428,16 +428,18 @@ describe('온기·책 더미 (2026-11-11)', () => {
     expect(presenceSig(a).startsWith('idle')).toBe(true);
   });
 
-  test('lastEndedAtToday — 오늘 세션 중 가장 늦게 끝난 시각, 없으면 null', () => {
-    const sessions = [
-      { date: today, endedAt: NOW - 9000 },
-      { date: today, endedAt: NOW - 2000 },
-      { date: '2026-11-10', endedAt: NOW + 99999 },
-      { date: today },
-    ];
-    expect(lastEndedAtToday(sessions, today)).toBe(NOW - 2000);
-    expect(lastEndedAtToday([], today)).toBeNull();
-    expect(lastEndedAtToday(null, today)).toBeNull();
+  test('stopMomentOf — 사람이 멈췄으면 지금, 끝이 정해진 타이머가 스스로 끝났으면 예정 종료 (아스트라 W-03)', () => {
+    // 50분 카운트다운을 100분 전에 시작 → 50분 전에 이미 끝났다. 복귀 순간을 끝으로 쓰면 30분 온기가 되살아난다
+    const cd = { type: 'countdown', status: 'running', totalSec: 50 * 60, resumedAt: NOW - 100 * 60 * 1000, elapsedSecAtResume: 0 };
+    const end = stopMomentOf(cd, NOW);
+    expect(end).toBeLessThan(NOW - 49 * 60 * 1000);
+    expect(warmLevel(end, NOW)).toBe(0);
+    // 예정 종료 전에 사람이 멈춤 → 지금
+    const early = { ...cd, resumedAt: NOW - 10 * 60 * 1000 };
+    expect(stopMomentOf(early, NOW)).toBe(NOW);
+    // 끝이 없는 타이머(자유)와 모르는 경우 → 지금
+    expect(stopMomentOf({ type: 'free', status: 'running', resumedAt: NOW - 3600 * 1000 }, NOW)).toBe(NOW);
+    expect(stopMomentOf(null, NOW)).toBe(NOW);
   });
 
   test('displayStatus — 쉬는 중 + endedAt이면 온기, 공부 중이면 온기 없음', () => {
