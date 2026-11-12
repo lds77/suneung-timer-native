@@ -90,7 +90,8 @@ module.exports = {
       package: IS_PREVIEW ? 'com.yeolgong.timer.preview' : 'com.yeolgong.timer',
       // vc74 = 1.0.42 (2026-10-13 예정) — 할 일 세부 항목. 로컬 APK로 실기기 확인 후 빌드한다.
       //        (1.0.41은 iOS 전용 메타데이터 릴리스라 안드엔 건너뛴 번호다)
-      versionCode: 76, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
+      // vc78: approved lounge warmth UI bundled for Play; keep runtime 1.0.43 for the live OTA.
+      versionCode: 78, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
       //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
       //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★
       // vc70=1.0.39(2026-08-01 제출, 심사 중): 화면 끄기/잠금은 이탈 아님 + 🔥모드 화면 꺼짐을 시스템에 맡김.
