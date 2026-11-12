@@ -114,19 +114,23 @@ export const heartbeatEligible = (t, nowMs = Date.now()) => {
   return wallElapsedSec(t, nowMs) < COUNTUP_MAX_SEC;
 };
 
+// 공부 모드 3단계 — 친구에게 공부 강도 전달:
+// book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)
+export const PRESENCE_MODES = ['book', 'fire', 'ultra'];
+export const presenceModeOf = (focusMode, ultraFocusLevel = 'normal') =>
+  focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire') : 'book';
+
 // endedAt — 마지막으로 공부를 멈춘(종료·일시정지) 벽시계 시각. 다른 사람 화면의 '방금 전까지'(온기) 판정에 쓴다.
 //   공부 중에는 null(RTDB update에서 null = 삭제)이라 공부 중인 사람에게는 남지 않는다.
 //   2026-11-11 추가 — 규칙(status/$uid/endedAt)을 먼저 게시해야 한다. 안 하면 $other 거부로 전송 전체가 실패한다
-export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal', endedAt = null } = {}) => {
+// endedMode — 멈추기 직전까지 공부하던 모드. trackPresence가 기억해 넘긴다 (아래 mode 주석)
+export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal', endedAt = null, endedMode = null } = {}) => {
   const t = activeTimer;
   const running = !!t && t.type !== 'lap' && t.status === 'running';
   const inBreak = running && (
     (t.type === 'pomodoro' && t.pomoPhase !== 'work') ||
     (t.type === 'sequence' && t.seqPhase === 'break')
   );
-  // 공부 모드 3단계 — 친구에게 공부 강도 전달:
-  // book = 편하게(screen_off) / fire = 집중(screen_on 잠금) / ultra = 울트라집중(screen_on + 시험 강도)
-  const modeNow = focusMode === 'screen_on' ? (ultraFocusLevel === 'exam' ? 'ultra' : 'fire') : 'book';
   const endKnown = !running && Number.isFinite(endedAt) && endedAt > 0;
   return {
     state: running ? 'studying' : 'idle',
@@ -135,8 +139,12 @@ export const buildPresence = (activeTimer, { todaySec = 0, today, nowMs = Date.n
     startedAt: running ? (t.startedAt ?? null) : null,
     // ★멈춘 뒤에도 끝난 시각을 알면 마지막 모드를 남긴다 — 식어 가는 자리를 공부하던 그 색으로 옅게 칠한다
     //   (2026-11-11 사용자: 주황 온기가 집중·울트라와 헷갈린다 → 그 사람의 모드 색을 옅게).
-    //   끝난 시각을 모르면 endedAt과 같은 이유로 칸을 건드리지 않는다 — null은 서버 값을 지운다
-    ...(running || endKnown ? { mode: modeNow } : {}),
+    // ★멈춘 뒤의 모드는 '지금 설정'(focusMode)으로 계산하지 않는다 — **공부하던 때의 모드**(endedMode)를 받는다.
+    //   타이머가 끝나면 앱이 곧바로 focusMode를 null로 되돌려서(deactivateFocusMode), 1초 뒤에 나가는
+    //   '멈춤' 전송은 늘 book이 됐다 — 집중·울트라로 공부해도 온기가 녹색이었다 (2026-11-12 사용자 실기기).
+    //   끝난 시각이나 그때의 모드를 모르면 칸을 건드리지 않는다 — null은 서버 값을 지우고, 짐작은 틀린 색을 칠한다
+    ...(running ? { mode: presenceModeOf(focusMode, ultraFocusLevel) }
+      : endKnown && PRESENCE_MODES.includes(endedMode) ? { mode: endedMode } : {}),
     plannedEndAt: running ? plannedEndAtOf(t, nowMs) : null,
     todaySec: Math.max(0, Math.min(86400, Math.round(todaySec))),
     date: today ?? null,
@@ -160,6 +168,30 @@ export const presenceSig = (p) => `${p.state}|${p.subjectLabel}|${p.startedAt ||
 export const stopMomentOf = (lastActive, nowMs = Date.now()) => {
   const planned = lastActive ? plannedEndAtOf(lastActive, lastActive.resumedAt || nowMs) : null;
   return Number.isFinite(planned) && planned < nowMs ? planned : nowMs;
+};
+
+// 공부 → 멈춤을 따라가는 기억 (순수). 타이머 상태가 바뀔 때마다 부르고, 돌려준 값을 다음 호출에 넘긴다.
+//   wasRunning  직전에 실행 중이었나
+//   endedAt     마지막으로 멈춘 시각 — 공부 중이면 null
+//   endedMode   그때 공부하던 모드 — buildPresence가 멈춘 뒤의 mode로 싣는다
+//   runningMode 공부 중에 마지막으로 본 모드. 멈추는 순간 endedMode가 된다
+//   lastActive  마지막으로 본 실행 중 타이머 — 스스로 끝났으면 예정 종료를 끝난 시각으로 쓴다(stopMomentOf)
+// ★모드는 **실행 중일 때 본 값**을 쓴다. 멈춘 뒤에 focusMode를 읽으면 이미 null이다 (buildPresence의 mode 주석).
+// ★멈춘 시각은 **멈춘 것을 본 그 호출의 nowMs**다. 그래서 전송(1초 지연)이 아니라 타이머가 바뀐 그때 불러야 한다 —
+//   멈추자마자 앱이 내려갔다가 한참 뒤에 돌아오면, 전송 시각으로 정한 값은 '돌아온 시각'이 되어
+//   오래전에 끝난 공부가 '방금 전까지'로 되살아난다 (W-03과 같은 부류).
+export const EMPTY_PRESENCE_TRACK = Object.freeze({ wasRunning: false, endedAt: null, endedMode: null, runningMode: null, lastActive: null });
+export const trackPresence = (prev, activeTimer, { nowMs = Date.now(), focusMode = null, ultraFocusLevel = 'normal' } = {}) => {
+  const p = prev || EMPTY_PRESENCE_TRACK;
+  const t = activeTimer;
+  const running = !!t && t.type !== 'lap' && t.status === 'running';
+  if (running) {
+    return { wasRunning: true, endedAt: null, endedMode: null, runningMode: presenceModeOf(focusMode, ultraFocusLevel), lastActive: t };
+  }
+  if (p.wasRunning) {
+    return { wasRunning: false, endedAt: stopMomentOf(p.lastActive, nowMs), endedMode: p.runningMode, runningMode: p.runningMode, lastActive: p.lastActive };
+  }
+  return p;
 };
 
 // 오늘 공부한 양을 '책 더미'로 — 숫자 대신 넓은 3단계 (2026-11-11 사용자 결정).

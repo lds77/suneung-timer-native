@@ -114,11 +114,62 @@ describe('syncPresence 전송 순서', () => {
     await b;
   });
 
+  test('줄인 판까지 거부되면(방 명단에서 빠진 경우) endedAt 미지원으로 굳히지 않는다 — 돌아온 뒤에는 다시 싣는다', async () => {
+    // 14일 정리로 명단에서 빠진 사람은 무엇을 보내도 거부된다. 그 거부 한 번으로 '칸 미지원'이라 굳히면
+    // 자동 복귀한 뒤에도 앱을 다시 켤 때까지 온기를 못 보낸다 (2026-11-12)
+    const a = api.syncPresence(idle(T0));
+    await flush();
+    mockDb.pending[0].reject(denied()); // endedAt을 실은 판 거부
+    await flush();
+    expect(mockDb.calls.length).toBe(2);
+    expect('endedAt' in mockDb.calls[1].patch).toBe(false);
+    mockDb.pending[1].reject(denied()); // 줄인 판도 거부 — 이유는 endedAt이 아니다
+    await a; await flush();
+    // 명단에 돌아온 뒤: 같은 상태를 다시 보내면 endedAt이 실려 나간다
+    const b = api.syncPresence(idle(T0));
+    await flush();
+    expect(mockDb.calls.length).toBe(3);
+    expect(mockDb.calls[2].patch.endedAt).toBe(T0);
+    mockDb.pending[2].resolve();
+    await b;
+  });
+
   test('공부 시작의 endedAt: null(서버 값 삭제)은 그대로 보낸다', async () => {
     const b = api.syncPresence(studying());
     await flush();
     expect(mockDb.calls[0].patch.endedAt).toBeNull();
     mockDb.pending[0].resolve();
     await b;
+  });
+});
+
+describe('멈춘 시각·모드 저장 (saveMyEnded / loadMyEnded)', () => {
+  const KEY = '@yeolgong/studyRoomEndedAt';
+  const storage = () => require('@react-native-async-storage/async-storage').default;
+
+  test('시각과 그때 공부하던 모드를 함께 적고 함께 읽는다', async () => {
+    api.saveMyEnded(T0, 'fire');
+    expect(storage().setItem).toHaveBeenCalledWith(KEY, JSON.stringify({ at: T0, mode: 'fire' }));
+    storage().getItem.mockResolvedValueOnce(JSON.stringify({ at: T0, mode: 'fire' }));
+    expect(await api.loadMyEnded()).toEqual({ at: T0, mode: 'fire' });
+  });
+
+  test('숫자만 적던 판(미리보기 11/11~12)의 값도 읽는다 — 모드는 모른다', async () => {
+    storage().getItem.mockResolvedValueOnce(String(T0));
+    expect(await api.loadMyEnded()).toEqual({ at: T0, mode: null });
+  });
+
+  test('0·null이면 지우고, 깨진 값·모르는 모드·없는 값을 지어내지 않는다', async () => {
+    api.saveMyEnded(null);
+    expect(storage().removeItem).toHaveBeenCalledWith(KEY);
+    api.saveMyEnded(T0, 'purple'); // 모르는 모드는 적지 않는다
+    expect(storage().setItem).toHaveBeenLastCalledWith(KEY, JSON.stringify({ at: T0, mode: null }));
+    storage().getItem.mockResolvedValueOnce('{broken');
+    expect(await api.loadMyEnded()).toBeNull();
+    storage().getItem.mockResolvedValueOnce(JSON.stringify({ at: 0, mode: 'fire' }));
+    expect(await api.loadMyEnded()).toBeNull();
+    storage().getItem.mockResolvedValueOnce(JSON.stringify({ at: T0, mode: 'purple' }));
+    expect(await api.loadMyEnded()).toEqual({ at: T0, mode: null });
+    expect(await api.loadMyEnded()).toBeNull(); // 저장된 것 없음
   });
 });

@@ -110,9 +110,10 @@ describe('buildPresence', () => {
     expect(buildPresence(t, { ...base, focusMode: 'screen_on', ultraFocusLevel: 'exam' }).mode).toBe('ultra');
     // screen_off면 시험 강도여도 편하게 (앱의 screen_on 게이팅과 일관)
     expect(buildPresence(t, { ...base, focusMode: 'screen_off', ultraFocusLevel: 'exam' }).mode).toBe('book');
-    // 미실행 + 끝난 시각 모름 → mode 칸을 아예 안 싣는다(서버 값을 안 지운다). 끝난 시각을 알면 마지막 모드를 남긴다
+    // 미실행 + 끝난 시각 모름 → mode 칸을 아예 안 싣는다(서버 값을 안 지운다)
     expect('mode' in buildPresence(null, base)).toBe(false);
-    expect(buildPresence(null, { ...base, focusMode: 'screen_on', endedAt: NOW - 1000 }).mode).toBe('fire');
+    // 끝난 시각을 알면 공부하던 때의 모드(endedMode)를 남긴다 — 지금 설정(focusMode)이 아니다. 자세한 것은 '온기' 묶음
+    expect(buildPresence(null, { ...base, endedAt: NOW - 1000, endedMode: 'fire' }).mode).toBe('fire');
   });
 
   test('일시정지/타이머 없음/랩만 → idle (공부 중 신뢰 우선)', () => {
@@ -375,7 +376,7 @@ describe('sortMembers', () => {
 
 describe('온기·책 더미 (2026-11-11)', () => {
   const {
-    todayStack, warmLevel, WARM_MS, stopMomentOf,
+    todayStack, warmLevel, WARM_MS, stopMomentOf, trackPresence, EMPTY_PRESENCE_TRACK,
   } = require('../studyRoomCore');
   const today = '2026-11-11';
 
@@ -442,6 +443,96 @@ describe('온기·책 더미 (2026-11-11)', () => {
     // 끝이 없는 타이머(자유)와 모르는 경우 → 지금
     expect(stopMomentOf({ type: 'free', status: 'running', resumedAt: NOW - 3600 * 1000 }, NOW)).toBe(NOW);
     expect(stopMomentOf(null, NOW)).toBe(NOW);
+  });
+
+  // ── 멈춘 뒤의 모드 (2026-11-12 사용자 실기기: 집중·울트라로 공부해도 온기가 녹색으로만 나온다) ──
+  // 타이머가 끝나면 앱이 곧바로 focusMode를 null로 되돌린다(deactivateFocusMode). 1초 뒤에 나가는 '멈춤' 전송이
+  // 그 값으로 모드를 계산해 늘 book이 됐다. 예전 검사는 buildPresence에 focusMode를 직접 넣어 줘서 이 길을 못 봤다
+  test('buildPresence — 멈춘 뒤의 모드는 지금 설정이 아니라 공부하던 때의 모드(endedMode)다', () => {
+    const base = { today, nowMs: NOW, endedAt: NOW - 1000 };
+    expect(buildPresence(null, { ...base, focusMode: null, endedMode: 'fire' }).mode).toBe('fire');
+    expect(buildPresence(null, { ...base, focusMode: null, endedMode: 'ultra' }).mode).toBe('ultra');
+    // 지금 설정이 무엇이든 따라가지 않는다
+    expect(buildPresence(null, { ...base, focusMode: 'screen_on', ultraFocusLevel: 'exam', endedMode: 'book' }).mode).toBe('book');
+    // 그때의 모드를 모르면 칸을 싣지 않는다 — 짐작으로 서버의 맞는 값을 덮지 않는다
+    expect('mode' in buildPresence(null, { ...base, focusMode: 'screen_on' })).toBe(false);
+    expect('mode' in buildPresence(null, { ...base, endedMode: 'purple' })).toBe(false);
+    // 끝난 시각을 모르면 모드도 싣지 않는다
+    expect('mode' in buildPresence(null, { today, nowMs: NOW, endedMode: 'fire' })).toBe(false);
+    // 공부 중에는 지금 설정이 맞다 — endedMode는 보지 않는다
+    const running = { type: 'free', status: 'running', startedAt: NOW };
+    expect(buildPresence(running, { today, nowMs: NOW, focusMode: 'screen_on', endedMode: 'book' }).mode).toBe('fire');
+  });
+
+  test('trackPresence — 집중으로 공부하다 끝내면, 그 뒤 focusMode가 null로 바뀌어도 fire가 남는다', () => {
+    const timer = { type: 'countdown', status: 'running', totalSec: 3000, resumedAt: NOW - 600 * 1000, elapsedSecAtResume: 0, startedAt: NOW - 600 * 1000 };
+    let tr = trackPresence(EMPTY_PRESENCE_TRACK, timer, { nowMs: NOW - 600 * 1000, focusMode: 'screen_on' });
+    expect(tr).toMatchObject({ wasRunning: true, endedAt: null, endedMode: null, runningMode: 'fire' });
+    // 타이머가 멈춘 순간 — 앱은 focusMode를 null로 되돌린다
+    tr = trackPresence(tr, null, { nowMs: NOW, focusMode: null });
+    expect(tr).toMatchObject({ wasRunning: false, endedAt: NOW, endedMode: 'fire' });
+    // 1초 뒤 전송 — focusMode는 null이다. 예전엔 여기서 book이 됐다
+    const sent = buildPresence(null, { today, nowMs: NOW + 1000, focusMode: null, endedAt: tr.endedAt, endedMode: tr.endedMode });
+    expect(sent).toMatchObject({ state: 'idle', mode: 'fire', endedAt: NOW });
+    // 받는 쪽: 식어 가는 자리가 집중 색이다
+    expect(displayStatus({ ...sent, updatedAt: NOW + 1000 }, { nowMs: NOW + 60 * 1000, today }).warmMode).toBe('fire');
+    // 그 뒤로 몇 번을 다시 불러도(세션 저장 등으로 다시 돈다) 값이 흔들리지 않는다
+    expect(trackPresence(tr, null, { nowMs: NOW + 5000, focusMode: null })).toBe(tr);
+  });
+
+  test('trackPresence — 울트라·일반도 공부하던 모드가 남고, 공부 중에 모드가 바뀌면 마지막으로 본 모드다', () => {
+    const t = { type: 'free', status: 'running', resumedAt: NOW - 1000, startedAt: NOW - 1000 };
+    const ultra = trackPresence(trackPresence(null, t, { nowMs: NOW - 1000, focusMode: 'screen_on', ultraFocusLevel: 'exam' }), null, { nowMs: NOW });
+    expect(ultra.endedMode).toBe('ultra');
+    const book = trackPresence(trackPresence(null, t, { nowMs: NOW - 1000, focusMode: 'screen_off' }), null, { nowMs: NOW });
+    expect(book.endedMode).toBe('book');
+    // 집중 모드 켜기가 타이머 시작보다 조금 늦게 반영돼도(비동기) 그 뒤에 본 값으로 바뀐다
+    let tr = trackPresence(null, t, { nowMs: NOW - 1000, focusMode: null });
+    expect(tr.runningMode).toBe('book');
+    tr = trackPresence(tr, t, { nowMs: NOW - 800, focusMode: 'screen_on' });
+    expect(trackPresence(tr, null, { nowMs: NOW }).endedMode).toBe('fire');
+  });
+
+  test('trackPresence — 일시정지도 멈춤이고, 다시 시작하면 끝난 시각·모드를 지운다', () => {
+    const run = { type: 'countdown', status: 'running', totalSec: 3000, resumedAt: NOW - 60 * 1000, elapsedSecAtResume: 0 };
+    let tr = trackPresence(null, run, { nowMs: NOW - 60 * 1000, focusMode: 'screen_on' });
+    // 일시정지된 타이머는 '실행 중'이 아니다 — null을 넘기든 멈춘 타이머를 넘기든 같다
+    tr = trackPresence(tr, { ...run, status: 'paused' }, { nowMs: NOW, focusMode: 'screen_on' });
+    expect(tr).toMatchObject({ wasRunning: false, endedAt: NOW, endedMode: 'fire' });
+    const resumed = { ...run, resumedAt: NOW + 5000 };
+    tr = trackPresence(tr, resumed, { nowMs: NOW + 5000, focusMode: 'screen_on' });
+    expect(tr).toMatchObject({ wasRunning: true, endedAt: null, endedMode: null });
+    expect(buildPresence(resumed, { today, nowMs: NOW + 5000, focusMode: 'screen_on', endedAt: tr.endedAt, endedMode: tr.endedMode }))
+      .toMatchObject({ state: 'studying', mode: 'fire', endedAt: null });
+  });
+
+  test('trackPresence — 멈춘 시각은 멈춘 것을 본 그 순간이다. 전송이 늦어져도 바뀌지 않는다', () => {
+    const run = { type: 'free', status: 'running', resumedAt: NOW - 3600 * 1000 };
+    let tr = trackPresence(null, run, { nowMs: NOW - 3600 * 1000 });
+    tr = trackPresence(tr, null, { nowMs: NOW }); // 타이머가 바뀐 그 순간에 부른다
+    // 멈추자마자 앱이 내려갔다가 2시간 뒤에 돌아와 전송이 나가도 — 멈춘 시각은 그대로고, 온기는 이미 식었다
+    const later = NOW + 2 * 3600 * 1000;
+    const atSend = trackPresence(tr, null, { nowMs: later });
+    const sent = buildPresence(null, { today, nowMs: later, endedAt: atSend.endedAt, endedMode: atSend.endedMode });
+    expect(sent.endedAt).toBe(NOW);
+    expect(warmLevel(sent.endedAt, later)).toBe(0);
+  });
+
+  test('trackPresence — 스스로 끝난 카운트다운은 예정 종료가 끝난 시각이고(W-03), 모드는 공부하던 그 모드다', () => {
+    const cd = { type: 'countdown', status: 'running', totalSec: 50 * 60, resumedAt: NOW - 100 * 60 * 1000, elapsedSecAtResume: 0 };
+    let tr = trackPresence(null, cd, { nowMs: NOW - 100 * 60 * 1000, focusMode: 'screen_on', ultraFocusLevel: 'exam' });
+    tr = trackPresence(tr, null, { nowMs: NOW, focusMode: null }); // 100분 뒤에 앱으로 돌아와 완료 처리
+    expect(tr.endedAt).toBeLessThan(NOW - 49 * 60 * 1000);
+    expect(tr.endedMode).toBe('ultra');
+  });
+
+  test('trackPresence — 처음부터 쉬는 중이면 아무것도 정하지 않는다 (앱을 켰다고 방금 멈춘 것이 아니다)', () => {
+    expect(trackPresence(null, null, { nowMs: NOW })).toBe(EMPTY_PRESENCE_TRACK);
+    expect(trackPresence(EMPTY_PRESENCE_TRACK, { type: 'lap', status: 'running' }, { nowMs: NOW })).toBe(EMPTY_PRESENCE_TRACK);
+    // 앱을 다시 켜 저장해 둔 값을 되살린 상태 — 그대로 둔다
+    const restored = { ...EMPTY_PRESENCE_TRACK, endedAt: NOW - 5000, endedMode: 'fire' };
+    expect(trackPresence(restored, null, { nowMs: NOW })).toBe(restored);
+    expect(buildPresence(null, { today, nowMs: NOW, endedAt: restored.endedAt, endedMode: restored.endedMode }).mode).toBe('fire');
   });
 
   test('displayStatus — 쉬는 중 + endedAt이면 온기, 공부 중이면 온기 없음', () => {

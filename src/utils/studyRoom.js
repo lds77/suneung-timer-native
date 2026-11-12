@@ -9,7 +9,7 @@
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig,
+  genRoomCode, isValidRoomCode, MAX_ROOM_MEMBERS, presenceSig, PRESENCE_MODES,
   LOUNGE_CODES, isLoungeCode, loungeNameFor, todayStudySec, staleJoinCandidates, heartbeatEligible,
   buildFocusSession, buildReport, buildCheer,
 } from './studyRoomCore';
@@ -40,16 +40,25 @@ let membershipNotice = null; // 복귀에 실패했을 때 방 화면이 한 번
 // roomId를 storage에도 영속 — 위젯 헤드리스(별도 JS 컨텍스트)가 서버 조회 없이 읽는다
 const ROOM_ID_KEY = '@yeolgong/studyRoomId';
 const HEARTBEAT_AT_KEY = '@yeolgong/studyRoomLastHb';
-// 온기용 — 마지막으로 공부를 멈춘 벽시계 시각(로컬). 앱을 다시 켜도 같은 값을 보내려고 둔다 (2026-11-11)
+// 온기용 — 마지막으로 공부를 멈춘 벽시계 시각과 그때 공부하던 모드(로컬). 앱을 다시 켜도 같은 값을 보내려고 둔다 (2026-11-11)
+// ★모드도 같이 둔다 (2026-11-12). 시각만 두면 다시 켠 앱이 모드를 모르는데, 그때 '지금 설정'으로 채우면
+//   집중으로 공부한 자리가 재시작 한 번에 녹색으로 바뀐다. 모르면 buildPresence가 칸을 안 싣는다(서버 값 유지)
 const ENDED_AT_KEY = '@yeolgong/studyRoomEndedAt';
 // 0·null이면 지운다 — 다시 공부를 시작하면 옛 멈춘 시각이 재시작 뒤에 되살아나지 않게
-export const saveMyEndedAt = (ms) => {
-  (ms > 0 ? AsyncStorage.setItem(ENDED_AT_KEY, String(ms)) : AsyncStorage.removeItem(ENDED_AT_KEY)).catch(() => {});
+export const saveMyEnded = (ms, mode = null) => {
+  (ms > 0
+    ? AsyncStorage.setItem(ENDED_AT_KEY, JSON.stringify({ at: ms, mode: PRESENCE_MODES.includes(mode) ? mode : null }))
+    : AsyncStorage.removeItem(ENDED_AT_KEY)).catch(() => {});
 };
-export const loadMyEndedAt = async () => {
+// → { at, mode } | null. 숫자만 적던 판(미리보기 2026-11-11~12)의 값도 읽는다 — 그때는 mode를 모른다(null)
+export const loadMyEnded = async () => {
   try {
-    const n = Number(await AsyncStorage.getItem(ENDED_AT_KEY));
-    return Number.isFinite(n) && n > 0 ? n : null;
+    const raw = await AsyncStorage.getItem(ENDED_AT_KEY);
+    if (!raw) return null;
+    const v = String(raw).trim().startsWith('{') ? JSON.parse(raw) : { at: Number(raw), mode: null };
+    const at = Number(v?.at);
+    if (!Number.isFinite(at) || at <= 0) return null;
+    return { at, mode: PRESENCE_MODES.includes(v?.mode) ? v.mode : null };
   } catch { return null; }
 };
 const persistRoomId = (id) => {
@@ -554,10 +563,15 @@ export const syncPresence = async (payload) => {
     // ★권한 거부일 때만 endedAt을 뺀다. 다른 오류까지 칸 미지원으로 보면 안 된다.
     //   실제로 보낸 것(endedAt 없는 판)을 기억한다 — 다 보낸 것으로 기억하면 같은 상태에서 다시 안 보낸다 (W-05)
     if (send.endedAt != null && isPermissionDenied(e)) {
-      endedAtUnsupported = true;
       const rest = withoutEndedAt(send);
       lastPresenceSig = presenceSig(rest);
-      try { await update(target, rest); } catch { if (gen === presenceGen) lastPresenceSig = null; }
+      try {
+        await update(target, rest);
+        // ★줄인 판이 받아들여졌을 때만 '칸 미지원'으로 굳힌다 (2026-11-12).
+        //   줄인 판까지 거부됐다면 이유는 endedAt이 아니다 — 방 명단에서 빠진 경우다(14일 정리 뒤, 자동 복귀 전).
+        //   거부 한 번으로 굳히면 명단에 돌아온 뒤에도 앱을 다시 켤 때까지 그 사람의 온기가 안 나간다
+        endedAtUnsupported = true;
+      } catch { if (gen === presenceGen) lastPresenceSig = null; }
       return;
     }
     lastPresenceSig = null; // 실패 시 다음 호출에서 재전송
