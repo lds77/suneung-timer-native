@@ -31,7 +31,10 @@ const BLOCKED_KEY = '@yeolgong/studyRoomBlocked'; // 숨긴 사용자 uid 목록
 // ── 온기·책 더미 (2026-11-11 사용자 결정) ──
 // 온기: 방금 전까지 공부하고 간 자리를 그 사람이 공부하던 모드 색으로 옅게 — 30분 동안 점점 옅어지다 사라진다(warmLevel).
 //   ★주황 한 색이던 것을 바꿨다 (2026-11-11 사용자: 집중·울트라와 비슷해 헷갈린다). 자리가 '식어 가는' 모양이다.
-//   공부 중은 모드 색 테두리(선)·모드 이름·흐르는 시간, 식어 가는 자리는 바탕 채움(테두리는 평소 회색)과 「방금 전까지」뿐
+//   공부 중은 모드 색 테두리·모드 이름·흐르는 시간, 식어 가는 자리는 옅은 점선·바탕과 「방금 전」으로 구분
+const STUDY_FILL_ALPHA = 0.16; // 세 모드 공부 중 배경을 가볍게. 종료 직후 온기(6%)보다는 선명하게 유지
+const WARM_BORDER_ALPHA = 0.30; // 공부 중 실선보다 옅은 점선도 배경과 함께 식는다
+const WARM_FILL_ALPHA = 0.06; // 종료 직후에도 마지막 모드가 보이되, 30분 동안 옅어진다
 const WARM_LEGEND_MODE = 'book'; // 범례 견본은 기본 모드 색
 const alphaHex = (a) => Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0');
 // 책 더미: 오늘 공부한 양을 숫자 대신 책 1~3권으로. 별은 평점(30분 = '별 하나짜리')으로 읽혀서 쌓이는 그림을 골랐다.
@@ -522,8 +525,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
     const showFocusSession = !isLoungeCode(roomId);
     const fsv = focusSessionView(roomData.room?.focusSession, now);
     const iAmStudying = app.timers.some(t => t.type !== 'lap' && (t.status === 'running' || t.status === 'paused'));
-    // 공부 모드 3단계 — 자리 테두리 색 + 자리 상단 텍스트 (일반 녹색/집중 주황/울트라 빨강)
-    const MODE_COLOR = { book: '#2ECC71', fire: '#FF8A3D', ultra: '#E74C3C' };
+    // 공부 모드 3단계 — 일반 녹색 / 집중 황금빛 주황 / 울트라 진홍. 라이트·다크별 색은 테마에서 받는다
+    const MODE_COLOR = T.loungeModeColors;
     const MODE_LABEL = { book: '일반', fire: '집중', ultra: '울트라' };
     const bySeat = resolveSeats(members);
     const seated = members.length;
@@ -576,12 +579,14 @@ export default function StudyRoomScreen({ visible, onClose }) {
           style={[
             S.seat,
             partitionStyle,
-            { backgroundColor: m.studying ? modeColor + '12' : T.surface2, borderColor: m.studying ? modeColor : T.border },
+            { backgroundColor: m.studying ? modeColor + alphaHex(STUDY_FILL_ALPHA) : T.surface2, borderColor: m.studying ? modeColor : T.border },
             theme.partition && !m.studying && { borderColor: T.sub + '55' },
-            // 식어 가는 자리는 바탕만 칠하고 테두리는 평소 회색 그대로 — 공부 중은 '선', 식어 가는 자리는 '채움'으로 갈린다
-            // (2026-11-12 사용자: 색 테두리가 남으면 옅어져도 공부 중으로 착각할 수 있다)
-            warm > 0 && { backgroundColor: warmColor + alphaHex(0.16 * warm) },
             mine && { borderWidth: 2 },
+            // 온기는 옅은 배경과 가는 점선. 내 자리·독서실도 네 변을 같은 굵기로 맞춰 점선을 표시한다
+            warm > 0 && [S.warmOutline, {
+              backgroundColor: warmColor + alphaHex(WARM_FILL_ALPHA * warm),
+              borderColor: warmColor + alphaHex(WARM_BORDER_ALPHA * warm),
+            }],
             m.maybeAway && { opacity: 0.55 },
           ]}>
           {m.studying && (
@@ -613,7 +618,7 @@ export default function StudyRoomScreen({ visible, onClose }) {
               {(m.subjectLabel || '공부')} {formatShort(Math.max(0, (now - m.startedAt) / 1000))}
             </Text>
           ) : warm > 0 ? (
-            <Text style={[S.seatInfo, { color: T.text }]} numberOfLines={1}>방금 전까지</Text>
+            <Text style={[S.seatInfo, { color: T.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>방금 전</Text>
           ) : stack > 0 ? (
             <View style={S.seatStack}><BookStack level={stack} /></View>
           ) : (
@@ -712,8 +717,8 @@ export default function StudyRoomScreen({ visible, onClose }) {
           ))}
           {/* 범례 — 온기와 책 더미가 무엇을 말하는지. 불빛은 '언제(방금)', 책은 '얼마나(오늘)'다 */}
           <View style={S.legendRow}>
-            <View style={[S.legendSwatch, { backgroundColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(0.16), borderColor: T.border }]} />
-            <Text style={[S.legendText, { color: T.sub }]}>공부하던 색이 옅게 남은 자리 = 방금 전까지</Text>
+            <View style={[S.legendSwatch, S.warmOutline, { backgroundColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(WARM_FILL_ALPHA), borderColor: MODE_COLOR[WARM_LEGEND_MODE] + alphaHex(WARM_BORDER_ALPHA) }]} />
+            <Text style={[S.legendText, { color: T.sub }]}>옅은 점선과 공부하던 색이 남은 자리 = 방금 전</Text>
             <View style={{ width: 10 }} />
             <BookStack level={2} />
             <Text style={[S.legendText, { color: T.sub }]}>오늘 공부한 양</Text>
@@ -888,6 +893,7 @@ const S = StyleSheet.create({
   },
   seatMode: { fontSize: 7, fontWeight: '900', letterSpacing: 0.3, marginBottom: 1, maxWidth: '96%' },
   seatEmptyTile: { borderStyle: 'dashed', backgroundColor: 'transparent' },
+  warmOutline: { borderStyle: 'dashed', borderWidth: 1, borderTopWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderLeftWidth: 1 },
   seatDesk: { alignSelf: 'stretch', height: 5, borderRadius: 3, marginTop: 2, marginHorizontal: 5 },
   seatName: { fontSize: 8, fontWeight: '800', marginTop: 3, maxWidth: '96%' },
   seatInfo: { fontSize: 7.5, fontWeight: '700', marginTop: 1, maxWidth: '96%' },

@@ -63,6 +63,12 @@ const ACCENT_COLORS = {
   },
 };
 
+// 라운지 공부 모드: 옅은 온기에서도 황금빛 주황과 진홍을 구분한다.
+const LOUNGE_MODE_COLORS = {
+  light: { book: '#2ECC71', fire: '#B87400', ultra: '#C51F4D' },
+  dark: { book: '#2ECC71', fire: '#FFBE45', ultra: '#FF5D7C' },
+};
+
 const FONT_SCALES = { small: 0.9, medium: 1.0, large: 1.25 };
 
 // 스타일 프리셋: cute(귀여운) / minimal(미니멀)
@@ -81,6 +87,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
   if (darkMode) {
     return {
       bg: '#131316', card: ac.dt2, surface: ac.dt2, surface2: ac.dt3,
+      loungeModeColors: LOUNGE_MODE_COLORS.dark,
       border: ac.dt3, tabBar: '#131316', tabBarBorder: ac.dt3,
       text: '#E8E8F2', sub: '#AEAEC8', accent: ac.accent, accentLight: ac.dt2,
       heat1: ac.dh[0], heat2: ac.dh[1], heat3: ac.dh[2], heat4: ac.dh[3],
@@ -93,6 +100,7 @@ export const getTheme = (darkMode, accentColor = 'pink', fontScaleId = 'medium',
   }
   return {
     bg: '#F7F7F9', card: '#FFFFFF', surface: ac.t1, surface2: ac.t2,
+    loungeModeColors: LOUNGE_MODE_COLORS.light,
     border: ac.t3, tabBar: '#FFFFFF', tabBarBorder: ac.t2,
     text: '#2D2B3D', sub: '#6B6580', accent: ac.accent, accentLight: ac.t1,
     heat1: ac.h[0], heat2: ac.h[1], heat3: ac.h[2], heat4: ac.h[3],
