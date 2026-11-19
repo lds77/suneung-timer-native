@@ -204,6 +204,9 @@ module.exports = {
       '@bacons/apple-targets',
       // androidx.work 중복 클래스 정렬 (SDK 56에서 발생 — 파일 주석 참고)
       './plugins/withAndroidWorkManagerFix',
+      // androidx.datastore 1.3.0 — Firebase가 끌어오는 shared counter .so가 옛 NDK(r25c)라
+      // Play 「16KB 기기에서 비정상 종료될 수 있음」 경고 (2026-11-19, 파일 주석 참고)
+      './plugins/withDatastoreNdkFix',
       // 카메라를 선택 하드웨어로 선언 (CAMERA 권한이 카메라 필수를 암시해 Play 대상 기기가 줄던 문제)
       './plugins/withCameraNotRequired',
       // 마이크도 선택 하드웨어로 (RECORD_AUDIO가 마이크 필수를 암시 — 카메라와 같은 함정)
