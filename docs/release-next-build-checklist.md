@@ -6,6 +6,19 @@
 2026-07-19 작성 — 메모리/커밋에 흩어진 대기 항목 통합. 어떤 모델/세션이든 이 문서만으로
 다음 릴리스를 진행할 수 있게 하는 것이 목적. 절차 기준: CLAUDE.md 빌드/배포 섹션.
 
+## 0-AAAAQ. 2026-11-19 — Play 경고 「16KB 기기에서 비정상 종료될 수 있음」: 다음 정식 Android 빌드에 실린다
+
+- 경고(11/18 Play 콘솔 알림): 「16KB용으로 컴파일됐지만 일부 라이브러리가 이전 Android NDK로 컴파일됨」. 차단이 아니라 경고 — vc78은 그대로 승인됐다.
+- 원인: vc78 AAB의 arm64 .so 21개 중 **`libdatastore_shared_counter.so` 하나만 NDK r25c**(나머지는 r27, 정렬은 전부 0x4000 통과).
+  `expo-notifications` → firebase-messaging 25.0.1 → firebase-common이 끌어오는 **androidx.datastore 1.1.7**에 들어 있다.
+  AAR을 열어 본 NDK: 1.1.7 r25c / 1.2.1 r20 / **1.3.0 r27** — 1.3.0만 고쳐진다.
+- [x] `plugins/withDatastoreNdkFix.js` + app.config.js 등록 (`fb51df1`). datastore 그룹에서 1.3.0보다 낮게 요청된 것만 1.3.0으로.
+  함께 바뀌는 것: annotation 1.9.1→1.10.0 · collection 1.4.2→1.6.0 · tracing 1.2.0→2.0.1 · okio 3.16→3.17
+- [x] 미리보기 APK `dist/yeolgong-preview-1.0.43-20261119-datastore.apk` — shared counter 네 ABI 모두 r27, arm64 .so 21개 전부 r27 계열·16KB 정렬
+- [x] **실기기 통과 (사용자, 2026-11-19)**: 콜드 스타트, 집중 타이머 알림(시작·종료), 홈 화면 위젯 갱신(WorkManager — tracing 2.0), 스터디룸·라운지
+- [ ] 다음 정식 Android 빌드에 자동으로 실린다(OTA 불가 — 네이티브). 그 AAB의 `base/lib/*/libdatastore_shared_counter.so`를 `llvm-readelf -n`으로 r27인지 확인하고,
+  출시 뒤 Play 콘솔에서 경고가 사라졌는지 본다. Firebase·Expo가 datastore 1.3.0 이상을 직접 끌어오게 되면 플러그인을 지운다
+
 ## 0-AAAAP. 2026-11-13 — 라운지 온기 정식 OTA + Android vc78 제출
 
 - [x] 정식 OTA 발행 07:05 (runtime 1.0.43, 양 플랫폼, 소스 `e06fb5f`, 그룹 `033919bf…`) — [기록](lounge-warmth-production-release-2026-11-13.md)
