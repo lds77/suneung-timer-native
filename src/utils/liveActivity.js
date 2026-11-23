@@ -154,11 +154,16 @@ export const syncLiveActivity = (timer, themeOpts = {}) => {
 
   const T = getTheme(!!themeOpts.darkMode, themeOpts.accentColor || 'pink');
   const props = buildProps(timer, T);
+  // Skip identical content even when the foreground/background signature changes.
+  // Avoid redundant ActivityKit updates during app resume.
+  const unchanged = lastProps != null && Object.keys(props).every(key => props[key] === lastProps[key]);
   lastProps = props;
   try {
     // 잔존 id 생존 확인 — 사용자가 지웠거나 수명 만료면 새로 시작
     if (currentId && !(LA.listIds() || []).includes(currentId)) currentId = null;
     if (currentId) {
+      // Check survival first: a dismissed activity must still be recreated.
+      if (unchanged) return;
       LA.update(currentId, props).catch(() => {});
       return;
     }
