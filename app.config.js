@@ -8,7 +8,7 @@ module.exports = {
   expo: {
     name: IS_PREVIEW ? '열공메이트(테스트)' : '열공메이트',
     slug: 'yeolgong-timer',
-    version: '1.0.43',
+    version: '1.0.44', // iOS 1.0.44(build63)이 2026-11-17 출시 — 안드는 아직 1.0.43(vc78). 다음 안드 정식 빌드를 이 버전으로 내면 런타임이 합쳐진다
     platforms: ['ios', 'android'], // web 제외 — SDK 56 eas update가 web 번들까지 export 시도하는 것 방지
     scheme: 'yeolgong',           // 위젯 딥링크용 (yeolgong://start?subjectId=...)
     // OTA(EAS Update): JS-only 수정을 스토어 심사 없이 배포.
@@ -50,7 +50,10 @@ module.exports = {
       // build54 = 이탈 판정을 첫 알림에서 파생(iOS 30초) + 울트라 문구 정정 (실기기 검증 통과).
       // build53은 TestFlight에 올라갔으나 이탈 판정 수정 전이라 폐기 — ASC는 같은 buildNumber 재업로드를 막는다.
       // build52=1.0.36, 1.0.37·1.0.38은 iOS 미빌드
-      buildNumber: '61',
+      // build63 = 1.0.44 (2026-11-15 빌드·11/17 출시): 라운지 온기 — 앱 코드는 sdk56(aea0ff4)과 같고 버전 두 줄만 달랐다.
+      //           아스트라가 저장소 밖 임시 사본에서 빌드해 기록이 없었다(11/23 찾아 로컬 태그 ios-1.0.44-b63-snapshot으로 보존)
+      // build62 = 1.0.44 진단 전용(0cc487f) — 심사에 안 냄
+      buildNumber: '63',
       // 위젯 익스텐션 타겟 서명을 위해 필요 (Apple Developer 팀 ID)
       appleTeamId: process.env.APPLE_TEAM_ID || undefined,
       entitlements: {
