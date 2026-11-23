@@ -471,11 +471,10 @@ expo start
 # TestFlight / 스토어 배포용 iOS 빌드
 eas build --profile testflight --platform ios
 
-# 프로덕션 Android (AAB)
-eas build --profile production --platform android
-
-# 내부 테스트 Android APK (번들ID *.preview, 본 앱과 공존 설치 가능)
-eas build --profile preview --platform android
+# Android 내부 테스트 APK (*.preview) → 실기기 확인 → 프로덕션 AAB
+# Windows 래퍼가 EAS 빌드를 기다린 뒤 R8 검사와 mapping.txt 보관까지 한다.
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 preview
+powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 production
 ```
 
 > **주의**: 알림/백그라운드/Live Activity는 Expo Go에서 테스트 불가 → EAS 빌드 후 실기기로만 검증

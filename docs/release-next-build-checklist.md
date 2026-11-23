@@ -44,12 +44,12 @@
 
 - 콘솔 프로덕션 출시 대시보드 「확인 필요 문제 1개」(vc78 기준): 난독화 1%. 비율 25% 미만인 앱 카테고리가 있으면
   공개 상태와 게시 기능에 영향을 받을 수 있다. **해결 기한 2027년 2월.** (권장 조치 1개: 큰 화면용 지원 중단 API)
-- 원인: `android.enableMinifyInReleaseBuilds`가 없어 R8을 아예 안 쓴다(위 0-A의 「매핑 파일 없음 경고는 무해」는 그때는 맞았다).
-- [ ] **에버보드가 같은 일을 이미 끝냈다(1.0.11, 2026-11-09~10)** — 그쪽 저장소의 `expo-build-properties`
-  `android.enableMinifyInReleaseBuilds` + `plugins/withR8Optimize.js`(proguard-android-optimize.txt로) + `scripts/check-r8.ps1`
-  (DEX의 R8 표식·세 비율 검사) + `docs/audit/r8-check-2026-11-08.md`. Play 기준은 DEX 10MB 넘는 앱에 **난독화·최적화·축소 각 25%**다.
-  ★리플렉션·이름으로 찾는 네이티브 모듈(위젯, focus-shield·screen-pin·timer-notif 같은 로컬 모듈, Firebase, WorkManager)은
-  보존 규칙이 필요할 수 있다 — **켠 판은 네이티브 기능을 전부 한 번씩 실기기로 다시 본다**(에버보드도 그렇게 통과했다)
+- vc78에는 릴리스 minify 설정이 없었다. Play 기준은 DEX 10MB 초과 앱의 난독화·최적화·코드 축소 **각 25% 이상**이다.
+- [x] 2026-11-23, Android **1.0.44 / vc79** 준비. 에버보드 방식으로 R8을 켜고 최적화용 ProGuard 파일을 선택한다. SDK 56 기본 target 36, 리소스 축소 기본값(false), 기존 16KB datastore 플러그인을 사용한다.
+- [x] EAS preview·production에 지도와 R8 기록 수집을 설정했다. Windows 릴리스 스크립트는 DEX의 지도 ID, DEX별 SHA-256, 세 비율을 모두 확인한 뒤 앱과 지도를 같은 빌드 ID 폴더에 보관한다.
+- [ ] 이 worktree에서 `npm install` 후 `package-lock.json` 갱신을 검토한다. SDK 56 지정 범위는 `expo-build-properties@~56.0.22`다.
+- [ ] `powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1 preview` → [R8 실기기 점검표](android-r8-vc79.md)의 APK 항목을 확인한다.
+- [ ] 같은 명령의 마지막 인자를 `production`으로 바꿔 정식 AAB를 검사한다. 0-AAAAQ의 16KB 확인과 기존 vc78에서의 업데이트 확인을 마친 뒤 Play App Bundle 탐색기에서 세 비율·경고를 확인한다. 1.0.44 출시 후 iOS와 OTA 런타임이 합쳐진다.
 
 ## 0-AAAAQ. 2026-11-19 — Play 경고 「16KB 기기에서 비정상 종료될 수 있음」: 다음 정식 Android 빌드에 실린다
 

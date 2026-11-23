@@ -94,7 +94,8 @@ module.exports = {
       // vc74 = 1.0.42 (2026-10-13 예정) — 할 일 세부 항목. 로컬 APK로 실기기 확인 후 빌드한다.
       //        (1.0.41은 iOS 전용 메타데이터 릴리스라 안드엔 건너뛴 번호다)
       // vc78: approved lounge warmth UI bundled for Play; keep runtime 1.0.43 for the live OTA.
-      versionCode: 78, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
+      // vc79 = 1.0.44: R8 켜기 + 16KB datastore
+      versionCode: 79, // 1.0.40(vc72): 시간 입력 개편 + 스터디룸 2건 + 첨부 백업 제외(withAttachmentsNotBackedUp)
       //           + 사진 포함 백업(zip) + 오답노트 음성 메모(RECORD_AUDIO·withMicrophoneNotRequired).
       //           ★권한 추가 — Play 검토의 '지원 기기 변경사항' 반드시 확인(규칙 12)★
       // vc70=1.0.39(2026-08-01 제출, 심사 중): 화면 끄기/잠금은 이탈 아님 + 🔥모드 화면 꺼짐을 시스템에 맡김.
@@ -114,8 +115,17 @@ module.exports = {
       blockedPermissions: ['android.permission.ACTIVITY_RECOGNITION'],
     },
     plugins: [
-      // SDK 56: compileSdk/targetSdk는 SDK 기본값(36) 사용 — 16KB 페이지 정렬도 기본 지원됨.
-      // (구 expo-build-properties android 핀은 제거. Play 정책상 2026-08까지 target 36 필요)
+      // SDK 56의 compileSdk/targetSdk 기본값(36) 사용. RN과 알림이 리소스를 이름으로 찾으므로
+      // 리소스 축소는 기본값(false)으로 둔다. Play의 코드 축소는 아래 R8이 맡는다.
+      ['expo-build-properties', {
+        android: {
+          enableMinifyInReleaseBuilds: true,
+          // Expo AppLoaderProvider가 manifest meta-data의 문자열로 이 클래스를 로드한다.
+          // core의 @DoNotStrip은 여기서는 생성자에만 붙어 있어 클래스 이름까지 보장하지 않는다.
+          extraProguardRules: '-keep,allowoptimization class expo.modules.adapters.react.apploader.RNHeadlessAppLoader { public <init>(); }',
+        },
+      }],
+      './plugins/withR8Optimize',
       [
         'expo-notifications',
         {

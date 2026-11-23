@@ -14,7 +14,11 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "buildArtifactPaths": [
+          "android/app/build/outputs/mapping/release/mapping.txt",
+          "android/app/build/intermediates/r8_metadata/release/minifyReleaseWithR8/r8-metadata.dat"
+        ]
       },
       "env": {
         "APP_VARIANT": "preview"
@@ -36,7 +40,11 @@
         "image": "latest"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "buildArtifactPaths": [
+          "android/app/build/outputs/mapping/release/mapping.txt",
+          "android/app/build/intermediates/r8_metadata/release/minifyReleaseWithR8/r8-metadata.dat"
+        ]
       }
     }
   },
