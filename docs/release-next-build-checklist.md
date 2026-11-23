@@ -46,7 +46,13 @@
   `check-r8.ps1` **난독화 82.4% · 최적화 81.9% · 축소 82.2%**(DEX 1개) 통과 · zipalign -P 16 통과 · com.yeolgong.timer.preview vc79 1.0.44 ·
   필수 uses-feature는 faketouch·screen.portrait(카메라·마이크는 not-required). APK는 드라이브 「20 엘리시온/열공메이트/빌드 APK」
   `yeolgong-preview-1.0.44-20261123-r8.apk`(+ dist에 mapping). ★build-release.ps1은 EAS용이라 미리보기는 로컬로 했다
-- [ ] 실기기 확인 — `docs/android-r8-vc79.md` 목록. 통과하면 이 가지를 sdk56에 합치고 정식 AAB(APP_VARIANT 없이 prebuild 다시)
+- [x] 실기기 확인 — 8묶음 통과(11/23). ★상단바 타이머만 R8 판에서 안 떴다: 로컬 모듈 `timer-notif`의 Record(@Field)는 Expo가
+  Kotlin 리플렉션 폴백으로 채우는데 R8 뒤 NullPointerException(미리보기 진단 창으로 확인) → Map으로 받게 고침(061cb71), r8-fix 미리보기에서
+  상단바·잠금화면 흐르는 시간 통과. **로컬 모듈에 Record를 다시 쓰지 말 것**(Expo 라이브러리의 Record는 통과). sdk56=main=a9894c4
+- [x] 정식 AAB — EAS `d43f040d-ca6b-4f7c-861b-592bce15ad15`(깨끗한 worktree에서, Live Activity 미커밋 안 섞임). R8 82.4/82.0/82.2% ·
+  bundletool validate · 서명 vc78과 같음 · 권한·uses-feature vc78과 같음(전부 not-required) · runtime 1.0.44 · 4 ABI · datastore .so r27·0x4000.
+  보관 `C:\tmp\yg-r8-1044\dist\production-d43f040d-…\`(AAB·mapping·r8-metadata)
+- [ ] Play: 내부 테스트 트랙은 **비활성(테스터·버전 없음)** — vc78도 바로 프로덕션이었다. 내부 테스트를 켤지, 프로덕션 단계적 출시로 갈지 사용자 결정
 
 - 콘솔 프로덕션 출시 대시보드 「확인 필요 문제 1개」(vc78 기준): 난독화 1%. 비율 25% 미만인 앱 카테고리가 있으면
   공개 상태와 게시 기능에 영향을 받을 수 있다. **해결 기한 2027년 2월.** (권장 조치 1개: 큰 화면용 지원 중단 API)
