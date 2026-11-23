@@ -11,9 +11,24 @@ import { buildSubtitle, phaseTargetSec, getSequenceTotalEndMs } from './liveActi
 import { COUNTUP_MAX_SEC } from './timerCore';
 
 let TN = null; // TimerNotif 네이티브 모듈
+let tnLoadErr = null;
 if (Platform.OS === 'android') {
-  try { TN = require('../../modules/timer-notif').default; } catch { TN = null; }
+  try { TN = require('../../modules/timer-notif').default; } catch (e) { TN = null; tnLoadErr = String((e && e.message) || e); }
 }
+
+// ★진단(미리보기 패키지에서만): 상단바 타이머가 조용히 실패하면 이유를 한 번 띄운다 (2026-11-23 R8 판 조사).
+// 정식 패키지에서는 아무것도 하지 않는다 — 원인을 찾으면 걷어낸다.
+let diagShown = false;
+const diagOngoing = (msg) => {
+  if (diagShown) return;
+  try {
+    const Constants = require('expo-constants').default;
+    const pkg = (Constants.expoConfig && Constants.expoConfig.android && Constants.expoConfig.android.package) || '';
+    if (!pkg.endsWith('.preview')) return;
+    diagShown = true;
+    require('react-native').Alert.alert('상단바 타이머 진단', msg);
+  } catch {}
+};
 
 let lastSig = null;
 
@@ -83,7 +98,8 @@ const makeSig = (t) => [
 // opts.force: 시그니처가 같아도 다시 게시 — 사용자가 알림을 지웠거나(안드 14+ 스와이프 가능)
 //             timeout으로 사라진 뒤 포그라운드 복귀 시 복구하는 용도
 export const syncOngoingNotif = (timer, opts = {}) => {
-  if (!TN) return;
+  if (!TN) { if (Platform.OS === 'android' && timer) diagOngoing('네이티브 모듈을 못 불렀습니다: ' + tnLoadErr); return; }
+  if (timer && opts.enabled === false) diagOngoing('설정에서 꺼져 있어 게시하지 않았습니다 (notifEnabled·timerOngoingNotif)');
   if (!timer || opts.enabled === false) { endOngoingNotif(); return; }
 
   const sig = makeSig(timer);
@@ -91,7 +107,11 @@ export const syncOngoingNotif = (timer, opts = {}) => {
   // 시도 전에 기록 — 게시 실패(알림 권한 거부 등) 시 다음 상태 변화까지 재시도하지 않음
   lastSig = sig;
 
-  try { TN.show(buildOptions(timer)).catch(() => {}); } catch {}
+  try {
+    TN.show(buildOptions(timer))
+      .then((ok) => { if (ok !== true) diagOngoing('show()가 ' + String(ok) + '를 돌려줬습니다'); })
+      .catch((e) => diagOngoing('show() 실패: ' + String((e && e.message) || e)));
+  } catch (e) { diagOngoing('show() 호출 예외: ' + String((e && e.message) || e)); }
 };
 
 export const endOngoingNotif = () => {

@@ -15,8 +15,6 @@ import androidx.core.app.NotificationManagerCompat
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import expo.modules.kotlin.records.Field
-import expo.modules.kotlin.records.Record
 
 // 실행 중 타이머의 상시(ongoing) 알림 — iOS Live Activity의 안드로이드 대응물.
 // 상단바/알림창/잠금화면에 chronometer로 흐르는 시간을 표시한다.
@@ -28,15 +26,19 @@ class TimerNotifModule : Module() {
     const val NOTIF_ID = 41100
   }
 
-  class ShowOptions : Record {
-    @Field var title: String = ""
-    @Field var subtitle: String = ""
+  // ★Record(@Field)가 아니라 Map으로 받는다 (2026-11-23). 이 로컬 모듈의 Record는 Expo가 Kotlin 리플렉션으로
+  //   채우는데, R8을 켠 판에서 그 변환이 NullPointerException으로 실패해 상단바 타이머가 조용히 사라졌다
+  //   (미리보기 실기기 진단: 「The 1st argument cannot be cast to ShowOptions … NullPointerException」).
+  //   키 이름으로 직접 꺼내면 리플렉션이 없어 R8과 무관하다. 키는 src/utils/ongoingNotif.js buildOptions와 같다.
+  class ShowOptions(m: Map<String, Any?>) {
+    val title: String = m["title"] as? String ?: ""
+    val subtitle: String = m["subtitle"] as? String ?: ""
     // 'up' = whenMs부터 카운트업 / 'down' = whenMs까지 카운트다운 / 'none' = 정적(일시정지)
-    @Field var mode: String = "none"
-    @Field var whenMs: Double = 0.0
+    val mode: String = m["mode"] as? String ?: "none"
+    val whenMs: Double = (m["whenMs"] as? Number)?.toDouble() ?: 0.0
     // 0보다 크면 해당 ms 후 OS가 알림을 자동 제거 — 앱이 죽어도 좀비 알림이 남지 않게 하는 상한
-    @Field var timeoutMs: Double = 0.0
-    @Field var color: String? = null
+    val timeoutMs: Double = (m["timeoutMs"] as? Number)?.toDouble() ?: 0.0
+    val color: String? = m["color"] as? String
   }
 
   private fun ensureChannel(ctx: Context) {
@@ -74,10 +76,11 @@ class TimerNotifModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("TimerNotif")
 
-    AsyncFunction("show") { opts: ShowOptions, promise: Promise ->
+    AsyncFunction("show") { raw: Map<String, Any?>, promise: Promise ->
       val ctx = appContext.reactContext
       if (ctx == null) { promise.resolve(false); return@AsyncFunction }
       try {
+        val opts = ShowOptions(raw)
         ensureChannel(ctx)
         val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
           .setSmallIcon(smallIconRes(ctx))
@@ -116,7 +119,8 @@ class TimerNotifModule : Module() {
         NotificationManagerCompat.from(ctx).notify(NOTIF_ID, builder.build())
         promise.resolve(true)
       } catch (t: Throwable) {
-        promise.resolve(false)
+        // 2026-11-23: 이유를 버리지 않고 돌려준다(JS가 미리보기 패키지에서만 띄운다, 정식은 전처럼 삼킨다)
+        promise.reject("ERR_TIMER_NOTIF", t.toString(), t)
       }
     }
 
