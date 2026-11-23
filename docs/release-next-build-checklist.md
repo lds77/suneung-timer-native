@@ -61,7 +61,9 @@
   사용자 선택 「지금 제출, 다음 판에 고침」 → 무시 사유 「이미 이 문제를 해결할 계획이 있음」 → 「검토 중인 변경사항」(관리형 게시 꺼짐 = 승인되면 바로 공개)
 - [x] 공개 확인 11/24 아침: Play 공개 페이지 「업데이트 날짜 2026. 11. 23.」·1.0.44 (사용자 「양대 마켓 다 승인됐어」). **iOS·안드 모두 1.0.44 — 런타임 합쳐짐, 다음 OTA는 한 번**
 - [ ] Play 콘솔의 DEX 최적화(난독화 1%)·16KB 「이전 NDK」 경고가 사라졌는지 — 콘솔 지표가 늦게 바뀌니 며칠 뒤
-- [ ] ★**다음 안드 빌드에서 screen.portrait를 required=false로** (구글에 「고칠 계획」이라고 답했다). 에버보드 `plugins/withOptionalCamera.js`가
+- [x] 코드 반영 11/24: `plugins/withPortraitNotRequired.js` + app.config.js 등록. `expo config --type introspect`로 매니페스트
+  uses-feature 넷(camera·autofocus·microphone·screen.portrait) 모두 required=false 확인. 세로 고정(screenOrientation)은 그대로
+- [ ] ★**다음 안드 빌드에서 확인**: aapt로 screen.portrait가 not-required인지 + Play 「지원 기기 변경사항」(빠지는 기기 0) — 구글에 「고칠 계획」이라고 답했다. 에버보드 `plugins/withOptionalCamera.js`가
   같은 일을 한다(1.0.13, 코드 스캐너 화면이 끌고 온 portrait). 세로 고정 자체는 그대로 — 선언만 선택 사항으로
 
 - 콘솔 프로덕션 출시 대시보드 「확인 필요 문제 1개」(vc78 기준): 난독화 1%. 비율 25% 미만인 앱 카테고리가 있으면

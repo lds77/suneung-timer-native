@@ -224,6 +224,8 @@ module.exports = {
       './plugins/withCameraNotRequired',
       // 마이크도 선택 하드웨어로 (RECORD_AUDIO가 마이크 필수를 암시 — 카메라와 같은 함정)
       './plugins/withMicrophoneNotRequired',
+      // 세로 화면도 선택 하드웨어로 (세로 고정이 screen.portrait 필수를 암시 — 1.0.44 Play 빠른 검사, 파일 주석 참고)
+      './plugins/withPortraitNotRequired',
       // 오답노트 첨부 폴더를 안드 클라우드 백업에서 제외 (25MB 상한 초과 시 백업 자체가
       // 실패해 재설치 후 uid·공부 데이터 복원이 조용히 깨지던 문제 — 파일 주석 참고)
       './plugins/withAttachmentsNotBackedUp',
