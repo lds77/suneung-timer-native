@@ -42,6 +42,12 @@
 
 ## 0-AAAAR. 2026-11-19 — ★Play 「DEX 코드 최적화가 기준점 미만」(난독화 1%) — 해결 기한 2027년 2월
 
+- [x] **2026-11-23 로컬 미리보기 빌드** (worktree `C:\tmp\yg-r8-1044`, 가지 android-r8-1044, APP_VARIANT=preview, `gradlew assembleRelease` 24분):
+  `check-r8.ps1` **난독화 82.4% · 최적화 81.9% · 축소 82.2%**(DEX 1개) 통과 · zipalign -P 16 통과 · com.yeolgong.timer.preview vc79 1.0.44 ·
+  필수 uses-feature는 faketouch·screen.portrait(카메라·마이크는 not-required). APK는 드라이브 「20 엘리시온/열공메이트/빌드 APK」
+  `yeolgong-preview-1.0.44-20261123-r8.apk`(+ dist에 mapping). ★build-release.ps1은 EAS용이라 미리보기는 로컬로 했다
+- [ ] 실기기 확인 — `docs/android-r8-vc79.md` 목록. 통과하면 이 가지를 sdk56에 합치고 정식 AAB(APP_VARIANT 없이 prebuild 다시)
+
 - 콘솔 프로덕션 출시 대시보드 「확인 필요 문제 1개」(vc78 기준): 난독화 1%. 비율 25% 미만인 앱 카테고리가 있으면
   공개 상태와 게시 기능에 영향을 받을 수 있다. **해결 기한 2027년 2월.** (권장 조치 1개: 큰 화면용 지원 중단 API)
 - vc78에는 릴리스 minify 설정이 없었다. Play 기준은 DEX 10MB 초과 앱의 난독화·최적화·코드 축소 **각 25% 이상**이다.
