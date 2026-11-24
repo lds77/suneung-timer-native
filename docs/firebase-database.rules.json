@@ -7,6 +7,7 @@
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren()",
         "nickname": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 12" },
         "character": { ".validate": "newData.isString() && newData.val().length <= 24" },
         "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
@@ -19,7 +20,7 @@
       "$roomId": {
         ".read": "auth != null",
         ".write": "auth != null && ((!data.exists() && newData.child('ownerUid').val() === auth.uid) || (!newData.exists() && !data.child('members').hasChildren()))",
-        ".validate": "data.exists() || (newData.hasChildren(['name', 'ownerUid', 'createdAt', 'members']) && (!$roomId.matches(/^STUDY[0-9]$/) || (newData.child('name').val().beginsWith('열공 라운지') && newData.child('theme').val() === 'cafe')))",
+        ".validate": "data.exists() || (newData.hasChildren(['name', 'ownerUid', 'createdAt', 'members']) && $roomId.matches(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/) && newData.child('members').child(auth.uid).exists() && (!$roomId.matches(/^STUDY[0-9]$/) || (newData.child('name').val().beginsWith('열공 라운지') && newData.child('theme').val() === 'cafe')))",
         "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
         "ownerUid": { ".validate": "newData.isString()" },
         "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
@@ -27,7 +28,7 @@
         "members": {
           "$uid": {
             ".write": "auth != null && root.child('rooms').child($roomId).exists() && (auth.uid === $uid || (!newData.exists() && (!data.child('joinedAt').exists() || data.child('joinedAt').val() < now - 1209600000) && (!root.child('status').child($roomId).child($uid).child('updatedAt').exists() || root.child('status').child($roomId).child($uid).child('updatedAt').val() < now - 1209600000)))",
-            ".validate": "newData.hasChildren(['nickname', 'joinedAt'])",
+            ".validate": "newData.hasChildren(['nickname', 'joinedAt']) && (root.child('rooms').child($roomId).exists() || $uid === auth.uid)",
             "nickname": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
             "character": { ".validate": "newData.isString() && newData.val().length <= 24" },
             "joinedAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
@@ -86,6 +87,7 @@
         ".write": "auth != null && !newData.exists() && !root.child('rooms').child($roomId).exists()",
         "$uid": {
           ".write": "auth != null && ((auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()) || (!newData.exists() && (!data.child('updatedAt').exists() || data.child('updatedAt').val() < now - 1209600000)))",
+          ".validate": "newData.hasChildren(['updatedAt'])",
           "state": { ".validate": "newData.isString() && newData.val().matches(/^(studying|idle|bg)$/)" },
           "subjectLabel": { ".validate": "newData.isString() && newData.val().length <= 60" },
           "startedAt": { ".validate": "newData.isNumber()" },
