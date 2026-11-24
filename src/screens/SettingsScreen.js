@@ -670,6 +670,19 @@ export default function SettingsScreen() {
               />
             )}
           />
+          <Row
+            T={T}
+            label="집중 모드에서 화면 어둡게"
+            sub="끄면 집중 모드 잠금 화면에서도 휴대폰 밝기를 그대로 써요"
+            right={(
+              <Switch
+                value={app.settings.focusDimBrightness !== false}
+                onValueChange={(v) => app.updateSettings({ focusDimBrightness: v })}
+                trackColor={{ true: T.accent }}
+                thumbColor="white"
+              />
+            )}
+          />
           {(app.settings.ultraStreak > 0 || app.settings.ultraStreakBest > 0) && (
             <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF6B6B10', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FF6B6B30' }}>

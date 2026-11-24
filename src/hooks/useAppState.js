@@ -100,6 +100,7 @@ const DEFAULT_SETTINGS = {
   // 기본을 'focus'로 두는 이유: 온보딩에 선택 단계가 없어 기본값에 머무르는 사용자가 대부분인데,
   // 'normal'이면 집중모드를 한 번도 안 해보게 된다 (2026-07-29 변경, modeAskIntro로 1회 이관)
   ultraFocusLevel: 'focus',
+  focusDimBrightness: true, // 집중 모드 잠금 화면에서 기본으로 밝기를 낮춘다.
   modeAskIntro: true,   // 위 1회 이관을 이미 마쳤다는 표시 (신규 설치는 처음부터 true — 재이관 방지)
   // 시작 팝업을 건너뛰고 위 ultraFocusLevel로 바로 시작한다 (팝업의 '다음부터 묻지 않기').
   // ★기본은 false — 매번 고르는 게 기본 동작이다★ 켜면 팝업이 아예 안 뜨므로,
@@ -354,6 +355,7 @@ export function AppProvider({ children }) {
 
   // 🔥모드 원래 밝기 저장 (복원용) — 다크모드는 FocusScreen screenLocked로 처리
   const originalBrightness = useRef(null);
+  const brightnessRequest = useRef(0);
   // FocusScreen 잠금화면 상태 — Context에서 관리해 MainApp 리마운트 시에도 유지 (iOS Modal 투명 버그 방지)
   const [screenLocked, setScreenLockedState] = useState(false);
   const screenLockedRef = useRef(false);
@@ -426,21 +428,54 @@ export function AppProvider({ children }) {
   weeklyScheduleRef.current = weeklySchedule;
   sessionsRef.current = sessions;
 
+  const applyFocusBrightness = useCallback(async () => {
+    if (settingsRef.current.focusDimBrightness === false) return;
+    const request = ++brightnessRequest.current;
+    if (originalBrightness.current === null) {
+      // 이미 어두운 값(≤0.06)을 원본으로 캡처하면 복원해도 계속 어두움 → 0.4 폴백
+      let brightness = 0.4;
+      try {
+        const b = await Brightness.getBrightnessAsync();
+        if (b > 0.06) brightness = b;
+      } catch {}
+      // 캡처 중 잠금을 풀거나 설정을 끄면 늦게 도착한 값으로 다시 어둡게 하지 않는다.
+      if (request !== brightnessRequest.current || settingsRef.current.focusDimBrightness === false) return;
+      originalBrightness.current = brightness;
+    }
+    try { await Brightness.setBrightnessAsync(0.05); } catch {}
+  }, []);
+
+  const restoreBrightness = useCallback(async () => {
+    const request = ++brightnessRequest.current;
+    const brightness = originalBrightness.current;
+    originalBrightness.current = null;
+    // 안드에서는 앱 창의 오버라이드를 걷어 자동 밝기에 제어권을 돌려준다.
+    if (Platform.OS === 'android' && (brightness !== null || settingsRef.current.focusDimBrightness !== false)) {
+      try { await Brightness.restoreSystemBrightnessAsync(); return; } catch {}
+    }
+    if (brightness !== null && request === brightnessRequest.current) {
+      try { await Brightness.setBrightnessAsync(brightness); } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (settings.focusDimBrightness === false) {
+      restoreBrightness();
+    } else if (focusModeRef.current === 'screen_on' && screenLockedRef.current && !ultraRef.current.showChallenge) {
+      applyFocusBrightness();
+    }
+  }, [settings.focusDimBrightness, restoreBrightness, applyFocusBrightness]);
+
   // 🔥모드 활성화
   // levelOverride: 모드 선택 팝업이 방금 고른 잠금강도. updateSettings는 다음 렌더에 반영되므로
   // 여기서 settingsRef를 읽으면 아직 이전 값이다 → 고른 값을 인자로 직접 받는다
   const activateScreenOnMode = useCallback(async (levelOverride) => {
     const level = levelOverride || settingsRef.current.ultraFocusLevel || 'normal';
     try {
-      // 이미 어두운 값(≤0.06)을 원본으로 캡처하면 복원해도 계속 어두움 → 0.4 폴백
-      try {
-        const b = await Brightness.getBrightnessAsync();
-        originalBrightness.current = b > 0.06 ? b : 0.4;
-      } catch { originalBrightness.current = 0.4; }
       // 화면 꺼짐은 시스템에 맡긴다 (구빌드 안드만 예전처럼 켜 둠 — keepScreenAwake 주석 참조)
       lastTouchAt.current = Date.now();
       await setKeepAwake(keepScreenAwake());
-      try { await Brightness.setBrightnessAsync(0.05); } catch {}
+      await applyFocusBrightness();
     } catch {}
     setFocusMode('screen_on');
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
@@ -472,7 +507,7 @@ export function AppProvider({ children }) {
         }, 800);
       }
     }
-  }, []);
+  }, [applyFocusBrightness]);
 
   // 📖모드 활성화
   const activateScreenOffMode = useCallback(() => {
@@ -483,29 +518,16 @@ export function AppProvider({ children }) {
   // 모드 해제 (모든 타이머 완료/삭제 시)
   const deactivateFocusMode = useCallback(async () => {
     const wasScreenOn = focusModeRef.current === 'screen_on';
-    const brightnessToRestore = wasScreenOn ? originalBrightness.current : null;
     if (wasScreenOn) {
       setKeepAwake(false);
-      originalBrightness.current = null;
       unpinScreen(); // 시험 강도 화면 고정 해제 (미고정 상태면 no-op)
       setShield(false); // iOS 앱 차단 방패 해제 (미적용 상태면 no-op)
     }
     // setFocusMode는 await 전에 호출 — focusModeRef가 빨리 null이 되도록 (race condition 방지)
     setFocusMode(null);
     setUltraFocus({ isAway: false, awayAt: null, exitCount: 0, totalAwayMs: 0, showWarning: false, showChallenge: false, challengeAwayMs: 0, gaveUp: false, pauseAllowed: false });
-    if (wasScreenOn) {
-      // 안드: 앱 창의 밝기 오버라이드를 걷어 시스템(자동밝기)에 제어권 반환.
-      // 캡처값을 절대값으로 다시 쓰면 종료 후에도 고정 밝기로 남는다 (백그라운드를
-      // 다녀와야만 풀리던 문제 — 2026-07-19 제보). iOS는 시스템 복원 API가 없어 캡처값 복원 유지
-      if (Platform.OS === 'android') {
-        try { await Brightness.restoreSystemBrightnessAsync(); } catch {
-          if (brightnessToRestore !== null) { try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {} }
-        }
-      } else if (brightnessToRestore !== null) {
-        try { await Brightness.setBrightnessAsync(brightnessToRestore); } catch {}
-      }
-    }
-  }, []);
+    if (wasScreenOn) await restoreBrightness();
+  }, [restoreBrightness]);
 
   // 전역 집중모드 선택 요청 (어느 탭에서나 타이머 시작 시 호출)
   // 2026-07-29~ 잠금강도별 자동 진입을 없애고 **항상 3지 선택 팝업**을 띄운다.
@@ -533,29 +555,6 @@ export function AppProvider({ children }) {
   const cancelModeSelect = useCallback(() => {
     setPendingModeAction(null);
   }, []);
-
-  // 🔥모드 이탈 시 밝기 복원 / 복귀 시 다시 적용
-  // 다크모드는 FocusScreen의 screenLocked 로컬 상태로만 처리 — 전역 settings.darkMode는 건드리지 않음
-  const restoreBrightness = async () => {
-    // 안드: 시스템(자동밝기)에 제어권 반환 — 캡처값 복원은 자동밝기 상태에서
-    // getBrightnessAsync가 시스템의 '수동 밝기 설정값'(최대치일 수 있음)을 읽어와
-    // 잠금 해제 시 최대 밝기처럼 튀는 문제가 있었음 (2026-07-19 제보)
-    if (Platform.OS === 'android') {
-      try { await Brightness.restoreSystemBrightnessAsync(); return; } catch {}
-    }
-    if (originalBrightness.current !== null) { try { await Brightness.setBrightnessAsync(originalBrightness.current); } catch {} }
-  };
-  const applyFocusBrightness = async () => {
-    // 원래 밝기 미확보 상태면 먼저 캡처 — 어둡게 적용이 캡처보다 먼저 끝나는 레이스로
-    // 0.05가 '원본'으로 저장되면 해제해도 계속 어두운 문제 방지 (iOS에서 보고됨)
-    if (originalBrightness.current === null) {
-      try {
-        const b = await Brightness.getBrightnessAsync();
-        originalBrightness.current = b > 0.06 ? b : 0.4;
-      } catch { originalBrightness.current = 0.4; }
-    }
-    try { await Brightness.setBrightnessAsync(0.05); } catch {}
-  };
 
   // 챌린지 필요 여부
   const needsChallenge = (level, awayMs) => {
