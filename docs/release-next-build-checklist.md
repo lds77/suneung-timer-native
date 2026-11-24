@@ -14,7 +14,8 @@
   `users/$uid` `.validate: newData.hasChildren()` · `status/.../$uid` `.validate: newData.hasChildren(['updatedAt'])` · 새 방 키 6자 코드 형식(CODE_CHARS) +
   명단에 만든 본인 · `members/$uid` 생성 시 본인만. 앱 쓰기 경로 대조(상태 세 곳 모두 updatedAt, 프로필은 하위 칸, 방 생성 명단은 본인) — 호환.
   배포본을 다시 받아 저장소 파일과 같음 확인. 되돌리기: `C:\tmp\yg-rules-deploy\BACKUP-deployed-20261124.json`(= 이 커밋 전 파일)을 `database.rules.json`으로 → `firebase deploy --only database`
-- [ ] 배포 뒤 실제 쓰기가 계속되는지(상태 갱신·입장) — 25분 뒤 숫자로 확인, 사용자 폰으로 라운지 입장·공부 중·응원·나가기·코드 방 만들기
+- [x] 배포 뒤 실제 사용자 상태 갱신 1건 통과(07:58:19Z, 배포 8분 뒤) — 상태 경로는 새 규칙으로 정상
+- [ ] 입장·프로필 생성·코드 방 만들기·응원·나가기는 배포 뒤 25분 동안 실사용이 없어 미확인 — 사용자 폰으로 확인
 - 2단계(앱 수정 필요, 미룸): 서버 정원 검사, 가입 전 방 읽기 제한, 신고 중복·대상 검증, focusSession 교체 금지, 시간 값 상한
 
 ## 0-AAAAU. 2026-11-24 — 첫 주 이탈 점검: 결함 5개 + 온보딩 단축 (JS만, OTA 대상)
