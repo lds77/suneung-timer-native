@@ -1371,7 +1371,7 @@ export default function PlannerScreen({ navigation, route }) {
 
   // ── D-Day CRUD 헬퍼 ──
   const DDAY_PRESETS = [
-    { label: '수능 2026', date: '2026-11-19' },
+    { label: '수능 2027', date: null } /* 2027 수능 날짜는 평가원 발표 뒤 넣는다 — 지난 날짜 프리셋이 새 사용자에게 D+N을 띄웠다(2026-11-24) */,
     { label: '중간고사', date: null }, { label: '기말고사', date: null }, { label: '모의고사', date: null },
   ];
 

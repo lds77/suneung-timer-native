@@ -139,13 +139,13 @@ function OnboardingScreen() {
   const ddDateLabel = ddSelectedDates.size === 0 ? '' : ddSelectedDates.size === 1 ? fmtMD(ddStartDate) : `${fmtMD(ddStartDate)} ~ ${fmtMD(ddEndDate)} (${ddComputedDays}일)`;
   const DDAY_PRESETS = (() => {
     if (selectedSchool === 'high') return [
-      { label: '수능 2026', date: '2026-11-19' },
+      { label: '수능 2027', date: null } /* 2027 수능 날짜는 평가원 발표 뒤 넣는다 — 지난 날짜 프리셋이 새 사용자에게 D+N을 띄웠다(2026-11-24) */,
       { label: '중간고사', date: null },
       { label: '기말고사', date: null },
       { label: '모의고사', date: null },
     ];
     if (selectedSchool === 'nsuneung') return [
-      { label: '수능 2026', date: '2026-11-19' },
+      { label: '수능 2027', date: null } /* 2027 수능 날짜는 평가원 발표 뒤 넣는다 — 지난 날짜 프리셋이 새 사용자에게 D+N을 띄웠다(2026-11-24) */,
       { label: '모의고사', date: null },
       { label: '원서접수', date: null },
     ];
@@ -321,6 +321,12 @@ function OnboardingScreen() {
               <Text style={styles.obBtnT}>다음 →</Text>
             </TouchableOpacity>
           </View>
+          {/* (2026-11-24) 학교급에서 바로 끝내기 — D-Day·과목 미리보기 두 화면을 건너뛴다. 과목·시간표는 handleFinish가
+              학교급대로 그대로 만든다. 첫 타이머 전 단계를 줄이려는 것(유지율 점검, 7일 유지 약 18%) */}
+          <TouchableOpacity onPress={handleFinish} style={{ marginTop: 14, paddingVertical: 8, paddingHorizontal: 12 }}>
+            <Text style={{ color: T.accent, fontWeight: '800', fontSize: 14, textAlign: 'center' }}>이 설정으로 바로 시작하기</Text>
+          </TouchableOpacity>
+          <Text style={{ color: T.sub, fontSize: 12, textAlign: 'center' }}>시험 D-Day와 과목은 나중에 바꿀 수 있어</Text>
         </View>
       )}
 

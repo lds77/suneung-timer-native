@@ -131,7 +131,7 @@ const DEFAULT_SETTINGS = {
   dailyReminderMin: 0,         // 리마인더 시각 (분)
   streakReminderEnabled: false, // 연속 끊김 위기 알림 (기본 OFF)
   plannerNotifEnabled: false,  // 플래너 알림 — 고정일정 종료/공부 시작 알림 (기본 OFF)
-  weeklyReportEnabled: true,   // 주간 공부 리포트 (매주 일요일 밤, 0분 주는 자동 스킵)
+  weeklyReportEnabled: true,   // 주간 공부 리포트 (매주 토요일 밤 23시 = 일~토 주의 마지막 날, 0분 주는 자동 스킵)
   monthlyReportEnabled: true,  // 월간 공부 리포트 (매월 마지막 날 밤, 0분 달은 자동 스킵)
   nickname: '',  // 사용자 닉네임
   motto: '',     // 오늘의 한마디
@@ -1787,7 +1787,7 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // 주간 공부 리포트 알림 예약 — 이번 주 일요일 밤 11시 발송
+  // 주간 공부 리포트 알림 예약 — 이번 주(일~토) 토요일 밤 11시 발송 (설정 문구도 「토요일 밤」, 2026-11-24 정정)
   const scheduleWeeklyReport = useCallback(async () => {
     // 고정 identifier로 취소 — 리마운트로 세션이 바뀌어도 정리됨
     await Notifications.cancelScheduledNotificationAsync('report-weekly').catch(() => {});
@@ -2197,13 +2197,9 @@ export function AppProvider({ children }) {
   // 초기 로드
   useEffect(() => {
     (async () => {
-      // Android 13+(API 33+): 알림 권한 요청 전 상태 확인 → 재설치 감지용
-      // requestPermissionsAsync 호출 후에는 유저가 허용하면 'granted'가 되어 판단 불가
-      let freshInstallDetected = false;
-      if (Platform.OS === 'android' && Platform.Version >= 33) {
-        const prePerm = await Notifications.getPermissionsAsync();
-        if (!prePerm.granted) freshInstallDetected = true;
-      }
+      // (2026-11-24) 「알림 미허용 = 재설치」로 보고 정확 알람 안내를 다시 띄우던 분기를 걷어냈다.
+      // 알림을 거부한 사람은 켤 때마다 미허용이라, 「나중에 하기」를 눌러도 안내가 계속 되살아났다.
+      // Android 13+는 USE_EXACT_ALARM(app.config.js)이 자동 허용이라 재설치 뒤 다시 안내할 필요가 작다.
       await Notifications.requestPermissionsAsync({
         ios: { allowAlert: true, allowBadge: false, allowSound: true },
       });
@@ -2241,8 +2237,6 @@ export function AppProvider({ children }) {
         delete s.soundId;
         // 할일 시험 탭 기본 라벨 개명: 시험대비 → D-Day (구 기본값 그대로인 경우만 — 직접 바꾼 사용자는 유지)
         if (s.todoLabelExam === '시험대비') s.todoLabelExam = 'D-Day';
-        // 재설치 시 exactAlarmGuideShown 리셋 (구글 백업 복원 대응, Android 13+)
-        if (freshInstallDetected) s.exactAlarmGuideShown = false;
         setSettings({ ...DEFAULT_SETTINGS, ...s });
       } if (subj) setSubjects(subj);
       if (sess) { sessionsRef.current = sess; setSessions(sess); } if (dd) setDDays(dd);

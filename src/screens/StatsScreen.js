@@ -367,6 +367,26 @@ export default function StatsScreen() {
     })).sort((a, b) => b.sec - a.sec);
   }, [app.sessions, app.subjects, subjPeriod, today]);
 
+  // 과목 미지정 기록(추천 뽀모도로 등 — 위 집계에서 빠지는 lbl_/_none) 합계 (2026-11-24)
+  // 과목 탭이 비어도 실제로 공부한 시간이 있으면 「기록 없음」 대신 이 합계를 보여 준다 — 첫 25분을 다 채운 사람이
+  // 「아직 공부 기록이 없어요」를 보고 저장이 안 된 줄 알았다.
+  const subjUnassignedSec = useMemo(() => {
+    const now = new Date();
+    let cutoff = null;
+    if (subjPeriod === 'week') {
+      cutoff = getWeekStartStr(0);
+    } else if (subjPeriod === 'month') {
+      cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+    const filtered = cutoff ? app.sessions.filter(s => s.date >= cutoff) : app.sessions;
+    let sec = 0;
+    filtered.forEach(s => {
+      const { id } = getSessionSubject(s, app.subjects);
+      if (id.startsWith('lbl_') || id === '_none') sec += (s.durationSec || 0);
+    });
+    return sec;
+  }, [app.sessions, app.subjects, subjPeriod, today]);
+
   // ─── 과목 상세 시트 데이터 ──────────────────────────────────
   const subjDetailData = useMemo(() => {
     if (!subjDetail) return null;
@@ -1128,7 +1148,14 @@ export default function StatsScreen() {
 
   // 요약 3카드 + 과목별 비율 (기록 없으면 빈 안내)
   const renderSubjOverview = () => subjectAllStats.length === 0 ? (
-    <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
+    subjUnassignedSec > 0 ? (
+      <View style={{ marginTop: 40, alignItems: 'center' }}>
+        <Text style={[S.emptyText, { color: T.text }]}>과목 미지정으로 {formatDuration(subjUnassignedSec)} 기록했어요</Text>
+        <Text style={[S.emptyText, { color: T.sub, marginTop: 6, fontSize: 13 }]}>타이머에 과목을 정하면 과목별로 나눠 볼 수 있어요</Text>
+      </View>
+    ) : (
+      <Text style={[S.emptyText, { color: T.sub, marginTop: 40 }]}>아직 공부 기록이 없어요</Text>
+    )
   ) : (<>
     {(() => {
       const allSec = subjectAllStats.reduce((s, x) => s + x.sec, 0);

@@ -792,7 +792,7 @@ export default function SettingsScreen() {
               <Row
                 T={T}
                 label="주간 공부 리포트"
-                sub="매주 일요일 밤 이번 주 공부 리포트를 보내줘요"
+                sub="매주 토요일 밤 이번 주 공부 리포트를 보내줘요"
                 right={
                   <Switch
                     value={app.settings.weeklyReportEnabled}

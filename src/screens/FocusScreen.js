@@ -754,8 +754,10 @@ export default function FocusScreen() {
           </View>
         )}
 
-        {/* 신규 사용자: 첫 공부 시작 카드 — 기록과 타이머가 전혀 없을 때만, 탭 한 번으로 추천 타이머 시작 */}
-        {app.sessions.length === 0 && nonLapTimers.length === 0 && (() => {
+        {/* 신규 사용자: 첫 공부 시작 카드 — 기록이 없고 실행·일시정지 중인 타이머도 없을 때, 탭 한 번으로 추천 타이머 시작.
+            (2026-11-24) 끝난 타이머는 세지 않는다 — 5분 전에 시험 종료하면 기록이 안 남는데, 끝난 타이머 때문에
+            이 카드까지 사라져 다시 시작할 길이 없었다. */}
+        {app.sessions.length === 0 && nonLapActive.length === 0 && (() => {
           const rec = favs[0] || getSchoolDefaultFavs(school)[0];
           return (
             <TouchableOpacity activeOpacity={0.85} onPress={() => rec ? runFav(rec) : setShowAdd(true)}
