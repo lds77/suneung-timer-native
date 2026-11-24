@@ -139,13 +139,13 @@ function OnboardingScreen() {
   const ddDateLabel = ddSelectedDates.size === 0 ? '' : ddSelectedDates.size === 1 ? fmtMD(ddStartDate) : `${fmtMD(ddStartDate)} ~ ${fmtMD(ddEndDate)} (${ddComputedDays}일)`;
   const DDAY_PRESETS = (() => {
     if (selectedSchool === 'high') return [
-      { label: '수능 2027', date: null } /* 2027 수능 날짜는 평가원 발표 뒤 넣는다 — 지난 날짜 프리셋이 새 사용자에게 D+N을 띄웠다(2026-11-24) */,
+      { label: '수능 2027', date: '2027-11-18' } /* 2028학년도 수능 — 교육부 발표 2027-11-18(목). 해마다 다음 수능으로 바꿀 것(지난 날짜면 새 사용자에게 D+N이 뜬다, 2026-11-24) */,
       { label: '중간고사', date: null },
       { label: '기말고사', date: null },
       { label: '모의고사', date: null },
     ];
     if (selectedSchool === 'nsuneung') return [
-      { label: '수능 2027', date: null } /* 2027 수능 날짜는 평가원 발표 뒤 넣는다 — 지난 날짜 프리셋이 새 사용자에게 D+N을 띄웠다(2026-11-24) */,
+      { label: '수능 2027', date: '2027-11-18' } /* 2028학년도 수능 — 교육부 발표 2027-11-18(목). 해마다 다음 수능으로 바꿀 것(지난 날짜면 새 사용자에게 D+N이 뜬다, 2026-11-24) */,
       { label: '모의고사', date: null },
       { label: '원서접수', date: null },
     ];

@@ -1147,10 +1147,12 @@ export default function StatsScreen() {
   );
 
   // 요약 3카드 + 과목별 비율 (기록 없으면 빈 안내)
+  // 미지정 합계 표기 — 할 일 타이머는 30초부터 기록돼 formatDuration(분 미만 버림)이 「0분」을 낼 수 있다
+  const fmtUnassigned = (sec) => (sec < 60 ? '1분 미만' : formatDuration(sec));
   const renderSubjOverview = () => subjectAllStats.length === 0 ? (
     subjUnassignedSec > 0 ? (
       <View style={{ marginTop: 40, alignItems: 'center' }}>
-        <Text style={[S.emptyText, { color: T.text }]}>과목 미지정으로 {formatDuration(subjUnassignedSec)} 기록했어요</Text>
+        <Text style={[S.emptyText, { color: T.text }]}>과목 미지정으로 {fmtUnassigned(subjUnassignedSec)} 기록했어요</Text>
         <Text style={[S.emptyText, { color: T.sub, marginTop: 6, fontSize: 13 }]}>타이머에 과목을 정하면 과목별로 나눠 볼 수 있어요</Text>
       </View>
     ) : (
@@ -1195,6 +1197,12 @@ export default function StatsScreen() {
         </View>
       );
     })()}
+    {/* 과목이 하나라도 생기면 미지정 기록이 위 합계에서 빠져 「더 공부했는데 줄었다」로 보였다 — 따로 한 줄로 남긴다 */}
+    {subjUnassignedSec > 0 && (
+      <Text style={{ color: T.sub, fontSize: 12, marginTop: -4, marginBottom: 12, textAlign: 'center' }}>
+        과목 미지정 {fmtUnassigned(subjUnassignedSec)}은 위 합계에 들어 있지 않아요
+      </Text>
+    )}
 
     <View style={[S.card, { backgroundColor: T.card, borderColor: T.border }]}>
       <Text style={[S.secLabel, { color: T.sub }]}>과목별 비율</Text>
