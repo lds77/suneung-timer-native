@@ -632,7 +632,7 @@ export function AppProvider({ children }) {
         const activeTimers = timersRef.current.filter(t => t.status === 'running' || t.status === 'paused');
         if (activeTimers.length > 0) {
           lastSnapshotSaveRef.current = Date.now();
-          saveTimerSnapshot({ savedAt: Date.now(), timers: timersRef.current });
+          saveTimerSnapshot({ savedAt: Date.now(), timers: timersRef.current, focusMode: focusModeRef.current });
         }
 
         // 🔥모드에서만 이탈 감지 (background = 다른 앱으로 나갔거나 화면이 꺼진 것 — 아래에서 가른다)
@@ -2364,6 +2364,12 @@ export function AppProvider({ children }) {
             else if (t.type === 'pomodoro' || t.type === 'sequence') scheduleAllPhaseNotifs(t);
             else if (t.type === 'free') scheduleCapNotif(t);
           });
+          // (2026-11-24, 사용자 결정 C) 집중·울트라 모드였는데 앱이 종료돼 일반 모드로 이어지면 한 번 알린다.
+          // 모드는 메모리 상태라 복원하지 않고, 앱 종료를 이탈로 세지도 않는다(화면 끔·잠금은 이탈이 아니라는 원칙과 같은 쪽).
+          // 말없이 「일반」으로 바뀌면 버그처럼 보였다.
+          if (snapshot.focusMode === 'screen_on' && restored.some(t => t.status === 'running' || t.status === 'paused')) {
+            setTimeout(() => showToastCustom('앱이 종료돼서 일반 모드로 이어서 기록하고 있어요'), 1500);
+          }
         }
         // 복원 세션/평가 저장 뒤 아래 스냅샷 effect가 정리 또는 갱신한다.
         // loading 중 여기서 지우면 복원 기록 저장 전에 다시 종료될 때 기록이 유실된다.
@@ -2620,7 +2626,8 @@ export function AppProvider({ children }) {
       const now = Date.now();
       if (pendingChanged || now - lastSnapshotSaveRef.current >= 5000) {
         lastSnapshotSaveRef.current = now;
-        saveTimerSnapshot({ savedAt: now, timers });
+        // focusMode: 복원 때 「집중·울트라였는데 일반으로 이어짐」을 알리려고 같이 남긴다(모드 자체는 복원하지 않는다)
+        saveTimerSnapshot({ savedAt: now, timers, focusMode: focusModeRef.current });
       }
     } else {
       clearTimerSnapshot();
